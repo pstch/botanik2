@@ -7,10 +7,10 @@ VAR_EXTERNAL CONSTANT
   cli_rh_hi           : REAL;
   cli_temp_ext        : REAL;
   cli_rh_ext          : REAL;
-  cli_temp_hi_qlt     : BOOL;
-  cli_rh_hi_qlt       : BOOL;
-  cli_temp_ext_qlt    : BOOL;
-  cli_rh_ext_qlt      : BOOL;
+  cli_temp_hi_qlt     : QUALITY;
+  cli_rh_hi_qlt       : QUALITY;
+  cli_temp_ext_qlt    : QUALITY;
+  cli_rh_ext_qlt      : QUALITY;
   cli_ventDryMgn_degC : REAL;
   cli_ventHyst_degC   : REAL;
 END_VAR
@@ -24,8 +24,8 @@ VAR_TEMP
   measured : BOOL;
   dp_diff  : REAL;
 END_VAR
-  measured := cli_temp_hi_qlt AND cli_rh_hi_qlt
-      AND cli_temp_ext_qlt AND cli_rh_ext_qlt;
+  measured := GOOD(cli_temp_hi_qlt) AND GOOD(cli_rh_hi_qlt)
+      AND GOOD(cli_temp_ext_qlt) AND GOOD(cli_rh_ext_qlt);
 
   IF measured THEN
     (* DEW POINTS, not humidities: air at 90% and 5 degC is drier than air at

@@ -75,18 +75,18 @@ PLANT_PROGRAM_LIST(X)
  * is the author of. `VAR_EXTERNAL CONSTANT` is a read and is not here.
  * Taking a program out of the scan drops exactly these to their
  * declared safe state, so the list has to be the ST's own. */
-static const char* const _writes_ACGRID[] = { "sys_grid_V", "sys_grid_V_qlt", "sys_grid_A", "sys_grid_A_qlt", "sys_grid_W", "sys_grid_W_qlt", "sys_grid_Hz", "sys_grid_Hz_qlt", "sys_grid_ok", "alarm_ac_grid",};
-static const char* const _writes_ACLOCAL[] = { "sys_local_V", "sys_local_V_qlt", "sys_local_A", "sys_local_A_qlt", "sys_local_W", "sys_local_W_qlt", "sys_local_Hz", "sys_local_Hz_qlt", "sys_local_ok", "alarm_ac_local", "alarm_gen",};
-static const char* const _writes_DCWATCH[] = { "sys_dc1_V", "sys_dc1_V_qlt", "sys_dc2_V", "sys_dc2_V_qlt", "sys_upsBat_V", "sys_upsBat_V_qlt", "sys_genBat_V", "sys_genBat_V_qlt", "sys_dc_ok", "sys_supply_lockout", "alarm_dc_ps1", "alarm_dc_ps2", "alarm_dc_ups", "alarm_generator_battery",};
+static const char* const _writes_ACGRID[] = { "sys_grid_V", "sys_grid_V_qlt", "sys_grid_A", "sys_grid_A_qlt", "sys_grid_W", "sys_grid_W_qlt", "sys_grid_Hz", "sys_grid_Hz_qlt", "sys_grid_ok", "sys_grid_ok_qlt", "alarm_ac_grid",};
+static const char* const _writes_ACLOCAL[] = { "sys_local_V", "sys_local_V_qlt", "sys_local_A", "sys_local_A_qlt", "sys_local_W", "sys_local_W_qlt", "sys_local_Hz", "sys_local_Hz_qlt", "sys_local_ok", "sys_local_ok_qlt", "alarm_ac_local", "alarm_gen",};
+static const char* const _writes_DCWATCH[] = { "sys_dc1_V", "sys_dc1_V_qlt", "sys_dc2_V", "sys_dc2_V_qlt", "sys_upsBat_V", "sys_upsBat_V_qlt", "sys_genBat_V", "sys_genBat_V_qlt", "sys_dc_ok", "sys_dc_ok_qlt", "sys_supply_lockout", "sys_supply_lockout_qlt", "alarm_dc_ps1", "alarm_dc_ps2", "alarm_dc_ups", "alarm_generator_battery",};
 static const char* const _writes_SENSORS[] = { "cli_temp_hi", "cli_rh_hi", "alarm_sns_ceiling", "cli_temp_lo", "cli_rh_lo", "alarm_sns_floor", "cli_temp_cs", "cli_rh_cs", "alarm_sns_crawlspace", "cli_temp_ext", "cli_rh_ext", "alarm_sns_exterior", "cli_temp_hi_qlt", "cli_temp_lo_qlt", "cli_temp_cs_qlt", "cli_temp_ext_qlt", "cli_rh_hi_qlt", "cli_rh_lo_qlt", "cli_rh_cs_qlt", "cli_rh_ext_qlt",};
-static const char* const _writes_WX[] = { "cli_wind_mps", "cli_windGust_mps", "cli_rain_mmph", "cli_irrad_Wpm2", "cli_wind_mps_qlt", "cli_rain_mmph_qlt", "alarm_wx_station",};
+static const char* const _writes_WX[] = { "cli_wind_mps", "cli_wind_mps_qlt", "cli_windGust_mps", "cli_windGust_mps_qlt", "cli_rain_mmph", "cli_rain_mmph_qlt", "cli_irrad_Wpm2", "cli_irrad_Wpm2_qlt", "alarm_wx_station",};
 static const char* const _writes_STRAT[] = { "cli_dTStrat_degC", "cli_dTStrat_degC_qlt",};
-static const char* const _writes_ZONE[] = { "cli_temp_in", "cli_temp_in_qlt", "cli_dewPoint_degC", "cli_dpMargin_degC", "cli_dpMargin_degC_qlt", "cli_satPress_kPa", "cli_vpd_kPa", "alarm_rot",};
+static const char* const _writes_ZONE[] = { "cli_temp_in", "cli_temp_in_qlt", "cli_dewPoint_degC", "cli_dewPoint_degC_qlt", "cli_dpMargin_degC", "cli_dpMargin_degC_qlt", "cli_satPress_kPa", "cli_satPress_kPa_qlt", "cli_vpd_kPa", "cli_vpd_kPa_qlt", "alarm_rot",};
 static const char* const _writes_CLIMWATCH[] = { "alarm_too_hot", "alarm_too_cold", "alarm_too_humid", "alarm_strat", "alarm_sensor_fault",};
 static const char* const _writes_WXWATCH[] = { "alarm_weather_storm", "cli_sinceRain_min",};
-static const char* const _writes_DAYPHASE[] = { "cli_phase", "cli_phase_qlt", "cli_coldBankArm", "cli_heatBankArm", "cli_prevDayMax_degC", "cli_prevNightMin_degC",};
+static const char* const _writes_DAYPHASE[] = { "cli_phase", "cli_phase_qlt", "cli_coldBankArm", "cli_coldBankArm_qlt", "cli_heatBankArm", "cli_heatBankArm_qlt", "cli_prevDayMax_degC", "cli_prevDayMax_degC_qlt", "cli_prevNightMin_degC", "cli_prevNightMin_degC_qlt",};
 static const char* const _writes_TARGET[] = { "cli_targetTemp_degC",};
-static const char* const _writes_COOLING[] = { "cli_coolDem", "cli_coolDem_qlt", "cli_windowDem",};
+static const char* const _writes_COOLING[] = { "cli_coolDem", "cli_coolDem_qlt", "cli_windowDem", "cli_windowDem_qlt",};
 static const char* const _writes_HUMIDITY[] = { "cli_humidDem", "cli_rotLockout", "cli_rotVentDem",};
 static const char* const _writes_DRYGATE[] = { "cli_intakeDryOk",};
 static const char* const _writes_GATES[] = { "cli_intakeCoolOk", "cli_groundHeatOk",};
@@ -97,7 +97,7 @@ static const char* const _writes_FANS[] = { "cli_destrat1_speed1", "cli_destrat1
 static const char* const _writes_SKIRT[] = { "cli_skirtValve", "cli_skirtDuty",};
 static const char* const _writes_SCREEN[] = { "cli_screen", "cli_screenMoving",};
 static const char* const _writes_WINDOWS[] = { "cli_window1_opn", "cli_window2_opn", "cli_window3_opn", "cli_window4_opn", "cli_window1_clo", "cli_window2_clo", "cli_window3_clo", "cli_window4_clo", "cli_window1_tgt", "cli_window2_tgt", "cli_window3_tgt", "cli_window4_tgt", "cli_window1_pos", "cli_window2_pos", "cli_window3_pos", "cli_window4_pos",};
-static const char* const _writes_IRRMOD[] = { "irr_vpdAvg_kPa", "irr_mod", "irr_mod_qlt",};
+static const char* const _writes_IRRMOD[] = { "irr_vpdAvg_kPa", "irr_vpdAvg_kPa_qlt", "irr_mod", "irr_mod_qlt",};
 static const char* const _writes_IRRIN[] = { "irr_inTotal_L", "irr_inFlow_Lpm", "irr_inPulse", "alarm_water_leak", "alarm_water_pressure",};
 static const char* const _writes_IRROUT[] = { "irr_outFlow_Lpm", "irr_outFlow_Lpm_qlt", "irr_outTotal_L", "irr_outTotal_L_qlt",};
 static const char* const _writes_IRRSCHED[] = { "irr_dueTray", "irr_slotOpen", "irr_period_days", "irr_today", "irr_servedToday", "irr_last_tray1", "irr_last_tray2", "irr_last_tray3", "irr_last_tray4", "irr_last_tray5", "irr_last_tray6", "irr_last_tray7", "irr_last_tray8", "irr_forceOff_tray1", "irr_forceOff_tray2", "irr_forceOff_tray3", "irr_forceOff_tray4", "irr_forceOff_tray5", "irr_forceOff_tray6", "irr_forceOff_tray7", "irr_forceOff_tray8",};

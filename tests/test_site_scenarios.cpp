@@ -174,7 +174,7 @@ TEST_CASE("scenario: a zone dying leaves the plant safe, not confident") {
          "law: the hottest level is what cooling controls on");
     for (uint8_t i = 1; i <= 3; i++) {
         char n[24]; snprintf(n, sizeof n, "cli_temp_hi%u", (unsigned)i);
-        p.f.bank.var(p.ref(n)).invalidate(Q_NO_DATA);
+        p.f.bank.var(p.ref(n)).set_quality(Q_NO_DATA);
     }
     // ...and the case stops refreshing them, so nothing publishes them again.
     for (uint32_t i = 0; i < 300; i++) {
@@ -187,7 +187,7 @@ TEST_CASE("scenario: a zone dying leaves the plant safe, not confident") {
 
     // The COMPANION, not the row: temp_rh_sensors is ST now, and ST has no
     // way to write a quality. The row stays valid and holds its last average.
-    CHECK_FALSE(p.on("cli_temp_hi_qlt"));
+    CHECK_FALSE(p.valid("cli_temp_hi"));
     SAY("the row HOLDS its last average rather than reading a default of zero");
     CHECK(p.num("cli_temp_hi") == doctest::Approx(was));
     CHECK(p.on("alarm_sns_ceiling"));
@@ -198,7 +198,7 @@ TEST_CASE("scenario: a zone dying leaves the plant safe, not confident") {
 
     SAY("the dew-point margin is still MEASURED, and it is the FLOOR's: a "
          "level holding an old reading does not speak for the house");
-    CHECK(p.on("cli_dpMargin_degC_qlt"));
+    CHECK(p.valid("cli_dpMargin_degC"));
     CHECK(p.num("cli_dpMargin_degC") ==
           doctest::Approx(p.num("cli_temp_lo") - p.num("cli_dewPoint_degC")));
     snapshot(p, "five minutes without a ceiling reading");
@@ -207,7 +207,7 @@ TEST_CASE("scenario: a zone dying leaves the plant safe, not confident") {
          "keeps the number it last had and says it is not current");
     for (uint8_t i = 1; i <= 3; i++) {
         char n[24]; snprintf(n, sizeof n, "cli_temp_lo%u", (unsigned)i);
-        p.f.bank.var(p.ref(n)).invalidate(Q_NO_DATA);
+        p.f.bank.var(p.ref(n)).set_quality(Q_NO_DATA);
     }
     for (uint32_t i = 0; i < 300; i++) {
         p.probe("cli_temp_cs%u", 3, g_wx().crawlspace);
@@ -215,7 +215,7 @@ TEST_CASE("scenario: a zone dying leaves the plant safe, not confident") {
         p.probe("cli_rh_lo%u", 3, g_wx().rh);
         p.beat();
     }
-    CHECK_FALSE(p.on("cli_dpMargin_degC_qlt"));
+    CHECK_FALSE(p.valid("cli_dpMargin_degC"));
     CHECK(p.num("cli_dpMargin_degC") > 0.0f);   // held, not a default of zero
 
     SAY("and the rot guard fails toward acting on a margin nobody has, which "
@@ -228,7 +228,7 @@ TEST_CASE("scenario: a zone dying leaves the plant safe, not confident") {
          "again and the lockout lets go with them, where feeding blindness "
          "into the overrun cost five minutes of shut skirt after every boot");
     p.weather_for(50);
-    REQUIRE(p.on("cli_dpMargin_degC_qlt"));
+    REQUIRE(p.valid("cli_dpMargin_degC"));
     CHECK_FALSE(p.on("cli_rotLockout"));
 }
 

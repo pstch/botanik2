@@ -40,6 +40,28 @@
 
 /** @} */
 
+/** @name The ST type QUALITY, which IS Vars::Quality
+ *
+ *  A `x_qlt` row resolves to Ref<Quality>, so the enumeration ST compares
+ *  against has to be the SAME C++ type rather than one with equal values -
+ *  matiec initialises a QUALITY-returning function with `QUALITY__Q_NO_DATA`,
+ *  and a separate enum would not convert.
+ *
+ *  So the members are named constants of the real type and matiec's own list
+ *  is discarded. A code added to `plc/functions/quality.st` and not to
+ *  descriptor.h fails HERE, on the name matiec emits for it, which is the
+ *  failure wanted. A second enumerated ST type needs its own block.
+ *  @{ */
+typedef ::Botanik::Vars::Quality QUALITY;
+#define __DECLARE_ENUMERATED_TYPE(name, ...) BOTANIK_ST_TYPE_##name
+#define BOTANIK_ST_TYPE_QUALITY                                                \
+    static const QUALITY QUALITY__Q_NO_DATA     = ::Botanik::Vars::Q_NO_DATA;  \
+    static const QUALITY QUALITY__Q_VALID       = ::Botanik::Vars::Q_VALID;    \
+    static const QUALITY QUALITY__Q_STALE       = ::Botanik::Vars::Q_STALE;    \
+    static const QUALITY QUALITY__Q_IMPLAUSIBLE = ::Botanik::Vars::Q_IMPLAUSIBLE; \
+    static const QUALITY QUALITY__Q_REFUSED     = ::Botanik::Vars::Q_REFUSED;
+/** @} */
+
 #define __BOOL_LITERAL(v)   ((BOOL)(v))
 #define __REAL_LITERAL(v)   ((REAL)(v))
 #define __LREAL_LITERAL(v)  ((LREAL)(v))

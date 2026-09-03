@@ -78,7 +78,7 @@ namespace Botanik { namespace Vars {
      *  parameter is the PARAMS page's, an alarm is the ALARMS page's. Tested by
      *  scope, so a new row is published by default. */
     inline bool var_published(const Descriptor& d) {
-        return d.scope != SCOPE_P && d.scope != SCOPE_A;
+        return d.scope != SCOPE_P && d.scope != SCOPE_A && d.scope != SCOPE_Q;
     }
 
     /** @brief Whether this row carries a Modbus TCP *slave* register: a
@@ -89,7 +89,8 @@ namespace Botanik { namespace Vars {
      *  row of one of these scopes with reg 0 is a table defect the site test
      *  fails on, not a row that quietly does not publish. */
     inline bool var_mapped(const Descriptor& d) {
-        return d.scope == SCOPE_P || d.scope == SCOPE_SV || d.scope == SCOPE_A;
+        return d.scope == SCOPE_P || d.scope == SCOPE_SV || d.scope == SCOPE_A ||
+               d.scope == SCOPE_Q;
     }
 
     /** @brief Whether anything may WRITE @p d. A row that is not a parameter is

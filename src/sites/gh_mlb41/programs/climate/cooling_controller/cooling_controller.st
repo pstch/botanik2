@@ -4,7 +4,7 @@
 PROGRAM cooling_controller
 VAR_EXTERNAL CONSTANT
   cli_temp_in         : REAL;
-  cli_temp_in_qlt     : BOOL;
+  cli_temp_in_qlt     : QUALITY;
   cli_targetTemp_degC : REAL;
   cli_windowStartDem  : REAL;
   cli_windowFullDem   : REAL;
@@ -15,8 +15,9 @@ VAR_EXTERNAL CONSTANT
 END_VAR
 VAR_EXTERNAL
   cli_coolDem     : REAL;
-  cli_coolDem_qlt : BOOL;
+  cli_coolDem_qlt : QUALITY;
   cli_windowDem   : REAL;
+  cli_windowDem_qlt : QUALITY;
 END_VAR
 VAR
   loop : PID;
@@ -27,9 +28,10 @@ VAR_TEMP
 END_VAR
   (* The house's own temperature, the hotter of the two levels: the worst case
      for cooling, voted once where the probes are. Without a measured one the
-     ladder runs on the reading the house last had, and cli_coolDem_qlt is what
-     tells the intake gates this law stopped having an opinion. *)
-  measured := cli_temp_in_qlt;
+     read substitutes the row's DECLARED value - a cold house, so the ladder
+     asks for no cooling - and cli_coolDem carries cli_temp_in's own verdict on
+     to the gates and the screen. *)
+  measured := GOOD(cli_temp_in_qlt);
 
   (* The parameters are in the TIME form an operator tunes in; PID takes gains.
      Ti of 0 means no integral action rather than an infinite one, which is
@@ -57,7 +59,7 @@ END_VAR
   loop();
 
   cli_coolDem     := loop.Y;
-  cli_coolDem_qlt := measured;
+  cli_coolDem_qlt := cli_temp_in_qlt;
 
   (* Where the ladder wants the windows, published as the one INTENDED opening:
      the windows apply the interlocks to it, and an operator can see what was
@@ -72,4 +74,7 @@ END_VAR
   ELSE
     cli_windowDem := 0.25;
   END_IF;
+  (* The PARK opening is a real demand a law chose, so the row is believable
+     either way - what is not believable is the house behind it. *)
+  cli_windowDem_qlt := cli_temp_in_qlt;
 END_PROGRAM

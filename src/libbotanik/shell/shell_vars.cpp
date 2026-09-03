@@ -225,6 +225,7 @@ namespace Botanik { namespace Shell {
             case Vars::SCOPE_P:  return "parameter";
             case Vars::SCOPE_G:  return "computed";
             case Vars::SCOPE_SV: return "status value, published";
+            case Vars::SCOPE_Q:  return "quality";
             case Vars::SCOPE_MI: return "input, direct";
             case Vars::SCOPE_AI: return "input, calibrated";
             case Vars::SCOPE_DI: return "input, digital";
@@ -594,35 +595,51 @@ namespace Botanik { namespace Shell {
         }
         if (a != nullptr && arg_eq(a, wa, "on")) a = arg_next(args, alen, wa);
 
-        // A trailing `valid` / `invalid` says what the forced value READS as:
+        // A trailing `valid` / `invalid` forces the row's `_qlt` companion:
         // "invalid" stands a variable up as a dead sensor without touching what
         // it reports. Accepted either side of the value.
         bool valid = true;
-        if (arg_validity(a, wa, valid)) a = arg_next(args, alen, wa);
-
-        if (a == nullptr) {
-            // No value: hold it where it is, with the quality asked for rather
-            // than the one it happens to have.
-            io->override_set(h, h.value().v, valid);
-            _override_reply(h, "frozen at");
-            return;
-        }
+        bool quality = arg_validity(a, wa, valid);
+        if (quality) a = arg_next(args, alen, wa);
 
         char text[64];
-        const uint16_t vc = std::min(wa, (uint16_t)(sizeof(text) - 1));
-        memcpy(text, a, vc); text[vc] = '\0';
+        const char* value = nullptr;
+        if (a != nullptr) {
+            const uint16_t vc = std::min(wa, (uint16_t)(sizeof(text) - 1));
+            memcpy(text, a, vc); text[vc] = '\0';
+            value = text;
+            // Sequenced deliberately: arg_next() WRITES wt, so passing both to
+            // one call leaves the read of wt unordered against it.
+            uint16_t wt = 0;
+            const char* t = arg_next(args, alen, wt);
+            if (arg_validity(t, wt, valid)) quality = true;
+        }
 
-        // Sequenced deliberately: arg_next() WRITES wt, so passing both to one
-        // call leaves the read of wt unordered against it.
-        uint16_t wt = 0;
-        const char* t = arg_next(args, alen, wt);
-        (void)arg_validity(t, wt, valid);
+        if (value != nullptr) {
+            if (io->override_set(h, value) != Vars::SET_OK) {
+                _emitf(out, sizeof(out), "overrides: invalid value for %s", h.meta()->name);
+                return;
+            }
+        } else if (!quality) {
+            io->override_set(h, h.value().v);   // no value: hold it where it is
+        }
 
-        if (io->override_set(h, text, valid) != Vars::SET_OK) {
-            _emitf(out, sizeof(out), "overrides: invalid value for %s", h.meta()->name);
+        if (quality && !_force_quality(r, valid)) {
+            _emitf(out, sizeof(out), "overrides: %s carries no quality to force",
+                   h.meta()->name);
             return;
         }
-        _override_reply(h, "forced to");
+        _override_reply(h, value != nullptr ? "forced to"
+                                            : (quality ? "reading" : "frozen at"));
+    }
+
+    bool CommandShell::_force_quality(Vars::VarRef r, bool valid) {
+        Vars::Bank* io = _bank();
+        const Vars::VarRef q = io->quality_ref(r);
+        if (q.index == Vars::VAR_NONE) return false;
+        io->override_set(io->var(q),
+                         Vars::Scalar::U(valid ? Vars::Q_VALID : Vars::Q_NO_DATA));
+        return true;
     }
 
     void CommandShell::_override_reply(Vars::Var h, const char* verb) {

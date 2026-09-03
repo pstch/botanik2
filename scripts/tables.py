@@ -33,6 +33,7 @@ ROWS = {  # factory -> (csv stem, columns == the factory's parameters)
     'G':   ('globals',     'name type def digits unit desc notes retained'),
     'PI':  ('pulse_in',    'name channel edge desc notes'),
 }
+FAC_OF = {stem: fac for fac, (stem, _c) in ROWS.items()}
 TEXT = {'name', 'unit', 'desc', 'notes', 'code', 'tag', 'model_name'}
 # Columns whose type depends on the FACTORY: a text parameter's default is a
 # string where every other factory's is a number. Latent until the library's
@@ -55,7 +56,7 @@ AUX = {  # stem -> columns, for the tables that are not rows
     'modbus_models':  'symbol kind model_name regs words',
     'modbus_devices': 'addr model tag',
     'enums':          'enum ctype symbol value label desc',
-    'programs':       'name instance source rate desc',
+    'programs':       'name instance source rate desc quality',
     'home':           'label var',
 }
 
@@ -88,7 +89,8 @@ IEC2C = os.environ.get('IEC2C', 'iec2c')
 # ORDER MATTERS: matiec needs a block declared before it is instanced, and
 # there is no forward declaration. filters before analog, because DC_RAIL holds
 # an EWMA.
-LIBST = ['src/libbotanik/plc/functions/math.st',
+LIBST = ['src/libbotanik/plc/functions/quality.st',
+         'src/libbotanik/plc/functions/math.st',
          'src/libbotanik/plc/functions/psychro.st',
          'src/libbotanik/plc/functions/time.st',
          'src/libbotanik/plc/blocks/timers.st',
@@ -97,6 +99,58 @@ LIBST = ['src/libbotanik/plc/functions/math.st',
          'src/libbotanik/plc/blocks/pid.st',
          'src/libbotanik/plc/blocks/actuator.st',
          'src/libbotanik/plc/blocks/meter.st']
+
+
+# Tables whose rows are READINGS. Each gets a `_qlt` companion, because a
+# reading can always stop being one: no timeout fires on a computed row and no
+# device refuses it.
+INPUT_TABLES = ('analog_in', 'digital_in', 'modbus_in', 'pulse_in')
+
+
+def quality_rows(site):
+    """The `_qlt` companions this site gets: [(name, base, desc)], in the order
+    they are emitted.
+
+    One per INPUT row, plus one per row an opted-in program writes - a law that
+    can fail to compute has to be able to say so. Nothing else: a row with no
+    companion is valid, always.
+
+    ALARMS are excluded even under an opt-in. An alarm is a verdict rather than
+    a reading: AlarmController takes the boolean and has nothing to substitute,
+    so a quality beside it would be a row nothing consults.
+
+    The opted-in set comes from the ST's own `VAR_EXTERNAL` sections rather
+    than from matiec's output, so this does not depend on a POUS.c that the
+    same run is about to replace."""
+    out, seen = [], set()
+
+    def add(base, desc):
+        if base in seen: return
+        seen.add(base)
+        out.append((base + '_qlt', base, desc))
+
+    for stem in INPUT_TABLES:
+        f = os.path.join(site, 'tables', stem + '.csv')
+        if not os.path.exists(f): continue
+        for r in read_table(f, ROWS[FAC_OF[stem]][1].split()):
+            add(r['name'], 'quality of %s' % r['name'])
+
+    alarms = {r['name'] for r in
+              read_table(os.path.join(site, 'tables', 'alarms.csv'),
+                         ROWS['A'][1].split())}
+    fp = os.path.join(site, 'tables', 'programs.csv')
+    if os.path.exists(fp):
+        for e in read_table(fp, AUX['programs'].split()):
+            if not _opted_in(e, 'quality'): continue
+            for n, _t, ro in var_externals(os.path.join(site, e['source'])):
+                if ro or n.endswith('_qlt') or n in alarms: continue
+                add(n, 'quality of %s' % n)
+    return out
+
+
+def _opted_in(e, col):
+    return e[col].strip().lower() in ('1', 'yes', 'true')
+
 
 
 def declared_rows(site):
@@ -114,6 +168,8 @@ def declared_rows(site):
             if n: out.add(n.lower())
     for r in lib_rows():
         out.add(r['name'].lower())
+    for n, _b, _d in quality_rows(site):
+        out.add(n.lower())
     return out
 
 
@@ -166,7 +222,6 @@ def config(site):
            ('SITE_CONTROL_MS', t['rates']['control']),
            ('SITE_SENSE_MS', t['rates']['sense']),
            ('VAR_MAX', t['limits']['var_max']),
-           ('QUALITY_MIRROR_MAX', t['limits']['quality_mirror_max']),
            ('MODBUS_TCP_MAX_ROWS', t['limits']['modbus_tcp_max_rows']),
            ('STR_POOL_BYTES', t['limits']['str_pool_bytes']),
            ('MODBUS_BAUD', t['fieldbus']['baud'])]
@@ -310,10 +365,9 @@ def emit_plant_cpp(site, prog, writes):
     # with no author is a law somebody meant to write and did not, and it reads
     # its declared value for the life of the plant with nothing to say so.
     #
-    # Status values have two writers that are not programs and never will be:
-    # a field row's `_qlt` companion is Vars::QualityMirror's, and `prog_<name>`
-    # is Plc::Runtime::Plant's own verdict. Both are named here rather than
-    # exempted by a flag, so a THIRD one has to come and say so.
+    # `prog_<name>` is the one status value no program writes and never will:
+    # it is Plc::Runtime::Plant's own verdict. Named here rather than exempted
+    # by a flag, so a SECOND one has to come and say so.
     def _col0(stem):
         f = os.path.join(site, 'tables', stem + '.csv')
         if not os.path.exists(f): return []
@@ -334,14 +388,29 @@ def emit_plant_cpp(site, prog, writes):
                        ('status', 'status'), ('status_enum', 'status')):
         for n in _col0(stem):
             if n.upper() in every: continue
-            if kind == 'status':
-                if n.startswith('prog_'): continue                  # Plant
-                if n.endswith('_qlt') and n[:-4] in field: continue  # QualityMirror
+            if kind == 'status' and n.startswith('prog_'): continue   # Plant
             unwritten.append((kind, n))
     if unwritten:
         for kind, n in unwritten:
             print('  %s %s: no program writes it' % (kind, n), file=sys.stderr)
         sys.exit('%d row(s) nothing writes' % len(unwritten))
+
+    # A program that OPTS IN owes a quality for every row it writes: the
+    # companion EXISTS for each of them, and one nothing writes sits at
+    # Q_NO_DATA for the life of the run - so the output reads unbelievable and
+    # nothing says why. Off matiec's write list, like the check above.
+    alarms = {n.upper() for n in _col0('alarms')}
+    owed = []
+    for e in prog:
+        if e['quality'].strip().lower() not in ('1', 'yes', 'true'): continue
+        wr = {n.upper() for n in writes.get(e['pou'], ())}
+        for n in sorted(wr):
+            if n.endswith('_QLT') or n in alarms: continue
+            if n + '_QLT' not in wr: owed.append((e['name'], n.lower()))
+    if owed:
+        for nm, n in owed:
+            print('  %s: writes %s and owes %s_qlt' % (nm, n, n), file=sys.stderr)
+        sys.exit('%d quality row(s) an opted-in program does not write' % len(owed))
 
     for e in prog:
         wr = set(writes.get(e['pou'], ()))
@@ -575,8 +644,10 @@ def generate(site):
     tom  = toml(os.path.join(site, 'site.toml'))
     mdl, dev = t('modbus_models', AUX['modbus_models']), t('modbus_devices', AUX['modbus_devices'])
     per = {f: t(stem, cols) for f, (stem, cols) in ROWS.items()}
+    qlt  = quality_rows(site)
+    qlt_base = int(tom['registers']['quality_base'])
     n_par = sum(len(per[f]) for f in ('P', 'PE', 'PS'))
-    n_row = sum(len(per[f]) for f in ROWS if f not in ('P', 'PE', 'PS'))
+    n_row = sum(len(per[f]) for f in ROWS if f not in ('P', 'PE', 'PS')) + len(qlt)
 
     L = [H, '', '#include "libbotanik.h"', '', 'namespace Site {', '',
          'using namespace Botanik;', 'using namespace Botanik::Vars;', '',
@@ -599,6 +670,13 @@ def generate(site):
     L.append('    // ...and everything else')
     for f in ('A', 'SV', 'SVE', 'G', 'MI', 'MO', 'AI', 'AO', 'DI', 'PI', 'DO', 'RO'):
         L += emit_rows(f, ROWS[f][1].split(), per[f])
+    # The quality companions, last and in one run: registers are handed out
+    # from a block of their own, so nothing here can collide with a hand-assigned
+    # one. Sequential in emission order - append an input and its companion
+    # lands at the end of the block, which is what keeps the map stable.
+    L.append('    // ...and one quality per reading, generated (see quality_rows)')
+    L += ['    Q("%s", %d, "%s"),' % (n, reg, desc)
+          for reg, (n, _b, desc) in enumerate(qlt, qlt_base)]
     L += ['};', '']
     for m in mdl:
         args = '"%s", %s' % (m['model_name'], m['regs']) + (', %s' % m['words'] if m['words'] else '')

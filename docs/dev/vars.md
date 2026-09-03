@@ -15,23 +15,25 @@ constant-initialises into **flash**, not `.data`. That is why `Scalar` has
 `constexpr` factories and why `SiteDescriptor` has no NSDMIs - one function call in
 those initialisers would drag several kilobytes into RAM.
 
-**`Value`** is the RAM slot, pinned at 32 bytes:
+**`Slot`** is the RAM slot, pinned at 32 bytes:
 
 ```cpp
-struct Value {
+struct Slot {
     Scalar   v;
     Scalar   ovr;        // forced value, while ovr_on
     uint64_t stamp_ms;   // uptime ms of the last good update
-    bool     valid;
+    uint16_t str_off;    // T_STR only: this row's pool slot
+    uint16_t qlt_row;    // this row's `_qlt` companion, or VAR_NONE
     bool     ovr_on;
-    bool     ovr_valid;  // what valid() reports while overridden
-    uint8_t  _rsv[5];
+    uint8_t  vflags;     // ValueFlags
+    uint8_t  wire_off;   // AI/AO only: index into the wire array
 };
-static_assert(sizeof(Value) == 32, "Value must stay 32 bytes (RAM per variable)");
+static_assert(sizeof(Slot) == 32, "Slot must stay 32 bytes (RAM per variable)");
 ```
 
 There is no `def` in the slot: the default is a typed literal already in flash, so
-an invalid read falls back to it without a per-slot copy.
+an invalid read falls back to it without a per-slot copy. There is no QUALITY
+either - that is a row of its own, and `qlt_row` is how this one finds it.
 
 @warning The size assert is not decoration. Every field here costs its width **per
 variable, on every site, whether it is used or not** - the override alone is 8 bytes
@@ -49,28 +51,37 @@ float t = io.var(V_EXT_TEMP).value();
 io.var(V_DRAIN_VALVE).set(true);
 ```
 
-Reads funnel through one accessor:
+Reads funnel through one accessor, and the value in force is separate from the
+belief in it:
 
 ```cpp
-Scalar raw() const { return _v->ovr_on ? _v->ovr
-                                       : (_v->valid ? _v->v : _d->def); }
-bool valid() const { return _v->ovr_on ? _v->ovr_valid : _v->valid; }
+Value value() const { return _v->ovr_on ? override() : live(); }
+bool  valid() const { return quality() == Q_VALID; }
 ```
 
-Two decisions live in those two lines.
+**A quality is the VALUE of a `_qlt` row.** `x_qlt` is a real row - descriptor,
+register, name index - whose value is a `Vars::Quality`: `Q_NO_DATA`, `Q_VALID`,
+`Q_STALE`, `Q_IMPLAUSIBLE`, `Q_REFUSED`. `Bank::freeze()` pairs it with `x` by
+name into `Slot::qlt_row`, so the suffix is the whole link and there is no table
+to add a companion to. `quality()` is one indirection; a row with no companion is
+valid, always, and so is every companion, which is what stops the regress.
 
-**An invalid variable reads as its declared default.** Control logic that does not
-care about quality still gets a sane number; logic that does care asks `valid()`.
+There is no second store. A driver's `publish()` writes that row, `expire_stale()`
+writes it, an ST law assigns it, an operator forces it - all the same byte, so
+nothing can lag or disagree. `Q_NO_DATA` is 0 on purpose: it is a companion's
+declared default, so a row nothing has spoken for reads as "nothing has written
+this" and never as good data.
 
-The slot records **why**, not just whether: `Value::qual` is a `Vars::Quality` -
-`Q_GOOD`, `Q_NO_DATA`, `Q_STALE`, `Q_IMPLAUSIBLE`, `Q_SAFE` - written by whichever
-path invalidated the row, so it is a diagnosis rather than something reconstructed
-at display time. `valid()` is `qual == Q_GOOD`; there is no second bool to drift
-from it, and it costs the byte the old bool did. `Q_NO_DATA` is 0 on purpose: a
-zero-initialised `Value`, which is how every site's store starts, must read as
-"nothing has written this" and never as good data.
-Because a site picks defaults that are outside the plausibility band, a dead sensor
-usually reads as a fault without any code testing for it.
+**An unbelievable row reads its declared default TO A LAW.** `Ref::get()` is where
+the substitution happens, once. `Var::value()` does not substitute: the monitor
+page and telemetry show the number that was implausible, with the quality beside
+it, which is what an operator chasing a dead probe needs. `Ref::held()` is the
+same read for a law that must have the raw one - a totaliser difference.
+
+Which rows get a companion is generated, not declared: one per INPUT, because a
+reading can always stop being one, plus one per row a program that opted in
+(`quality` in `tables/programs.csv`) writes. Opting in obliges the law to write
+every one of them, which `tables.py plant` checks off matiec's own write list.
 
 **The override is applied here, and only here.** Every reader in the firmware goes
 through `raw()`/`valid()`, so a forced value reaches control logic, the console,
@@ -80,12 +91,20 @@ impossible to forget one is set.
 
 Writes keep landing in `v` underneath while an override is in force, so the override
 *shadows* rather than replaces: clearing it resumes the live value with no gap and
-nothing to restore. `ovr_valid` is separate because "force this to 20 C" and "make
-this read as a dead sensor" are both needed, and quality is what distinguishes them.
-Set it from the console with `overrides set <name> [<value>] [valid|invalid]`. Note what it
-does not do: the forced value is still what `raw()` returns, so a consumer gating on
-`valid()` sees bad data while one that does not still reads the number. Forcing the
-quality is not the same as simulating the timeout fallback, which substitutes `def`.
+nothing to restore. The override carries no validity of its own: "make this read as
+a dead sensor" is a force on the row's `_qlt` companion, which is an ordinary force
+of an ordinary row - saved, released and listed the same way. Both spellings are
+`overrides set <name> [<value>] [valid|invalid]` from the console; the second word
+lands on the companion. A row with no companion has no quality to force, and says
+so.
+
+**A forced VALUE also forces the belief.** Forcing a dead probe's reading so the
+plant runs on it is what an override is for, and inheriting the doubt underneath
+would make that impossible - so `override_set()` writes `Q_VALID` into the
+companion, and releasing the value releases that too. Written into the store
+rather than applied at read time on purpose: ST reads the companion ROW, so a
+rule living in `Var` would be an answer only C++ could see. `... <value> invalid`
+forces the companion afterwards and so wins.
 
 Overrides **can be made durable, and are not by default**. `override_set()` applies
 the force and marks the slot `VF_OVR_UNSAVED`; `save_override()` writes it under an
@@ -211,11 +230,12 @@ the way out (`sys_shutdown_sec`). `Plc::Runtime::Plant::running()` is where the
 two meet, so a recovered firmware never talks over the operator and an
 operator's choice survives a hold coming and going.
 
-A program that is not running does not FREEZE what it drove. Its rows drop to
-`Q_SAFE`, so every reader substitutes the row's declared value - which is what
-`Descriptor::def` means for an output, and what `vars info` calls "safe state,
-driven when control is withdrawn". A coil left energised by a law nobody is
-running is the thing this exists to prevent.
+A program that is not running does not FREEZE what it drove. Its rows are WRITTEN
+to their declared value - which is what `Descriptor::def` means for an output, and
+what `vars info` calls "safe state, driven when control is withdrawn" - and the
+write marks them owed to the field, so the coil actually moves. A quality companion
+in the same roster drops to `Q_NO_DATA` with them. A coil left energised by a law
+nobody is running is the thing this exists to prevent.
 
 Which rows those are cannot be asked of the bank: an ST row resolves
 VAR_IN_OUT, so no exclusive writer is recorded. The roster is generated per

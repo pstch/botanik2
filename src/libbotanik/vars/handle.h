@@ -21,8 +21,8 @@ namespace Botanik { namespace Vars {
     /** @brief One value slot, parallel to the descriptor table. No `def`: the
      *  default is a typed literal in flash.
      *  @note While @c ovr_on, @c ovr SHADOWS @c v, so clearing snaps back to
-     *  live. @c ovr_valid is separate so "force to 20 C" and "read as a dead
-     *  sensor" are both expressible.
+     *  live. "Read as a dead sensor" is an override on the row's `_qlt`
+     *  companion, which is an ordinary force of an ordinary row.
      *  @warning Both halves are PERSISTED - hence the CRITICAL on each restore. */
     struct Slot {
         Scalar   v;
@@ -32,11 +32,11 @@ namespace Botanik { namespace Vars {
          *  not fit. Assigned by Bank::init(), never declared. Ahead of the bools
          *  for its 2-byte alignment. */
         uint16_t str_off;
-        /** @brief The live value's quality - valid, or invalid and why.
-         *  @see Quality */
-        Quality  qual;
+        /** @brief This row's `_qlt` companion, or VAR_NONE when it has none -
+         *  which is what "valid, always" is spelled as. Paired by name at
+         *  freeze(), never declared. @see Bank::_resolve_quality() */
+        uint16_t qlt_row;
         bool     ovr_on;     ///< an override is in force
-        bool     ovr_valid;  ///< what valid() reports while overridden
         uint8_t  vflags;     ///< ValueFlags
         /** @brief Index into the bank's wire array for an AI/AO row, WIRE_NONE
          *  otherwise. Carved out of the spare byte, so the slot stays 32. */
@@ -56,35 +56,48 @@ namespace Botanik { namespace Vars {
     static const uint16_t STR_NO_SLOT = 0xFFFFu;
 
     /** @brief The one handle: a non-owning (descriptor, value slot) pair, made
-     *  on the fly and passed by value. */
+     *  on the fly and passed by value.
+     *
+     *  Plus the `_qlt` companion's slot, which the Bank looks up when it makes
+     *  the handle. Null for a row that has none, and for every companion - so
+     *  quality is one indirection deep and cannot regress. */
     class Var {
         const Descriptor* _d;
         Slot*          _v;
+        Slot*          _q;
     public:
-        Var(const Descriptor* d, Slot* v) : _d(d), _v(v) {}
+        Var(const Descriptor* d, Slot* v, Slot* q = nullptr) : _d(d), _v(v), _q(q) {}
 
         /** @name Read
          *  Three layers and their resolution, each a Value - so a number and
          *  its quality are fetched together and cannot disagree. An invalid row
          *  reads its declared default. @{ */
 
-        /** @brief What the row would read with nothing forced. */
-        Value live() const { return Value{ _under(), _d, _d->type, _v->qual, true }; }
+        /** @brief What the row would read with nothing forced. The value SLOT,
+         *  whatever it is worth: an implausible reading shows the number that
+         *  was implausible, and quality says so beside it. Substituting the
+         *  declared value is Ref::get()'s job, once, for the laws. */
+        Value live() const { return Value{ _v->v, _d, _d->type, quality(), true }; }
 
         /** @brief The row's DECLARED value, as a Value ready to convert.
          *
          *  What a control program reads in place of a row that is not
          *  believable: a number somebody chose and reviewed, rather than a
-         *  reading of unbounded age. Q_GOOD because the substitution is not in
+         *  reading of unbounded age. Q_VALID because the substitution is not in
          *  doubt - whether the ROW is, is what valid() answers. */
-        Value declared() const { return Value{ _d->def, _d, _d->type, Q_GOOD, true }; }
+        Value declared() const { return Value{ _d->def, _d, _d->type, Q_VALID, true }; }
 
         /** @brief The force, or an absent layer when there is none. Recorded, not
          *  necessarily driving: CONTROL_WITHHELD MUTES an override without
-         *  erasing it, and a muted one is still there and still worth showing. */
+         *  erasing it, and a muted one is still there and still worth showing.
+         *  @note A force carries no quality of its own: the companion is the
+         *  one store, and ST reads that ROW rather than asking a Var, so a rule
+         *  here would be an answer only C++ could see. Bank::override_set() is
+         *  where "the forced value is believed" is written - into the
+         *  companion, where both sides read it. */
         Value override() const {
             if (!_v->ovr_on) return Value{ _d->def, _d, _d->type, Q_NO_DATA, false };
-            return Value{ _v->ovr, _d, _d->type, _v->ovr_valid ? Q_GOOD : Q_FORCED_BAD, true };
+            return Value{ _v->ovr, _d, _d->type, quality(), true };
         }
 
         /** @brief The value in force: the override when one is DRIVING, else
@@ -99,6 +112,18 @@ namespace Botanik { namespace Vars {
         bool     as_bool() const { return value().as_bool(); }
         int64_t  as_i64()  const { return value().as_i64(); }
         bool     valid()   const { return value().good(); }
+
+        /** @brief WHY this row reads as it does: its `_qlt` companion's value,
+         *  or Q_VALID when it has none.
+         *
+         *  The companion's own force applies here - that is the whole of "make
+         *  this read like a dead sensor". Its type is checked at bring-up, so
+         *  the byte is read without going back through Value. */
+        Quality  quality() const {
+            if (_q == nullptr) return Q_VALID;
+            const Scalar s = _q->ovr_on ? _q->ovr : _q->v;
+            return (s.u > (uint64_t)Q_REFUSED) ? Q_NO_DATA : (Quality)s.u;
+        }
 
         /** @brief Where this row's text sits in the pool (T_STR only; 0
          *  otherwise, and text_slot().cap is 0 there so nothing writes). */
@@ -122,17 +147,22 @@ namespace Botanik { namespace Vars {
          *  reading coming IN. @see Bank::publish_wire() for a scaled row. */
         void publish(Scalar v, uint64_t now_ms) {
             _v->v = v; _v->stamp_ms = now_ms;
-            _v->qual = value_implausible(*_d, v) ? Q_IMPLAUSIBLE : Q_GOOD;
+            set_quality(value_implausible(*_d, v) ? Q_IMPLAUSIBLE : Q_VALID);
         }
         /** @brief The quantity, without claiming anything MEASURED it. For a
-         *  simulated field: stamping Q_GOOD would keep the row good for ever and
+         *  simulated field: stamping Q_VALID would keep the row good for ever and
          *  no timeout could catch a device going quiet. */
         void set_physical(Scalar v) { _v->v = v; }
-        /** @brief Mark the reading bad, and say why. For a driver rejecting a
-         *  well-formed but unbelievable value publish() cannot judge. */
-        void invalidate(Quality q) { _v->qual = q; }
-        /** @brief Drop to the declared safe state (what a fault does). */
-        void safe() { _v->qual = Q_SAFE; _touch_field(); }
+        /** @brief Say what the live value is worth, and why. A driver rejecting
+         *  a well-formed but unbelievable value publish() cannot judge, and the
+         *  staleness sweep. A row with no companion has no quality to write, so
+         *  this is where that silently does nothing - deliberately: a driver
+         *  should not have to ask whether the site declared one. */
+        void set_quality(Quality q) { if (_q != nullptr) _q->v = Scalar::U((uint64_t)q); }
+        /** @brief Drop to the declared safe state (what a fault does). A VALUE
+         *  write, so every reader sees the number the site chose rather than a
+         *  code they each have to interpret. */
+        void safe() { _drive(_d->def); }
         /** @} */
 
         /** @name Field synchronisation
@@ -182,10 +212,10 @@ namespace Botanik { namespace Vars {
          *  the store would come BACK. @{ */
         friend class Bank;
 
-        /** @brief Force the variable to @p v, reading as @p valid. Marks the
-         *  field dirty: forcing an actuator by hand must move it. */
-        void override_set(Scalar v, bool valid = true) {
-            _v->ovr = v; _v->ovr_valid = valid; _v->ovr_on = true; _touch_field();
+        /** @brief Force the variable to @p v. Marks the field dirty: forcing an
+         *  actuator by hand must move it. */
+        void override_set(Scalar v) {
+            _v->ovr = v; _v->ovr_on = true; _touch_field();
         }
         /** @brief Release the override; the live value takes over. Marks the
          *  field dirty, or the actuator would stay where it was left. */
@@ -194,22 +224,14 @@ namespace Botanik { namespace Vars {
 
         /** @brief Take a new demand, owing it to the field only if it MOVED: a
          *  control law re-states its whole demand every activation, and dirtying
-         *  each one starves the reads behind them. Q_SAFE counts as moved. */
+         *  each one starves the reads behind them.
+         *  @note Does NOT touch quality. A row whose quality a law authors is
+         *  written twice, and making a value write claim Q_VALID would mean the
+         *  two had to be in the right ORDER inside the body. */
         void _drive(Scalar v) {
-            const bool moved = (_v->v.u != v.u) || (_v->qual != Q_GOOD);
-            _v->v    = v;
-            _v->qual = Q_GOOD;
+            const bool moved = (_v->v.u != v.u);
+            _v->v = v;
             if (moved) _touch_field();
-        }
-
-        /** @brief What the row reads with no override: the ONE statement of the
-         *  fallback rule, shared by raw() and live().
-         *  @note A STALE row KEEPS its value: a sensor that answered a minute
-         *  ago still knows what the plant was doing. Q_NO_DATA, Q_SAFE and
-         *  Q_IMPLAUSIBLE fall back, because there is nothing behind them. */
-        Scalar _under() const {
-            return (_v->qual == Q_GOOD || _v->qual == Q_STALE)
-                       ? _v->v : _d->def;
         }
 
         /** @brief Whether the override reaches this reader: in force and not

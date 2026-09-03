@@ -131,7 +131,7 @@ namespace {
                        const uint8_t* payload, uint64_t now_ms) {
         const Vars::Scalar v = decode_direct(d, b, payload);
         if (Vars::value_implausible(d, v)) {
-            h.invalidate(Vars::Q_IMPLAUSIBLE);
+            h.set_quality(Vars::Q_IMPLAUSIBLE);
             return false;
         }
         h.publish(v, now_ms);
@@ -148,7 +148,7 @@ void reassert_block(Vars::Bank& io, const Planner& p, const Block& b) {
 void invalidate_block(Vars::Bank& io, const Planner& p, const Block& b,
                       Vars::Quality q) {
     for (uint16_t k = 0; k < b.row_count; ++k)
-        io.var(p.row((uint16_t)(b.first_row + k))).invalidate(q);
+        io.var(p.row((uint16_t)(b.first_row + k))).set_quality(q);
 }
 
 uint16_t commit_read(Vars::Bank& io, const Planner& p, const Block& b,
@@ -167,14 +167,14 @@ uint16_t commit_read(Vars::Bank& io, const Planner& p, const Block& b,
         // it is the one arithmetic that would read past the buffer, so it is
         // guarded rather than assumed.
         if (is_bit(b.fc)) {
-            if (off >= (uint16_t)(r.len * 8u)) { h.invalidate(Vars::Q_NO_DATA); continue; }
+            if (off >= (uint16_t)(r.len * 8u)) { h.set_quality(Vars::Q_NO_DATA); continue; }
             commit_bit(h, d, b, r.data, now_ms);
             good++;
             continue;
         }
         const uint16_t span = is_pair(d) ? 2u : 1u;
         if ((uint32_t)(off + span) * 2u > r.len) {
-            h.invalidate(Vars::Q_NO_DATA);
+            h.set_quality(Vars::Q_NO_DATA);
             continue;
         }
 

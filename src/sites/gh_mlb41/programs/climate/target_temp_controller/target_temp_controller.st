@@ -6,7 +6,7 @@ VAR_EXTERNAL CONSTANT
   cli_targetMin_degC   : REAL;
   cli_targetMax_degC   : REAL;
   cli_phase            : USINT;
-  cli_phase_qlt        : BOOL;
+  cli_phase_qlt        : QUALITY;
   cli_coldBankArm      : BOOL;
   cli_heatBankArm      : BOOL;
   cli_coolSet_degC     : REAL;
@@ -35,7 +35,7 @@ END_VAR
      before dawn after a hot day, bank heat at dusk after a cold night. In
      force but not armed, the phase runs at the ordinary target.
      1 is PHASE_COLD_BANK, 4 is PHASE_HEAT_BANK. *)
-  IF cli_phase_qlt THEN
+  IF GOOD(cli_phase_qlt) THEN
     IF cli_phase = 1 AND cli_coldBankArm THEN
       held := held - cli_coldBankOfs_degC;
     ELSIF cli_phase = 4 AND cli_heatBankArm THEN

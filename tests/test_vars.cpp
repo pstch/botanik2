@@ -28,9 +28,9 @@ const Vars::Descriptor D_U32 =
 const Vars::Descriptor D_F32 =
     Vars::G("t_f32", Vars::T_F32, Vars::SF(0.0f), 2, "", "an f32 row", "");
 
-Vars::Value of_i(int64_t x)  { return Vars::Value{ Vars::Scalar::I(x), &D_I32, Vars::T_I32, Vars::Q_GOOD }; }
-Vars::Value of_u(uint64_t x) { return Vars::Value{ Vars::Scalar::U(x), &D_U32, Vars::T_U32, Vars::Q_GOOD }; }
-Vars::Value of_f(float x)    { return Vars::Value{ Vars::Scalar::F(x), &D_F32, Vars::T_F32, Vars::Q_GOOD }; }
+Vars::Value of_i(int64_t x)  { return Vars::Value{ Vars::Scalar::I(x), &D_I32, Vars::T_I32, Vars::Q_VALID }; }
+Vars::Value of_u(uint64_t x) { return Vars::Value{ Vars::Scalar::U(x), &D_U32, Vars::T_U32, Vars::Q_VALID }; }
+Vars::Value of_f(float x)    { return Vars::Value{ Vars::Scalar::F(x), &D_F32, Vars::T_F32, Vars::Q_VALID }; }
 
 }  // namespace
 
@@ -160,7 +160,7 @@ TEST_CASE("text: a table filter is a substring until it has a wildcard") {
 TEST_CASE("vars: a calibration with no span reads as implausible, not as a number") {
     // raw_min == raw_max leaves to_eng() with no slope, so every count the ADC
     // reads collapses to eng_min - which is inside the row's own band, so it
-    // would sit at Q_GOOD for ever and the under-range alarm would never fire.
+    // would sit at Q_VALID for ever and the under-range alarm would never fire.
     Vars::AnalogValues a = {};
     a.raw_min = 4000.0f; a.raw_max = 4000.0f;
     a.eng_min = 20.0f;   a.eng_max = 30.0f;

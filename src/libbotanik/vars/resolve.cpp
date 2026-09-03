@@ -113,6 +113,37 @@ namespace Botanik { namespace Vars {
         }
     }
 
+    bool quality_base(const char* name, char* base, size_t cap) {
+        static const char SUFFIX[] = "_qlt";
+        static const size_t LEN = sizeof(SUFFIX) - 1;
+        if (name == nullptr) return false;
+        const size_t n = strlen(name);
+        if (n <= LEN || strcmp(name + n - LEN, SUFFIX) != 0) return false;
+        if (n - LEN >= cap) return false;
+        memcpy(base, name, n - LEN);
+        base[n - LEN] = '\0';
+        return true;
+    }
+
+    void Bank::_resolve_quality() {
+        char base[Config::VAR_NAME_MAX];
+        for (uint16_t i = 0; i < _count; i++) _slots[i].qlt_row = VAR_NONE;
+        for (uint16_t i = 0; i < _count; i++) {
+            if (!quality_base(descriptor(i).name, base, sizeof base)) continue;
+            const uint16_t row = _lookup(base, 0);
+            if (row == VAR_NONE) {
+                // The companion is generated FROM the row, so this is a table
+                // that was hand-edited: the row it speaks for is gone and
+                // nothing reads the verdict any more.
+                if (_logger != nullptr)
+                    _logger->error(Logs::BOOT, "quality '%s' has no row '%s'",
+                                   descriptor(i).name, base);
+                continue;
+            }
+            _slots[row].qlt_row = i;
+        }
+    }
+
     void Bank::freeze() {
         // BEFORE init(): a shadowed row must not be given a pool slot or a value
         // slot it will never be read through.
@@ -121,6 +152,7 @@ namespace Botanik { namespace Vars {
         _find_param_block();
         _build_index();
         _resolve_cals();      // needs the index: the tunables are found by name
+        _resolve_quality();   // needs it too - a companion is paired by name
         // The ROLE_PARAM rows must be ONE run - that is what lets the PARAMS
         // page and the shell address them 0-based. Registration order decides
         // it, so this is where it can be checked; it used to be a convention

@@ -72,8 +72,10 @@ RESOURCE section stops being the source of truth for what runs when.
 2. A `StRuntime` component: `config_init__()` at setup, `config_run__(tick)`
    at PHASE_CONTROL, `sys_dt_ms` before each body.
 3. Port the ~21 law programs. The ~7 conditioning programs stay C++ - they
-   read TRANSPORT quality, which ST cannot express, and matiec emits every FB
-   body `static`, so a generated program cannot call a hand-written block.
-   The boundary is per-PROGRAM, and it is the same line the `_qlt` companions
-   drew.
+   read TRANSPORT quality, which ST could not express then, and matiec emits
+   every FB body `static`, so a generated program cannot call a hand-written
+   block. The boundary is per-PROGRAM, and it is the same line the `_qlt`
+   companions drew. (Both halves went in the end: quality is a `QUALITY` row ST
+   reads and writes like any other, and every program is ST. See
+   `st-migration.md`.)
 4. Delete `plc/program.{h,cpp}`, `plc/blocks/block.h`, and the subclasses.

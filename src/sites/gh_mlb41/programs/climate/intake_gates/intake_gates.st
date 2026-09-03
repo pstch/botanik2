@@ -6,9 +6,9 @@ VAR_EXTERNAL CONSTANT
   cli_temp_in          : REAL;
   cli_temp_cs          : REAL;
   cli_coolDem          : REAL;
-  cli_temp_in_qlt      : BOOL;
-  cli_temp_cs_qlt      : BOOL;
-  cli_coolDem_qlt      : BOOL;
+  cli_temp_in_qlt      : QUALITY;
+  cli_temp_cs_qlt      : QUALITY;
+  cli_coolDem_qlt      : QUALITY;
   cli_ventTempMgn_degC : REAL;
   cli_ventHyst_degC    : REAL;
   cli_groundHeatDem    : REAL;
@@ -40,7 +40,7 @@ END_VAR
      the safe answer rather than a stale guess. Stepping them on a reading
      nobody has would advance a hysteresis that is supposed to be a claim about
      a real difference. *)
-  IF NOT cli_temp_in_qlt OR NOT cli_coolDem_qlt OR NOT cli_temp_cs_qlt THEN
+  IF NOT GOOD(cli_temp_in_qlt) OR NOT GOOD(cli_coolDem_qlt) OR NOT GOOD(cli_temp_cs_qlt) THEN
     cli_intakeCoolOk := FALSE;
     cli_groundHeatOk := FALSE;
   ELSE

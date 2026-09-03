@@ -6,10 +6,10 @@ VAR_EXTERNAL CONSTANT
   irr_today             : UDINT;
   irr_dueTray         : USINT;
   irr_mod             : REAL;
-  irr_mod_qlt         : BOOL;
+  irr_mod_qlt         : QUALITY;
   irr_inTotal_L       : REAL;
   irr_outTotal_L      : REAL;
-  irr_outFlow_Lpm_qlt : BOOL;
+  irr_outFlow_Lpm_qlt : QUALITY;
   irr_volFreqSplit    : REAL;
   irr_maxFill_sec     : UINT;
   irr_soak_sec        : UINT;
@@ -193,7 +193,7 @@ END_VAR
       (* A fill that never delivered, or a meter that is not answering. Both
          are already alarms of their own; a clog raised on top would send
          somebody to the wrong end of the plant. *)
-      IF dose_L > 0.0 AND irr_outFlow_Lpm_qlt THEN
+      IF dose_L > 0.0 AND GOOD(irr_outFlow_Lpm_qlt) THEN
         (* Against the DOSE, not a fixed volume: a modulated half-dose drains
            half as much and is not a clog. The published row, not the
            difference behind it - a verdict made on a number nobody can see is

@@ -50,6 +50,15 @@ namespace Botanik { namespace Config {
 #endif
     BOTANIK_CFG(size_t, VAR_GROUP_NAME_LEN);
 
+    /** @brief Bytes a row NAME may occupy, NUL included. Bounds the one place
+     *  a name is copied rather than pointed at: pairing an `x_qlt` companion
+     *  with `x` at freeze(). A longer name simply pairs with nothing, which
+     *  the boot log names. */
+#ifndef BOTANIK_VAR_NAME_MAX
+#  define BOTANIK_VAR_NAME_MAX 48
+#endif
+    BOTANIK_CFG(size_t, VAR_NAME_MAX);
+
     /** @brief The most rows a Bank can hold, across every registered segment.
      *  Sizes the bank's OWN storage (34 bytes a row); the descriptors stay in
      *  the caller's flash.
@@ -105,17 +114,7 @@ namespace Botanik { namespace Config {
 #ifndef BOTANIK_ANALOG_ROWS_MAX
 #  define BOTANIK_ANALOG_ROWS_MAX 32
 #endif
-
-/** @brief How many `X_qlt` companions of TRANSPORT-fed rows the mirror can
- *  hold. One entry per field row a site chose to expose to a law that cannot
- *  ask the bank - which is every ST law. Four bytes each.
- *  @note Only field rows count. A derived row's companion is written by the
- *  program that computes it and never enters this table. */
-#ifndef BOTANIK_QUALITY_MIRROR_MAX
-#  define BOTANIK_QUALITY_MIRROR_MAX 64
-#endif
     BOTANIK_CFG(uint8_t, ANALOG_ROWS_MAX);
-    BOTANIK_CFG(uint16_t, QUALITY_MIRROR_MAX);
 
     /** @} */
 

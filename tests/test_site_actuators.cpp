@@ -98,9 +98,9 @@ TEST_CASE_FIXTURE(StRig, "fans: an unknown gap floors them at their safe state, 
     for (uint8_t i = 1; i <= 3; i++) {
         char n[24];
         snprintf(n, sizeof n, "cli_temp_hi%u", (unsigned)i);
-        live.bank.var(live.ref(n)).invalidate(Q_NO_DATA);
+        live.bank.var(live.ref(n)).set_quality(Q_NO_DATA);
         snprintf(n, sizeof n, "cli_temp_lo%u", (unsigned)i);
-        live.bank.var(live.ref(n)).invalidate(Q_NO_DATA);
+        live.bank.var(live.ref(n)).set_quality(Q_NO_DATA);
     }
     force(live, "cli_coolDem", 0.0f);
     d.step(100);
@@ -391,8 +391,8 @@ TEST_CASE_FIXTURE(StRig, "windows: an unmeasured sky shuts the roof rather than 
          "from one nobody is watching");
     // FORCED false: wx_sensors owns both companions and republishes them
     // every scan, so a case rehearsing a blind sky has to shadow them.
-    force(live, "cli_rain_mmph_qlt", false);
-    force(live, "cli_wind_mps_qlt", false);
+    distrust(live, "cli_rain_mmph");
+    distrust(live, "cli_wind_mps");
     d.step(200);
     CHECK(live.bank.get(live.bank.resolve<bool>("cli_rainLockout")));
     CHECK(live.bank.get(live.bank.resolve<bool>("cli_windLockout")));

@@ -165,10 +165,11 @@ STRICTER wins:
 `Plc::Runtime::Plant::running()` is where they meet, and a program that could
 not be wired fails it whatever either says.
 
-**A program that is not running does not FREEZE what it drove.** Its rows drop
-to `Q_SAFE`, so every reader substitutes the row's declared value - which is
-what `Descriptor::def` means for an output. A coil left energised by a law
-nobody is running is the thing this exists to prevent.
+**A program that is not running does not FREEZE what it drove.** Its rows are
+WRITTEN to their declared value - which is what `Descriptor::def` means for an
+output - and the write marks them owed to the field, so the coil actually moves.
+A `_qlt` companion in the same roster drops to `Q_NO_DATA` with them. A coil left
+energised by a law nobody is running is the thing this exists to prevent.
 
 Which rows those are cannot be asked of the bank: an ST row resolves
 `VAR_IN_OUT` and records no exclusive writer. The roster is generated per

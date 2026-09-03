@@ -23,7 +23,6 @@ namespace Botanik {
           _io(_setup),
           // Parameters come from local storage; the bank owns the store.
           _param_store(),
-          _qmirror(_setup, _io),
           _binder(_setup, &_io),
 #endif
           // The alarm model scans the variable table for SCOPE_A rows;
@@ -172,10 +171,6 @@ namespace Botanik {
         if (_site.rows != nullptr) _io.register_vars(_site.rows, _site.row_count);
         register_vars();
         _io.freeze();
-        // Pairs each `X_qlt` with its field row. After freeze(), because
-        // freeze() is what compacts a redeclared row out and settles the
-        // indices a pair holds.
-        _qmirror.wire();
 #endif
 #if BOTANIK_FEATURE_PLC
         // Binds every ST program: one resolve per VAR_EXTERNAL, counted per
@@ -400,7 +395,6 @@ namespace Botanik {
         // AFTER the expiry sweep: a row that just aged out is invalid only once
         // that has run, and a companion copied before it would be a beat stale
         // on exactly the transition that matters.
-        _qmirror.register_tasks();
 
         // --- CONFIG: a commit reaches its component ---
         _binder.register_tasks();

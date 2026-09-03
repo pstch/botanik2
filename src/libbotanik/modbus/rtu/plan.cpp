@@ -144,7 +144,7 @@ void Planner::_collect(const Vars::Bank& io) {
             continue;
         }
         // An input that can never go stale is a trap: expire_stale() skips
-        // timeout_ms == 0, so a row would hold its last reading at Q_GOOD for
+        // timeout_ms == 0, so a row would hold its last reading at Q_VALID for
         // the life of the firmware once its device went quiet. Refused loudly
         // instead, since _rows_dropped is a bring-up critical.
         if (d->role == Vars::ROLE_INPUT && is_read(d->bind.fc) &&

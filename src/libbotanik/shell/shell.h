@@ -342,6 +342,9 @@ namespace Botanik { namespace Shell {
         /** @brief Report @p h's override after a write, with what it reads as
          *  and how to make it durable. */
         void _override_reply(Vars::Var h, const char* verb);
+        /** @brief Force @p r's `_qlt` companion. False when it has none -
+         *  a parameter, or a row no law qualifies. */
+        bool _force_quality(Vars::VarRef r, bool valid);
         /** @brief `programs enable|disable <name>|all`. @p on is which. */
         void _programs_gate(const char* nm, uint16_t wn, bool on);
         /** @brief `programs status`: a tally per health, and who is in the ones

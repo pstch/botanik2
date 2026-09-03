@@ -56,23 +56,26 @@ inline void no_soak(Live& f) {
  *  @{ */
 inline void force(Live& f, const char* row, float v) {
     f.bank.override_set(f.bank.var(f.ref(row)), from_f32(T_F32, v));
-    // ...and its companion, where it has one. Forcing a reading without
-    // saying it is believable leaves a law reading the number and refusing to
-    // act on it, which is never what a case forcing a reading means.
-    char qlt[48];
-    const int n = snprintf(qlt, sizeof qlt, "%s_qlt", row);
-    if (n <= 0 || (size_t)n >= sizeof qlt) return;
-    const Vars::VarRef q = f.bank.find(qlt, (uint16_t)n);
-    if (q.index != Vars::VAR_NONE)
-        f.bank.override_set(f.bank.var(q), from_bool(T_BOOL, true));
 }
 inline void force(Live& f, const char* row, bool v) {
     f.bank.override_set(f.bank.var(f.ref(row)), from_bool(T_BOOL, v));
 }
 /** @brief ...and a whole-number row: a state code, a tray number. */
 inline void force(Live& f, const char* row, int64_t v) {
-    const Vars::Var h = f.bank.var(f.ref(row));
-    f.bank.override_set(h, from_i64(h.meta()->type, v));
+    const Vars::VarRef r = f.ref(row);
+    f.bank.override_set(f.bank.var(r), from_i64(f.bank.descriptor(r.index).type, v));
+}
+/** @brief Make @p row read like a dead instrument, and the other way.
+ *
+ *  A quality is a row, so this is an ordinary force of an ordinary row - which
+ *  is exactly what an operator does from the monitor page. */
+inline void distrust(Live& f, const char* row) {
+    f.bank.override_set(f.bank.var(f.bank.quality_ref(f.ref(row))),
+                        Scalar::U(Q_NO_DATA));
+}
+inline void believe(Live& f, const char* row) {
+    f.bank.override_set(f.bank.var(f.bank.quality_ref(f.ref(row))),
+                        Scalar::U(Q_VALID));
 }
 /** @} */
 
@@ -115,7 +118,7 @@ inline void put_phase(Live& f, Site::DayPhase p) {
     // overwrite anything set here, and one that does not, where this is the
     // only thing that puts the plant in a phase at all.
     f.bank.var(f.ref("cli_phase")).set_i((int64_t)p);
-    f.bank.var(f.ref("cli_phase_qlt")).set(true);
+    f.bank.var(f.ref("cli_phase")).set_quality(Q_VALID);
 }
 
 /** @brief Put the plant in the end-of-night watering slot. A cycle may only
@@ -138,18 +141,12 @@ inline float safe_open(Live& f) {
     return Vars::as_f32(d.type, d.def);
 }
 
-/** @brief Publish one field-read row as if the bus had just answered it,
- *  and, where the row has a `_qlt` companion, say it was measured. A case
- *  giving a reading means the instrument answered; one rehearsing a dead
- *  instrument clears the companion itself. */
+/** @brief Publish one field-read row as if the bus had just answered it.
+ *  publish() judges the band and writes the row's quality, so a case giving a
+ *  reading says the instrument answered in one call; distrust() is how one
+ *  rehearses an instrument that has gone. */
 inline void field(Live& f, const char* row, float v, uint64_t at = 0) {
     f.bank.var(f.ref(row)).publish(from_f32(T_F32, v), at);
-    char qlt[48];
-    const int n = snprintf(qlt, sizeof qlt, "%s_qlt", row);
-    if (n <= 0 || (size_t)n >= sizeof qlt) return;
-    const Vars::VarRef q = f.bank.find(qlt, (uint16_t)n);
-    if (q.index != Vars::VAR_NONE)
-        f.bank.var(q).publish(from_bool(T_BOOL, true), at);
 }
 
 /** @brief The house at two levels, and the row derived from them.
@@ -201,18 +198,14 @@ inline void interlocks_clear(Live& f) {
 struct StRig {
     Live                live;
     /** PHASE_INPUT's job, which the beat does before PHASE_CONTROL: the local
-     *  terminals' own rows - an edge count among them - and a probe that
-     *  stopped answering reaching ST as a companion, never as a quality. */
+     *  terminals' own rows, an edge count among them. */
     Io::LocalInputs     terminals{ Botanik::SetupContext(live.reg), live.bank };
-    Vars::QualityMirror mirror{ Botanik::SetupContext(live.reg), live.bank };
     Plc::Runtime::Plant     st{ Botanik::SetupContext(live.reg), live.bank };
 
     StRig() {
         d.terminals = &terminals;
         st.wire();
-        mirror.wire();
         d.st = &st;
-        d.mirror = &mirror;
         // The whole conditioning chain is ST now, so seeding a DERIVED row
         // achieves nothing: temp_rh_sensors overwrites the levels from the
         // probes, strat_sensor the gap from the levels, destrat the demand
@@ -237,10 +230,8 @@ struct StRig {
     struct Driver {
         Io::LocalInputs* terminals = nullptr;
         Plc::Runtime::Plant*     st = nullptr;
-        Vars::QualityMirror* mirror = nullptr;
         void step(uint64_t now_ms) {
             terminals->step(now_ms, Tasks::PHASE_INPUT);
-            mirror->scan();
             st->scan(now_ms);
         }
     } d;

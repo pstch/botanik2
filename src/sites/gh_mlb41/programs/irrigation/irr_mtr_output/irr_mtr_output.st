@@ -4,7 +4,7 @@
 PROGRAM irr_mtr_output
 VAR_EXTERNAL CONSTANT
   irr_out_Lpm        : REAL;
-  irr_out_Lpm_qlt    : BOOL;
+  irr_out_Lpm_qlt    : QUALITY;
   irr_out_avg_ms     : UINT;
   irr_flowBand_Lpm   : REAL;
   irr_flowCutoff_Lpm : REAL;
@@ -12,9 +12,9 @@ VAR_EXTERNAL CONSTANT
 END_VAR
 VAR_EXTERNAL
   irr_outFlow_Lpm     : REAL;
-  irr_outFlow_Lpm_qlt : BOOL;
+  irr_outFlow_Lpm_qlt : QUALITY;
   irr_outTotal_L      : REAL;
-  irr_outTotal_L_qlt  : BOOL;
+  irr_outTotal_L_qlt  : QUALITY;
 END_VAR
 VAR
   flow_avg  : EWMA;
@@ -27,7 +27,7 @@ VAR_TEMP
   measured : BOOL;
   lpm      : REAL;
 END_VAR
-  measured := irr_out_Lpm_qlt;
+  measured := GOOD(irr_out_Lpm_qlt);
 
   (* The retained row carries what was metered before this run, read ONCE:
      after that the block owns the total and the row is its output. *)
@@ -64,7 +64,7 @@ END_VAR
      the row is LEFT where it was and the companion is what says so. Zero would
      read as "no water is moving", which is what a leak detector must not be
      told. *)
-  irr_outFlow_Lpm_qlt := measured;
+  irr_outFlow_Lpm_qlt := irr_out_Lpm_qlt;
 
   (* A totalizer is a record of what went past, so nothing is counted from a
      loop that is not answering: the last flow it reported, integrated, is
@@ -80,5 +80,5 @@ END_VAR
   irr_outTotal_L := meter.TOTAL;
   (* The cycle reads both, so the drain verdict declines to judge on a silent
      meter rather than reading no flow at all as a clog. *)
-  irr_outTotal_L_qlt := measured;
+  irr_outTotal_L_qlt := irr_out_Lpm_qlt;
 END_PROGRAM

@@ -55,19 +55,26 @@ def test_monitor_forces_a_row_and_releases_it(spawn):
     goto(term, keys.ALT_6, "VARIABLE")
     term.send(keys.text("cli_temp_hi"))          # one row plus its three probes
     assert term.wait_screen("[/cli_temp_hi]"), "the filter did not narrow the table"
+    # The zone is unbelievable until the simulated field has answered its three
+    # probes. ^V below is about taking a BELIEVED row away, so wait for one.
+    assert term.wait_screen("Quality      : valid"), "the ceiling never came up"
 
     term.send(keys.CTRL_O)
     assert term.wait_screen("cli_temp_hi ="), "^O did not open the override field"
     term.send(keys.CTRL_U + b"33.5" + keys.ENTER)
     assert term.wait_screen("33.5"), "the override did not reach the OVERRIDE column"
-    assert term.wait_screen("1 unsaved"), "the legend did not count the unsaved override"
+    # TWO: the value, and the belief that came with it. Forcing a reading says
+    # to run on it, and the quality is a row of its own now, so both are real
+    # overrides an operator can see and release.
+    assert term.wait_screen("2 unsaved"), "the legend did not count the unsaved override"
 
-    # ^V flips what the force READS as, without touching the value it holds.
+    # ^V forces the row's `_qlt` COMPANION, which is where a quality lives now:
+    # the reading stays where it was put and stops being believed.
     term.send(keys.CTRL_V)
-    assert term.wait_screen("override now reads invalid"), "^V did not flip the validity"
-    assert term.wait_screen("forced invalid"), "the panel still calls the force good"
+    assert term.wait_screen("forced to read invalid"), "^V did not force the quality"
+    assert term.wait_screen("33.5"), "forcing the quality moved the value"
     term.send(keys.CTRL_V)
-    assert term.wait_screen("override now reads valid"), "^V did not flip it back"
+    assert term.wait_screen("forced to read valid"), "^V did not force it back"
     assert term.wait_screen("33.5"), "the flip moved the forced value"
 
     term.send(keys.CTRL_S)
@@ -183,10 +190,9 @@ def test_the_task_table_is_complete(spawn):
 
     # Every task a full build registers, the site's control programs included.
     # Move it deliberately when the set changes; an unexplained DROP is the bug
-    # this exists to catch. Last moved when Io::LocalOutputs was added: the
-    # controller's own relays and LEDs had no driver at all, so a DO or RO row
-    # on device 0 was declarable and never written.
-    assert term.wait_for("Registered ....... : 51"), \
+    # this exists to catch. Last moved when Vars::QualityMirror went: a quality
+    # is the value of a `_qlt` row now, so there is nothing to copy per beat.
+    assert term.wait_for("Registered ....... : 50"), \
         "the task table changed size - a registration was added or silently lost"
     assert term.wait_for("0 refused"), "a registration was refused: MAX_TASKS"
 

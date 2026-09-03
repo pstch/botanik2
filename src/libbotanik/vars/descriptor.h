@@ -10,6 +10,7 @@
  * - the RAM value slot, the handle over the pair, and the Bank.
  */
 
+#include <cstddef>
 #include <cstdint>
 #include "libbotanik/alarms/spec.h"
 
@@ -56,41 +57,66 @@ namespace Botanik { namespace Vars {
         SCOPE_AO,      ///< analog output, engineering value via scale/offset
         SCOPE_DO,      ///< digital output
         SCOPE_RO,      ///< relay output (a coil)
+        /** @brief A `_qlt` companion: the quality of the row it is named after.
+         *  Mapped for a master, not published - a subscriber already learns a
+         *  row is unbelievable by its absence from the payload. */
+        SCOPE_Q,
         SCOPE_COUNT
     };
 
-    /** @brief WHY a value reads as it does, written by whichever path
-     *  invalidated the row - a diagnosis, not a guess made at display time.
+    /** @brief WHY a value reads as it does, written by whichever path judged the
+     *  reading - a diagnosis, not a guess made at display time.
      *
-     *  @warning Q_NO_DATA is 0 deliberately: a zero-initialised Slot (every
-     *  site's store, and the sink) must read as "nothing wrote this". */
+     *  This is the VALUE of a `_qlt` companion row, and the only place a quality
+     *  is ever stored. A row without a companion has no quality to store: it is
+     *  valid, always. @see quality_base()
+     *
+     *  @warning The codes are the ST enumeration's too, which matiec numbers
+     *  0,1,2... in declaration order - so this order is `plc/types.st`'s and
+     *  cannot move. Q_NO_DATA leads for a second reason: a companion nothing has
+     *  written yet must read as "nothing wrote this". */
     enum Quality : uint8_t {
-        Q_NO_DATA = 0,   ///< nothing has ever written it; reads its declared default
-        Q_GOOD,          ///< a real value from whoever owns the row
+        Q_NO_DATA = 0,   ///< nothing has ever written it; the row reads its declared default
+        Q_VALID,         ///< a real value from whoever owns the row
         Q_STALE,         ///< it was live and stopped: no good read within its timeout
         Q_IMPLAUSIBLE,   ///< answering with nonsense: outside its band, or non-finite
-        Q_SAFE,          ///< an output dropped to its declared safe state
-        Q_REFUSED,       ///< the device answered, and declined: it has no such register
-        /** @brief An operator forced this row to read bad, to exercise whatever
-         *  watches for it. A choice, not a diagnosis. The one value here that
-         *  is never STORED: it belongs to the override layer, not to the row,
-         *  and Var::override() constructs it. */
-        Q_FORCED_BAD
+        Q_REFUSED        ///< the device answered, and declined: it has no such register
     };
 
     /** @brief @p q as a phrase for an operator: "valid", or invalid and why. */
     inline const char* quality_str(Quality q) {
         switch (q) {
-            case Q_GOOD:        return "valid";
+            case Q_VALID:       return "valid";
             case Q_NO_DATA:     return "invalid: nothing has written it";
             case Q_STALE:       return "invalid: past its timeout";
             case Q_IMPLAUSIBLE: return "invalid: outside its band";
-            case Q_SAFE:        return "invalid: dropped to its safe state";
             case Q_REFUSED:     return "invalid: the device refused the read";
-            case Q_FORCED_BAD:  return "invalid: forced";
             default:            return "invalid";
         }
     }
+
+    /** @brief A Quality code's label, and the range check with it: a code this
+     *  does not know renders and PARSES as nothing. The T_ENUM converter every
+     *  `_qlt` row is declared with. */
+    inline const char* quality_label(uint64_t q) {
+        switch ((Quality)q) {
+            case Q_NO_DATA:     return "NO_DATA";
+            case Q_VALID:       return "VALID";
+            case Q_STALE:       return "STALE";
+            case Q_IMPLAUSIBLE: return "IMPLAUSIBLE";
+            case Q_REFUSED:     return "REFUSED";
+        }
+        return nullptr;
+    }
+
+    /** @brief @p name less a trailing `_qlt`, into @p base. False when it does
+     *  not end in one, or will not fit.
+     *
+     *  The suffix is the whole link between a row and its quality: `freeze()`
+     *  pairs them by name, so there is no table to add a companion to and none
+     *  to forget. A `_qlt` row has no companion of its own, which is what stops
+     *  the regress. */
+    bool quality_base(const char* name, char* base, size_t cap);
 
     /** @brief Per-variable behaviour bits. */
     enum VarFlags : uint8_t {
@@ -348,7 +374,7 @@ namespace Botanik { namespace Vars {
         bool              present_;
 
         bool present() const { return present_; }
-        bool good()    const { return q == Q_GOOD; }
+        bool good()    const { return q == Q_VALID; }
 
         VarType type() const { return t; }
 

@@ -1,90 +1,78 @@
-# Which quality reads earn a `_qlt` companion {#dev_quality_companions}
+# Which rows get a `_qlt` companion {#dev_quality_companions}
 
-Decided 2026-08-30. 40-odd `.valid()` reads across 21 programs, judged one at
-a time against one test:
+A quality is not a field of a row. It is the VALUE of a row named `<row>_qlt`,
+carrying a `Vars::Quality` code, and it is the only place a quality is stored.
+`Bank::freeze()` pairs the two by name; `Var::quality()` is one indirection
+through `Slot::qlt_row`. See `vars.md` for the model.
 
-> `Ref::get()` already substitutes the row's DECLARED value. So a quality read
-> earns a companion row only when the law must do something STRUCTURALLY
-> different - not merely compute on a different number.
+So "which rows have a quality" is "which rows get a companion", and that is a
+rule the generator applies rather than a judgement anybody makes per row.
 
-**11 rows keep a `_qlt`. Everything else goes.**
+## The rule
 
-## Keep
+**One companion per INPUT.** Every row in `analog_in`, `digital_in`,
+`modbus_in` and `pulse_in`. A reading can always stop being one: a device goes
+quiet, answers with nonsense, or refuses the register. Nothing else can put
+those three codes anywhere.
 
-| row | who needs it | why substitution is not enough |
-|---|---|---|
-| `cli_rain_mmph_qlt` | roof_lockout | declared 0 mm/h reads as FINE WEATHER and opens the roof. An unmeasured sky must shut it. The most safety-critical of the twelve |
-| `cli_wind_mps_qlt` | roof_lockout | same: declared 0 m/s is calm |
-| `cli_coolDem_qlt` | screen, intake_gates | the screen deploys at `cli_thermalScreenDem` = **-0.2** and the declared demand is **+0.20**, so its safe state is unreachable by substitution. The gates must SHUT, which no demand value expresses |
-| `cli_temp_in_qlt` | cooling, climate_watch | cooling RESETS the PID integral - an act, not a value. climate_watch would raise a spurious COLD on the declared 14 degC |
-| `cli_dpMargin_degC_qlt` | humidity, climate_watch | the rot guard fails toward ACTING: unknown means full vent, and the declared 2.0 gives a high but partial one. climate_watch would raise a spurious HUMID |
-| `cli_phase_qlt` | target_temp, irr_schedule | an unplaced phase must apply NO bank offset. The declared PHASE_NIGHT would apply one |
-| `cli_temp_hi_qlt` | temp_rh_zone | the worst-case vote is among MEASURED levels. A level holding an old reading must not speak for the house |
-| `cli_temp_lo_qlt` | temp_rh_zone | the other half of that vote |
-| `irr_inTotal_L_qlt` | irrigation_cycle | a totalizer DIFFERENCE cannot take a substituted constant at either end. `Ref::held()` is what reads it; the companion is what flags the volume |
-| `irr_outTotal_L_qlt` | irrigation_cycle | a totaliser DIFFERENCE cannot take a substituted constant at either end. `Ref::held()` reads the value; the companion flags the volume. The INLET needs none - it is a local pulse counter, always readable, so its companion would be a constant |
-| `irr_outFlow_Lpm_qlt` | irrigation_cycle | the drain verdict DECLINES TO JUDGE on a silent meter. Declared 0 Lpm reads as a clog |
-| `irr_mod_qlt` | irrigation_cycle | the cycle still runs on the declared modulation - the companion is what marks the dose a guess |
+**One companion per row an opted-in PROGRAM writes.** A program says so with
+`quality = yes` in `tables/programs.csv`, and gets a companion for every row it
+writes. A law that can fail to compute has to be able to say so, and the ones
+that can are known per program rather than per row.
 
-## Drop, and why
+**Nothing else.** A row with no companion is valid, always - which is right for
+a parameter (it has a value from the moment it is declared) and for a computed
+row no law hedges about. Companions themselves have none, which is what stops
+the regress.
 
-- **fan_controller** - `strat_dem.valid() ? get() : low_dem`. `cli_stratDem`
-  declares 0.30 and `cli_fanLowDem` is 0.2; the ladder floors at the low band
-  either way. The test computes the answer it already had.
-- **intractor, skirt** - an unknown cooling demand contributes 0 through the
-  ladder, which is what the explicit test forced.
-- **destrat** - `bands.reset()` on an unmeasured gap. The substituted gap is a
-  CONSTANT, so the staircase is deterministic without the reset.
-- **strat_sensor** - flags its output only, and its one reader (destrat) has
-  just dropped the read. Nobody is left to care.
-- **day_phase** `temp_ok` - flags `prev_day_max` / `prev_night_min`, which
-  nothing reads structurally.
-- **weather_watch** - `_seen`, the storm gate and the dry clock. Declared 0
-  wind never storms; the clock simply stops advancing.
-- **climate_watch** `strat.valid()` - the stratification alarm at declared
-  2.0 degC sits under `cli_dTStratHi`, so it does not fire.
-- **dc_watch, irr_mtr_output, irr_modulation** - `measured ? filter(x) :
-  filter.value()`. A filter must not eat a substituted constant, but that is
-  the BLOCK's business: it becomes a `_qlt` INPUT on the filter, not a read in
-  the law.
-- **intake_dry_gate, ac_supply** - the four-probe `have` and the volts/Hz
-  verdict both resolve to "the block did not produce", which the block says on
-  its own outputs.
+**Alarms are excluded**, even under an opt-in. An alarm is a verdict rather
+than a reading: `AlarmController` takes the boolean and has nothing to
+substitute, so a quality beside it would be a row nothing consults.
 
-## Shape
+On `gh_mlb41` that is 127 companions - 82 inputs and 45 program outputs.
 
-`<row>_qlt : BOOL` beside the row, TRUE when believable. In ST it reads like
-any other input:
+## What an opt-in obliges
+
+A program that opts in owes a quality for every row it writes. The companion
+EXISTS for each of them, and one nothing writes sits at `Q_NO_DATA` for the
+life of the run - so the output reads unbelievable and nothing says why.
+`tables.py plant` refuses the build on it, read off matiec's own
+`__SET_EXTERNAL` list, the same way it refuses an output no program writes.
+
+That is the whole enforcement. There is no way for a law to write a quality it
+did not earn, because there is no second truth for it to contradict: the byte
+it writes is the byte `Var::valid()` reads.
+
+## Reading and writing one in ST
+
+`plc/functions/quality.st` declares the enumeration and three functions.
+matiec numbers an implicit enumeration 0,1,2... in declaration order, which is
+the order `descriptor.h` declares the codes in - so the ST type and
+`Vars::Quality` are the same type, and the order in either file cannot move.
 
 ```
-blind := NOT cli_rain_mmph_qlt OR NOT cli_wind_mps_qlt;
+measured             := GOOD(cli_temp_hi_qlt);
+cli_dTStrat_degC_qlt := WORST_OF(cli_temp_hi_qlt, cli_temp_lo_qlt);
+cli_phase_qlt        := QUAL(sol_ready);
 ```
 
-The bank keeps them in step - nothing in ST may WRITE a `_qlt` it did not
-earn, which is the one rule this design has to enforce.
+`WORST_OF` is the one worth reaching for: it carries the REASON downstream, so
+a law three rows away learns that a probe went stale rather than only that the
+number is not to be trusted. `QUAL` is for a law with no input verdict to
+inherit - a block output, a clock that has not been set.
 
-## Where quality still lives
+## Where the substitution happens
 
-Twenty-two reads survive, in three classes, and none of them is a law
-branching on a derived row:
+`Ref::get()` reads the row's DECLARED value when the companion is not
+`Q_VALID`. Once, there, for the laws. `Var::value()` does NOT substitute: the
+monitor page and the telemetry show the number that was implausible with the
+quality beside it, which is what an operator chasing a dead probe needs, and
+`Ref::held()` is the same read for a law that must have the raw one - a
+totaliser difference, where a constant at either end makes the subtraction
+about nothing.
 
-1. **Inside a conditioning block, on a row the TRANSPORT fills.** `ZoneProbes`,
-   `WeatherProbes`, `AcSupply`, `IntakeDryGate`, `DcWatch`, `IrrMtrOutput`.
-   The driver's verdict is the only source there is, and excluding a dead probe
-   from a vote is not something a value can express. These blocks stay C++.
-2. **`Ref::held()` on a totaliser.** Four, all in `irrigation_cycle`. A
-   difference between two readings of one running counter cannot take a
-   substituted constant at either end.
-3. **A producer deriving its own output's quality.** `day_phase` off the sun
-   rows, `strat_sensor` off the two level companions. One expression, and it is
-   what makes the row it writes honest.
-
-The rule, stated once: **quality is READ where the transport put it and where a
-producer derives its own output's. A LAW that branches on a DERIVED row's
-quality gets a companion, or does without.**
-
-## What it costs
-
-11 rows against ~40 reads, so **most of the validity logic goes away**. The
-survivors are the ones where getting it wrong opens a roof in the rain, calls
-for heat into a house nobody can see, or reports a clog that is not there.
+This is why most laws need no quality read at all. A row that is not believable
+already hands a law a number somebody chose and reviewed. A companion is worth
+READING only where the law must do something structurally different: shut the
+roof on an unmeasured sky rather than compute on a calm one, reset a PID
+integral, decline to judge a drain.

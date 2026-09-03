@@ -36,6 +36,7 @@ namespace Botanik { namespace Vars {
         0, 0, nullptr, T_U8, ROLE_COMPUTED, SCOPE_G, 0, 0, {}
     };
     Slot Bank::_sink_v = {};
+    Slot Bank::_sink_q = {};
 
     // Registration
 
@@ -48,15 +49,15 @@ namespace Botanik { namespace Vars {
         // No binding, no wire: a parameter or a computed row has none.
         if (d.bind.transport == XP_NONE) return Value{ Scalar(), &d, d.type, Q_NO_DATA, false };
         // 1:1, so the wire IS the value - nothing is stored twice.
-        if (s.wire_off == WIRE_NONE) return Value{ s.v, &d, d.type, s.qual, true };
+        if (s.wire_off == WIRE_NONE) return Value{ s.v, &d, d.type, var(r).quality(), true };
         // An OUTPUT is scaled on the way out, and nothing ever publishes a
         // count inward for it: its wire value is what WOULD be sent.
         if (d.role == ROLE_OUTPUT) {
             const AnalogValues a = analog_values(this, analog_cal(d));
             return Value{ from_f32(d.bind.wire, a.to_raw(var(r).as_f32())),
-                          &d, d.bind.wire, s.qual, true };
+                          &d, d.bind.wire, var(r).quality(), true };
         }
-        return Value{ _wire[s.wire_off], &d, d.bind.wire, s.qual, true };
+        return Value{ _wire[s.wire_off], &d, d.bind.wire, var(r).quality(), true };
     }
 
     void Bank::publish_wire(VarRef r, Scalar raw, uint64_t now_ms) {
@@ -80,9 +81,10 @@ namespace Botanik { namespace Vars {
         // A calibration whose two raw endpoints coincide has no slope, so
         // to_eng() returns eng_min for every count the ADC ever reads. That is
         // a plausible number - it is the bottom of the row's own band - so it
-        // would sit there at Q_GOOD for ever and the alarm below it would never
+        // would sit there at Q_VALID for ever and the alarm below it would never
         // fire. The channel is not reading; say so.
-        s.qual = (a.degenerate() || !a.plausible(eng)) ? Q_IMPLAUSIBLE : Q_GOOD;
+        var(r).set_quality((a.degenerate() || !a.plausible(eng)) ? Q_IMPLAUSIBLE
+                                                                : Q_VALID);
     }
 
 
@@ -134,10 +136,10 @@ namespace Botanik { namespace Vars {
             _slots[i].stamp_ms = 0;
             // Overrides are a live-session tool; a fresh table has none.
             _slots[i].ovr_on   = false;
-            // A parameter always HAS a value (its factory default until the
-            // store loads one), so it starts good. Everything else starts with
-            // nothing written, so a default is never shown as a measurement.
-            _slots[i].qual     = (d.role == ROLE_PARAM) ? Q_GOOD : Q_NO_DATA;
+            // No quality here: it is a `_qlt` companion's VALUE, and that row
+            // is seeded from its own declared default like any other. Which is
+            // Q_NO_DATA - nothing has written the row it speaks for yet.
+            _slots[i].qlt_row  = VAR_NONE;   // paired at freeze()
             // Nothing demanded yet, so nothing is owed to the field: an output
             // starts at its safe state and the driver's first unconditional
             // rewrite is what puts it there.
@@ -173,9 +175,9 @@ namespace Botanik { namespace Vars {
         for (uint16_t i = 0; i < _count; i++) {
             const Descriptor& d = descriptor(i);
             if (d.role != ROLE_INPUT || d.timeout_ms == 0) continue;
-            if (_slots[i].qual == Q_GOOD &&
-                (now_ms - _slots[i].stamp_ms) > d.timeout_ms)
-                _slots[i].qual = Q_STALE;
+            Var h = var(i);
+            if (h.quality() == Q_VALID && (now_ms - _slots[i].stamp_ms) > d.timeout_ms)
+                h.set_quality(Q_STALE);
         }
     }
 
@@ -307,10 +309,10 @@ namespace Botanik { namespace Vars {
             const Descriptor& d = descriptor(i);
             if (!retainable(d)) continue;
             if (!_store->load_retained(d, _slots[i])) continue;
-            // Q_GOOD, because it is: the value a totalizer carried when the unit
+            // Q_VALID, because it is: the value a totalizer carried when the unit
             // went down is what to carry on from. Q_NO_DATA would send every
             // reader to the default this restore exists to avoid.
-            _slots[i].qual = Q_GOOD;
+            var(i).set_quality(Q_VALID);
             n++;
         }
         return n;

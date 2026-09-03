@@ -24,7 +24,7 @@ namespace Botanik { namespace Vars {
         return n;
     }
 
-    SetResult Bank::override_set(Var h, const char* text, bool valid) {
+    SetResult Bank::override_set(Var h, const char* text) {
         const Descriptor* d = h.meta();
         // A T_STR's live text lives in the pool, not the slot, so there is
         // nothing for an override to shadow.
@@ -35,21 +35,27 @@ namespace Botanik { namespace Vars {
         Scalar parsed;
         // Band deliberately NOT applied - see the header note.
         if (parse_for(*d, text, /*bounded=*/false, &parsed) != SET_OK) return SET_INVALID;
-        override_set(h, parsed, valid);
+        override_set(h, parsed);
         return SET_OK;
     }
 
-    void Bank::override_set(Var h, Scalar v, bool valid) {
-        h.override_set(v, valid);
+    void Bank::override_set(Var h, Scalar v) {
+        h.override_set(v);
         _mark_override_unsaved(h);
-    }
-
-    bool Bank::override_flip_valid(Var h) {
-        // An UNFORCED row counts as reading valid, so the first flip freezes
-        // it where it stands and marks it dead in one act.
-        const bool reads_valid = h.override().present() ? h.valid() : true;
-        override_set(h, h.value().v, !reads_valid);
-        return !reads_valid;
+        // A forced value is BELIEVED. Forcing a dead probe's reading so the
+        // plant runs on it is what an override is for, and inheriting the doubt
+        // underneath would make that impossible. Written into the COMPANION
+        // because that is the one store - a rule applied at read time would be
+        // an answer only C++ could see, ST reading the row itself.
+        // `overrides set <name> <value> invalid` forces the companion after
+        // this and so wins, which is the operator saying no.
+        const uint16_t row = _row_of(h);
+        if (row == VAR_NONE) return;
+        const VarRef q = quality_ref(VarRef{ row });
+        if (q.index == VAR_NONE) return;
+        Var qh = var(q);
+        qh.override_set(Scalar::U((uint64_t)Q_VALID));
+        _mark_override_unsaved(qh);
     }
 
     SetResult Bank::save_override(Var h) {
@@ -57,6 +63,10 @@ namespace Botanik { namespace Vars {
         if (row == VAR_NONE || !_slots[row].ovr_on) return SET_INVALID;
         if (!_persist_override(h)) return SET_NOT_PERSISTED;
         _slots[row].vflags = (uint8_t)(_slots[row].vflags & ~VF_OVR_UNSAVED);
+        // The belief that came with the force goes with it: one act taken, one
+        // act made durable. The companion recurses no further - it has none.
+        const VarRef q = quality_ref(VarRef{ row });
+        if (q.index != VAR_NONE && _slots[q.index].ovr_on) (void)save_override(var(q));
         return SET_OK;
     }
 
@@ -80,6 +90,10 @@ namespace Botanik { namespace Vars {
         h.override_clear();
         const uint16_t row = _row_of(h);
         if (row == VAR_NONE) return;
+        // ...and the belief that came with it, or a released reading would go
+        // on being believed by whatever put it there.
+        const VarRef q = quality_ref(VarRef{ row });
+        if (q.index != VAR_NONE && _slots[q.index].ovr_on) override_clear(var(q));
         _slots[row].vflags = (uint8_t)(_slots[row].vflags & ~VF_OVR_UNSAVED);
         // Forget the stored copy too, or the override comes back at the next
         // boot. Unconditional: an override cleared before it was ever saved may

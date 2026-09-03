@@ -138,7 +138,7 @@ TEST_CASE("health: the thresholds are parameters, live, not compile-time constan
 
     SUBCASE("an override on the threshold row reaches it like any other reader") {
         f.bank.override_set(f.bank.var(f.bank.find("sys_cpu_load_pct")),
-                            Vars::Scalar::U(10), true);
+                            Vars::Scalar::U(10));
         h.step(SETTLED);
         CHECK(f.alarm("alarm_cpu_load"));
     }
@@ -303,7 +303,7 @@ TEST_CASE("quality: a row losing its validity is announced once, not per beat") 
     for (uint16_t i = 0; i < 40; i++) reg.run_phase(Botanik::Tasks::PHASE_SERVICE, t += 100);
     f.writer.all_msgs.clear();
 
-    f.bank.var(r).invalidate(Vars::Q_NO_DATA);
+    f.bank.var(r).set_quality(Vars::Q_NO_DATA);
     for (uint16_t i = 0; i < 40; i++) reg.run_phase(Botanik::Tasks::PHASE_SERVICE, t += 100);
 
     int said = 0;
@@ -351,7 +351,7 @@ TEST_CASE("quality: bring-up is adopted in silence, not announced row by row") {
     // ...and the row was ADOPTED rather than merely skipped, so the next change
     // is the one that speaks.
     t = (uint64_t)Config::HEALTH_QUIET_MS + 1000;
-    f.bank.var(r).invalidate(Vars::Q_NO_DATA);
+    f.bank.var(r).set_quality(Vars::Q_NO_DATA);
     for (uint16_t i = 0; i < 40; i++) reg.run_phase(Botanik::Tasks::PHASE_SERVICE, t += 100);
     CHECK(f.writer.saw("cli_temp_hi1: invalid"));
 }

@@ -4,7 +4,7 @@
 PROGRAM screen_controller
 VAR_EXTERNAL CONSTANT
   cli_coolDem          : REAL;
-  cli_coolDem_qlt      : BOOL;
+  cli_coolDem_qlt      : QUALITY;
   cli_thermalScreenDem : REAL;
   cli_phase            : USINT;
   cli_screenTravel_sec : UINT;
@@ -33,7 +33,7 @@ END_VAR
      No dead band on this one, and none is needed: the permission table below
      makes every phase ONE-DIRECTIONAL, so a demand sitting on the rung can
      move the fabric at most once per phase whatever it does afterwards. *)
-  cold := NOT cli_coolDem_qlt OR cli_coolDem <= cli_thermalScreenDem;
+  cold := NOT GOOD(cli_coolDem_qlt) OR cli_coolDem <= cli_thermalScreenDem;
 
   (* Deploying belongs to the half of the day that is closing down, retracting
      to the half that is opening up. An hour of cold at midday therefore never

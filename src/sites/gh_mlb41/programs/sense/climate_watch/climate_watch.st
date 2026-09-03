@@ -5,10 +5,10 @@ PROGRAM climate_watch
 VAR_EXTERNAL CONSTANT
   cli_temp_hi           : REAL;
   cli_dpMargin_degC     : REAL;
-  cli_temp_hi_qlt       : BOOL;
-  cli_dpMargin_degC_qlt : BOOL;
+  cli_temp_hi_qlt       : QUALITY;
+  cli_dpMargin_degC_qlt : QUALITY;
   cli_dTStrat_degC      : REAL;
-  cli_dTStrat_degC_qlt  : BOOL;
+  cli_dTStrat_degC_qlt  : QUALITY;
   cli_tooHot_degC       : REAL;
   cli_tooCold_degC      : REAL;
   cli_dehumFull_degC    : REAL;
@@ -32,7 +32,7 @@ END_VAR
 
   (* Each alarm is gated on the quality of the row IT reads, and no other: a
      dead ceiling probe must not silence an alarm the floor can still see. *)
-  IF cli_temp_hi_qlt THEN
+  IF GOOD(cli_temp_hi_qlt) THEN
     alarm_too_hot  := cli_temp_hi > cli_tooHot_degC;
     alarm_too_cold := cli_temp_hi < cli_tooCold_degC;
   ELSE
@@ -46,7 +46,7 @@ END_VAR
      25, and the alarm has to mean one thing at both. The line is the
      dehumidify arm's own saturation point, so the alarm cannot disagree with
      the actuator it is about. *)
-  IF cli_dpMargin_degC_qlt THEN
+  IF GOOD(cli_dpMargin_degC_qlt) THEN
     alarm_too_humid := cli_dpMargin_degC < cli_dehumFull_degC;
   ELSE
     alarm_too_humid := FALSE;
@@ -55,7 +55,7 @@ END_VAR
   (* Past the band the fans are already flat out on: the gap is not something
      destratification is going to close on its own. Gated like the rest, so a
      gap nobody measured cannot raise it. *)
-  IF cli_dTStrat_degC_qlt THEN
+  IF GOOD(cli_dTStrat_degC_qlt) THEN
     alarm_strat := cli_dTStrat_degC > cli_dTStratHigh_degC;
   ELSE
     alarm_strat := FALSE;

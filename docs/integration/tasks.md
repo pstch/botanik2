@@ -44,13 +44,13 @@ else: there is no class, no header, and no registration to write.
 PROGRAM strat_sensor
 VAR_EXTERNAL CONSTANT
   cli_temp_hi     : REAL;
-  cli_temp_hi_qlt : BOOL;
+  cli_temp_hi_qlt : QUALITY;
   cli_temp_lo     : REAL;
-  cli_temp_lo_qlt : BOOL;
+  cli_temp_lo_qlt : QUALITY;
 END_VAR
 VAR_EXTERNAL
   cli_dTStrat_degC     : REAL;
-  cli_dTStrat_degC_qlt : BOOL;
+  cli_dTStrat_degC_qlt : QUALITY;
 END_VAR
 VAR
   smooth : EWMA;          (* state, carried between scans *)
@@ -58,13 +58,14 @@ END_VAR
 VAR_TEMP
   measured : BOOL;        (* this activation only *)
 END_VAR
-  measured := cli_temp_hi_qlt AND cli_temp_lo_qlt;
+  measured := GOOD(cli_temp_hi_qlt) AND GOOD(cli_temp_lo_qlt);
   IF measured THEN
     cli_dTStrat_degC := ABS(cli_temp_hi - cli_temp_lo);
   ELSE
     cli_dTStrat_degC := cli_dTStratLow_degC;
   END_IF;
-  cli_dTStrat_degC_qlt := measured;
+  (* the WORSE of the two, so the reason travels and not just the verdict *)
+  cli_dTStrat_degC_qlt := WORST_OF(cli_temp_hi_qlt, cli_temp_lo_qlt);
 END_PROGRAM
 ```
 
@@ -100,7 +101,7 @@ law needs is a row it names:
 |---|---|
 | `sys_now_ms` | the scan clock, ms since boot. Blocks difference it themselves |
 | `sys_today` | days since 1 Jan 1970; **0 before the clock is set**, which a schedule refuses to run against |
-| a `_qlt` companion | whether the row beside it is believable |
+| a `_qlt` companion | the row beside it is believable, or why not. `GOOD(q)` to branch on one, `WORST_OF(a, b)` to inherit two, `QUAL(ok)` to make one from a boolean |
 
 **There is no `dt_ms` and no `first_scan`.** A block that needs elapsed time
 takes `NOW` and keeps its own last reading, which is what makes it
@@ -134,8 +135,9 @@ once per activation. What a program may reach for:
 
 **Outputs are always written**, every beat, whatever the inputs did. Skipping
 the write leaves a stale number that still reads as current, which is worse than
-a fresh one computed from doubtful inputs. ST cannot write a quality, so doubt
-goes in a COMPANION the law writes beside the value.
+a fresh one computed from doubtful inputs. The doubt goes in the `_qlt` COMPANION
+the law writes beside the value - and if the program opted in, the build refuses
+a row whose companion it leaves unwritten.
 
 ## The POU library
 

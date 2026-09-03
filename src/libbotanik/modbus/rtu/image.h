@@ -34,7 +34,7 @@ namespace Botanik { namespace Modbus {
     void reassert_block(Vars::Bank& io, const Planner& p, const Block& b);
 
     /** @brief Invalidate every row of @p b, because the read failed. Left alone a
-     *  row keeps Q_GOOD and its last value, and one declared with timeout_ms == 0
+     *  row keeps Q_VALID and its last value, and one declared with timeout_ms == 0
      *  is skipped by expire_stale() entirely, so it would read good for ever.
      *  @param q Q_REFUSED when the device answered and declined, Q_STALE when
      *         nothing came back. */

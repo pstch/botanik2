@@ -4,6 +4,9 @@
  *  the row a POU names arrives here as `CLI_RAIN_MMPH`. The table spells it
  *  `cli_rain_mmph`. Folding case is the whole of the difference; all 425 site
  *  rows stay unique under it.
+ *
+ *  A `_qlt` companion is an ordinary row and resolves the same way: the
+ *  generator declares one, so nothing here knows about the suffix.
  */
 #ifndef BOTANIK_PLC_RUNTIME_RESOLVE_H
 #define BOTANIK_PLC_RUNTIME_RESOLVE_H

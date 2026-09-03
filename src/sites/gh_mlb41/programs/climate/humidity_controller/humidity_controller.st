@@ -5,7 +5,7 @@ PROGRAM humidity_controller
 VAR_EXTERNAL CONSTANT
   cli_rotRelease_sec    : UINT;
   cli_dpMargin_degC     : REAL;
-  cli_dpMargin_degC_qlt : BOOL;
+  cli_dpMargin_degC_qlt : QUALITY;
   cli_dehumFull_degC    : REAL;
   cli_dehumStart_degC   : REAL;
   cli_humidStart_degC   : REAL;
@@ -33,7 +33,7 @@ END_VAR
                                 POS_START := cli_humidStart_degC,
                                 POS_FULL  := cli_humidFull_degC);
 
-  IF cli_dpMargin_degC_qlt THEN
+  IF GOOD(cli_dpMargin_degC_qlt) THEN
     (* A FALLING ramp, negated so the one ladder serves both directions:
        nothing at the limit, everything at the dew point itself. The span IS
        the operator's setting - cli_rotMargin_degC sits on its own floor by
@@ -56,5 +56,5 @@ END_VAR
   lockout_for.PT  := SEC_MS(cli_rotRelease_sec);
   lockout_for.NOW := sys_now_ms;
   lockout_for();
-  cli_rotLockout := lockout_for.Q OR NOT cli_dpMargin_degC_qlt;
+  cli_rotLockout := lockout_for.Q OR NOT GOOD(cli_dpMargin_degC_qlt);
 END_PROGRAM

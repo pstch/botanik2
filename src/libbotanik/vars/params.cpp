@@ -70,7 +70,6 @@ namespace Botanik { namespace Vars {
             if (!HAL::Storage::get(d.name, text, cap, &n)) return false;
             // A stored value that filled the slot leaves no room for the NUL.
             text[n < cap ? n : (size_t)cap - 1] = 0;
-            v.qual = Q_GOOD;
             return true;
         }
         const uint8_t w = type_width(d.type);
@@ -79,7 +78,6 @@ namespace Botanik { namespace Vars {
         size_t n = 0;
         if (!HAL::Storage::get(d.name, &raw, w, &n) || n != w) return false;
         v.v = decode_scalar(d.type, raw, w);
-        v.qual = Q_GOOD;
         return true;
     }
 
@@ -102,14 +100,16 @@ namespace Botanik { namespace Vars {
         if (w == 0) return false;
         // Slot bytes then the validity byte: an override records BOTH what the
         // variable reads and whether it reads as good data.
-        uint8_t buf[sizeof(uint64_t) + 1] = {};
+        // The value alone. An override written by a firmware that stored a
+        // validity byte after it is one byte too long and is refused here,
+        // which forgets it - the safe direction for a force nobody restated.
+        uint8_t buf[sizeof(uint64_t)] = {};
         size_t n = 0;
-        if (!HAL::Storage::get(key, buf, (size_t)w + 1, &n)) return false;
-        if (n != (size_t)w + 1) return false;
+        if (!HAL::Storage::get(key, buf, w, &n)) return false;
+        if (n != w) return false;
         uint64_t raw = 0;
         memcpy(&raw, buf, w);
         v.ovr = decode_scalar(d.type, raw, w);
-        v.ovr_valid = (buf[w] != 0);
         return true;
     }
 
@@ -118,11 +118,10 @@ namespace Botanik { namespace Vars {
         if (!prefixed_key(d, "ovr.", key, sizeof(key))) return false;
         const uint8_t w = type_width(d.type);
         if (w == 0) return false;
-        uint8_t buf[sizeof(uint64_t) + 1] = {};
+        uint8_t buf[sizeof(uint64_t)] = {};
         uint64_t raw = encode_scalar(d.type, v.ovr);
         memcpy(buf, &raw, w);
-        buf[w] = v.ovr_valid ? 1 : 0;
-        return HAL::Storage::set(key, buf, (size_t)w + 1);
+        return HAL::Storage::set(key, buf, w);
     }
 
     bool KvParamStore::clear_override(const Descriptor& d) {
@@ -375,9 +374,8 @@ void Bank::_find_param_block() {
         // Modbus master re-asserting its setpoint block every poll and an ST
         // program restating its whole output every scan are both normal, and
         // either would be a flash erase per write without this.
-        if (slot->v.u == v.u && slot->qual == Q_GOOD) return SET_OK;
-        slot->v     = v;
-        slot->qual  = Q_GOOD;
+        if (slot->v.u == v.u) return SET_OK;
+        slot->v = v;
         // Live now, durable when somebody saves. See the header: it is the one
         // rule that makes a setting able to break its own console recoverable.
         slot->vflags = (uint8_t)(slot->vflags | VF_PARAM_UNSAVED);
@@ -413,7 +411,6 @@ void Bank::_find_param_block() {
             slot->v = d->def;
             if (txt != nullptr) copy_bounded(txt, cap, d->def.s);
         }
-        slot->qual   = Q_GOOD;                // a parameter always has a value
         slot->vflags = (uint8_t)(slot->vflags & ~VF_PARAM_UNSAVED);
         return SET_OK;
     }
@@ -424,8 +421,7 @@ void Bank::_find_param_block() {
         if (slot == nullptr) return SET_INVALID;
         if (param_retained(*d)) return SET_INVALID;
 
-        slot->v    = d->def;
-        slot->qual = Q_GOOD;                  // a parameter always has a value
+        slot->v = d->def;
         uint16_t cap = 0;
         char* txt = text(h, &cap);
         if (txt != nullptr) copy_bounded(txt, cap, d->def.s);
@@ -508,15 +504,13 @@ void Bank::_find_param_block() {
             if (dst == nullptr) return SET_INVALID;
             if (!validate_str(text_slot(*d).kind, text, cap)) return SET_INVALID;
             // Unchanged text owes the store nothing either. @see set_deferred()
-            if (slot.qual == Q_GOOD && std::strcmp(dst, text) == 0) return SET_OK;
+            if (std::strcmp(dst, text) == 0) return SET_OK;
             copy_bounded(dst, cap, text);
-            slot.qual = Q_GOOD;
         } else {
             Scalar parsed;
             if (parse_for(*d, text, /*bounded=*/true, &parsed) != SET_OK) return SET_INVALID;
-            if (slot.v.u == parsed.u && slot.qual == Q_GOOD) return SET_OK;
-            slot.v    = parsed;
-            slot.qual = Q_GOOD;
+            if (slot.v.u == parsed.u) return SET_OK;
+            slot.v = parsed;
         }
 
         slot.vflags = (uint8_t)(slot.vflags | VF_PARAM_UNSAVED);

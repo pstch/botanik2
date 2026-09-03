@@ -4,12 +4,12 @@
 PROGRAM skirt_controller
 VAR_EXTERNAL CONSTANT
   cli_coolDem           : REAL;
-  cli_coolDem_qlt       : BOOL;
+  cli_coolDem_qlt       : QUALITY;
   cli_humidDem          : REAL;
   cli_skirtCoolDem      : REAL;
   cli_skirtDryMin_degC  : REAL;
   cli_dpMargin_degC     : REAL;
-  cli_dpMargin_degC_qlt : BOOL;
+  cli_dpMargin_degC_qlt : QUALITY;
   cli_rotLockout        : BOOL;
   cli_skirtPeriod_sec   : UINT;
   cli_skirtMinOn_sec    : UINT;
@@ -37,8 +37,8 @@ END_VAR
 
      BOTH readings have to be measured ones: wetting the pad on a demand or a
      margin nobody took is how water goes in where it was never wanted. *)
-  dry := cli_dpMargin_degC_qlt AND cli_dpMargin_degC >= cli_skirtDryMin_degC;
-  IF cli_coolDem_qlt AND dry THEN
+  dry := GOOD(cli_dpMargin_degC_qlt) AND cli_dpMargin_degC >= cli_skirtDryMin_degC;
+  IF GOOD(cli_coolDem_qlt) AND dry THEN
     cool := LADDER(V := cli_coolDem, LO := cli_skirtCoolDem, HI := 1.0);
   ELSE
     cool := 0.0;

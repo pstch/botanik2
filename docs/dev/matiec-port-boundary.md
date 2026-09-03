@@ -49,10 +49,10 @@ Three ways out, none free:
 
 1. **Every quality-reading law stays C++.** 21 of 29 programs, so ST would
    describe the 8 that are pure arithmetic. Not worth a compiler.
-2. **Quality becomes a companion variable.** For each row `X`, an `X_VALID :
-   BOOL` the shim keeps in step. ST reads it like any BOOL and the cascade
-   survives - at the cost of doubling the visible variable count and letting a
-   law write a quality it did not earn.
+2. **Quality becomes a companion variable.** For each row `X`, an `X_qlt` the
+   shim keeps in step. ST reads it like any other row and the cascade survives -
+   at the cost of doubling the visible variable count and letting a law write a
+   quality it did not earn.
 3. **A hand-written FB the generator cannot see through.** `VAR_IN_OUT` passes
    a reference, so a `VALID` block WOULD receive the `Ref` and could ask it -
    but matiec generates every FB body from ST, so the body would have to be
@@ -62,22 +62,19 @@ Three ways out, none free:
 **(2) is the only one that keeps both, and it is a design change to the
 variable model, not an integration detail.**
 
-**Resolved: (2), narrowed.** The doubling was the objection, and it does not
-happen. `Ref::get()` already substitutes a row's DECLARED value when the row is
-not believable, so most of those 21 programs are testing quality to compute a
-number the substitution hands them anyway. Judged one at a time
-(`quality-companions.md`), **12 rows earn a `_qlt`** and the other ~28 reads go:
-a companion is warranted only where the law must do something STRUCTURALLY
-different, which no value substitution can express.
+**Resolved: (2), taken all the way.** Neither objection survived. The doubling
+does not happen because the companions are GENERATED from a rule rather than
+declared - one per input, one per row a program that opted in writes - which is
+127 rows on `gh_mlb41`, not one per row. And "a law writing a quality it did not
+earn" stopped being possible to worry about once the companion became the ONLY
+store: there is no second truth for it to contradict, and `tables.py plant`
+refuses an opted-in program that leaves one of its own unwritten. See
+`quality-companions.md` for the rule and `vars.md` for the model.
 
 `roof_lockout` is the worked case and the reason the rule exists. Both weather
-rows declare 0, so a dead station reads as fine weather; `st/roof_lockout.st`
-runs on `cli_rain_mmph_qlt` and `cli_wind_mps_qlt` as plain BOOLs, and its
-harness shows the roof opening to `cap = 1.00` the moment the two reads are
-taken out.
-
-The one rule the design has to enforce is the second half of the objection:
-nothing in ST may WRITE a `_qlt` it did not earn.
+rows declare 0, so a dead station reads as fine weather; `roof_lockout.st` runs
+on `GOOD(cli_rain_mmph_qlt)` and `GOOD(cli_wind_mps_qlt)`, and its harness shows
+the roof opening to `cap = 1.00` the moment the two reads are taken out.
 
 ### The descriptor
 

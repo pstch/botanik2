@@ -253,21 +253,13 @@ body, empty if we do not write one.
 most `.valid()` reads were computing a number substitution would have given
 anyway. 49 reads became 22, with 11 companions.
 
-**ST cannot write a quality.** `__SET_EXTERNAL` has nowhere to put one. So an
-ST-written row is ALWAYS valid and the companion is the only signal, and
-substitution stops applying to it - a program that used to publish an invalid
-row must now publish the safe VALUE explicitly (see `strat_sensor`, which
-publishes the low rung).
-
-Where quality still legitimately lives:
-
-1. inside a conditioning block, on a row the TRANSPORT fills
-2. `Ref::held()` on a totaliser
-3. a producer deriving its own output's quality
-
-`Vars::QualityMirror` (a `Component` at `PHASE_INPUT`, after the bank's expiry
-sweep) copies a FIELD row's validity into its `X_qlt` companion. Only rows a
-transport fills - a derived row's companion is a program's verdict.
+**ST writes a quality the way it writes anything.** A quality IS a row - `x_qlt`,
+a `QUALITY` enum whose codes are `Vars::Quality`'s - so `__SET_EXTERNAL` has
+somewhere to put one and `__GET_EXTERNAL` somewhere to read one. A law says
+`GOOD(x_qlt)` to branch, `WORST_OF(a_qlt, b_qlt)` to inherit its inputs' verdict,
+and `QUAL(ok)` when it has none to inherit. This was a second store copied per
+beat by a `Vars::QualityMirror` component; the row IS the store
+now, and the component is gone.
 
 ### The clock, not a delta
 

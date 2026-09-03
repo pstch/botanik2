@@ -5,8 +5,8 @@ PROGRAM weather_watch
 VAR_EXTERNAL CONSTANT
   cli_wind_mps        : REAL;
   cli_rain_mmph       : REAL;
-  cli_wind_mps_qlt    : BOOL;
-  cli_rain_mmph_qlt   : BOOL;
+  cli_wind_mps_qlt    : QUALITY;
+  cli_rain_mmph_qlt   : QUALITY;
   cli_windShutEnd_mps : REAL;
   sys_now_ms          : UDINT;
 END_VAR
@@ -23,7 +23,7 @@ END_VAR
 VAR_TEMP
   mins : UDINT;
 END_VAR
-  IF cli_wind_mps_qlt AND cli_rain_mmph_qlt THEN seen := TRUE; END_IF;
+  IF GOOD(cli_wind_mps_qlt) AND GOOD(cli_rain_mmph_qlt) THEN seen := TRUE; END_IF;
 
   (* A STORM is sustained wind: cli_windShutEnd_mps, which is 75 kmph and
      Beaufort 9. The same number that shuts the roof, because it is the same
@@ -38,7 +38,7 @@ END_VAR
      witness: before then the answer is "at least this long", which is both
      true and what the roof cares about. *)
   IF primed THEN
-    IF cli_rain_mmph_qlt THEN
+    IF GOOD(cli_rain_mmph_qlt) THEN
       IF cli_rain_mmph > 0.0 THEN dry_ms := 0;
       ELSE dry_ms := dry_ms + (sys_now_ms - last);
       END_IF;

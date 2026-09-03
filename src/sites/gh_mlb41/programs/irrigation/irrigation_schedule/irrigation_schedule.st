@@ -16,10 +16,10 @@ VAR_EXTERNAL CONSTANT
   irr_volFreqSplit   : REAL;
   irr_traysPerDay    : UINT;
   cli_temp_ext       : REAL;
-  cli_temp_ext_qlt   : BOOL;
+  cli_temp_ext_qlt   : QUALITY;
   irr_dawnGate_degC  : REAL;
   cli_phase          : USINT;
-  cli_phase_qlt      : BOOL;
+  cli_phase_qlt      : QUALITY;
   sol_ready          : BOOL;
   sol_fromRise_min   : INT;
   sol_dayRise_min    : INT;

@@ -234,9 +234,19 @@ Subsystems under `src/libbotanik/`. Each row's doc is the reference; the header 
   `Tunable`s; `scale`/`offset` are never stored but derived, so a recalibration lands the
   moment the parameter commits. Anything DISPLAYING a band goes through `var_band()`, not
   `num_band()`. See `vars.md`.
+- **Quality is a ROW.** `x_qlt` carries `x`'s `Vars::Quality` and is the only
+  place a quality is stored: `Bank::freeze()` pairs the two by name, `Var::valid()`
+  reads that row, a driver's `publish()` writes it, and ST reads and writes it like
+  any other. There is nothing to keep in step. A row with no companion is valid,
+  always, and so is every companion. Which rows get one is GENERATED - one per
+  input, one per row a program that opted in (`quality` in `programs.csv`) writes,
+  never an alarm - and opting in obliges the law to write every one of them, which
+  `tables.py plant` checks off matiec's write list. `Ref::get()` substitutes the
+  declared value for a law; `Var::value()` does not, so a page shows the reading
+  that was implausible. See `quality-companions.md`.
 - **Naming files a variable.** `var_group()` is the prefix of a name up to the first `_`;
-  `var_published()` is true iff a row is neither a parameter nor an alarm. There is no
-  group table to add a variable to and none to forget.
+  `var_published()` is true iff a row is neither a parameter, an alarm, nor a quality.
+  There is no group table to add a variable to and none to forget.
 
 ### Key compile-time defines
 

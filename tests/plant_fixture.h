@@ -47,11 +47,9 @@ inline void hold_weather(Plant& p);
 struct Plant {
     Live f;
 
-    /** @brief PHASE_INPUT's job: the local terminals' own rows - an edge count
-     *  among them - then a field row's quality reaching ST as a companion.
-     *  Before the plant, as the beat has it. */
+    /** @brief PHASE_INPUT's job: the local terminals' own rows, an edge count
+     *  among them. Before the plant, as the beat has it. */
     Io::LocalInputs            terminals;
-    Vars::QualityMirror        mirror;
     /** @brief The ST plant: every one of the site's programs. */
     Plc::Runtime::Plant            st;
 
@@ -62,21 +60,18 @@ struct Plant {
     void (*hold)(Plant&) = hold_weather;
 
     Plant()
-        : terminals(ctx(), io()), mirror(ctx(), io()), st(ctx(), io()) {
+        : terminals(ctx(), io()), st(ctx(), io()) {
         st.wire();
-        mirror.wire();
     }
 
     SetupContext ctx() { return Botanik::SetupContext(f.reg); }
     Vars::Bank&  io()  { return f.bank; }
 
-    /** @brief ONE beat, in the order the firmware has: the field's quality
-     *  reaches ST as companions, the ST plant runs, then the C++ programs. A
-     *  case that steps the cycle alone runs neither of the first two. */
+    /** @brief ONE beat, in the order the firmware has: the local terminals,
+     *  then the ST plant. A case that steps the cycle alone runs neither. */
     void beat() {
         t += 100;
         terminals.step(t, Tasks::PHASE_INPUT);
-        mirror.scan();
         st.scan(t);
     }
 

@@ -183,11 +183,13 @@ namespace {
     /** @brief Does this row publish a Modbus TCP register? Delegates to
      *  vars/access.h. */
     bool mapped(const Vars::Descriptor& d) { return Vars::var_mapped(d); }
-    /** @brief Whether @p d's register sits in its scope's block: site rows
-     *  below 900, library's above; alarms 800-899 (library's at the top).
-     *  See @ref dev_modbus. */
+    /** @brief Whether @p d's register sits in its block: site rows below 900,
+     *  library's above; alarms 800-899 (library's at the top). The generated
+     *  `_qlt` companions have a block of their own from 1000, so adding a
+     *  reading cannot renumber a hand-assigned one. See @ref dev_modbus. */
     bool in_block(const Vars::Descriptor& d) {
         const uint16_t r = d.bind.reg;
+        if (d.scope == Vars::SCOPE_Q) return r >= 1000;
         return (d.scope == Vars::SCOPE_A) ? ((r >= 800 && r <= 899) ||
                                              (r >= 986 && r <= 999))
                                           : ((r >= 1 && r <= 799) ||
@@ -195,47 +197,72 @@ namespace {
     }
 }
 
-TEST_CASE_FIXTURE(SiteBank, "vars: a field row's quality reaches its companion") {
-    // A C++ law asks the bank whether a reading is believable. ST has no way
-    // to ask anything, so for a FIELD row the answer has to BE a row, and the
-    // bank is what puts it there - never a program, which has nothing to copy.
-    Botanik::Tasks::Registry reg;
-    Vars::QualityMirror m(Botanik::SetupContext(reg), bank);
-    m.wire();
-    REQUIRE(m.pairs() > 0);
-    REQUIRE(m.refused() == 0);
-
+TEST_CASE_FIXTURE(SiteBank, "vars: a row's quality IS its companion's value") {
+    // One store, two names. A driver writes the quality through the row it
+    // published; ST reads the companion. Nothing copies between them, so they
+    // cannot lag or disagree.
     const Vars::VarRef probe = bank.find("cli_temp_hi1");
     const Vars::VarRef qlt   = bank.find("cli_temp_hi1_qlt");
     REQUIRE(probe.index != Vars::VAR_NONE);
     REQUIRE(qlt.index != Vars::VAR_NONE);
+    CHECK(bank.quality_ref(probe).index == qlt.index);
 
     bank.var(probe).publish(Vars::from_f32(Vars::T_F32, 21.5f), 1000);
-    m.scan();
-    CHECK(bank.var(qlt).as_bool());
+    CHECK(bank.var(probe).valid());
+    CHECK(bank.var(qlt).as<uint8_t>() == Vars::Q_VALID);
 
-    INFO("and it follows the row down: a probe that stops answering is what "
-         "the companion is for");
-    bank.var(probe).invalidate(Vars::Q_NO_DATA);
-    m.scan();
-    CHECK_FALSE(bank.var(qlt).as_bool());
+    INFO("and the other way: writing the companion is what makes the row bad");
+    bank.var(qlt).set_i(Vars::Q_STALE);
+    CHECK_FALSE(bank.var(probe).valid());
+    CHECK(bank.var(probe).quality() == Vars::Q_STALE);
 }
 
-TEST_CASE_FIXTURE(SiteBank, "vars: a DERIVED row's companion is not mirrored") {
-    // cli_temp_in_qlt is temp_rh_zone's verdict about a number it computed.
-    // Nothing measured it, so there is no quality to copy, and mirroring it
-    // would overwrite the law that owns it.
-    Botanik::Tasks::Registry reg;
-    Vars::QualityMirror m(Botanik::SetupContext(reg), bank);
-    m.wire();
+TEST_CASE_FIXTURE(SiteBank, "vars: a row with no companion is valid, always") {
+    // The rule that keeps the table small: a parameter cannot stop being one,
+    // and a companion has no quality of its own - which is what stops the
+    // regress.
+    const Vars::VarRef param = bank.find("cli_coldBankOfs_degC");
+    REQUIRE(param.index != Vars::VAR_NONE);
+    CHECK(bank.quality_ref(param).index == Vars::VAR_NONE);
+    CHECK(bank.var(param).valid());
 
-    const Vars::VarRef derived = bank.find("cli_temp_in_qlt");
-    REQUIRE(derived.index != Vars::VAR_NONE);
-    bank.var(derived).set(true);
-    bank.var(bank.find("cli_temp_in")).invalidate(Vars::Q_NO_DATA);
-    m.scan();
-    INFO("the law's verdict stands: the mirror never touched it");
-    CHECK(bank.var(derived).as_bool());
+    const Vars::VarRef qlt = bank.find("cli_temp_hi1_qlt");
+    REQUIRE(qlt.index != Vars::VAR_NONE);
+    CHECK(bank.quality_ref(qlt).index == Vars::VAR_NONE);
+    bank.var(qlt).set_i(Vars::Q_NO_DATA);
+    CHECK(bank.var(qlt).valid());
+}
+
+TEST_CASE_FIXTURE(SiteBank, "vars: a forced value is believed, a forced quality wins") {
+    // Forcing a dead probe's reading so the plant runs on it is what an
+    // override is FOR, so the force does not inherit the doubt underneath it.
+    const Vars::VarRef probe = bank.find("cli_temp_hi1");
+    bank.var(bank.quality_ref(probe)).set_i(Vars::Q_STALE);
+    REQUIRE_FALSE(bank.var(probe).valid());
+
+    bank.override_set(bank.var(probe), Vars::from_f32(Vars::T_F32, 25.0f));
+    CHECK(bank.var(probe).valid());
+    CHECK(bank.var(probe).as_f32() == doctest::Approx(25.0f));
+
+    INFO("...and forcing the QUALITY on top of it is the operator saying no");
+    bank.override_set(bank.var(bank.quality_ref(probe)),
+                      Vars::Scalar::U(Vars::Q_NO_DATA));
+    CHECK_FALSE(bank.var(probe).valid());
+    CHECK(bank.var(probe).as_f32() == doctest::Approx(25.0f));
+}
+
+TEST_CASE_FIXTURE(SiteBank, "vars: forcing a companion is how a row reads dead") {
+    // The override layer carries no validity of its own any more: "make this
+    // sensor read failed" is an ordinary force of an ordinary row.
+    const Vars::VarRef probe = bank.find("cli_temp_hi1");
+    bank.var(probe).publish(Vars::from_f32(Vars::T_F32, 21.5f), 1000);
+    REQUIRE(bank.var(probe).valid());
+
+    bank.override_set(bank.var(bank.quality_ref(probe)),
+                      Vars::Scalar::U(Vars::Q_NO_DATA));
+    CHECK_FALSE(bank.var(probe).valid());
+    INFO("the reading itself is untouched - it is the belief that was forced");
+    CHECK(bank.var(probe).as_f32() == doctest::Approx(21.5f));
 }
 
 TEST_CASE("site: no two rows claim the same Modbus register") {

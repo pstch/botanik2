@@ -192,7 +192,7 @@ TEST_CASE("alarm: releasing an override clears a condition it was holding on") {
     Vars::Var v = f.bank.var(f.rows.row(0));
 
     m.step(0);
-    f.bank.override_set(v, Vars::from_bool(Vars::T_BOOL, true), true);
+    f.bank.override_set(v, Vars::from_bool(Vars::T_BOOL, true));
     m.step(1000);
     REQUIRE(m.condition(0).active == true);
 
@@ -211,11 +211,11 @@ TEST_CASE("alarm: a forced alarm comes down when the force does") {
     Vars::Var v = f.bank.var(f.rows.row(0));
 
     m.step(0);
-    f.bank.override_set(v, Vars::from_bool(Vars::T_BOOL, true), true);
+    f.bank.override_set(v, Vars::from_bool(Vars::T_BOOL, true));
     m.step(1000);
     REQUIRE(m.condition(0).active == true);
 
-    f.bank.override_set(v, Vars::from_bool(Vars::T_BOOL, false), true);
+    f.bank.override_set(v, Vars::from_bool(Vars::T_BOOL, false));
     m.step(2000);
     INFO("the force is authoritative: the hold does not outlive it");
     CHECK(m.condition(0).active == false);

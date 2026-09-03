@@ -5,12 +5,12 @@ PROGRAM strat_sensor
 VAR_EXTERNAL CONSTANT
   cli_temp_hi     : REAL;
   cli_temp_lo     : REAL;
-  cli_temp_hi_qlt : BOOL;
-  cli_temp_lo_qlt : BOOL;
+  cli_temp_hi_qlt : QUALITY;
+  cli_temp_lo_qlt : QUALITY;
 END_VAR
 VAR_EXTERNAL
   cli_dTStrat_degC     : REAL;
-  cli_dTStrat_degC_qlt : BOOL;
+  cli_dTStrat_degC_qlt : QUALITY;
 END_VAR
 VAR_EXTERNAL CONSTANT
   cli_dTStratLow_degC : REAL;
@@ -23,10 +23,10 @@ END_VAR
      A gap computed from a level nothing is measuring is a number about
      nowhere, so an unmeasured profile publishes the LOW RUNG instead: that
      keeps the fans mixing without claiming a profile nobody saw. *)
-  IF cli_temp_hi_qlt AND cli_temp_lo_qlt THEN
+  IF GOOD(cli_temp_hi_qlt) AND GOOD(cli_temp_lo_qlt) THEN
     cli_dTStrat_degC := ABS(cli_temp_hi - cli_temp_lo);
   ELSE
     cli_dTStrat_degC := cli_dTStratLow_degC;
   END_IF;
-  cli_dTStrat_degC_qlt := cli_temp_hi_qlt AND cli_temp_lo_qlt;
+  cli_dTStrat_degC_qlt := WORST_OF(cli_temp_hi_qlt, cli_temp_lo_qlt);
 END_PROGRAM

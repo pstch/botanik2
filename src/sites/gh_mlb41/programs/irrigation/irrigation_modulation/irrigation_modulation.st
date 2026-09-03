@@ -6,7 +6,7 @@ VAR_EXTERNAL CONSTANT
   cli_vpd_kPa           : REAL;
   (* The VPD and the margin are one verdict: temp_rh_zone measures both or
      neither. *)
-  cli_dpMargin_degC_qlt : BOOL;
+  cli_dpMargin_degC_qlt : QUALITY;
   irr_dryEwmaDays       : UINT;
   irr_dryLo_kPa         : REAL;
   irr_dryHi_kPa         : REAL;
@@ -16,8 +16,9 @@ VAR_EXTERNAL CONSTANT
 END_VAR
 VAR_EXTERNAL
   irr_vpdAvg_kPa : REAL;
+  irr_vpdAvg_kPa_qlt : QUALITY;
   irr_mod        : REAL;
-  irr_mod_qlt    : BOOL;
+  irr_mod_qlt    : QUALITY;
 END_VAR
 VAR
   avg       : REAL;
@@ -33,7 +34,7 @@ VAR_TEMP
   min_mod  : REAL;
   gamma    : REAL;
 END_VAR
-  measured := cli_dpMargin_degC_qlt;
+  measured := GOOD(cli_dpMargin_degC_qlt);
   IF NOT started THEN
     folded_at := sys_now_ms;
     started   := TRUE;
@@ -87,5 +88,6 @@ END_VAR
   (* A modulation nobody can read is no dose, and irr_schedule reads it that
      way: before the first fold there is nothing to modulate BY, and the row
      stays at the declared figure that covers the ordinary case. *)
-  irr_mod_qlt := seeded AND measured;
+  irr_mod_qlt        := QUAL(seeded AND measured);
+  irr_vpdAvg_kPa_qlt := QUAL(seeded AND measured);
 END_PROGRAM

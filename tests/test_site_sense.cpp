@@ -39,8 +39,8 @@ TEST_CASE_FIXTURE(StRig, "zone: an invalid probe is excluded, and one good probe
     // One probe answering 25, the other two dead. The dead pair must not vote:
     // they read their declared default, which would drag any average.
     live.bank.var(p[0]).publish(from_f32(T_F32, 25.0f), 0);
-    live.bank.var(p[1]).invalidate(Q_NO_DATA);
-    live.bank.var(p[2]).invalidate(Q_NO_DATA);
+    live.bank.var(p[1]).set_quality(Q_NO_DATA);
+    live.bank.var(p[2]).set_quality(Q_NO_DATA);
     live.bank.var(live.ref("cli_rh_hi1")).publish(from_f32(T_F32, 50.0f), 0);
     for (uint64_t t = 0; t <= 60000; t += 100) d.step(t);
 
@@ -85,15 +85,15 @@ TEST_CASE_FIXTURE(StRig, "zone: temperature survives losing every humidity probe
     const char* rhs[3]   = { "cli_rh_hi1", "cli_rh_hi2", "cli_rh_hi3" };
     for (uint8_t i = 0; i < 3; i++) {
         live.bank.var(live.ref(temps[i])).publish(from_f32(T_F32, 22.0f), 0);
-        live.bank.var(live.ref(rhs[i])).invalidate(Q_NO_DATA);
+        live.bank.var(live.ref(rhs[i])).set_quality(Q_NO_DATA);
     }
     for (uint64_t t = 0; t <= 60000; t += 100) d.step(t);
 
     CHECK(live.bank.get(t_out) == doctest::Approx(22.0f).epsilon(0.02));
     INFO("the humidity says so on its own companion, and the temperature's "
          "is untouched: two quorums, two answers");
-    CHECK_FALSE(live.bank.var(live.ref("cli_rh_hi_qlt")).as_bool());
-    CHECK(live.bank.var(live.ref("cli_temp_hi_qlt")).as_bool());
+    CHECK_FALSE(live.bank.var(live.ref("cli_rh_hi")).valid());
+    CHECK(live.bank.var(live.ref("cli_temp_hi")).valid());
     (void)h_out;
 }
 
@@ -149,10 +149,14 @@ TEST_CASE("control: taking one program out of the scan drops what it drives safe
     st.set_enabled(skirt, false);
     CHECK_FALSE(st.running(skirt));
     st.scan(skirt, 500);
-    INFO("the coil is not FROZEN where the law left it: it reads its declared "
-         "safe state, and says it is not a live reading");
-    CHECK_FALSE(f.bank.var(valve).valid());
+    INFO("the coil is not FROZEN where the law left it: it reads the declared "
+         "safe state, which is a value somebody chose rather than a code every "
+         "reader has to interpret");
+    CHECK(f.bank.var(valve).as_bool() ==
+          as_bool(T_BOOL, f.bank.descriptor(valve.index).def));
     CHECK_FALSE(f.bank.var(valve).as_bool());
+    INFO("...and it is OWED to the field, or the coil would stay where it was");
+    CHECK(f.bank.var(valve).field_dirty());
 
     INFO("...and its neighbours are untouched: the gate is per program");
     for (uint8_t i = 0; i < st.count(); i++)
@@ -204,7 +208,7 @@ TEST_CASE_FIXTURE(StRig, "watch: a dead ceiling does not silence the humidity al
     for (uint8_t i = 1; i <= 3; i++) {
         char n[24];
         snprintf(n, sizeof n, "cli_temp_hi%u", (unsigned)i);
-        live.bank.var(live.ref(n)).invalidate(Q_NO_DATA);
+        live.bank.var(live.ref(n)).set_quality(Q_NO_DATA);
         snprintf(n, sizeof n, "cli_temp_lo%u", (unsigned)i);
         live.bank.var(live.ref(n)).publish(from_f32(T_F32, 18.0f), 0);
         snprintf(n, sizeof n, "cli_rh_lo%u", (unsigned)i);
@@ -212,8 +216,8 @@ TEST_CASE_FIXTURE(StRig, "watch: a dead ceiling does not silence the humidity al
     }
     for (uint64_t t = 0; t <= 60000; t += 100) d.step(t);
 
-    REQUIRE_FALSE(live.bank.var(live.ref("cli_temp_hi_qlt")).as_bool());
-    REQUIRE(live.bank.var(live.ref("cli_dpMargin_degC_qlt")).as_bool());
+    REQUIRE_FALSE(live.bank.var(live.ref("cli_temp_hi")).valid());
+    REQUIRE(live.bank.var(live.ref("cli_dpMargin_degC")).valid());
     INFO("99% at 18 degC is on the dew point: the margin is believable and tiny");
     CHECK(live.bank.var(live.ref("alarm_too_humid")).as_bool());
     INFO("...and the temperature alarms, which have no ceiling, stay down");
@@ -227,13 +231,13 @@ TEST_CASE_FIXTURE(StRig, "watch: stratification nobody measured is not a stratif
     for (uint8_t i = 1; i <= 3; i++) {
         char n[24];
         snprintf(n, sizeof n, "cli_temp_lo%u", (unsigned)i);
-        live.bank.var(live.ref(n)).invalidate(Q_NO_DATA);
+        live.bank.var(live.ref(n)).set_quality(Q_NO_DATA);
         snprintf(n, sizeof n, "cli_temp_hi%u", (unsigned)i);
         live.bank.var(live.ref(n)).publish(from_f32(T_F32, 22.0f), 0);
     }
     for (uint64_t t = 0; t <= 60000; t += 100) d.step(t);
 
-    REQUIRE_FALSE(live.bank.var(live.ref("cli_dTStrat_degC_qlt")).as_bool());
+    REQUIRE_FALSE(live.bank.var(live.ref("cli_dTStrat_degC")).valid());
     INFO("the gap reads past a 0.5 degC limit, but nothing measured the floor");
     CHECK_FALSE(live.bank.var(live.ref("alarm_strat")).as_bool());
 }
@@ -257,10 +261,13 @@ TEST_CASE_FIXTURE(StRig, "zone: a probe that comes back rejoins the average, it 
     }
     REQUIRE(live.bank.get(hi) == doctest::Approx(20.0f).epsilon(0.02));
 
+    // held(), not get(): with no probe the zone is not believable and get()
+    // is the law's read, which substitutes. What this case is about is the
+    // FILTER's own state, which is the slot.
     INFO("five minutes with no probe at all");
-    for (uint8_t i = 0; i < 3; i++) live.bank.var(p[i]).invalidate(Q_NO_DATA);
+    for (uint8_t i = 0; i < 3; i++) live.bank.var(p[i]).set_quality(Q_NO_DATA);
     for (uint32_t k = 0; k < 3000; k++) { t += 100; d.step(t); }
-    CHECK(live.bank.get(hi) == doctest::Approx(20.0f).epsilon(0.02));
+    CHECK(hi.held() == doctest::Approx(20.0f).epsilon(0.02));
 
     INFO("...and they come back reading ten degrees higher: ONE beat of that "
          "is one beat's worth, not the whole outage's");
@@ -280,32 +287,31 @@ TEST_CASE_FIXTURE(StRig, "zone: with every probe gone the reading is HELD, not d
     for (uint8_t i = 0; i < 3; i++)
         live.bank.var(p[i]).publish(from_f32(T_F32, 21.0f), 0);
     for (uint64_t t = 0; t <= 20000; t += 100) d.step(t);
-    REQUIRE(live.bank.var(live.ref("cli_temp_hi_qlt")).as_bool());
+    REQUIRE(live.bank.var(live.ref("cli_temp_hi")).valid());
 
-    for (uint8_t i = 0; i < 3; i++) live.bank.var(p[i]).invalidate(Q_NO_DATA);
+    for (uint8_t i = 0; i < 3; i++) live.bank.var(p[i]).set_quality(Q_NO_DATA);
     for (uint64_t t = 20000; t <= 40000; t += 100) d.step(t);
 
-    // ST cannot write a quality - `__SET_EXTERNAL` has nowhere to put one - so
-    // the row stays valid and the COMPANION carries the doubt. That is the
-    // whole reason companions exist, and it is why the substitution a C++
-    // producer used to trigger no longer applies to an ST-written row.
-    INFO("a law gating on this zone reads the companion, not the row");
-    CHECK_FALSE(live.bank.var(live.ref("cli_temp_hi_qlt")).as_bool());
+    INFO("temp_rh_sensors writes the zone's quality, so the row itself is what "
+         "goes unbelievable - there is no second place for the doubt to live");
+    CHECK_FALSE(live.bank.var(live.ref("cli_temp_hi")).valid());
 
-    INFO("and the row holds the last average this zone could make, which is "
-         "what an operator chasing a dead probe wants to see");
+    INFO("the SLOT holds the last average this zone could make, which is what "
+         "an operator chasing a dead probe wants to see");
     CHECK(live.bank.var(hi.r).as_f32() == doctest::Approx(21.0f));
-    CHECK(live.bank.get(hi) == doctest::Approx(21.0f));
+
+    INFO("...and a LAW reading it gets the declared value instead, because a "
+         "held average of nothing is not a reading of the house");
+    CHECK(live.bank.get(hi) ==
+          doctest::Approx(as_f32(T_F32, live.bank.descriptor(hi.r.index).def)));
 }
 
 TEST_CASE_FIXTURE(StRig, "zone: a zone that has never been measured has nothing to hold") {
-    Vars::Ref<float> cs = live.bank.resolve<float>("cli_temp_cs");
-
     for (uint64_t t = 0; t <= 2000; t += 100) d.step(t);
 
     INFO("holding would publish a filter that has never been seeded, which is "
          "the declared default wearing a better label");
-    CHECK_FALSE(live.bank.var(live.ref("cli_temp_cs_qlt")).as_bool());
+    CHECK_FALSE(live.bank.var(live.ref("cli_temp_cs")).valid());
 }
 
 /** A level and the companion that says it was measured, which is what
@@ -319,10 +325,10 @@ static void levels(Live& f, float hi, float lo, uint64_t at = 0,
     for (uint8_t i = 1; i <= 3; i++) {
         snprintf(n, sizeof n, "cli_temp_hi%u", (unsigned)i);
         if (hi_ok) f.bank.var(f.ref(n)).publish(from_f32(T_F32, hi), at);
-        else       f.bank.var(f.ref(n)).invalidate(Q_NO_DATA);
+        else       f.bank.var(f.ref(n)).set_quality(Q_NO_DATA);
         snprintf(n, sizeof n, "cli_temp_lo%u", (unsigned)i);
         if (lo_ok) f.bank.var(f.ref(n)).publish(from_f32(T_F32, lo), at);
-        else       f.bank.var(f.ref(n)).invalidate(Q_NO_DATA);
+        else       f.bank.var(f.ref(n)).set_quality(Q_NO_DATA);
     }
 }
 
@@ -361,7 +367,7 @@ TEST_CASE_FIXTURE(StRig, "strat: a level nothing measures makes the gap unmeasur
     d.step(100);
     INFO("the COMPANION is what says so - the row holds a number either way, "
          "and it is the one that would fabricate a four-degree gap");
-    CHECK_FALSE(live.bank.var(live.ref("cli_dTStrat_degC_qlt")).as_bool());
+    CHECK_FALSE(live.bank.var(live.ref("cli_dTStrat_degC")).valid());
     INFO("...and the gap it does publish is the low rung, so the fans keep "
          "mixing rather than reading a profile nobody saw");
     CHECK(live.bank.var(live.ref("cli_dTStrat_degC")).as_f32() ==
@@ -461,9 +467,11 @@ TEST_CASE_FIXTURE(StRig, "target: an unplaced phase takes the base setpoint, and
     INFO("the phase goes unplaceable - no wall clock, so no sun - and the shift "
          "goes with it: an offset from a phase nobody placed is a setpoint "
          "nobody asked for");
-    // The tracker, not the row: cli_phase is always written now, and
-    // cli_phase_qlt is what day_phase says about it.
+    // The QUALITY, because that is what target_temp reads. The phase itself
+    // has to stay forced or day_phase overwrites it every scan - and a forced
+    // value is believed, so saying it is unplaceable takes the second act.
     live.bank.var(live.ref("sol_ready")).set(false);
+    distrust(live, "cli_phase");
     d.step(200);
     CHECK(live.bank.get(target) == doctest::Approx(base));
 
@@ -518,20 +526,22 @@ TEST_CASE_FIXTURE(StRig, "cooling: a demand it cannot measure is still made, and
     const float was = live.bank.var(dem).as_f32();
     REQUIRE(was > 0.0f);
 
-    // The COMPANION: temp_rh_zone is ST, so cli_temp_in is written every scan
-    // and stays valid - what goes is the verdict that anything measured it.
-    force(live, "cli_temp_in_qlt", false);
+    distrust(live, "cli_temp_in");
     d.step(3000);
 
-    INFO("the ladder keeps running, on the reading the house last had - so "
-         "there is still a demand for an actuator to fall back from, and the "
-         "quality is what says nobody is measuring it. The ladder is ST too "
-         "now, so that verdict is on the COMPANION and the row stays valid");
-    CHECK_FALSE(live.bank.var(live.ref("cli_coolDem_qlt")).as_bool());
+    INFO("the verdict travels: the law hands its own output the quality of the "
+         "reading it could not get, so every reader downstream learns it in "
+         "one read rather than by asking about the house");
+    CHECK_FALSE(live.bank.var(live.ref("cli_coolDem")).valid());
+
+    INFO("the ladder keeps running - there is still a demand for an actuator "
+         "to fall back from - but on the house the row DECLARES, which is a "
+         "cold one, so it stops asking for cooling");
+    CHECK(live.bank.var(dem).as_f32() < was);
+    CHECK(live.bank.var(dem).as_f32() <= 0.0f);
 
     INFO("...and the integral goes with it: effort wound up against a house "
          "nobody can see is a claim about a past this law no longer has");
-    CHECK(live.bank.var(dem).as_f32() > 0.0f);
     CHECK(live.bank.var(dem).as_f32() != doctest::Approx(was));
 }
 
@@ -559,7 +569,7 @@ TEST_CASE_FIXTURE(StRig, "cooling: the floor carries it when the ceiling goes, a
         levels(live, 30.0f, 30.0f, t, false, true);
         d.step(t += 100);
     }
-    CHECK(live.bank.var(live.ref("cli_temp_in_qlt")).as_bool());
+    CHECK(live.bank.var(live.ref("cli_temp_in")).valid());
     CHECK(live.bank.var(dem).valid());
     CHECK(live.bank.var(dem).as_f32() > 0.0f);
 
@@ -569,8 +579,8 @@ TEST_CASE_FIXTURE(StRig, "cooling: the floor carries it when the ceiling goes, a
         levels(live, 30.0f, 30.0f, t, false, false);
         d.step(t += 100);
     }
-    CHECK_FALSE(live.bank.var(live.ref("cli_temp_in_qlt")).as_bool());
-    CHECK_FALSE(live.bank.var(live.ref("cli_coolDem_qlt")).as_bool());
+    CHECK_FALSE(live.bank.var(live.ref("cli_temp_in")).valid());
+    CHECK_FALSE(live.bank.var(live.ref("cli_coolDem")).valid());
 }
 
 TEST_CASE("cooling: an unknown demand puts every actuator at its own safe state") {
@@ -578,21 +588,18 @@ TEST_CASE("cooling: an unknown demand puts every actuator at its own safe state"
     fine_weather(f);
     interlocks_clear(f);
     // Every one of the five actuators is ST now, so the RESOURCE is the whole
-    // beat: the mirror first, because a field row's quality reaches ST as a
-    // companion.
-    Vars::QualityMirror mirror(Botanik::SetupContext(f.reg), f.bank);
+    // beat.
     Plc::Runtime::Plant st(Botanik::SetupContext(f.reg), f.bank);
     st.wire();
-    mirror.wire();
-    struct { Vars::QualityMirror* m; Plc::Runtime::Plant* st;
-             void step(uint64_t n) { m->scan(); st->scan(n); } } d{ &mirror, &st };
+    struct { Plc::Runtime::Plant* st;
+             void step(uint64_t n) { st->scan(n); } } d{ &st };
 
     // Everything else says GO: only the cooling ladder cannot see the house,
     // and its two outputs go together. Reached the way the plant reaches it -
     // the ladder is ST now, so it publishes every scan and there is no
     // invalidating its outputs from here. What goes is the INTERIOR, and the
     // ladder's own answer to that is what this case is about.
-    force(f, "cli_temp_in_qlt", false);
+    distrust(f, "cli_temp_in");
     f.bank.var(f.ref("cli_stratDem")).set(0.0f);
     f.bank.var(f.ref("cli_humidDem")).set(0.0f);
     f.bank.var(f.ref("cli_rotVentDem")).set(0.0f);
@@ -706,7 +713,7 @@ TEST_CASE_FIXTURE(StRig, "destrat: a level nothing measures keeps the fans mixin
     levels(live, 24.0f, 20.0f, t, false, false);
     for (uint32_t i = 0; i < 50; i++) d.step(t += 100);
 
-    CHECK_FALSE(live.bank.var(live.ref("cli_dTStrat_degC_qlt")).as_bool());
+    CHECK_FALSE(live.bank.var(live.ref("cli_dTStrat_degC")).valid());
     CHECK(live.bank.var(live.ref("cli_stratDem")).as_f32() ==
           doctest::Approx(live.bank.var(live.ref("cli_fanLowDem")).as_f32()));
 }
@@ -766,7 +773,7 @@ TEST_CASE_FIXTURE(StRig, "humidity, rot guard: an unmeasured margin ventilates r
 
     // The COMPANION: temp_rh_zone writes the margin every scan, so the row is
     // always valid and it is the companion that says nothing measured it.
-    force(live, "cli_dpMargin_degC_qlt", false);
+    distrust(live, "cli_dpMargin_degC");
     d.step(100);
     CHECK(live.bank.get(live.bank.resolve<float>("cli_rotVentDem")) == doctest::Approx(1.0f));
     CHECK(live.bank.get(live.bank.resolve<bool>("cli_rotLockout")));

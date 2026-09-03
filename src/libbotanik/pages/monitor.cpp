@@ -292,17 +292,19 @@ namespace Botanik { namespace Pages {
         _panel_field((uint16_t)(br + 4), "Mapping", have ? bind : nullptr);
 
         // Quality, plus whichever of the two things qualifies it: for a
-        // READING its age (Q_GOOD from four minutes ago is not Q_GOOD from
+        // READING its age (Q_VALID from four minutes ago is not Q_VALID from
         // this beat), for a DRIVEN or COMPUTED row the program that wrote it.
         char qual[80];
         if (have) {
             size_t n = (size_t)snprintf(qual, sizeof(qual), "%s",
                                         Vars::quality_str(h.live().q));
-            // A force carries its own quality (ovr_valid), so an overridden
-            // row says both: the force, and what the row underneath reports.
-            if (h.override().present() && n < sizeof(qual))
-                n += (size_t)snprintf(qual + n, sizeof(qual) - n, ", forced %s",
-                                      h.valid() ? "valid" : "invalid");
+            // A quality is a row of its own, so it can be forced like any
+            // other. Say when the reading on show is an operator's rather than
+            // the driver's.
+            const Vars::VarRef q = _io->quality_ref(_selected_ref());
+            if (q.index != Vars::VAR_NONE && _io->var(q).override().present() &&
+                n < sizeof(qual))
+                n += (size_t)snprintf(qual + n, sizeof(qual) - n, ", forced");
 
             const Vars::VarRole role = h.meta()->role;
             if (role == Vars::ROLE_INPUT && h.stamp() != 0 && n < sizeof(qual)) {
@@ -448,16 +450,15 @@ namespace Botanik { namespace Pages {
         if (_io == nullptr) return;
         const Vars::VarRef ref = _selected_ref();
         if (ref.index == Vars::VAR_NONE) return;
-        Vars::Var h = _io->var(ref);
-        if (h.meta()->type == Vars::T_STR) { _say("a text row cannot be forced"); return; }
-        // The freeze-and-kill is the BANK's rule, not the page's: with nothing
-        // forced yet this is one act, and "make this sensor read failed" is
-        // the reason to reach for the key at all.
-        const bool forced    = h.override().present();
-        const bool now_valid = _io->override_flip_valid(h);
-        if (!forced)         _say("forced, and reading invalid");
-        else if (!now_valid) _say("override now reads invalid");
-        else                 _say("override now reads valid");
+        // Making a row read like a dead sensor is forcing its `_qlt` companion:
+        // an ordinary override of an ordinary row, saved and released with the
+        // same two keys. A row with no companion has no quality to force.
+        const Vars::VarRef q = _io->quality_ref(ref);
+        if (q.index == Vars::VAR_NONE) { _say("this row carries no quality"); return; }
+        const bool was_valid = _io->var(ref).valid();
+        _io->override_set(_io->var(q),
+                          Vars::Scalar::U(was_valid ? Vars::Q_NO_DATA : Vars::Q_VALID));
+        _say(was_valid ? "forced to read invalid" : "forced to read valid");
         _dirty = true;
     }
 

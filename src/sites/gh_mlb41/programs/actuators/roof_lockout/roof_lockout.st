@@ -9,9 +9,9 @@
 PROGRAM roof_lockout
 VAR_EXTERNAL CONSTANT
   cli_rain_mmph         : REAL;
-  cli_rain_mmph_qlt     : BOOL;
+  cli_rain_mmph_qlt     : QUALITY;
   cli_wind_mps          : REAL;
-  cli_wind_mps_qlt      : BOOL;
+  cli_wind_mps_qlt      : QUALITY;
   cli_windGust_mps      : REAL;
   cli_windShutBegin_mps : REAL;
   cli_windShutEnd_mps   : REAL;
@@ -34,7 +34,7 @@ VAR_TEMP
   peak    : REAL;
   ceiling : REAL;
 END_VAR
-  blind := NOT cli_rain_mmph_qlt OR NOT cli_wind_mps_qlt;
+  blind := NOT GOOD(cli_rain_mmph_qlt) OR NOT GOOD(cli_wind_mps_qlt);
 
   (* An OVERRUN on the rain: the roof stays shut for the declared time after
      the last drop. Being BLIND is not a shower - it is a live interlock that

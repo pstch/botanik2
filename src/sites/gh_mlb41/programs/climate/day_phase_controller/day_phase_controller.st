@@ -4,6 +4,7 @@
 PROGRAM day_phase_controller
 VAR_EXTERNAL CONSTANT
   cli_temp_in          : REAL;
+  cli_temp_in_qlt      : QUALITY;
   sol_ready            : BOOL;
   sol_fromRise_min     : INT;
   sol_fromSet_min      : INT;
@@ -18,11 +19,15 @@ VAR_EXTERNAL CONSTANT
 END_VAR
 VAR_EXTERNAL
   cli_phase             : USINT;
-  cli_phase_qlt         : BOOL;
+  cli_phase_qlt         : QUALITY;
   cli_coldBankArm       : BOOL;
+  cli_coldBankArm_qlt   : QUALITY;
   cli_heatBankArm       : BOOL;
+  cli_heatBankArm_qlt   : QUALITY;
   cli_prevDayMax_degC   : REAL;
+  cli_prevDayMax_degC_qlt   : QUALITY;
   cli_prevNightMin_degC : REAL;
+  cli_prevNightMin_degC_qlt : QUALITY;
 END_VAR
 VAR
   phase    : USINT := 0;   (* PHASE_NIGHT *)
@@ -79,12 +84,16 @@ END_VAR
   IF phase = 0 AND prev_phase <> 0 THEN night_min := cli_temp_in; END_IF;
 
   cli_phase     := phase;
-  cli_phase_qlt := sol_ready;
+  cli_phase_qlt := QUAL(sol_ready);
 
   (* An accumulation, and a probe that has gone stops adding to it: what is
      published is the window as it stood when the house was last visible. *)
   cli_prevDayMax_degC   := day_max;
   cli_prevNightMin_degC := night_min;
+  (* A window accumulated out of a probe nobody can read is a window over
+     nothing, so both carry the reading's own verdict. *)
+  cli_prevDayMax_degC_qlt   := cli_temp_in_qlt;
+  cli_prevNightMin_degC_qlt := cli_temp_in_qlt;
 
   (* Whether the bank phases have anything to do when their turn comes. Both
      can be armed at once - a clear late-spring day is hot and its night cold,
@@ -93,6 +102,8 @@ END_VAR
      Off the ROWS just written, not the locals behind them: forcing one is how
      a cold-bank morning gets rehearsed in July, and a law arming on its own
      copy would leave the page saying something it was not doing. *)
-  cli_coldBankArm := cli_prevDayMax_degC   > cli_coldBankTrg_degC;
-  cli_heatBankArm := cli_prevNightMin_degC < cli_heatBankTrg_degC;
+  cli_coldBankArm     := cli_prevDayMax_degC   > cli_coldBankTrg_degC;
+  cli_coldBankArm_qlt := cli_prevDayMax_degC_qlt;
+  cli_heatBankArm     := cli_prevNightMin_degC < cli_heatBankTrg_degC;
+  cli_heatBankArm_qlt := cli_prevNightMin_degC_qlt;
 END_PROGRAM

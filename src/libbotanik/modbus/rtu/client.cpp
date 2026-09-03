@@ -552,7 +552,7 @@ void RtuClient::_settle(uint64_t now_ms) {
         // does not match the device.
         _refusals++;
         // And the rows say so too. Without this they keep their last value at
-        // Q_GOOD until expire_stale() catches up - and a row declared with no
+        // Q_VALID until expire_stale() catches up - and a row declared with no
         // timeout is never caught up with at all.
         //
         // Only the LOG is edge-triggered below; a read block needs no penalty

@@ -232,14 +232,30 @@ namespace Botanik { namespace Vars {
 
         /** @brief Resolve an index. Never fails; a bad one lands on the sink. */
         Var var(uint16_t i) const {
-            if (i < _count) return Var(&descriptor(i), &_slots[i]);
-            _sink_v = Slot();          // fresh: a sink never accumulates state
-            return Var(&_sink_d, &_sink_v);
+            if (i < _count) {
+                const uint16_t q = _slots[i].qlt_row;
+                return Var(&descriptor(i), &_slots[i],
+                           (q < _count) ? &_slots[q] : nullptr);
+            }
+            // Fresh: a sink never accumulates state. Its quality slot holds
+            // Q_NO_DATA (0), so a program bound to a name no table declares
+            // reads the substitute AND knows it is one.
+            _sink_v = Slot();
+            _sink_q = Slot();
+            return Var(&_sink_d, &_sink_v, &_sink_q);
         }
         Var var(VarRef r) const { return var(r.index); }
         /** @brief Resolve by name: how site tables and programs address a row.
          *  An unknown name lands on the sink and bumps the unresolved count. */
         Var var(const char* name) const { return var(find(name)); }
+
+        /** @brief @p r's `_qlt` companion, or VAR_NONE when it has none. What an
+         *  operator forces to make a row read like a dead sensor, and the one
+         *  route to the companion from outside - nothing else needs to know the
+         *  suffix. */
+        VarRef quality_ref(VarRef r) const {
+            return VarRef{ (r.index < _count) ? _slots[r.index].qlt_row : VAR_NONE };
+        }
 
         /** @brief Parameter @p k, 0-based over the ROLE_PARAM block. */
         Var      param_at(uint16_t k) const { return var((uint16_t)(_param_first + k)); }
@@ -446,18 +462,12 @@ namespace Botanik { namespace Vars {
         /** @brief Force @p h to @p text until override_clear(). T_STR is refused;
          *  everything else, ROLE_OUTPUT included, is allowed whatever control
          *  authority says - staging a hand-drive is a real workflow. */
-        SetResult override_set(Var h, const char* text, bool valid = true);
+        SetResult override_set(Var h, const char* text);
 
-        /** @brief The same, with the value already typed. Forcing only the
-         *  QUALITY is `override_set(h, h.value().v, false)`, which is unsaved like
-         *  any other override. */
-        void override_set(Var h, Scalar v, bool valid = true);
-
-        /** @brief Flip whether @p h's override READS valid, freezing the live
-         *  value first when nothing was forced yet: "make this sensor read
-         *  failed" is one act rather than force-then-invalidate.
-         *  @return true if the override now reads VALID. */
-        bool override_flip_valid(Var h);
+        /** @brief The same, with the value already typed. Making a row read like
+         *  a dead sensor is forcing its `_qlt` companion instead - an ordinary
+         *  force of an ordinary row, saved and cleared the same way. */
+        void override_set(Var h, Scalar v);
 
         /** @brief Commit @p h's override so it survives a reboot.
          *  @return SET_INVALID when nothing is forced on @p h, SET_NOT_PERSISTED
@@ -579,6 +589,12 @@ namespace Botanik { namespace Vars {
         SetResult _persist_param(Var h, const Descriptor& d, Slot& slot);
 
 
+        /** @brief Pair every `x_qlt` companion with the row it speaks for, into
+         *  that row's `qlt_row`. After the name index, which it looks up
+         *  through. A row with no companion keeps VAR_NONE and is valid,
+         *  always. */
+        void _resolve_quality();
+
         /** @brief Locate the ROLE_PARAM run. A parameter outside it is
          *  unreachable as one, the pages addressing the block by offset. */
         void _find_param_block();
@@ -587,6 +603,9 @@ namespace Botanik { namespace Vars {
          *  access: scratch, never shared state. */
         static const Descriptor _sink_d;
         static Slot          _sink_v;
+        /** @brief The sink's `_qlt`: always Q_NO_DATA, so the sink is the one
+         *  row with no companion that is NOT valid. It is not a row. */
+        static Slot          _sink_q;
     };
 
     /** @name Typed row access
@@ -639,6 +658,16 @@ namespace Botanik { namespace Vars {
 
     #undef BOTANIK_REF_WHOLE
 
+    /** @brief A reference to a `_qlt` row - the quality of the row it speaks
+     *  for. accepts() takes T_ENUM, which is what the generator declares a
+     *  companion as. */
+    template <> struct RefIo<Quality> {
+        static bool    accepts(VarType t)            { return t == T_ENUM; }
+        static Quality read(const Bank& b, VarRef r) { return (Quality)b.var(r).as<uint8_t>(); }
+        static Quality of(Value v)                   { return (Quality)v.as<uint8_t>(); }
+        static void    write(Bank& b, VarRef r, Quality q) { b.var(r).set_i((int64_t)q); }
+    };
+
     /** @} */
 
     // Ref's bodies, out of line because a reference is declared before the
@@ -682,9 +711,16 @@ namespace Botanik { namespace Vars {
         io->param_owe(io->var(r));
     }
 
+    /** @brief A quality is this scan's answer whatever kind of row carries it,
+     *  so it never takes drive()'s parameter path - owing a diagnosis to flash
+     *  is not a thing a law can mean. */
+    template <> inline void Ref<Quality>::drive(Quality q) const {
+        if (io != nullptr) RefIo<Quality>::write(*io, r, q);
+    }
+
     template <typename T>
     inline void Ref<T>::invalidate() const {
-        if (io != nullptr) io->var(r).invalidate(Q_NO_DATA);
+        if (io != nullptr) io->var(r).set_quality(Q_NO_DATA);
     }
 
 

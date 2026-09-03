@@ -39,7 +39,7 @@ float drain_at(Live& live, D& d, float lpm, bool meter_live,
         // The outlet meter is ST now, so a silent instrument is a COMPANION
         // rather than a health: the meter binds every name it asks for either
         // way, and irr_outFlow_Lpm_qlt is what the cycle reads.
-        if (worst != nullptr && !live.bank.var(live.ref("irr_outFlow_Lpm_qlt")).as_bool())
+        if (worst != nullptr && !live.bank.var(live.ref("irr_outFlow_Lpm")).valid())
             *worst = Plc::Health::INVALID;
     }
     return live.bank.var(live.ref("irr_drained_L")).as_f32();
@@ -72,12 +72,12 @@ TEST_CASE_FIXTURE(StRig, "irrigation: a modulation nobody can read still waters,
     slot(live);
     live.bank.param_set(live.bank.var(live.ref("irr_liters_tray1")), 5.0f);
     live.bank.param_set(live.bank.var(live.ref("irr_forceOn_tray1")), true);
-    live.bank.var(live.ref("irr_mod")).invalidate(Q_NO_DATA);
+    live.bank.var(live.ref("irr_mod")).set_quality(Q_NO_DATA);
     // ...and the reason it cannot be read, which is where the chain actually
     // breaks: irr_modulation folds only a MEASURED vpd, and temp_rh_zone
     // publishes both the VPD and its one companion. Forced, because both
     // programs are on this beat and would put their own answer back.
-    force(live, "cli_dpMargin_degC_qlt", false);
+    distrust(live, "cli_dpMargin_degC");
 
     const VarRef due = live.ref("irr_dueTray");
     const VarRef vol = live.ref("irr_volume_L");
@@ -93,7 +93,7 @@ TEST_CASE_FIXTURE(StRig, "irrigation: a modulation nobody can read still waters,
     INFO("...and the modulation says it was guessed at, which is all a reader "
          "needs to know the dose should not be trended. The COMPANION says it: "
          "irr_volume_L is ST-written and so always valid.");
-    CHECK_FALSE(live.bank.var(live.ref("irr_mod_qlt")).as_bool());
+    CHECK_FALSE(live.bank.var(live.ref("irr_mod")).valid());
 
     INFO("...while the TRAY NUMBER stays good: its declared value is 0, so a "
          "doubtful one would read as no tray owed and the cycle would refuse");

@@ -23,20 +23,29 @@ struct Live {
         believe_all();
     }
 
-    /** @brief Every `_qlt` companion true.
+    /** @brief Every DERIVED row's `_qlt` companion at Q_VALID.
      *
-     *  A companion declares FALSE, which is right in the field: nothing is
-     *  believed until something measures it. In a rig it is the wrong start,
-     *  because whatever the program under test READS comes from a program the
-     *  rig is not running. The program's OWN companions are overwritten on its
-     *  first scan, so this cannot hide one it fails to publish - a case
-     *  rehearsing a dead instrument clears the one it means. */
+     *  A companion declares Q_NO_DATA, which is right in the field: nothing is
+     *  believed until something measures it. In a rig it is the wrong start for
+     *  a derived row, because whatever the program under test READS comes from
+     *  a program the rig is not running. The program's OWN companions are
+     *  overwritten on its first scan, so this cannot hide one it fails to
+     *  publish - a case rehearsing a dead instrument clears the one it means.
+     *
+     *  A row a TRANSPORT fills is left alone: its quality is the driver's, and
+     *  publish() is what writes it. Believing one here would let a vote count
+     *  probes that have never answered. */
     void believe_all() {
         for (uint16_t i = 0; i < bank.count(); i++) {
-            const char* n = bank.descriptor(i).name;
-            const size_t len = strlen(n);
-            if (len > 4 && strcmp(n + len - 4, "_qlt") == 0)
-                bank.var(Botanik::Vars::VarRef{ i }).set(true);
+            const Botanik::Vars::Descriptor& d = bank.descriptor(i);
+            if (d.scope != Botanik::Vars::SCOPE_Q) continue;
+            char base[48];
+            if (!Botanik::Vars::quality_base(d.name, base, sizeof base)) continue;
+            const Botanik::Vars::VarRef r = bank.find(base);
+            if (r.index == Botanik::Vars::VAR_NONE) continue;
+            if (bank.descriptor(r.index).bind.transport != Botanik::Vars::XP_NONE)
+                continue;
+            bank.var(Botanik::Vars::VarRef{ i }).set_i(Botanik::Vars::Q_VALID);
         }
     }
     Botanik::Vars::VarRef ref(const char* name) { return bank.find(name); }

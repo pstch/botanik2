@@ -17,15 +17,19 @@ sense   = 10
 [limits]
 # Rows the bank can hold, plus headroom. Past it registration is refused and
 # the POST says so. About 36 bytes of RAM each.
-var_max = 640
-# One entry per field row with a `_qlt` companion: 24 probes, plus room.
-quality_mirror_max = 96
+var_max = 704
 # The TCP map holds every parameter, status and alarm row. A site that outgrows
 # it serves a SHORT map, which an integrator reads as a device that does not
 # have those rows. The gate asserts the real count against this.
-modbus_tcp_max_rows = 512
+modbus_tcp_max_rows = 576
 # Names, units and descriptions share one pool, sized once for the whole table.
 str_pool_bytes = 512
+
+[registers]
+# Where the generated `_qlt` companions start. Their own block, above every
+# hand-assigned register, so adding a reading cannot renumber one. They are
+# handed out in emission order: appending an input appends a register.
+quality_base = 1000
 
 [fieldbus]
 # RS-485. Every device on the segment has to agree.

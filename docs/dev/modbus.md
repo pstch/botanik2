@@ -201,7 +201,7 @@ logged as a critical if it ever happens anyway.
 
 **Values** move through `image.h`, both directions, and a read failure
 invalidates the rows it covered (`Q_REFUSED`) rather than leaving the last good
-value in place at `Q_GOOD` - a row declared with no timeout would otherwise never
+value in place at `Q_VALID` - a row declared with no timeout would otherwise never
 be caught up with at all.
 
 The scan never touches the wire. A sweep of this plant is hundreds of

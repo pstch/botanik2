@@ -8,14 +8,14 @@ finds it. The site half comes from `tables/*.csv`, the library half from
 
 One section per SCOPE, in the order `Vars::VarScope` declares them.
 
-589 rows: 515 declared by the site, 74 by the library.
+514 rows: 440 declared by the site, 74 by the library.
 
 | scope | what it is | site | library |
 |---|---|---|---|
 | Alarms | the boolean an AlarmCondition reads | 39 | 13 |
 | Parameters | persisted, editable | 179 | 52 |
 | Computed values | HMI only, not published | 0 | 0 |
-| Status values | published: MQTT and the Modbus TCP slave | 185 | 9 |
+| Status values | published: MQTT and the Modbus TCP slave | 110 | 9 |
 | Direct inputs | register 1:1 (device 0 = local) | 75 | 0 |
 | Analog inputs | raw count through scale/offset | 5 | 0 |
 | Digital inputs | one bit, polled - or an edge COUNT, which is a PI row | 2 | 0 |
@@ -339,7 +339,7 @@ One section per SCOPE, in the order `Vars::VarScope` declares them.
 
 `SCOPE_SV`: published: MQTT and the Modbus TCP slave.
 
-### gh_mlb41 (185)
+### gh_mlb41 (110)
 
 | name | type | default | digits | unit | reg | description | notes |
 |---|---|---|---|---|---|---|---|
@@ -423,81 +423,6 @@ One section per SCOPE, in the order `Vars::VarScope` declares them.
 | sys_upsBat_V | T_F32 | 0 | 1 | V | 566 | UPS battery volts | deadbanded mirror of the divider |
 | sys_genBat_V | T_F32 | 0 | 1 | V | 567 | generator start battery volts | deadbanded mirror of the divider |
 | sys_dc_ok | T_BOOL | 0 | 0 | - | 568 | every DC rail above its floor, and the UPS off its low-battery contact | - |
-| cli_temp_hi1_qlt | T_BOOL | 0 | 0 | - | 625 | ceiling temperature probe 1 believable | mirrored from cli_temp_hi1 by the bank |
-| cli_temp_hi2_qlt | T_BOOL | 0 | 0 | - | 626 | ceiling temperature probe 2 believable | mirrored from cli_temp_hi2 by the bank |
-| cli_temp_hi3_qlt | T_BOOL | 0 | 0 | - | 627 | ceiling temperature probe 3 believable | mirrored from cli_temp_hi3 by the bank |
-| cli_rh_hi1_qlt | T_BOOL | 0 | 0 | - | 628 | ceiling humidity probe 1 believable | mirrored from cli_rh_hi1 by the bank |
-| cli_rh_hi2_qlt | T_BOOL | 0 | 0 | - | 629 | ceiling humidity probe 2 believable | mirrored from cli_rh_hi2 by the bank |
-| cli_rh_hi3_qlt | T_BOOL | 0 | 0 | - | 630 | ceiling humidity probe 3 believable | mirrored from cli_rh_hi3 by the bank |
-| cli_temp_lo1_qlt | T_BOOL | 0 | 0 | - | 631 | floor temperature probe 1 believable | mirrored from cli_temp_lo1 by the bank |
-| cli_temp_lo2_qlt | T_BOOL | 0 | 0 | - | 632 | floor temperature probe 2 believable | mirrored from cli_temp_lo2 by the bank |
-| cli_temp_lo3_qlt | T_BOOL | 0 | 0 | - | 633 | floor temperature probe 3 believable | mirrored from cli_temp_lo3 by the bank |
-| cli_rh_lo1_qlt | T_BOOL | 0 | 0 | - | 634 | floor humidity probe 1 believable | mirrored from cli_rh_lo1 by the bank |
-| cli_rh_lo2_qlt | T_BOOL | 0 | 0 | - | 635 | floor humidity probe 2 believable | mirrored from cli_rh_lo2 by the bank |
-| cli_rh_lo3_qlt | T_BOOL | 0 | 0 | - | 636 | floor humidity probe 3 believable | mirrored from cli_rh_lo3 by the bank |
-| cli_temp_cs1_qlt | T_BOOL | 0 | 0 | - | 637 | crawlspace temperature probe 1 believable | mirrored from cli_temp_cs1 by the bank |
-| cli_temp_cs2_qlt | T_BOOL | 0 | 0 | - | 638 | crawlspace temperature probe 2 believable | mirrored from cli_temp_cs2 by the bank |
-| cli_temp_cs3_qlt | T_BOOL | 0 | 0 | - | 639 | crawlspace temperature probe 3 believable | mirrored from cli_temp_cs3 by the bank |
-| cli_rh_cs1_qlt | T_BOOL | 0 | 0 | - | 640 | crawlspace humidity probe 1 believable | mirrored from cli_rh_cs1 by the bank |
-| cli_rh_cs2_qlt | T_BOOL | 0 | 0 | - | 641 | crawlspace humidity probe 2 believable | mirrored from cli_rh_cs2 by the bank |
-| cli_rh_cs3_qlt | T_BOOL | 0 | 0 | - | 642 | crawlspace humidity probe 3 believable | mirrored from cli_rh_cs3 by the bank |
-| cli_temp_ext1_qlt | T_BOOL | 0 | 0 | - | 643 | exterior temperature probe 1 believable | mirrored from cli_temp_ext1 by the bank |
-| cli_temp_ext2_qlt | T_BOOL | 0 | 0 | - | 644 | exterior temperature probe 2 believable | mirrored from cli_temp_ext2 by the bank |
-| cli_temp_ext3_qlt | T_BOOL | 0 | 0 | - | 645 | exterior temperature probe 3 believable | mirrored from cli_temp_ext3 by the bank |
-| cli_rh_ext1_qlt | T_BOOL | 0 | 0 | - | 646 | exterior humidity probe 1 believable | mirrored from cli_rh_ext1 by the bank |
-| cli_rh_ext2_qlt | T_BOOL | 0 | 0 | - | 647 | exterior humidity probe 2 believable | mirrored from cli_rh_ext2 by the bank |
-| cli_rh_ext3_qlt | T_BOOL | 0 | 0 | - | 648 | exterior humidity probe 3 believable | mirrored from cli_rh_ext3 by the bank |
-| cli_temp_cs_qlt | T_BOOL | 0 | 0 | - | 649 | crawlspace temperature believable | the zone's own verdict, written by temp_rh_sensors |
-| cli_temp_ext_qlt | T_BOOL | 0 | 0 | - | 650 | exterior temperature believable | the zone's own verdict, written by temp_rh_sensors |
-| cli_rh_hi_qlt | T_BOOL | 0 | 0 | - | 651 | ceiling humidity believable | the zone's own verdict, written by temp_rh_sensors |
-| cli_rh_lo_qlt | T_BOOL | 0 | 0 | - | 652 | floor humidity believable | the zone's own verdict, written by temp_rh_sensors |
-| cli_rh_cs_qlt | T_BOOL | 0 | 0 | - | 653 | crawlspace humidity believable | the zone's own verdict, written by temp_rh_sensors |
-| cli_rh_ext_qlt | T_BOOL | 0 | 0 | - | 654 | exterior humidity believable | the zone's own verdict, written by temp_rh_sensors |
-| cli_dTStrat_degC_qlt | T_BOOL | 0 | 0 | - | 655 | stratification gap believable | strat_sensor's verdict: both levels measured |
-| cli_wind1_mps_qlt | T_BOOL | 0 | 0 | - | 658 | wind station 1 believable | mirrored from the station row by the bank; an excluded station must not vote, and its declared calm would win every time |
-| cli_wind2_mps_qlt | T_BOOL | 0 | 0 | - | 659 | wind station 2 believable | mirrored from the station row by the bank; an excluded station must not vote, and its declared calm would win every time |
-| cli_windGust1_mps_qlt | T_BOOL | 0 | 0 | - | 660 | gust station 1 believable | mirrored from the station row by the bank; an excluded station must not vote, and its declared calm would win every time |
-| cli_windGust2_mps_qlt | T_BOOL | 0 | 0 | - | 661 | gust station 2 believable | mirrored from the station row by the bank; an excluded station must not vote, and its declared calm would win every time |
-| cli_rain1_mmph_qlt | T_BOOL | 0 | 0 | - | 662 | rain station 1 believable | mirrored from the station row by the bank; an excluded station must not vote, and its declared calm would win every time |
-| cli_rain2_mmph_qlt | T_BOOL | 0 | 0 | - | 663 | rain station 2 believable | mirrored from the station row by the bank; an excluded station must not vote, and its declared calm would win every time |
-| cli_irrad1_Wpm2_qlt | T_BOOL | 0 | 0 | - | 664 | irradiance station 1 believable | mirrored from the station row by the bank; an excluded station must not vote, and its declared calm would win every time |
-| cli_irrad2_Wpm2_qlt | T_BOOL | 0 | 0 | - | 665 | irradiance station 2 believable | mirrored from the station row by the bank; an excluded station must not vote, and its declared calm would win every time |
-| grid_LN_V_qlt | T_BOOL | 0 | 0 | - | 666 | grid volts believable | mirrored from the meter row by the bank |
-| grid_total_A_qlt | T_BOOL | 0 | 0 | - | 667 | grid current believable | mirrored from the meter row by the bank |
-| grid_total_W_qlt | T_BOOL | 0 | 0 | - | 668 | grid power believable | mirrored from the meter row by the bank |
-| grid_Hz_qlt | T_BOOL | 0 | 0 | - | 669 | grid frequency believable | mirrored from the meter row by the bank |
-| ats_V_qlt | T_BOOL | 0 | 0 | - | 670 | local volts believable | mirrored from the meter row by the bank |
-| ats_A_qlt | T_BOOL | 0 | 0 | - | 671 | local current believable | mirrored from the meter row by the bank |
-| ats_W_qlt | T_BOOL | 0 | 0 | - | 672 | local power believable | mirrored from the meter row by the bank |
-| ats_Hz_qlt | T_BOOL | 0 | 0 | - | 673 | local frequency believable | mirrored from the meter row by the bank |
-| sys_grid_V_qlt | T_BOOL | 0 | 0 | - | 674 | grid volts mirror current | the mirror HOLDS its last reading; this is what says nobody took it |
-| sys_grid_A_qlt | T_BOOL | 0 | 0 | - | 675 | grid current mirror current | the mirror HOLDS its last reading; this is what says nobody took it |
-| sys_grid_W_qlt | T_BOOL | 0 | 0 | - | 676 | grid power mirror current | the mirror HOLDS its last reading; this is what says nobody took it |
-| sys_grid_Hz_qlt | T_BOOL | 0 | 0 | - | 677 | grid frequency mirror current | the mirror HOLDS its last reading; this is what says nobody took it |
-| sys_local_V_qlt | T_BOOL | 0 | 0 | - | 678 | local volts mirror current | the mirror HOLDS its last reading; this is what says nobody took it |
-| sys_local_A_qlt | T_BOOL | 0 | 0 | - | 679 | local current mirror current | the mirror HOLDS its last reading; this is what says nobody took it |
-| sys_local_W_qlt | T_BOOL | 0 | 0 | - | 680 | local power mirror current | the mirror HOLDS its last reading; this is what says nobody took it |
-| sys_local_Hz_qlt | T_BOOL | 0 | 0 | - | 681 | local frequency mirror current | the mirror HOLDS its last reading; this is what says nobody took it |
-| pwr_dc1_V_qlt | T_BOOL | 0 | 0 | - | 682 | DC PS1 divider believable | mirrored from the divider row by the bank |
-| pwr_dc2_V_qlt | T_BOOL | 0 | 0 | - | 683 | DC PS2 divider believable | mirrored from the divider row by the bank |
-| pwr_upsBat_V_qlt | T_BOOL | 0 | 0 | - | 684 | UPS battery divider believable | mirrored from the divider row by the bank |
-| pwr_genBat_V_qlt | T_BOOL | 0 | 0 | - | 685 | gen battery divider believable | mirrored from the divider row by the bank |
-| sys_dc1_V_qlt | T_BOOL | 0 | 0 | - | 686 | DC PS1 mirror current | the mirror HOLDS its last average; this is what says nobody took it |
-| sys_dc2_V_qlt | T_BOOL | 0 | 0 | - | 687 | DC PS2 mirror current | the mirror HOLDS its last average; this is what says nobody took it |
-| sys_upsBat_V_qlt | T_BOOL | 0 | 0 | - | 688 | UPS battery mirror current | the mirror HOLDS its last average; this is what says nobody took it |
-| sys_genBat_V_qlt | T_BOOL | 0 | 0 | - | 689 | gen battery mirror current | the mirror HOLDS its last average; this is what says nobody took it |
-| irr_out_Lpm_qlt | T_BOOL | 0 | 0 | - | 690 | drain loop believable | mirrored from the 4-20 mA row by the bank; a loop that has stopped answering must not be integrated into a total |
-| cli_rain_mmph_qlt | T_BOOL | 0 | 0 | - | 613 | rain rate believable | roof_lockout shuts the roof without it: the row declares 0, which reads as fine weather |
-| cli_wind_mps_qlt | T_BOOL | 0 | 0 | - | 614 | wind speed believable | roof_lockout shuts the roof without it: the row declares 0, which reads as calm |
-| cli_temp_in_qlt | T_BOOL | 0 | 0 | - | 615 | interior temperature believable | cooling_controller resets the PID integral, which is an act rather than a value |
-| cli_dpMargin_degC_qlt | T_BOOL | 0 | 0 | - | 616 | dew point margin believable | humidity_controller fails toward full vent, which the declared margin would not give |
-| cli_temp_hi_qlt | T_BOOL | 0 | 0 | - | 617 | ceiling temperature believable | temp_rh_zone votes worst case among MEASURED levels only |
-| cli_temp_lo_qlt | T_BOOL | 0 | 0 | - | 618 | floor temperature believable | temp_rh_zone votes worst case among MEASURED levels only |
-| cli_coolDem_qlt | T_BOOL | 0 | 0 | - | 619 | cooling demand believable | the screen deploys at cli_thermalScreenDem, which the declared demand never reaches |
-| cli_phase_qlt | T_BOOL | 0 | 0 | - | 620 | day phase believable | target_temp applies no bank offset without it; the declared phase would apply one |
-| irr_outTotal_L_qlt | T_BOOL | 0 | 0 | - | 622 | outlet total believable | a totaliser DIFFERENCE cannot take a substituted constant at either end |
-| irr_outFlow_Lpm_qlt | T_BOOL | 0 | 0 | - | 623 | drain flow believable | the drain verdict declines to judge; the declared 0 Lpm reads as a clog |
-| irr_mod_qlt | T_BOOL | 0 | 0 | - | 624 | modulation believable | the cycle still runs, but the dose is a guess |
 | cli_phase | T_ENUM | PHASE_NIGHT | - | - | 518 | phase of the day in force | NIGHT COLD_BANK DAWN_BREEZE DAY HEAT_BANK DUSK_BREEZE |
 | irr_state | T_ENUM | IRR_IDLE | - | - | 537 | what the irrigation cycle is doing | IDLE FILLING DRAINING FLUSHING |
 | prog_ac_grid_watch | T_ENUM | 3 | - | - | 570 | health of the ac_grid_watch program | 3 is INHIBITED: nothing has run yet |
@@ -726,18 +651,18 @@ between them.
 
 | # | program | rate | reads | writes | what it does |
 |---|---|---|---|---|---|
-| 1 | ac_grid_watch | control | 12 | 10 | The utility feed, watched. |
-| 2 | ac_local_watch | control | 15 | 11 | The generator-backed side of the transfer switch, watched. |
-| 3 | dc_watch | control | 18 | 14 | The DC rails and the two batteries, watched - and the plant-wide lockout they raise. |
+| 1 | ac_grid_watch | control | 12 | 11 | The utility feed, watched. |
+| 2 | ac_local_watch | control | 15 | 12 | The generator-backed side of the transfer switch, watched. |
+| 3 | dc_watch | control | 19 | 16 | The DC rails and the two batteries, watched - and the plant-wide lockout they raise. |
 | 4 | temp_rh_sensors | sense | 50 | 20 | The four measurement locations, each voted down to one reading and filtered: what the greenhouse IS, before any law is set in it. |
-| 5 | wx_sensors | sense | 18 | 7 | The two weather stations, voted down to one reading per quantity: the worse of them, because two cannot say which is lying. |
+| 5 | wx_sensors | sense | 18 | 9 | The two weather stations, voted down to one reading per quantity: the worse of them, because two cannot say which is lying. |
 | 6 | strat | sense | 5 | 2 | The stratification gap: how much warmer the ceiling is than the floor, unsigned. |
-| 7 | temp_rh_zone | sense | 7 | 8 | The psychrometrics every other law is set in, off the two interior levels: one temperature for the house, and the worst case per quantity. |
+| 7 | temp_rh_zone | sense | 7 | 11 | The psychrometrics every other law is set in, off the two interior levels: one temperature for the house, and the worst case per quantity. |
 | 8 | climate_watch | control | 14 | 5 | The interior conditions, watched: the alarms that are a READING crossing a line rather than a law failing to hold one. |
 | 9 | weather_watch | control | 6 | 2 | The weather station, watched: whether it is answering, and whether what it says is a storm. |
-| 10 | day_phase | control | 12 | 6 | The day's phase, and the temperature target it puts in force. |
+| 10 | day_phase | control | 13 | 10 | The day's phase, and the temperature target it puts in force. |
 | 11 | target_temp | control | 11 | 1 | The temperature the greenhouse is being held to: the base setting, shifted by whichever bank phase is both IN FORCE and ARMED. |
-| 12 | cooling | sense | 9 | 3 | The cooling ladder: a PID on the interior temperature against the phase's target, published as one signed demand. |
+| 12 | cooling | sense | 9 | 4 | The cooling ladder: a PID on the interior temperature against the phase's target, published as one signed demand. |
 | 13 | humidity | control | 10 | 3 | The humidity ladder: four bands and a dead zone on the dew-point margin, published as one signed demand - and the rot guard under it. |
 | 14 | intake_dry | control | 10 | 1 | The intake dry gate: whether the air outside is drier than the air in. |
 | 15 | intake_gates | control | 10 | 2 | The two intake gates: whether crawlspace air is worth drawing, for cooling and for ground heat. |
@@ -748,7 +673,7 @@ between them.
 | 20 | skirt | control | 11 | 2 | The wet skirt: one valve pulsed against two demands. |
 | 21 | screen | control | 7 | 2 | The thermal screen: one coil, deployed when the greenhouse is losing heat rather than gaining it. |
 | 22 | windows | control | 6 | 16 | The four roof windows: one target from the cooling ladder, and ONE MOVING AT A TIME. |
-| 23 | irr_modulation | control | 8 | 3 | The irrigation ladder: how thirsty the air has been, as one factor. |
+| 23 | irr_modulation | control | 8 | 4 | The irrigation ladder: how thirsty the air has been, as one factor. |
 | 24 | irr_mtr_input | control | 7 | 5 | The inlet meter, and the two supply faults it alone can see. |
 | 25 | irr_mtr_output | control | 6 | 4 | The outlet meter: what came back off the trays. |
 | 26 | irr_schedule | control | 30 | 21 | Which tray is owed water, and whether the climate will allow a cycle to start. |
@@ -762,7 +687,7 @@ between them.
 | direction | rows |
 |---|---|
 | reads | `grid_LN_V`, `grid_LN_V_qlt`, `grid_total_A`, `grid_total_A_qlt`, `grid_total_W`, `grid_total_W_qlt`, `grid_Hz`, `grid_Hz_qlt`, `pwr_gridLo_V`, `pwr_gridHi_V`, `pwr_gridLo_Hz`, `pwr_gridHi_Hz` |
-| writes | `sys_grid_V`, `sys_grid_V_qlt`, `sys_grid_A`, `sys_grid_A_qlt`, `sys_grid_W`, `sys_grid_W_qlt`, `sys_grid_Hz`, `sys_grid_Hz_qlt`, `sys_grid_ok`, `alarm_ac_grid` |
+| writes | `sys_grid_V`, `sys_grid_V_qlt`, `sys_grid_A`, `sys_grid_A_qlt`, `sys_grid_W`, `sys_grid_W_qlt`, `sys_grid_Hz`, `sys_grid_Hz_qlt`, `sys_grid_ok`, `sys_grid_ok_qlt`, `alarm_ac_grid` |
 
 ### ac_local_watch
 
@@ -771,7 +696,7 @@ between them.
 | direction | rows |
 |---|---|
 | reads | `ats_V`, `ats_V_qlt`, `ats_A`, `ats_A_qlt`, `ats_W`, `ats_W_qlt`, `ats_Hz`, `ats_Hz_qlt`, `pwr_localLo_V`, `pwr_localHi_V`, `pwr_localLo_Hz`, `pwr_localHi_Hz`, `sys_grid_ok`, `pwr_genStart_sec`, `sys_now_ms` |
-| writes | `sys_local_V`, `sys_local_V_qlt`, `sys_local_A`, `sys_local_A_qlt`, `sys_local_W`, `sys_local_W_qlt`, `sys_local_Hz`, `sys_local_Hz_qlt`, `sys_local_ok`, `alarm_ac_local`, `alarm_gen` |
+| writes | `sys_local_V`, `sys_local_V_qlt`, `sys_local_A`, `sys_local_A_qlt`, `sys_local_W`, `sys_local_W_qlt`, `sys_local_Hz`, `sys_local_Hz_qlt`, `sys_local_ok`, `sys_local_ok_qlt`, `alarm_ac_local`, `alarm_gen` |
 
 ### dc_watch
 
@@ -779,8 +704,8 @@ between them.
 
 | direction | rows |
 |---|---|
-| reads | `pwr_dc1_V`, `pwr_dc1_V_qlt`, `pwr_dc2_V`, `pwr_dc2_V_qlt`, `pwr_upsBat_V`, `pwr_upsBat_V_qlt`, `pwr_genBat_V`, `pwr_genBat_V_qlt`, `pwr_dc1Lo_V`, `pwr_dc2Lo_V`, `pwr_upsBatLo_V`, `pwr_genBatLo_V`, `pwr_dc1_avg_ms`, `pwr_dc2_avg_ms`, `pwr_upsBat_avg_ms`, `pwr_genBat_avg_ms`, `pwr_upsLowBat`, `sys_now_ms` |
-| writes | `sys_dc1_V`, `sys_dc1_V_qlt`, `sys_dc2_V`, `sys_dc2_V_qlt`, `sys_upsBat_V`, `sys_upsBat_V_qlt`, `sys_genBat_V`, `sys_genBat_V_qlt`, `sys_dc_ok`, `sys_supply_lockout`, `alarm_dc_ps1`, `alarm_dc_ps2`, `alarm_dc_ups`, `alarm_generator_battery` |
+| reads | `pwr_dc1_V`, `pwr_dc1_V_qlt`, `pwr_dc2_V`, `pwr_dc2_V_qlt`, `pwr_upsBat_V`, `pwr_upsBat_V_qlt`, `pwr_genBat_V`, `pwr_genBat_V_qlt`, `pwr_dc1Lo_V`, `pwr_dc2Lo_V`, `pwr_upsBatLo_V`, `pwr_genBatLo_V`, `pwr_dc1_avg_ms`, `pwr_dc2_avg_ms`, `pwr_upsBat_avg_ms`, `pwr_genBat_avg_ms`, `pwr_upsLowBat`, `pwr_upsLowBat_qlt`, `sys_now_ms` |
+| writes | `sys_dc1_V`, `sys_dc1_V_qlt`, `sys_dc2_V`, `sys_dc2_V_qlt`, `sys_upsBat_V`, `sys_upsBat_V_qlt`, `sys_genBat_V`, `sys_genBat_V_qlt`, `sys_dc_ok`, `sys_dc_ok_qlt`, `sys_supply_lockout`, `sys_supply_lockout_qlt`, `alarm_dc_ps1`, `alarm_dc_ps2`, `alarm_dc_ups`, `alarm_generator_battery` |
 
 ### temp_rh_sensors
 
@@ -798,7 +723,7 @@ between them.
 | direction | rows |
 |---|---|
 | reads | `cli_wind1_mps`, `cli_wind1_mps_qlt`, `cli_wind2_mps`, `cli_wind2_mps_qlt`, `cli_windGust1_mps`, `cli_windGust1_mps_qlt`, `cli_windGust2_mps`, `cli_windGust2_mps_qlt`, `cli_rain1_mmph`, `cli_rain1_mmph_qlt`, `cli_rain2_mmph`, `cli_rain2_mmph_qlt`, `cli_irrad1_Wpm2`, `cli_irrad1_Wpm2_qlt`, `cli_irrad2_Wpm2`, `cli_irrad2_Wpm2_qlt`, `cli_wxTau_ms`, `sys_now_ms` |
-| writes | `cli_wind_mps`, `cli_windGust_mps`, `cli_rain_mmph`, `cli_irrad_Wpm2`, `cli_wind_mps_qlt`, `cli_rain_mmph_qlt`, `alarm_wx_station` |
+| writes | `cli_wind_mps`, `cli_wind_mps_qlt`, `cli_windGust_mps`, `cli_windGust_mps_qlt`, `cli_rain_mmph`, `cli_rain_mmph_qlt`, `cli_irrad_Wpm2`, `cli_irrad_Wpm2_qlt`, `alarm_wx_station` |
 
 ### strat
 
@@ -816,7 +741,7 @@ between them.
 | direction | rows |
 |---|---|
 | reads | `cli_temp_hi`, `cli_rh_hi`, `cli_temp_lo`, `cli_rh_lo`, `cli_temp_hi_qlt`, `cli_temp_lo_qlt`, `cli_rotMargin_degC` |
-| writes | `cli_temp_in`, `cli_temp_in_qlt`, `cli_dewPoint_degC`, `cli_dpMargin_degC`, `cli_dpMargin_degC_qlt`, `cli_satPress_kPa`, `cli_vpd_kPa`, `alarm_rot` |
+| writes | `cli_temp_in`, `cli_temp_in_qlt`, `cli_dewPoint_degC`, `cli_dewPoint_degC_qlt`, `cli_dpMargin_degC`, `cli_dpMargin_degC_qlt`, `cli_satPress_kPa`, `cli_satPress_kPa_qlt`, `cli_vpd_kPa`, `cli_vpd_kPa_qlt`, `alarm_rot` |
 
 ### climate_watch
 
@@ -842,8 +767,8 @@ between them.
 
 | direction | rows |
 |---|---|
-| reads | `cli_temp_in`, `sol_ready`, `sol_fromRise_min`, `sol_fromSet_min`, `cli_coldBankTrg_degC`, `cli_heatBankTrg_degC`, `sol_coldBankRise_min`, `sol_breezeRise_min`, `sol_dayRise_min`, `sol_heatBankSet_min`, `sol_duskSet_min`, `sol_nightSet_min` |
-| writes | `cli_phase`, `cli_phase_qlt`, `cli_coldBankArm`, `cli_heatBankArm`, `cli_prevDayMax_degC`, `cli_prevNightMin_degC` |
+| reads | `cli_temp_in`, `cli_temp_in_qlt`, `sol_ready`, `sol_fromRise_min`, `sol_fromSet_min`, `cli_coldBankTrg_degC`, `cli_heatBankTrg_degC`, `sol_coldBankRise_min`, `sol_breezeRise_min`, `sol_dayRise_min`, `sol_heatBankSet_min`, `sol_duskSet_min`, `sol_nightSet_min` |
+| writes | `cli_phase`, `cli_phase_qlt`, `cli_coldBankArm`, `cli_coldBankArm_qlt`, `cli_heatBankArm`, `cli_heatBankArm_qlt`, `cli_prevDayMax_degC`, `cli_prevDayMax_degC_qlt`, `cli_prevNightMin_degC`, `cli_prevNightMin_degC_qlt` |
 
 ### target_temp
 
@@ -861,7 +786,7 @@ between them.
 | direction | rows |
 |---|---|
 | reads | `cli_temp_in`, `cli_temp_in_qlt`, `cli_targetTemp_degC`, `cli_windowStartDem`, `cli_windowFullDem`, `cli_coolKp`, `cli_coolTi_sec`, `cli_coolTd_sec`, `sys_now_ms` |
-| writes | `cli_coolDem`, `cli_coolDem_qlt`, `cli_windowDem` |
+| writes | `cli_coolDem`, `cli_coolDem_qlt`, `cli_windowDem`, `cli_windowDem_qlt` |
 
 ### humidity
 
@@ -960,7 +885,7 @@ between them.
 | direction | rows |
 |---|---|
 | reads | `cli_vpd_kPa`, `cli_dpMargin_degC_qlt`, `irr_dryEwmaDays`, `irr_dryLo_kPa`, `irr_dryHi_kPa`, `irr_modMin`, `irr_modGamma`, `sys_now_ms` |
-| writes | `irr_vpdAvg_kPa`, `irr_mod`, `irr_mod_qlt` |
+| writes | `irr_vpdAvg_kPa`, `irr_vpdAvg_kPa_qlt`, `irr_mod`, `irr_mod_qlt` |
 
 ### irr_mtr_input
 

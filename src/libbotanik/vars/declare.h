@@ -242,6 +242,20 @@ namespace Botanik { namespace Vars {
                          T_ENUM, ROLE_COMPUTED, SCOPE_SV, 0, 0, {} };
     }
 
+    /** @brief A **quality companion**: `<row>_qlt`, whose value is that row's
+     *  Quality code. GENERATED, one per input and one per row an opted-in
+     *  program writes; never hand-declared.
+     *
+     *  Q_NO_DATA is its default, so a row reads unbelievable until something
+     *  has spoken for it. Bank::freeze() pairs it with its row by name. */
+    constexpr Descriptor Q(const char* name, uint16_t reg, const char* desc) {
+        return Descriptor{ Scalar::U((uint64_t)Q_NO_DATA), name, "", desc, "",
+                         Payload(Scalar::U(0), Scalar::U(0)),
+                         { XP_NONE, T_ENUM, 0, 0, reg, 1, 1.0f, 0.0f }, 0, 0,
+                         quality_label,
+                         T_ENUM, ROLE_COMPUTED, SCOPE_Q, 0, 0, {} };
+    }
+
     /** @brief A **direct input**: the register maps 1:1 onto @p type, no
      *  conversion. @p lo / @p hi are the plausibility band - generous on
      *  purpose, to catch a dead meter reporting a rail rather than to police
