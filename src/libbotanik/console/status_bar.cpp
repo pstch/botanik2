@@ -144,7 +144,8 @@ namespace Botanik { namespace Terminal {
     }
 
     void StatusBar::update_clock() {
-        // Wall-clock HH:MM:SS (same source as the STATUS page's "Wall Clock").
+        // Wall-clock HH:MM:SS. The bar is the only place it appears: it is on
+        // every page, so no page repeats it.
         Utils::CalendarTime wc = Utils::cal_time_ms(HAL::Clock::uptime_ms());
         char clk[16];
         snprintf(clk, sizeof(clk), "%02u:%02u:%02u",

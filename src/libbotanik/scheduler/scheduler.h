@@ -41,6 +41,19 @@ namespace Botanik { namespace Scheduler {
         HALT     ///< done: waiting for the ending HealthMonitor::Stop names
     };
 
+    /** @brief @p s as a word, for a display or a log line. The one place the
+     *  lifecycle has a spelling, so nothing can drift from it. */
+    inline const char* run_state_name(RunState s) {
+        switch (s) {
+            case RunState::SETUP: return "SETUP";
+            case RunState::START: return "START";
+            case RunState::RUN:   return "RUN";
+            case RunState::STOP:  return "STOP";
+            case RunState::HALT:  return "HALT";
+            default:              return "?";
+        }
+    }
+
     /** @brief Stable metrics snapshot consumed by AnsiTerminal.
      *  @note Written by LoopScheduler, read by other components. */
     struct SchedulerContext {
