@@ -172,7 +172,9 @@ src/sites/gh_mlb41/
 | `program.h` | the `Program` record: name, period, init, run, task |
 | `runtime.{h,cpp}` | `Plant`, a `Component`: one registry task per program |
 
-`st/lib/ieclib.txt` is OUR IEC library. `st/shim/` holds two harnesses.
+`ieclib.txt` is OUR IEC library. (Both it and the two exploratory harnesses
+lived under `st/` at the time; the library is now
+`src/libbotanik/plc/functions/ieclib.txt` and the harnesses are gone.)
 
 ### How a program runs
 
@@ -228,7 +230,7 @@ which is how the change was verified.
 ### Licensing: none of matiec's own code reaches the firmware
 
 matiec always loads `<-I dir>/ieclib.txt`, and `-I` is ours to point. Ours is
-`st/lib/ieclib.txt`, so matiec's 28 standard FUNCTION_BLOCKs are never
+`ieclib.txt`, so matiec's 28 standard FUNCTION_BLOCKs are never
 declared: not `TON`, not `HYSTERESIS`, not `PID`. Those names are therefore
 free, and our blocks may take any name.
 
@@ -240,7 +242,7 @@ This matters beyond names:
 - Their `IEC_TIME` is a packed 12-byte timespec, putting `TON_data__` at 52
   bytes against our `TOF_MS` at 19.
 
-The standard FUNCTIONS we call are ST, with our bodies, in `st/lib/ieclib.txt`.
+The standard FUNCTIONS we call are ST, with our bodies, in `ieclib.txt`.
 Add one when a POU starts needing it: the error is "function invocation ... not
 declared", at compile time. `EXP` went in for `SAT_VAPOUR_PRESSURE`.
 A declaration alone is not enough - matiec special-cases its own standard names

@@ -83,7 +83,8 @@ should keep that true.
 
 ## What is proven
 
-`st/shim/harness_ext.cpp` runs the generated `roof_lockout` - its bind, its
+`harness_ext.cpp` - an exploratory harness, since deleted - ran the generated
+`roof_lockout`: its bind, its
 law and its nested `TOF_MS` - against a real `Vars::Bank`, with no
 hand-written binding table. All six cases pass, the two dead-station ones
 included.

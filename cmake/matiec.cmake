@@ -1,20 +1,23 @@
 # The ST toolchain
 # =============================================================================
-# matiec is a DEVELOPER TOOL and never a build step: its output is committed
-# under src/sites/<site>/generated/. What is pinned here is the COMPILER, so two
-# machines regenerating produce the same bytes. Nothing pinned it before, and a
-# different matiec silently rewrites every POU.
+# Included from the root, SIMULATOR side. matiec is a DEVELOPER TOOL and never
+# a build step: its output is committed under src/sites/<site>/generated/. What
+# is pinned here is the COMPILER, so two machines regenerating produce the same
+# bytes. Nothing pinned it before, and a different matiec silently rewrites
+# every POU.
 #
 # Nothing here enters ALL and nothing is required: without flex and bison the
 # targets are simply not declared, as `clang-tidy` and `check-opta` are not. A
 # tree without them still gets a green `make check`.
 #
 # LICENCE: matiec is GPLv3. None of it reaches the firmware - we run the BINARY,
-# and the IEC library its output is compiled against is OURS (st/lib/ieclib.txt,
-# passed as -I). st/vendor/matiec carries no lib/ at all. See st/README.md.
+# and the IEC library its output is compiled against is OURS
+# (src/libbotanik/plc/functions/ieclib.txt,
+# passed as -I). vendor/matiec carries no lib/ at all.
+# See docs/dev/st-toolchain.md.
 
-set(BOTANIK_MATIEC_SRC "${CMAKE_CURRENT_SOURCE_DIR}/vendor/matiec" CACHE PATH
-    "matiec source tree (default: the pinned copy under st/vendor/)")
+set(BOTANIK_MATIEC_SRC "${CMAKE_SOURCE_DIR}/vendor/matiec" CACHE PATH
+    "matiec source tree (default: the pinned copy under vendor/)")
 
 set(_matiec_bin "${CMAKE_BINARY_DIR}/matiec")
 set(_iec2c      "${_matiec_bin}/iec2c")

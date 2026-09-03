@@ -325,7 +325,7 @@ if(BOTANIK_TARGET STREQUAL "SIMULATOR")
     # The ST toolchain: the pinned matiec, and the check that closes the loop on
     # its committed output. A host tool, none of it in ALL, and absent entirely
     # where flex/bison are. Before tests/ so its `if(TARGET check-st)` sees it.
-    add_subdirectory(st)
+    include(cmake/matiec.cmake)
 
     # Tests are host-only, so SIMULATOR-only. enable_testing() registers the
     # CTest machinery; the suites and `make check` are defined in tests/.

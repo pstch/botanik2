@@ -2,7 +2,7 @@
 #
 # The sources are COPIED into ${BIN}/src first: matiec has no VPATH build, and
 # building in place would leave object files and generated Makefiles in
-# st/vendor/, where `git status` would carry them for ever.
+# vendor/, where `git status` would carry them for ever.
 #
 #   SRC  - the matiec source tree (BOTANIK_MATIEC_SRC)
 #   BIN  - where iec2c lands; ${BIN}/src is the scratch copy
