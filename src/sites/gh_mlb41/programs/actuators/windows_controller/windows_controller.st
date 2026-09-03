@@ -92,15 +92,20 @@ END_VAR
      The two tests belong to the same pass: asking all four the first question
      before any of them the second lets an unknown ram 3 outrank a ram 1 that
      is wide open with the roof being shut. The rest are HELD: they keep their
-     clocks and decide nothing. *)
+     clocks and decide nothing.
+
+     The release test is the ram's OWN deadband, not a second number beside it.
+     Benign today - a stroke runs the whole remaining distance, so an arriving
+     ram lands exactly on the target and both tests agree - but the two are one
+     decision and had drifted to being written twice. *)
   IF   ram1.MOVING THEN owner := 1;
   ELSIF ram2.MOVING THEN owner := 2;
   ELSIF ram3.MOVING THEN owner := 3;
   ELSIF ram4.MOVING THEN owner := 4;
-  ELSIF NOT ram1.KNOWN OR ABS(aim - ram1.POS) > 0.02 THEN owner := 1;
-  ELSIF NOT ram2.KNOWN OR ABS(aim - ram2.POS) > 0.02 THEN owner := 2;
-  ELSIF NOT ram3.KNOWN OR ABS(aim - ram3.POS) > 0.02 THEN owner := 3;
-  ELSIF NOT ram4.KNOWN OR ABS(aim - ram4.POS) > 0.02 THEN owner := 4;
+  ELSIF NOT ram1.KNOWN OR ABS(aim - ram1.POS) > cli_windowDeadband THEN owner := 1;
+  ELSIF NOT ram2.KNOWN OR ABS(aim - ram2.POS) > cli_windowDeadband THEN owner := 2;
+  ELSIF NOT ram3.KNOWN OR ABS(aim - ram3.POS) > cli_windowDeadband THEN owner := 3;
+  ELSIF NOT ram4.KNOWN OR ABS(aim - ram4.POS) > cli_windowDeadband THEN owner := 4;
   ELSE owner := 0;
   END_IF;
 

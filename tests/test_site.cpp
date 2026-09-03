@@ -227,6 +227,23 @@ TEST_CASE_FIXTURE(SiteBank, "vars: a row's quality IS its companion's value") {
     CHECK(bank.var(probe).quality() == Vars::Q_STALE);
 }
 
+TEST_CASE("vars: which qualities carry a number, and which read the declared one") {
+    // The one rule Ref::get() branches on, and what MQTT publishes. Pinned
+    // here because adding a code is where it would silently be got wrong: a
+    // new code holds nothing until somebody says it does.
+    CHECK(Vars::quality_holds(Vars::Q_VALID));
+    CHECK(Vars::quality_holds(Vars::Q_SUBSTITUTED));
+    CHECK_FALSE(Vars::quality_holds(Vars::Q_NO_DATA));
+    CHECK_FALSE(Vars::quality_holds(Vars::Q_STALE));
+    CHECK_FALSE(Vars::quality_holds(Vars::Q_IMPLAUSIBLE));
+    CHECK_FALSE(Vars::quality_holds(Vars::Q_REFUSED));
+
+    INFO("...and it is NOT valid(): a fallback is worth computing on and still "
+         "means the plant cannot be seen");
+    CHECK_FALSE(Vars::Q_SUBSTITUTED == Vars::Q_VALID);
+    CHECK(Vars::quality_label(Vars::Q_SUBSTITUTED) != nullptr);
+}
+
 TEST_CASE_FIXTURE(SiteBank, "vars: a row with no companion is valid, always") {
     // The rule that keeps the table small: a parameter cannot stop being one,
     // and a companion has no quality of its own - which is what stops the

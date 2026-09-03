@@ -132,10 +132,13 @@ namespace Botanik { namespace Network {
             Vars::Var h = _io->var(_cursor);
             const Vars::Descriptor& d = *h.meta();
             if (d.name == nullptr || !Vars::var_published(d)) continue;
-            // Publish only what has actually been read: a default value on the
-            // broker is indistinguishable from a measurement, and a subscriber
-            // cannot tell the sensor died.
-            if (!h.valid()) continue;
+            // Publish what a LAW would read: measured, or a fallback a law
+            // stood behind. A row that reads its declared value is skipped -
+            // a default on the broker is indistinguishable from a measurement
+            // and a subscriber cannot tell the sensor died - but a
+            // Q_SUBSTITUTED row is a number the plant is acting on, and
+            // withholding that hides the venting it is driving.
+            if (!Vars::quality_holds(h.quality())) continue;
             const char* out = Vars::var_format(*_io, h, payload, sizeof(payload));
             _emit(Vars::var_group(d), d.name, out);
             sent++;

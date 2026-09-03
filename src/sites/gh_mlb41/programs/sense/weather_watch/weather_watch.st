@@ -16,7 +16,6 @@ VAR_EXTERNAL
 END_VAR
 VAR
   seen   : BOOL := FALSE;   (* the station has answered at least once *)
-  dry_ms : UDINT;
   last   : UDINT;
   primed : BOOL := FALSE;
   (* SECONDS, with the sub-second part kept aside. In milliseconds this wraps

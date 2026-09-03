@@ -3185,22 +3185,22 @@ static void WINDOWS_CONTROLLER_body__(WINDOWS_CONTROLLER_data__ *data__) {
   } else if ((!(__GET_VAR(data__->RAM1.KNOWN,)) || (___ABS(
     (BOOL)__BOOL_LITERAL(TRUE),
     NULL,
-    (REAL)(__GET_VAR(data__->AIM,) - __GET_VAR(data__->RAM1.POS,))) > __REAL_LITERAL(0.02)))) {
+    (REAL)(__GET_VAR(data__->AIM,) - __GET_VAR(data__->RAM1.POS,))) > __GET_EXTERNAL(data__->CLI_WINDOWDEADBAND,)))) {
     __SET_VAR(data__->,OWNER,,__USINT_LITERAL(1));
   } else if ((!(__GET_VAR(data__->RAM2.KNOWN,)) || (___ABS(
     (BOOL)__BOOL_LITERAL(TRUE),
     NULL,
-    (REAL)(__GET_VAR(data__->AIM,) - __GET_VAR(data__->RAM2.POS,))) > __REAL_LITERAL(0.02)))) {
+    (REAL)(__GET_VAR(data__->AIM,) - __GET_VAR(data__->RAM2.POS,))) > __GET_EXTERNAL(data__->CLI_WINDOWDEADBAND,)))) {
     __SET_VAR(data__->,OWNER,,__USINT_LITERAL(2));
   } else if ((!(__GET_VAR(data__->RAM3.KNOWN,)) || (___ABS(
     (BOOL)__BOOL_LITERAL(TRUE),
     NULL,
-    (REAL)(__GET_VAR(data__->AIM,) - __GET_VAR(data__->RAM3.POS,))) > __REAL_LITERAL(0.02)))) {
+    (REAL)(__GET_VAR(data__->AIM,) - __GET_VAR(data__->RAM3.POS,))) > __GET_EXTERNAL(data__->CLI_WINDOWDEADBAND,)))) {
     __SET_VAR(data__->,OWNER,,__USINT_LITERAL(3));
   } else if ((!(__GET_VAR(data__->RAM4.KNOWN,)) || (___ABS(
     (BOOL)__BOOL_LITERAL(TRUE),
     NULL,
-    (REAL)(__GET_VAR(data__->AIM,) - __GET_VAR(data__->RAM4.POS,))) > __REAL_LITERAL(0.02)))) {
+    (REAL)(__GET_VAR(data__->AIM,) - __GET_VAR(data__->RAM4.POS,))) > __GET_EXTERNAL(data__->CLI_WINDOWDEADBAND,)))) {
     __SET_VAR(data__->,OWNER,,__USINT_LITERAL(4));
   } else {
     __SET_VAR(data__->,OWNER,,__USINT_LITERAL(0));
@@ -5752,7 +5752,6 @@ static void WEATHER_WATCH_init__(WEATHER_WATCH_data__ *data__, BOOL retain) {
   __INIT_EXTERNAL(BOOL,ALARM_WEATHER_STORM,data__->ALARM_WEATHER_STORM,retain)
   __INIT_EXTERNAL(REAL,CLI_SINCERAIN_H,data__->CLI_SINCERAIN_H,retain)
   __INIT_VAR(data__->SEEN,__BOOL_LITERAL(FALSE),retain)
-  __INIT_VAR(data__->DRY_MS,0,retain)
   __INIT_VAR(data__->LAST,0,retain)
   __INIT_VAR(data__->PRIMED,__BOOL_LITERAL(FALSE),retain)
   __INIT_VAR(data__->DRY_S,0,retain)
