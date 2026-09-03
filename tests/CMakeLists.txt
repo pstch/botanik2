@@ -23,6 +23,7 @@ add_executable(botanik_tests
     test_modbus_framing.cpp
     test_modbus_tcp.cpp
     test_modbus_plan.cpp
+    test_modbus_map.cpp
     test_pages.cpp
     test_shell.cpp
     test_plc.cpp

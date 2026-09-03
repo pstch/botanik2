@@ -169,11 +169,12 @@ namespace Botanik { namespace Modbus {
     }
 
     int Map::_find(uint16_t reg) const {
-        // The same search as _lower_bound, asked a stricter question. _reg_of()
-        // reads 0xFFFF past the end, so the bound test costs nothing extra and
-        // there is no separate end check to get wrong.
+        // The same search as _lower_bound, asked a stricter question. The bound
+        // check is explicit: _reg_of() reads 0xFFFF past the end, and 0xFFFF is
+        // a legal register, so leaning on the sentinel made row_at(0xFFFF)
+        // report a hit and index _rows[_count].
         const uint16_t k = _lower_bound(reg);
-        return (_reg_of(k) == reg) ? (int)k : -1;
+        return (k < _count && _reg_of(k) == reg) ? (int)k : -1;
     }
 
     uint32_t Map::to_wire(const Var& v) const {
@@ -383,11 +384,6 @@ namespace Botanik { namespace Modbus {
         bool found = false;
         const Var v = row_at((uint16_t)(addr / 2), &found);
         if (!found || !_writable(*v.meta())) return EX_ILLEGAL_ADDRESS;
-        // An ADDRESS is written whole or not at all. Splicing half of one gives
-        // a valid dotted quad that nobody asked for - 192.168.1.10 with its top
-        // half replaced is a different machine on a different subnet, and it
-        // would be committed and persisted before the second half arrived.
-        if (is_ipv4(*v.meta())) return EX_ILLEGAL_ADDRESS;
 
         // Splice into what the row already holds, so the half the master did not
         // address survives. Against live(), not raw(): raw() would be an
