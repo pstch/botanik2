@@ -222,12 +222,12 @@ on the fly and passed by value. Every row-level operation is on it.
 
 | | |
 |---|---|
-| Read | `value()`, `live()`, `override()`, `wire()`, `text()`, `as_f32()`, `as<T>()`, `quality()`, `usable()`, `valid()`, `stamp()`, `written()`, `age_ms()` |
+| Read | `value()`, `live()`, `declared()`, `wire()`, `text()`, `as_f32()`, `as<T>()`, `quality()`, `usable()`, `valid()`, `stamp()`, `written()`, `age_ms()` |
 | Bounds | `band()`, `cal()`, `implausible()` |
 | Driver writes | `publish(Scalar, now_ms)` for a 1:1 row, `publish_wire(raw, now_ms)` for a converted one, `set_quality()`, `safe()` |
 | Law writes | `set(bool)`, `set(float)`, `set_i(int64_t)` |
 | Parameter edit | `param_set(text)`, `param_set(value)`, `param_check(...)` - RAM only |
-| Override | `override_set(...)`, `override_clear()` - RAM only |
+| Override | `override_on()`, `override_set(...)`, `override_clear()` - RAM only; `value()` is the forced number when `override_on()` |
 | Quality | `quality_var()`, the companion's own handle |
 
 An unusable variable reads as its declared `def` **to a law** - `Ref::get()` is

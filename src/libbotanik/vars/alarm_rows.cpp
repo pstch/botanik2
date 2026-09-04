@@ -47,7 +47,7 @@ namespace Botanik { namespace Vars {
         return _io->var(_row[i]).as_bool();
     }
     bool BankAlarms::forced(uint16_t i) const {
-        return _io->var(_row[i]).override().present();
+        return _io->var(_row[i]).override_on();
     }
 
     bool BankAlarms::force(uint16_t i, bool on) {
@@ -59,7 +59,7 @@ namespace Botanik { namespace Vars {
     bool BankAlarms::force_clear(uint16_t i) {
         if (_io == nullptr || i >= _count) return false;
         Var h = _io->var(_row[i]);
-        if (!h.override().present()) return false;
+        if (!h.override_on()) return false;
         // Through Persist: it owns the store, and a release leaving the stored
         // copy behind would come back at the next boot.
         if (_persist != nullptr) _persist->override_clear(h);

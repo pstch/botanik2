@@ -210,28 +210,27 @@ namespace Botanik { namespace Vars {
 
         /** @} */
         /** @name Read
-         *  Three layers and their resolution, each a Value - so a number and its
-         *  quality are fetched together and cannot disagree. @{ */
+         *  Three layers and their resolution, each a Value. Quality is not one
+         *  of them: it is a row, and quality() is the way to it. @{ */
 
         /** @brief What the row would read with nothing forced. The value SLOT,
          *  whatever it is worth: an implausible reading shows the number that
          *  was implausible, and quality says so beside it. Substituting the
          *  declared value is Ref::get()'s job, once, for the laws. */
-        Value live() const { return Value{ _s().v, &meta(), type(), quality(), true }; }
+        Value live() const { return Value{ _s().v, &meta(), type() }; }
 
         /** @brief The row's DECLARED value, as a Value ready to convert. What a
          *  law reads in place of a row with nothing behind it: a number somebody
          *  chose and reviewed, rather than a reading of unbounded age. */
-        Value declared() const { return Value{ meta().def, &meta(), type(), Q_GOOD, true }; }
+        Value declared() const { return Value{ meta().def, &meta(), type() }; }
 
-        /** @brief The force, or an absent layer when there is none. */
-        Value override() const {
-            if (!_flag(S_OVR_ON)) return Value{ meta().def, &meta(), type(), Q_NONE, false };
-            return Value{ _s().ovr, &meta(), type(), quality(), true };
+        /** @brief The value in force: the force when one is on, else live. The
+         *  forced number has no accessor of its own - ask override_on() first
+         *  and this IS it, so an unforced row's stale `ovr` field cannot be
+         *  read at all. */
+        Value value() const {
+            return _flag(S_OVR_ON) ? Value{ _s().ovr, &meta(), type() } : live();
         }
-
-        /** @brief The value in force: the override when one is on, else live. */
-        Value value() const { return _flag(S_OVR_ON) ? override() : live(); }
 
         /** @brief The count on the wire, before any conversion. Not PRESENT for
          *  a row with no binding - a parameter has no wire. For a 1:1 row the

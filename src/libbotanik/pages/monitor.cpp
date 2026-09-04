@@ -98,8 +98,8 @@ namespace Botanik { namespace Pages {
         if (!Vars::published(h.meta())) return false;
         if (!_filter_match(h.meta().name)) return false;
         switch (_mode) {
-            case MODE_INVALID:  return !h.live().good();
-            case MODE_OVERRIDE: return h.override().present();
+            case MODE_INVALID:  return !h.valid();
+            case MODE_OVERRIDE: return h.override_on();
             default:            return true;
         }
     }
@@ -170,7 +170,7 @@ namespace Botanik { namespace Pages {
             // deciding on: whether the reading underneath has come back.
             _adopt(val, sizeof(val), _live_text(h, val, sizeof(val)));
             _flag_value(h, val, sizeof(val));
-            if (h.override().present()) {
+            if (h.override_on()) {
                 _adopt(ovr, sizeof(ovr), Vars::var_format(*_io, h, ovr, sizeof(ovr)));
                 // A force can itself be "read as a dead sensor"; say so, or the
                 // column claims a number the row is not actually reporting.
@@ -230,8 +230,8 @@ namespace Botanik { namespace Pages {
     void MonitorPage::_flag_value(Vars::Var h, char* buf, size_t cap) {
         // [O] forced, [I] the reading underneath is not good, [OI] both: two
         // independent facts, so two independent letters.
-        const bool o = h.override().present();
-        const bool i = !h.live().good();
+        const bool o = h.override_on();
+        const bool i = !h.valid();
         if (!o && !i) return;
         char tag[6] = "[";
         size_t n = 1;
@@ -310,7 +310,7 @@ namespace Botanik { namespace Pages {
         // beat), for a DRIVEN or COMPUTED row the program that wrote it.
         char qual[80];
         if (have) {
-            const char* q_label = Vars::quality_label((uint64_t)h.live().q);
+            const char* q_label = Vars::quality_label((uint64_t)h.quality());
             size_t n = (size_t)snprintf(qual, sizeof(qual), "%s",
                                         (q_label != nullptr) ? q_label : "?");
             // A quality is a row of its own, so it can be forced like any
@@ -477,7 +477,7 @@ namespace Botanik { namespace Pages {
         const uint16_t ref = _selected_ref();
         if (ref == Vars::VAR_NONE) return;
         Vars::Var h = _io->var(ref);
-        if (!h.override().present()) { _say("not overridden"); return; }
+        if (!h.override_on()) { _say("not overridden"); return; }
         // Through Persist: releasing forgets the stored copy too, or the
         // override would come back at the next boot.
         if (_persist != nullptr) _persist->override_clear(h);

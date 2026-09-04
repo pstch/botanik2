@@ -375,31 +375,18 @@ namespace Botanik { namespace Vars {
     /** @} */
 
 
-    /** @brief One layer of a variable: the number, what it is, and whether it
-     *  is any good. Every read accessor returns this, so a value and its
-     *  quality are fetched in one expression and cannot drift apart.
+    /** @brief A number and enough to read it: what a Var's read accessors
+     *  return. The conversions below are the reason it is a struct - @c t is
+     *  what @c v is IN, which is not always the row's own type.
      *
-     *  Whether the LAYER exists at all is @c present, not a quality: the
-     *  override of an unforced row and the wire of a row with no binding are
-     *  not conditions a row can be in.
-     *
-     *  @c v is always the best number available for @c q: a bad reading already
-     *  carries the descriptor's `def`, so it never has to be inspected first. */
+     *  It carries no quality. Quality is a row, so a caller holding the Var
+     *  asks it directly and there is nothing to keep in step. */
     struct Value {
         Scalar            v;
         const Descriptor* d;
         /** @brief What @c v actually is. USUALLY the row's type, but a wire
          *  reading is in the WIRE type - a u16 count feeding an f32 row. */
         VarType           t;
-        Quality           q;
-        /** @brief Whether this LAYER exists. False for the override of a row
-         *  nothing forces, and for the wire of a row with no bus binding.
-         *  No default: C++11 would make Value a non-aggregate and every brace
-         *  construction below would stop compiling. */
-        bool              present_;
-
-        bool present() const { return present_; }
-        bool good()    const { return measured(q); }
 
         VarType type() const { return t; }
 

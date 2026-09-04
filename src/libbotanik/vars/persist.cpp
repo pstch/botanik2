@@ -249,7 +249,8 @@ namespace Botanik { namespace Vars {
 
     SetResult Persist::save_override(Var h) {
         if (h.null() || !h.override_on()) return SET_INVALID;
-        if (!_put(h.meta(), K_OVR, h.override().v)) {
+        // Guarded above, so value() IS the force.
+        if (!_put(h.meta(), K_OVR, h.value().v)) {
             if (_logger != nullptr)
                 _logger->critical(Logs::STORAGE, "override not persisted\n'%s'",
                                   h.name());

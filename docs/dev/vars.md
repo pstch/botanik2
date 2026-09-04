@@ -89,9 +89,17 @@ Reads funnel through one accessor, and the value in force is separate from the
 belief in it:
 
 ```cpp
-Value value() const { return _flag(S_OVR_ON) ? override() : live(); }
+Value value() const {
+    return _flag(S_OVR_ON) ? Value{ _s().ovr, &meta(), type() } : live();
+}
 bool  valid() const { return measured(); }
 ```
+
+A `Value` is a number, the type that number is IN, and the descriptor: enough to
+convert it, saturating, and to name an enumerated code. It carries no quality,
+and there is no accessor for the forced number on its own. Ask `override_on()`
+first and `value()` IS the force, so an unforced row's stale `ovr` field cannot
+be reached at all.
 
 A default-built `Var` has no bank and is the sink: it reads zeros with quality
 `Q_NONE` and drives nothing.

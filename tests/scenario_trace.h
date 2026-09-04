@@ -73,7 +73,7 @@ inline void row(Botanik::Vars::Bank& io, const char* name) {
                       (unit != nullptr) ? unit : "");
     }
     const char* q = h.valid() ? ""
-                             : Botanik::Vars::quality_label((uint64_t)v.q);
+                             : Botanik::Vars::quality_label((uint64_t)h.quality());
     std::fprintf(out(), "V|%s|%s|%s\n", name, val, q);
 }
 

@@ -46,7 +46,7 @@ namespace Botanik { namespace Shell {
         _emitf(out, sizeof(out), "  %-20s %-12s %-4s (%s)%s%s%s", h.meta().name, s,
                (u && u[0]) ? u : "",
                Vars::kind_label(h.kind()),
-               h.override().present() ? " OVERRIDDEN" : "",
+               h.override_on() ? " OVERRIDDEN" : "",
                h.param_unsaved() ? " UNSAVED" : "",
                h.valid() ? "" : " (default: nothing has written it)");
     }
@@ -139,15 +139,14 @@ namespace Botanik { namespace Shell {
         // released" are different questions. The raw row says WHY it is
         // invalid, not just that it is.
         _value_field("Raw value", *io, h, h.live(),
-                     Vars::quality_label((uint64_t)h.live().q), u);
+                     Vars::quality_label((uint64_t)h.quality()), u);
         // The override's quality is a person's choice, not a diagnosis: a yes
-        // or a no.
-        const Vars::Value ovr = h.override();
-        if (ovr.present()) {
+        // or a no. Inside the branch value() IS the force.
+        if (h.override_on()) {
             char q[32];
-            snprintf(q, sizeof(q), "%s%s", ovr.good() ? "valid" : "invalid",
+            snprintf(q, sizeof(q), "%s%s", h.measured() ? "valid" : "invalid",
                      h.override_unsaved() ? ", unsaved" : "");
-            _value_field("Override value", *io, h, ovr, q, u);
+            _value_field("Override value", *io, h, h.value(), q, u);
         } else {
             _field("Override value", "-", nullptr);
         }
@@ -554,7 +553,7 @@ namespace Botanik { namespace Shell {
         uint16_t n = 0, unsaved = 0;
         for (uint16_t i = 0; i < io->count(); i++) {
             Vars::Var h = io->var(i);
-            if (!h.override().present()) continue;
+            if (!h.override_on()) continue;
             if (h.override_unsaved()) unsaved++;
             _emitf(out, sizeof(out), "  %-20s %-12s %s%s", h.meta().name,
                    Vars::var_format(*io, h, val, sizeof(val)),

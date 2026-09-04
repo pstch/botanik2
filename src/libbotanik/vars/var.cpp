@@ -102,18 +102,19 @@ namespace Botanik { namespace Vars {
 
     Value Var::wire() const {
         const Descriptor& d = meta();
-        // No binding, no wire: a parameter or a computed row has none.
+        // No binding, no wire: a parameter or a computed row has none, and a
+        // zero is what the one caller converts.
         if (d.kind != K_INPUT && d.kind != K_OUTPUT)
-            return Value{ Scalar(), &d, d.type, Q_NONE, false };
+            return Value{ Scalar(), &d, d.type };
         const uint8_t off = _s().wire_off;
         // 1:1, so the wire IS the value - nothing is stored twice.
-        if (off == WIRE_NONE) return Value{ value().v, &d, d.type, quality(), true };
+        if (off == WIRE_NONE) return Value{ value().v, &d, d.type };
         // An OUTPUT is converted on the way out and nothing ever publishes a
         // count inward for one: its wire value is what WOULD be sent.
         if (d.kind == K_OUTPUT)
             return Value{ from_f32(d.bind.wire, cal().to_raw(as_f32())),
-                          &d, d.bind.wire, quality(), true };
-        return Value{ _b->wire_at(off), &d, d.bind.wire, quality(), true };
+                          &d, d.bind.wire };
+        return Value{ _b->wire_at(off), &d, d.bind.wire };
     }
 
     char* Var::text(uint16_t* cap_out) const {
