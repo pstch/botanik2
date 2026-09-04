@@ -110,11 +110,11 @@ static const Scenario SCENARIOS[] = {
 
     { "hard break at the head of a 3-row input", SHELL,
       [](EditorFixture& f) { fill(f, 180); f.editor.move_to_line_start(); },
-      [](EditorFixture& f) { type(f, "\n"); }, 234 },
+      [](EditorFixture& f) { type(f, "\n"); }, 89 },
 
     { "hard break mid a 3-row input", SHELL,
       [](EditorFixture& f) { fill(f, 180); seek(f, 40); },
-      [](EditorFixture& f) { type(f, "\n"); }, 141 },
+      [](EditorFixture& f) { type(f, "\n"); }, 77 },
 
     { "join of two lines", SHELL,
       [](EditorFixture& f) {
@@ -179,7 +179,7 @@ static const Scenario SCENARIOS[] = {
 
     { "NOTES hard break mid a 3-row line", NOTES,
       [](EditorFixture& f) { fill(f, 180); seek(f, 40); },
-      [](EditorFixture& f) { type(f, "\n"); }, 152 },
+      [](EditorFixture& f) { type(f, "\n"); }, 84 },
 
     { "NOTES split at a wrap boundary", NOTES,
       [](EditorFixture& f) {

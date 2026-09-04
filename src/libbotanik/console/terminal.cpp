@@ -376,78 +376,65 @@ namespace Botanik { namespace Terminal {
         // column widening) differs from BACK at every column past the edit, so
         // the plain run diff rewrites the whole tail. One escape does it instead:
         // SM4/RM4 insert mode to open cells, DCH to close them, both shifting the
-        // cells *with* their attributes.
+        // cells *with* their attributes. What changed BEFORE the slide is
+        // rewritten in place first, so a prompt that changed over content that
+        // slid by some other amount is still the one escape.
         //
         // @return bytes emitted, or 0 when a shift does not apply or does not pay
         // (the caller's run loop then reconciles the row the ordinary way).
-        uint16_t a = 0;
-        while (a < _cols && _front[_idx(row, a)] == _back[_idx(row, a)]) a++;
-        if (a >= _cols) return 0;                          // row already matches
-        uint16_t last = (uint16_t)(_cols - 1);
-        while (last > a && _front[_idx(row, last)] == _back[_idx(row, last)]) last--;
-
-        // Short diffs are cheaper to just rewrite than to bracket in an escape.
-        if ((uint16_t)(last - a + 1) < SHIFT_MIN_SPAN) return 0;
-
-        // Derive the width from the content: the cell at column `a` on one side
-        // must reappear further along on the other, and where it lands *is* the
-        // width. A few candidate landings cost a few memcmps, and this puts no
-        // ceiling on how far a row may have slid (a fixed cap silently turns a
-        // wider slide into a full-row rewrite).
         const uint8_t* fr = &_front[_idx(row, 0)];
         const uint8_t* bk = &_back [_idx(row, 0)];
-        uint16_t right = 0, left = 0;
+        uint16_t first = 0;
+        while (first < _cols && fr[first] == bk[first]) first++;
+        if (first >= _cols) return 0;                      // row already matches
+        uint16_t last = (uint16_t)(_cols - 1);
+        while (last > first && fr[last] == bk[last]) last--;
+        // Short diffs are cheaper to just rewrite than to bracket in an escape.
+        if ((uint16_t)(last - first + 1) < SHIFT_MIN_SPAN) return 0;
 
-        // Right shift by n: BACK's cell at `a` is pushed out to FRONT's `a + n`.
-        for (uint16_t p = (uint16_t)(a + 1), tries = 0;
-             p < _cols && tries < SHIFT_CANDIDATES; p++) {
-            if (fr[p] != bk[a]) continue;
-            tries++;
-            uint16_t n = (uint16_t)(p - a);
-            if (memcmp(fr + a + n, bk + a, (size_t)(_cols - a - n)) == 0) { right = n; break; }
+        // What the run loop would pay, in cells: one per differing cell before
+        // FRONT's blank tail, and one EL for the tail. `changed[c]` counts the
+        // differing cells in [first, c), so any prefix is priced in O(1).
+        uint16_t changed[GRID_COLS + 1];
+        changed[0] = 0;
+        for (uint16_t c = 0; c < _cols; c++)
+            changed[c + 1] = (uint16_t)(changed[c] + (c >= first && fr[c] != bk[c] ? 1 : 0));
+        uint16_t e = _cols;
+        while (e > 0 && fr[e - 1] == CELL_BLANK) e--;
+        const int32_t stale = changed[_cols] - changed[e];
+        const int32_t plain = changed[e] + (stale >= EL_MIN_CELLS ? 3 : stale);
+
+        // For each width, the longest suffix that is BACK slid by it, and the
+        // column the slide starts at, priced the same way. A right slide writes
+        // the changed prefix and the n cells it opens, inside SM4/RM4. A left
+        // slide writes the prefix, one DCH, and whatever FRONT wants in the n
+        // cells the DCH blanks at the edge. The scan from the right stops at
+        // the first mismatch, which for a width that is not the slide is
+        // usually the first cell.
+        int32_t  gain  = 0;
+        uint16_t n_best = 0, a_best = 0;
+        bool     right = false;
+        for (uint16_t n = 1; (uint16_t)(n + SHIFT_MIN_SPAN) <= _cols; n++) {
+            if (plain - (int32_t)n - 8 <= gain) break;   // no wider slide can beat it
+            uint16_t c = (uint16_t)(_cols - n);
+            while (c > first && fr[c - 1 + n] == bk[c - 1]) c--;
+            int32_t g = plain - ((int32_t)changed[c] + (int32_t)n + 8);
+            if (g > gain) { gain = g; n_best = n; a_best = c; right = true; }
+
+            c = (uint16_t)(_cols - n);
+            while (c > first && fr[c - 1] == bk[c - 1 + n]) c--;
+            int32_t tail = 0;
+            for (uint16_t t = (uint16_t)(_cols - n); t < _cols; t++)
+                if (fr[t] != CELL_BLANK) tail++;
+            g = plain - ((int32_t)changed[c] + 6 + tail + (tail != 0 ? 8 : 0));
+            if (g > gain) { gain = g; n_best = n; a_best = c; right = false; }
         }
-        // Left shift by n: BACK's cell at `a + n` is pulled back to FRONT's `a`.
-        for (uint16_t p = (uint16_t)(a + 1), tries = 0;
-             p < _cols && tries < SHIFT_CANDIDATES; p++) {
-            if (bk[p] != fr[a]) continue;
-            tries++;
-            uint16_t n = (uint16_t)(p - a);
-            if (memcmp(fr + a, bk + a + n, (size_t)(_cols - a - n)) == 0) { left = n; break; }
-        }
-        if (right == 0 && left == 0) return 0;
-
-        // Cost both candidates and take the cheaper, but only if it beats
-        // rewriting the span outright. Costing matters as much as detecting:
-        // repeating text matches itself at its own period, so both directions
-        // often verify, and choosing the wrong one is worse than choosing neither.
-        uint16_t plain = _run_cost(row, a, (uint16_t)(last + 1));
-        uint16_t cost_right = 0xFFFF, cost_left = 0xFFFF;
-
-        // Right: the inserted cells go out as one run, so they must share an
-        // attribute. A mixed run disqualifies the candidate rather than being
-        // bracketed cell by cell.
-        bool ins_inv = (fr[a] & CELL_INV) != 0;
-        if (right != 0) {
-            bool uniform = true;
-            for (uint16_t c = a; c < (uint16_t)(a + right); c++)
-                if (((fr[c] & CELL_INV) != 0) != ins_inv) { uniform = false; break; }
-            if (uniform)
-                cost_right = (uint16_t)(8 + 4 + right + 4 + (ins_inv != _hw_inverted ? 5 : 0));
-        }
-
-        // Left: the DCH is a handful of bytes, but it blanks `n` cells at the
-        // right edge and any of those FRONT wants filled must be painted behind
-        // it. Ignoring that is what makes a wide coincidental match look free.
-        if (left != 0) {
-            uint16_t tail = 0;
-            for (uint16_t c = (uint16_t)(_cols - left); c < _cols; c++)
-                if (_front[_idx(row, c)] != (uint8_t)CELL_BLANK) tail++;
-            cost_left = (uint16_t)(8 + 6 + (_hw_inverted ? 5 : 0) + (tail != 0 ? tail + 8 : 0));
-        }
-
-        if (cost_right <= cost_left) left = 0; else right = 0;
-        uint16_t cost = right ? cost_right : cost_left;
-        if (cost >= plain) return 0;
+        if (gain <= 0) return 0;
+        const uint16_t n = n_best, a = a_best;
+        // The prefix and the escape go out together or not at all; what a left
+        // slide leaves at the edge is the run loop's.
+        uint16_t cost = _run_cost(row, first, a);
+        cost = (uint16_t)(cost + (right ? 4 + n + 4 + 5 : 6 + 5));
         if (_serial.availableForWrite() < cost) { defer = true; return 0; }
         // A shift the tick's budget cannot hold is owed the next tick, not the
         // fallback: the run loop's whole-row rewrite is oversized, so it escapes
@@ -456,40 +443,39 @@ namespace Botanik { namespace Terminal {
         bool oversized = cost >= _tx_cold_depth;
         if (oversized ? (budget == 0) : (cost > budget)) { defer = true; return 0; }
 
-        uint16_t before = tx_used();
-        if (!_go({row, a})) return 0;
+        const uint16_t before = tx_used();
+        uint16_t col = first;
+        while (col < a) {
+            if (fr[col] == bk[col]) { col++; continue; }
+            uint16_t b = col;
+            while (b < a && fr[b] != bk[b]) b++;
+            if (_put_run(row, col, b) == 0) return (uint16_t)(tx_used() - before);
+            col = b;
+        }
+        if (!_go({row, a})) return (uint16_t)(tx_used() - before);
 
-        if (right != 0) {
-            _set_hw_inverted(ins_inv);
+        if (right) {
             // Insert mode: the glyphs written push the rest of the row right.
-            if (!Ansi::set_insert_mode(_serial, true)) return 0;
-            char buf[GRID_COLS];
-            for (uint16_t c = a; c < (uint16_t)(a + right); c++)
-                buf[c - a] = (char)(fr[c] & CELL_CH);
-            _serial.write(buf, right);
+            // Mirror that in BACK first, so the run stamps the opened cells.
+            if (!Ansi::set_insert_mode(_serial, true)) return (uint16_t)(tx_used() - before);
+            for (uint16_t c = (uint16_t)(_cols - 1); c >= (uint16_t)(a + n); c--)
+                _back[_idx(row, c)] = _back[_idx(row, (uint16_t)(c - n))];
+            _put_run(row, a, (uint16_t)(a + n));
             Ansi::set_insert_mode(_serial, false);
-            // Mirror the wire in BACK: shift right, then stamp what we wrote.
-            for (uint16_t c = (uint16_t)(_cols - 1); c >= (uint16_t)(a + right); c--)
-                _back[_idx(row, c)] = _back[_idx(row, (uint16_t)(c - right))];
-            for (uint16_t c = a; c < (uint16_t)(a + right); c++)
-                _back[_idx(row, c)] = _front[_idx(row, c)];
-            _hw_pos.col = (uint16_t)(a + right);
         } else {
             // DCH fills the cells it frees using the current attributes on
             // terminals with background-colour erase, so drop reverse video first
             // or those cells come back inverted.
             _set_hw_inverted(false);
-            if (!Ansi::delete_chars(_serial, left)) return 0;
-            for (uint16_t c = a; (uint16_t)(c + left) < _cols; c++)
-                _back[_idx(row, c)] = _back[_idx(row, (uint16_t)(c + left))];
-            for (uint16_t c = (uint16_t)(_cols - left); c < _cols; c++)
+            if (!Ansi::delete_chars(_serial, n)) return (uint16_t)(tx_used() - before);
+            for (uint16_t c = a; (uint16_t)(c + n) < _cols; c++)
+                _back[_idx(row, c)] = _back[_idx(row, (uint16_t)(c + n))];
+            for (uint16_t c = (uint16_t)(_cols - n); c < _cols; c++)
                 _back[_idx(row, c)] = CELL_BLANK;
+            _hw_at_eol = false;
         }
-        _hw_at_eol = false;
-        uint16_t after = tx_used();
-        return (after > before) ? (uint16_t)(after - before) : 0;
+        return (uint16_t)(tx_used() - before);
     }
-
     bool AnsiTerminal::_reconcile_row(uint16_t row, uint16_t& budget) {
         // Nothing pending: skip in one memcmp rather than two per-cell walks.
         if (memcmp(&_front[_idx(row, 0)], &_back[_idx(row, 0)], _cols) == 0) return true;

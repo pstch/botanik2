@@ -464,33 +464,59 @@ namespace Botanik { namespace Terminal {
 
     // reconciliation
 
-    TextEditor::SpliceSpan
-    TextEditor::_find_splice_span(uint16_t span_start, uint16_t span_len,
-                                  bool is_insert, int32_t l_shift,
-                                  int32_t row_delta) const {
-        // Absorption boundary: longest bottom suffix of shifted-identical rows
-        // (same buf_len + hard_break, buf_start displaced by exactly l_shift,
-        // lying strictly past the edit). `absorbed_post` is the post index
-        // where the tail is already correct; `absorbed_pre` the matching pre
-        // index.
-        uint16_t span_end_old;
-        if (is_insert) span_end_old = span_start;
-        else           span_end_old = (uint16_t)(span_start + span_len);
-
-        uint16_t t = 0;
-        while (t < _pre.count && t < _layout.count) {
-            const RowView& pre = _pre.rows[_pre.count - 1 - t];
-            const RowView& po  = _layout.rows[_layout.count - 1 - t];
-            if (po.buf_len != pre.buf_len || po.hard_break != pre.hard_break) break;
-            if ((int32_t)po.buf_start != (int32_t)pre.buf_start + l_shift) break;
-            if (pre.buf_start < span_end_old) break;
-            t++;
-        }
-        uint16_t absorbed_post = (uint16_t)(_layout.count - t);
-        uint16_t absorbed_pre  = (uint16_t)((int32_t)absorbed_post - row_delta);
-        return { absorbed_post, absorbed_pre };
+    static int32_t _common(int32_t a0, int32_t a1, int32_t b0, int32_t b1) {
+        const int32_t lo = a0 > b0 ? a0 : b0;
+        const int32_t hi = a1 < b1 ? a1 : b1;
+        return hi > lo ? hi - lo : 0;
     }
 
+    int32_t TextEditor::_kept(uint16_t i, uint16_t j, uint16_t span_start,
+                              uint16_t span_len, bool is_insert) const {
+        // Bytes of post row i that pre row j showed: what lies before the edit
+        // kept its offset, what lies after moved by the edit's length.
+        const RowView& p = _layout.rows[i];
+        const RowView& q = _pre.rows[j];
+        const int32_t ps = p.buf_start, pe = ps + p.buf_len;
+        const int32_t qs = q.buf_start, qe = qs + q.buf_len;
+        const int32_t after = is_insert ? (int32_t)span_start + span_len : (int32_t)span_start;
+        const int32_t moved = is_insert ? -(int32_t)span_len : (int32_t)span_len;
+        int32_t n = _common(ps, pe < (int32_t)span_start ? pe : (int32_t)span_start, qs, qe);
+        const int32_t from = ps > after ? ps : after;
+        n += _common(from + moved, pe + moved, qs, qe);
+        return n;
+    }
+
+    TextEditor::SpliceSpan
+    TextEditor::_find_splice_span(uint16_t span_start, uint16_t span_len,
+                                  bool is_insert, int32_t row_delta) const {
+        // Post rows from the boundary down take the pre row `row_delta` away
+        // from them, the ones above keep their own, and the IL/DL at the
+        // boundary is what makes it so. Pick the boundary keeping the most
+        // bytes on the row that already shows them, over rows on screen: a
+        // row the diff can slide is worth its length, one it has to rewrite
+        // is worth nothing however well its slice matched.
+        // What the IL/DL pair itself costs, in bytes: two moves, two escapes.
+        // A tail has to keep more than that to be worth announcing.
+        constexpr int32_t SCROLL_COST = 24;
+        const int32_t count = _layout.count, pre_count = _pre.count;
+        int32_t  best     = INT32_MIN;
+        uint16_t best_pre = (uint16_t)pre_count;
+        for (int32_t a = 0; a <= pre_count; a++) {              // pre idx of the tail
+            const int32_t b = a + row_delta;                     // post idx of the tail
+            if (b < 0 || b > count) continue;
+            const int32_t head = a < b ? a : b;                  // rows keeping their own
+            int32_t kept = b < count ? -SCROLL_COST : 0;
+            for (int32_t i = 0; i < count; i++) {
+                if (i >= head && i < b) continue;                // opened by the IL
+                const int32_t j = i < b ? i : i - row_delta;
+                if (!_visible((uint16_t)i) || !_visible((uint16_t)j)) continue;
+                kept += _kept((uint16_t)i, (uint16_t)j, span_start, span_len, is_insert);
+            }
+            // Ties go to the lowest boundary: fewest rows announced as moved.
+            if (kept >= best) { best = kept; best_pre = (uint16_t)a; }
+        }
+        return { (uint16_t)((int32_t)best_pre + row_delta), best_pre };
+    }
     void TextEditor::_reposition_tail(const SpliceSpan& span, int32_t row_delta) {
         // A single contiguous edit needs at most one IL/DL: it slides the
         // absorbed tail (and opens the blank rows inserted content paints
@@ -518,9 +544,6 @@ namespace Botanik { namespace Terminal {
         // re-declare the input rows before touching any of them. The extent
         // moves with the text; rows grown past would else keep the class.
         _place_rows();
-        int32_t l_shift;
-        if (is_insert) l_shift = (int32_t)span_len;
-        else           l_shift = -(int32_t)span_len;
         int32_t row_delta = (int32_t)_layout.count - (int32_t)_pre.count;
 
         // Bottom-anchored, a taller text scrolls the band up to make room.
@@ -528,8 +551,7 @@ namespace Botanik { namespace Terminal {
 
         // One IL/DL slides the rows the edit only displaced, so the paint
         // behind it finds them in place and the diff pays nothing for them.
-        SpliceSpan span = _find_splice_span(span_start, span_len, is_insert,
-                                            l_shift, row_delta);
+        SpliceSpan span = _find_splice_span(span_start, span_len, is_insert, row_delta);
         _reposition_tail(span, row_delta);
 
         // Top-anchored, the viewport follows a cursor the edit pushed out of

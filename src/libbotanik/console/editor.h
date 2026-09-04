@@ -562,11 +562,15 @@ namespace Botanik { namespace Terminal {
             uint16_t absorbed_pre;  /**< Matching pre idx of that boundary. */
         };
 
-        /** @brief Locate the absorbed-tail boundary by diffing `_pre` against
-         *  `_layout` (longest shifted-identical suffix). */
+        /** @brief Bytes of post row @p i that pre row @p j showed, after an
+         *  edit of @p span_len bytes at @p span_start. What a slide keeps. */
+        int32_t _kept(uint16_t i, uint16_t j, uint16_t span_start,
+                      uint16_t span_len, bool is_insert) const;
+
+        /** @brief Choose the absorbed-tail boundary: the one whose IL/DL keeps
+         *  the most bytes on the screen row already showing them. */
         SpliceSpan _find_splice_span(uint16_t span_start, uint16_t span_len,
-                                     bool is_insert, int32_t l_shift,
-                                     int32_t row_delta) const;
+                                     bool is_insert, int32_t row_delta) const;
 
         /** @brief Emit the single IL/DL that repositions the absorbed tail and
          *  opens the blank rows inserted content paints into. Bounded to the
