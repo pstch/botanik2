@@ -78,9 +78,16 @@ TextView *-- "rows" RowView
    rather than repaint. A jump of a whole window or more slides nothing.
 4. **Paint the viewport** (`_paint_view`): prompt, content and a clear to the
    margin for every row the window shows, the clear alone past the text.
-5. **Shrink the band** (`_shrink_editor`, bottom-anchored only). After the paint,
-   because under a suppressed redraw the band does not move until the caller
-   moves it, and the paint has to land where the text still is.
+5. **Shrink the band** (`_shrink_editor`, bottom-anchored only). The grow's mirror:
+   the whole content band slides down by the rows the text gave back, so the
+   editor lands on the rows already showing it and whatever stood above it
+   follows. The shell then fills only the rows that opened at the top, from its
+   scrollback. Measured against blanking the vacated rows and repainting at the
+   new origin, the slide wins by 4 to 48 bytes.
+
+`reset()`, `commit_loaded()` and `replace_all()` are the same sequence over a
+buffer set whole by `_load()`; `commit()` alone paints without it, since the
+caller has line-fed past the submitted text and the transcript owns it now.
 
 ### Placing the IL/DL
 
@@ -171,10 +178,9 @@ back.
 `Ctrl+W` / `Alt+W` act on it. What makes that cheap enough for a 4800-baud link is that
 **the highlight rides the cell diff.** A back-buffer cell is a 7-bit glyph plus
 `CELL_INV` (`console/terminal.h`), so reverse-video is content as far as `present()`
-is concerned: the viewport is repainted with `_write_row_content()` splitting each row
-into up to three pen runs, and the diff emits only the cells whose attribute flipped -
-one cell for one character of selection. Nothing tracks what is highlighted; FRONT is
-the record.
+is concerned: `_paint_view()` writes every row plain, `_paint_region()` inverts the
+span on top, and the diff emits only the cells whose attribute flipped - one cell for
+one character of selection. Nothing tracks what is highlighted; FRONT is the record.
 
 **A live region holds the hardware cursor off the screen.** `_paint_view()` raises
 `AnsiTerminal::set_cursor_inhibited()` with the mark, so the terminal keeps the page's wish
@@ -184,7 +190,7 @@ is a second flag rather than a call to `set_cursor_visible()` so releasing the m
 nothing back - the editor never has to know whether the page wanted a cursor at all.
 
 **The mark is transient**: `insert_characters()` and `remove_characters()` drop it, as do
-`_reset_state()`, `commit_loaded()` and `replace_all()`. A mark that survived edits would
+`_load()`, which every bulk change goes through. A mark that survived edits would
 need shifting by every insert and clamping by every delete, and a region that has drifted
 off its text cuts the wrong bytes silently.
 
@@ -201,9 +207,9 @@ reach.
 
 `replace_all()` exists because the obvious spelling of a history recall is three edits:
 move to the end, backspace the lot, insert the new text. Two of those change the row
-count, and a caller inside `suppress_redraw()` gets to compensate for exactly one. The
-recalled text then landed a row off the screen while the buffer held it, so Enter ran a
-command that had never been displayed.
+count, and the shell, which refills the log rows a shrink opens, could account for
+exactly one. The recalled text then landed a row off the screen while the buffer held
+it, so Enter ran a command that had never been displayed.
 
 One edit, one row-count change, and the same sequence as any edit less the tail slide,
 since none of the old text is assumed to be anywhere. `commit_loaded()` is the non-edit
