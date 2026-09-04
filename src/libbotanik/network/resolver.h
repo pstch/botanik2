@@ -103,6 +103,11 @@ namespace Botanik { namespace Network {
         /** @brief Drop the whole cache, and cancel pending lookups. */
         void clear();
 
+        /** @brief Override the cache max-age (ms) for this resolver; 0 disables
+         *  expiry. Defaults from Config::DNS_CACHE_TTL_MS, which is an hour -
+         *  so this is also the only way to reach the expiry path in a test. */
+        void set_cache_ttl_ms(uint32_t ms) { _cache_ttl_ms = ms; }
+
 
         /** @} */
 
