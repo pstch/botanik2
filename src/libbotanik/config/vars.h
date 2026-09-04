@@ -50,36 +50,21 @@ namespace Botanik { namespace Config {
 #endif
     BOTANIK_CFG(size_t, VAR_GROUP_NAME_LEN);
 
-    /** @brief Bytes a row NAME may occupy, NUL included. Bounds the one place
-     *  a name is copied rather than pointed at: pairing an `x_qlt` companion
-     *  with `x` at freeze(). A longer name simply pairs with nothing, which
-     *  the boot log names. */
-#ifndef BOTANIK_VAR_NAME_MAX
-#  define BOTANIK_VAR_NAME_MAX 48
-#endif
-    BOTANIK_CFG(size_t, VAR_NAME_MAX);
-
-    /** @brief The most rows a Bank can hold, across every registered segment.
-     *  Sizes the bank's OWN storage (34 bytes a row); the descriptors stay in
-     *  the caller's flash.
-     *  @note Too small is not silent: rows past the ceiling are REFUSED at
-     *  registration and the POST fails naming the first. */
+    /** @brief Rows the Bank's own storage is sized for (24 bytes a row); the
+     *  descriptors stay in the site's flash.
+     *  @note GENERATED. The table is emitted whole, so its size is a fact about
+     *  it rather than a ceiling somebody has to keep ahead of, and the site's
+     *  vars.gen.h asserts the two agree. The default below is only for a site
+     *  with no generated table at all. */
 #ifndef BOTANIK_VAR_MAX
 #  define BOTANIK_VAR_MAX 512
 #endif
     BOTANIK_CFG(uint16_t, VAR_MAX);
 
-    /** @brief How many separate row segments a Bank accepts, one per
-     *  register_vars() call. The ceiling exists only so the segment table is a
-     *  fixed array. */
-#ifndef BOTANIK_VAR_SEGMENTS
-#  define BOTANIK_VAR_SEGMENTS 8
-#endif
-    BOTANIK_CFG(uint8_t, VAR_SEGMENTS);
-
     /** @brief Bytes of string pool the bank carries for its T_STR rows. A row
-     *  that finds no room gets STR_NO_SLOT and reads empty; the library's own
-     *  need Vars::LIBRARY_STR_BYTES. */
+     *  that finds no room gets STR_NO_SLOT and reads empty.
+     *  @note GENERATED, like VAR_MAX: the sum of the table's declared
+     *  capacities. */
 #ifndef BOTANIK_STR_POOL_BYTES
 #  define BOTANIK_STR_POOL_BYTES 1024
 #endif
@@ -99,18 +84,10 @@ namespace Botanik { namespace Config {
 #endif
     BOTANIK_CFG(uint32_t, RETAIN_SAVE_MS);
 
-    /** @brief Distinct AnalogCal blocks the bank caches tunable indices for.
-     *  Blocks are SHARED by pointer, so this counts blocks and not rows
-     *  (gh_mlb41: 6). A table with more loses the cache on the tail, which
-     *  BOTANIK_ASSERT catches - the same shape as ALARM_SLOTS. */
-#ifndef BOTANIK_ANALOG_BLOCKS_MAX
-#  define BOTANIK_ANALOG_BLOCKS_MAX 16
-#endif
-    BOTANIK_CFG(uint8_t, ANALOG_BLOCKS_MAX);
-
     /** @brief Rows that carry a WIRE value beside their engineering one - the
-     *  AI/AO rows (gh_mlb41: 7). Every other row's wire value IS its value, so
-     *  it costs nothing. 0xFF is the "none" index, so 255 is the ceiling. */
+     *  analog ones. Every other row's wire value IS its value, so it costs
+     *  nothing. 0xFF is the "none" index, so 255 is the ceiling.
+     *  @note GENERATED, like VAR_MAX. */
 #ifndef BOTANIK_ANALOG_ROWS_MAX
 #  define BOTANIK_ANALOG_ROWS_MAX 32
 #endif

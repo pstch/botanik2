@@ -677,7 +677,7 @@ TEST_CASE_FIXTURE(StRig, "irrigation: a fill that never arrives is spent, not re
 }
 
 TEST_CASE_FIXTURE(StRig, "irrigation: the pulse line says whether the meter is ticking") {
-    // LocalInputs skips an F_PULSE terminal deliberately, so nothing else can
+    // LocalInputs skips a B_PULSE terminal as a LEVEL deliberately, so nothing else can
     // publish this row - it read as never-written for the life of the run.
     // Its LEVEL is meaningless (a pulse is a moment of a train), so what it
     // carries is whether an edge arrived in the beat.

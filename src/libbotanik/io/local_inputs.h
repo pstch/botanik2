@@ -29,7 +29,7 @@ namespace Botanik { namespace Io {
      * The rows are found once, at bring-up, by walking the table for
      * `XP_LOCAL` + `SCOPE_DI` - local being a Modbus device address of 0, which
      * is what `Vars::xp_of()` reads it from. There is no channel table to keep in step with
-     * the variable table, because the variable table IS it. An `F_PULSE` row is
+     * the variable table, because the variable table IS it. A `B_PULSE` row is
      * not polled as a level - the level of a pulse line is a moment of a train
      * and not a reading of anything. It IS the counter: attached once here,
      * and its running total published every beat. There is no pulse table
