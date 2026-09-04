@@ -70,6 +70,7 @@ Host-only, SIMULATOR build. Two suites, both wired into CTest:
 make -C build check                  # the pre-push gate
 make -C build check-full             # the sweep: clang-tidy, bare profile, generated-source drift, the OPTA cross build, then the gate under ASan+UBSan
 make -C build check-bare             # just the bare profile: every optional feature off
+make -C build coverage               # per-area line coverage of the library, both suites
 make -C build botanik_tests          # just build the doctest binary
 ./build/tests/botanik_tests          # run it directly (doctest CLI)
 ./build/tests/botanik_tests -s       # ...every passing check, not just failures
@@ -128,6 +129,21 @@ a shell command needs the console on and the table off.
 
 It exists because an OFF path nothing builds rots silently: three had already
 rotted when it was added. Part of `check-full`.
+
+**`make coverage`** builds a third tree under `build/coverage/`, instrumented for
+gcov, runs BOTH suites against it and prints per-area line coverage of the library,
+writing `build/coverage.json` beside it. It REPORTS and never fails: a floor that
+fails a build teaches people to lower the floor, and what this is for is noticing a
+fall. Part of `check-full`; skipped where `gcov` is absent.
+
+Both suites, because neither alone is the gate - the doctest binary never exercises
+`network/`, and the pyte tests are the only thing that drives the shell over a PTY.
+Two things it deliberately does not do, each of which gives a badly wrong answer:
+it does not read `gcov -n`'s per-file summary (which charges a header's inline
+bodies to whichever `.cpp` pulled them in - `health.cpp`, 223 lines, reports 13912
+of them), and it does not count HEADERS at all (gcov gives a header's inline code
+to ONE translation unit and reports every other as zero, which is a 34-point error
+on the total). `.cpp` only, from the `-p` reports.
 
 **clang-tidy is not in `check`** - it re-lints on any touched header, too slow to pay per
 edit - but it IS the first half of `check-full`.

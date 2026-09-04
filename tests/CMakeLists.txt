@@ -261,6 +261,48 @@ endif()
 
 add_dependencies(check-full check-bare)
 
+# `make coverage` builds a third tree, instrumented for gcov, runs BOTH suites
+# against it and prints the per-area line coverage. It reports and never fails:
+# a floor that fails a build teaches people to lower the floor, and what this is
+# for is noticing a fall. build/coverage.json is the machine-readable half.
+#
+# Both suites, because neither alone is the gate: the doctest binary never
+# exercises network/, and the pyte screen tests are the only thing that drives
+# the shell over a real PTY. Measuring one of them names the wrong gaps.
+#
+# Its own tree, like check-bare's: --coverage changes every object, and folding
+# it into build/ would make an ordinary `make check` pay for instrumentation.
+find_program(GCOV_EXE NAMES gcov)
+if(GCOV_EXE AND CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+    add_custom_target(coverage
+        COMMAND ${CMAKE_COMMAND} -G ${CMAKE_GENERATOR} -S ${CMAKE_SOURCE_DIR}
+                -B ${CMAKE_BINARY_DIR}/coverage -DBOTANIK_TARGET=SIMULATOR
+                -DCMAKE_BUILD_TYPE=DEBUG
+                -DCMAKE_CXX_FLAGS=--coverage -DCMAKE_EXE_LINKER_FLAGS=--coverage
+        COMMAND ${CMAKE_COMMAND} --build ${CMAKE_BINARY_DIR}/coverage
+                --parallel ${_nproc}
+        # Discard the previous run's counts, or a deleted case still reads as
+        # covered: gcov ACCUMULATES into an existing .gcda.
+        COMMAND ${CMAKE_COMMAND} -DDIR=${CMAKE_BINARY_DIR}/coverage
+                -P ${CMAKE_SOURCE_DIR}/cmake/coverage-reset.cmake
+        # Neither suite is allowed to stop the report: a failing test is `check`'s
+        # business, and the numbers are still worth having.
+        COMMAND ${CMAKE_COMMAND} -E env ${CMAKE_CTEST_COMMAND} -LE unit
+                --test-dir ${CMAKE_BINARY_DIR}/coverage || ${CMAKE_COMMAND} -E true
+        COMMAND ${CMAKE_COMMAND} -DGCOV=${GCOV_EXE}
+                -DTREE=${CMAKE_BINARY_DIR}/coverage
+                -DSRC=${CMAKE_SOURCE_DIR}
+                -DOUT=${CMAKE_BINARY_DIR}/coverage.json
+                -P ${CMAKE_SOURCE_DIR}/cmake/coverage.cmake
+        USES_TERMINAL
+        COMMENT "Sweep: line coverage of libbotanik, both suites (build/coverage/)"
+        VERBATIM
+    )
+    add_dependencies(check-full coverage)
+else()
+    message(STATUS "check-full: no gcov, skipping the coverage report")
+endif()
+
 # pyte screen-assertion tests (Python) - host-only, joined to the same CTest
 # ============================================================================
 # These drive botanik_sim over a PTY and assert its rendered screen (see
