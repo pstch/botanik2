@@ -65,7 +65,7 @@ namespace Botanik { namespace detail {
 #endif
 
 #if BOTANIK_FEATURE_MODBUS_RTU_CLIENT
-    static_assert(sizeof(Modbus::RtuMaster)        == BOTANIK_SIZE(  2856,   2816), "RtuMaster footprint changed");
+    static_assert(sizeof(Modbus::RtuMaster)        == BOTANIK_SIZE(  2832,   2792), "RtuMaster footprint changed");
 #endif
 #if BOTANIK_FEATURE_MODBUS_TCP_SERVER
     static_assert(sizeof(Modbus::TcpSlave)         == BOTANIK_SIZE(  3792,   3736), "TcpSlave footprint changed");
@@ -75,7 +75,7 @@ namespace Botanik { namespace detail {
      *  under the same opt-in. It is the firmware singleton's whole `.bss`
      *  footprint, so it can be read against the linker's map for the
      *  image. */
-    static_assert(sizeof(BotanikFirmware)          == BOTANIK_SIZE(110200, 107704), "BotanikFirmware footprint changed");
+    static_assert(sizeof(BotanikFirmware)          == BOTANIK_SIZE(110168, 107672), "BotanikFirmware footprint changed");
 
 #undef BOTANIK_SIZE
 

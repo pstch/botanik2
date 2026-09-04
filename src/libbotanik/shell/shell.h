@@ -401,7 +401,7 @@ namespace Botanik { namespace Shell {
         /** @brief Emit one variable's row (name, value, unit, and the flags a
          *  bare number hides). Shared by `get` and `list`, so a row reads the
          *  same whichever showed it. */
-        void _emit_var(const Vars::Bank& io, Vars::Var h);
+        void _emit_var(Vars::Var h);
 
         /** @name `get`'s detail rows
          *
@@ -418,17 +418,14 @@ namespace Botanik { namespace Shell {
         void _field(const char* label, const char* value, const char* detail);
         /** @brief A value row: @p v rendered with @p unit, and @p quality as the
          *  detail. @p h supplies the type and, for a T_STR, the pool text. */
-        void _value_field(const char* label, const Vars::Bank& io, Vars::Var h,
-                          Vars::Value val, const char* quality, const char* unit);
+        void _value_field(const char* label, Vars::Var h, Vars::Value val,
+                          const char* quality, const char* unit);
         /** @brief What a Kind means, for the detail column. */
         static const char* _kind_phrase(const Vars::Descriptor& d);
         /** @brief What `def` is FOR on this row - it does three different jobs,
          *  and the number alone does not say which. Takes the descriptor, not
          *  the role: a retained parameter's default is one nothing restores. */
         static const char* _default_phrase(const Vars::Descriptor& d);
-        /** @brief Where a value physically comes from, into @p buf. */
-        static const char* _binding_phrase(const Vars::Descriptor& d,
-                                           char* buf, size_t cap);
         /** @} */
 
         /** @name Context and output

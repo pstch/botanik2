@@ -11,7 +11,6 @@
 
 #include "libbotanik/modbus/rtu/codec.h"
 #include "libbotanik/vars/model.h"
-#include "libbotanik/vars/model.h"
 
 namespace Botanik { namespace Modbus {
 

@@ -21,6 +21,7 @@
 #include "libbotanik/modbus/rtu/image.h"
 #include "libbotanik/modbus/rtu/plan.h"
 #include "libbotanik/vars/model.h"
+#include "libbotanik/vars/rows.h"
 
 #if BOTANIK_FEATURE_MODBUS_RTU_CLIENT
 
@@ -103,12 +104,6 @@ namespace Botanik { namespace Modbus {
 
         /** @brief The library's field-bus rows, resolved by name once at
          *  bring-up. @see modbus/rtu/alarms.h */
-        uint16_t _alarm_ref;
-        uint16_t _line_ref;
-        uint16_t _drop_ref;
-        uint16_t _dead_ref;
-        uint16_t _crc_ref;
-        uint16_t _stray_ref;
 
         /** @brief The `rtu_` tuning rows, resolved the same way.
          *
@@ -118,12 +113,6 @@ namespace Botanik { namespace Modbus {
          *  lands on the next transaction with nothing to re-initialise - which
          *  is why the group carries no commit serial.
          *  @see modbus/rtu/params.h */
-        uint16_t _p_timeout;
-        uint16_t _p_retries;
-        uint16_t _p_backoff;
-        uint16_t _p_backoff_max;
-        uint16_t _p_write_min;
-        uint16_t _p_rewrite;
 
         uint64_t            _since_ms = 0;     ///< when the current state was entered
 
@@ -255,12 +244,12 @@ namespace Botanik { namespace Modbus {
          *  existed. */
         uint32_t _tune(uint16_t r, uint32_t dflt) const;
 
-        uint32_t _timeout_ms()     const { return _tune(_p_timeout,     Config::MODBUS_TIMEOUT_MS); }
-        uint8_t  _retries()        const { return (uint8_t)_tune(_p_retries, Config::MODBUS_RETRIES); }
-        uint32_t _backoff_ms()     const { return _tune(_p_backoff,     Config::MODBUS_BACKOFF_MS); }
-        uint32_t _backoff_max_ms() const { return _tune(_p_backoff_max, Config::MODBUS_BACKOFF_MAX_MS); }
-        uint32_t _write_min_ms()   const { return _tune(_p_write_min,   Config::MODBUS_WRITE_MIN_MS); }
-        uint32_t _rewrite_ms()     const { return _tune(_p_rewrite,     Config::MODBUS_REWRITE_MS); }
+        uint32_t _timeout_ms()     const { return _tune(Vars::Row::rtu_timeout_ms,     Config::MODBUS_TIMEOUT_MS); }
+        uint8_t  _retries()        const { return (uint8_t)_tune(Vars::Row::rtu_retries, Config::MODBUS_RETRIES); }
+        uint32_t _backoff_ms()     const { return _tune(Vars::Row::rtu_backoff_ms,     Config::MODBUS_BACKOFF_MS); }
+        uint32_t _backoff_max_ms() const { return _tune(Vars::Row::rtu_backoff_max_ms, Config::MODBUS_BACKOFF_MAX_MS); }
+        uint32_t _write_min_ms()   const { return _tune(Vars::Row::rtu_write_min_ms,   Config::MODBUS_WRITE_MIN_MS); }
+        uint32_t _rewrite_ms()     const { return _tune(Vars::Row::rtu_rewrite_ms,     Config::MODBUS_REWRITE_MS); }
 
         /** @brief Enter @p s, stamping when. Every transition goes through here,
          *  so a state cannot be changed without its clock being reset. */

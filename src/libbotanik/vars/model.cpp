@@ -111,16 +111,24 @@ namespace Botanik { namespace Vars {
     }
 
 
-    uint16_t Bank::_tally(uint8_t bit) const {
-        uint16_t n = 0;
-        for (uint16_t i = 0; i < _count; i++)
-            if ((_slots[i].flags & bit) != 0) n++;
-        return n;
+    uint16_t Bank::_tally(uint8_t bit, uint16_t from, uint16_t n) const {
+        uint16_t t = 0;
+        for (uint16_t i = from; i < from + n; i++)
+            if ((_slots[i].flags & bit) != 0) t++;
+        return t;
     }
 
-    uint16_t Bank::unsaved_count() const { return _tally(S_PARAM_UNSAVED); }
-    uint16_t Bank::owed_count() const    { return _tally(S_PARAM_OWED); }
-    uint16_t Bank::unsaved_override_count() const { return _tally(S_OVR_UNSAVED); }
+    // The two parameter marks can only sit on a K_PARAM row, and those are one
+    // contiguous run. An override can sit on ANY row, so that one walks it all.
+    uint16_t Bank::unsaved_count() const {
+        return _tally(S_PARAM_UNSAVED, _param_first, _param_count);
+    }
+    uint16_t Bank::owed_count() const {
+        return _tally(S_PARAM_OWED, _param_first, _param_count);
+    }
+    uint16_t Bank::unsaved_override_count() const {
+        return _tally(S_OVR_UNSAVED, 0, _count);
+    }
 
 
     void Bank::expire_stale(uint64_t now_ms) {

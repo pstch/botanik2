@@ -121,7 +121,7 @@ namespace Botanik { namespace Pages {
         // Use what format() RETURNS, not the buffer: a T_STR's live text is in
         // the pool and a T_ENUM's in flash, so neither writes into val, and
         // reading val would show the previous row's text.
-        const char* v = Vars::var_format(*_params, _params->param_at(k), val, sizeof(val));
+        const char* v = Vars::var_format(_params->param_at(k), val, sizeof(val));
         // A trailing '*' on an edited-but-unsaved value: one column, and it is
         // the only thing distinguishing a setting that survives a reboot from
         // one that does not. Copied into val first, since format() may have
@@ -269,7 +269,7 @@ namespace Botanik { namespace Pages {
         _draw_label();
 
         char val[80];
-        const char* fv = Vars::var_format(*_params, _params->param_at(_edit_index), val, sizeof(val));
+        const char* fv = Vars::var_format(_params->param_at(_edit_index), val, sizeof(val));
         const int n = (int)strlen(fv);
         if (fv != val) { strncpy(val, fv, sizeof(val) - 1); val[sizeof(val) - 1] = 0; }
         if (n > 0) _editor.insert_characters(val, (uint16_t)n);

@@ -146,6 +146,10 @@ namespace Botanik { namespace Vars {
     private:
         static void _task(Component* c, const Tasks::Tick& t);
 
+        /** @brief The two save verbs' one loop. @p owed_only leaves an
+         *  operator's unsaved edit alone. */
+        uint16_t _save_params(bool owed_only, uint16_t* refused);
+
         void     _load_params();
         uint16_t _load_overrides();
         uint16_t _load_retained();

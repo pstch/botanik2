@@ -16,13 +16,6 @@
 namespace Botanik { namespace Pages {
 
     /** @brief Which edge a pulse row counts, as a word. */
-    inline const char* edge_word(uint8_t edge) {
-        switch ((HAL::Pulse::Edge)edge) {
-            case HAL::Pulse::EDGE_FALLING: return "falling";
-            case HAL::Pulse::EDGE_BOTH:    return "either";
-            default:                       return "rising";
-        }
-    }
 
 
     void MonitorPage::focus() {
@@ -171,7 +164,7 @@ namespace Botanik { namespace Pages {
             _adopt(val, sizeof(val), _live_text(h, val, sizeof(val)));
             _flag_value(h, val, sizeof(val));
             if (h.override_on()) {
-                _adopt(ovr, sizeof(ovr), Vars::var_format(*_io, h, ovr, sizeof(ovr)));
+                _adopt(ovr, sizeof(ovr), Vars::var_format(h, ovr, sizeof(ovr)));
                 // A force can itself be "read as a dead sensor"; say so, or the
                 // column claims a number the row is not actually reporting.
                 if (!h.valid()) _prefix(ovr, sizeof(ovr), "[I]");
@@ -192,7 +185,7 @@ namespace Botanik { namespace Pages {
         bool ok = false;
         const uint16_t v = _ref_at(_selected, ok);
         _sel_ref = v; _sel_row = _selected; _sel_ok = ok;
-        if (!ok) { uint16_t none = { Vars::VAR_NONE }; return none; }
+        if (!ok) return Vars::VAR_NONE;
         return v;
     }
 
@@ -219,12 +212,7 @@ namespace Botanik { namespace Pages {
     }
 
     const char* MonitorPage::_live_text(Vars::Var h, char* buf, size_t cap) const {
-        const Vars::Descriptor& d = h.meta();
-        if (d.type == Vars::T_STR) {
-            const char* t = h.text();
-            return (t != nullptr) ? t : "";
-        }
-        return Vars::format_scalar(d.type, h.live().v, d.digits, d.labels, buf, cap);
+        return Vars::var_format(h, h.live(), buf, cap);
     }
 
     void MonitorPage::_flag_value(Vars::Var h, char* buf, size_t cap) {
@@ -244,36 +232,13 @@ namespace Botanik { namespace Pages {
 
     void MonitorPage::_describe_binding(const Vars::Descriptor& d, char* out,
                                         size_t cap) const {
-        const Vars::Binding& b = d.bind;
-        if (d.kind != Vars::K_INPUT && d.kind != Vars::K_OUTPUT) {
-            snprintf(out, cap, "computed");
-            return;
-        }
-        if (Vars::pulse(d)) {
-            // A counter, not a level: the row IS the running edge total.
-            snprintf(out, cap, "pulse counter on channel %u, %s edges",
-                     (unsigned)Vars::pulse_channel(d), edge_word(Vars::pulse_edge(d)));
-            return;
-        }
-        if (Vars::local(d)) {
-            // The wire type is what makes a local channel analog or digital;
-            // the device address only says it is not on the bus.
-            snprintf(out, cap, "%s channel %u",
-                     (b.wire == Vars::T_BOOL) ? "digital" : "analog",
-                     (unsigned)b.reg);
-            return;
-        }
         // The unit number is what the wire uses; the TAG is what the plant
         // calls the box, so an operator need not look "dev 34" up in a
         // spreadsheet.
-        const char* tag = (_device_name != nullptr)
-                              ? _device_name(_device_ctx, b.device) : nullptr;
-        if (tag != nullptr && tag[0] != '\0')
-            snprintf(out, cap, "Modbus %s (dev %u) fc %u reg %u",
-                     tag, (unsigned)b.device, (unsigned)b.fc, (unsigned)b.reg);
-        else
-            snprintf(out, cap, "Modbus dev %u fc %u reg %u",
-                     (unsigned)b.device, (unsigned)b.fc, (unsigned)b.reg);
+        Vars::binding_phrase(d, out, cap,
+                             (_device_name != nullptr)
+                                 ? _device_name(_device_ctx, d.bind.device)
+                                 : nullptr);
     }
 
     void MonitorPage::_draw_rules() {
@@ -414,7 +379,7 @@ namespace Botanik { namespace Pages {
         // Seeded with what the row reads NOW - a force usually starts from the
         // reading it is replacing.
         char val[OVR_INPUT_LEN];
-        const char* v = Vars::var_format(*_io, h, val, sizeof(val));
+        const char* v = Vars::var_format(h, val, sizeof(val));
         const uint16_t n = (uint16_t)std::strlen(v);
         if (v != val) { std::strncpy(val, v, sizeof(val) - 1); val[sizeof(val) - 1] = 0; }
         if (n > 0) _editor.insert_characters(val, n);

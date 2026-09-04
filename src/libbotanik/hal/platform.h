@@ -384,6 +384,16 @@ namespace Botanik { namespace HAL {
          *  every mode that is not CHANGE or FALLING onto RISING anyway. */
         enum Edge : uint8_t { EDGE_RISING, EDGE_FALLING, EDGE_BOTH };
 
+        /** @brief An Edge as the word a display uses. Here rather than in a
+         *  page, so the vocabulary is the enum's own. */
+        inline const char* edge_label(uint8_t e) {
+            switch ((Edge)e) {
+                case EDGE_FALLING: return "falling";
+                case EDGE_BOTH:    return "either";
+                default:           return "rising";
+            }
+        }
+
         /** @brief How many local channels there are to count on: the same
          *  terminals DigitalIn reads as levels. What BOUNDS an index. */
         static const uint8_t CHANNELS = DigitalIn::CHANNELS;

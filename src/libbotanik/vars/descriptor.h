@@ -20,9 +20,8 @@
 namespace Botanik { namespace Vars {
 
 
-    /** @brief What a row IS, in one field. Everything a table used to filter on
-     *  by scope, role or transport is either this or derived from a field the
-     *  row carries anyway.
+    /** @brief What a row IS, in one field. Everything a table filters on is
+     *  either this or derived from a field the row carries anyway.
      *
      *  It is also the payload discriminant, with @c type and @c B_ANALOG. */
     enum Kind : uint8_t {
@@ -307,16 +306,21 @@ namespace Botanik { namespace Vars {
     constexpr bool published(const Descriptor& d) {
         return d.kind != K_PARAM && d.kind != K_ALARM && d.kind != K_QUALITY;
     }
-    /** @brief Carries a Modbus TCP slave register. An INPUT or an OUTPUT does
-     *  not: its @c reg addresses a device on the FIELD bus, which is a different
-     *  space entirely. The generator refuses a mapped kind with no register. */
+    /** @brief Reaches a wire at all: the two kinds whose Binding means
+     *  something. Everything else is computed, and its @c bind is noise. */
+    constexpr bool bound(const Descriptor& d) {
+        return d.kind == K_INPUT || d.kind == K_OUTPUT;
+    }
+    /** @brief Carries a Modbus TCP slave register. A bound row does not: its
+     *  @c reg addresses a device on the FIELD bus, which is a different space
+     *  entirely. The generator refuses a mapped kind with no register. */
     constexpr bool mapped(const Descriptor& d) {
-        return d.bind.reg != 0 && d.kind != K_INPUT && d.kind != K_OUTPUT;
+        return d.bind.reg != 0 && !bound(d);
     }
     /** @brief Wired to one of the controller's own terminals rather than to the
      *  field bus. */
     constexpr bool local(const Descriptor& d) {
-        return (d.kind == K_INPUT || d.kind == K_OUTPUT) && d.bind.device == 0;
+        return bound(d) && d.bind.device == 0;
     }
     /** @brief The wire carries a raw count and the value is derived from it. */
     constexpr bool analog(const Descriptor& d) {

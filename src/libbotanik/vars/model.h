@@ -123,7 +123,6 @@ namespace Botanik { namespace Vars {
         /** @brief Parameter @p k, 0-based over the K_PARAM block. */
         Var      param_at(uint16_t k) const;
         uint16_t param_count() const { return _param_count; }
-        uint16_t param_first() const { return _param_first; }
 
         /** @} */
         /** @name Pools
@@ -165,7 +164,8 @@ namespace Botanik { namespace Vars {
          *  NUL-terminated. @return the row index, or VAR_NONE. */
         uint16_t _lookup(const char* name, uint16_t len) const;
         /** @brief How many slots carry @p bit. */
-        uint16_t _tally(uint8_t bit) const;
+        /** @brief Slots in [@p from, @p from + @p n) carrying @p bit. */
+        uint16_t _tally(uint8_t bit, uint16_t from, uint16_t n) const;
     };
 
 
@@ -217,7 +217,10 @@ namespace Botanik { namespace Vars {
          *  whatever it is worth: an implausible reading shows the number that
          *  was implausible, and quality says so beside it. Substituting the
          *  declared value is Ref::get()'s job, once, for the laws. */
-        Value live() const { return Value{ _s().v, &meta(), type() }; }
+        Value live() const {
+            const Descriptor& d = meta();
+            return Value{ _s().v, &d, d.type };
+        }
 
         /** @brief The row's DECLARED value, as a Value ready to convert. What a
          *  law reads in place of a row with nothing behind it: a number somebody
@@ -229,7 +232,9 @@ namespace Botanik { namespace Vars {
          *  and this IS it, so an unforced row's stale `ovr` field cannot be
          *  read at all. */
         Value value() const {
-            return _flag(S_OVR_ON) ? Value{ _s().ovr, &meta(), type() } : live();
+            const Slot& s = _s();
+            const Descriptor& d = meta();
+            return Value{ (s.flags & S_OVR_ON) ? s.ovr : s.v, &d, d.type };
         }
 
         /** @brief The count on the wire, before any conversion. Not PRESENT for
@@ -306,7 +311,6 @@ namespace Botanik { namespace Vars {
          *  parameter the operator just edited. */
         Band band() const;
         /** @brief Whether band() means anything. */
-        bool bounded() const { return band().set(); }
         /** @brief This row's calibration, resolved now; all zeros for a row with
          *  none, so a caller that forgot to check gets an inert conversion. */
         AnalogValues cal() const;
@@ -437,8 +441,11 @@ namespace Botanik { namespace Vars {
             Slot& s = _s();
             const bool moved = (s.v.u != v.u);
             s.v = v;
-            _touch();
-            if (moved) _touch_field();
+            // Through the reference, not _touch()/_touch_field(): _s() is out of
+            // line, and this runs once per ST assignment per scan.
+            uint8_t f = (uint8_t)(s.flags | S_WRITTEN);
+            if (moved && meta().kind == K_OUTPUT) f = (uint8_t)(f | S_FIELD_DIRTY);
+            s.flags = f;
         }
         /** @brief Note that the slot has been written. */
         void _touch() const { _set(S_WRITTEN); }

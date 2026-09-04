@@ -200,7 +200,7 @@ namespace Botanik { namespace Health {
                          HAL::Clock::is_virtual() ? 1 : 0) != 0;
 
     public:
-        /** @brief The alarms this class raises, in the order PLATFORM_NAMES
+        /** @brief The alarms this class raises, in the order PLATFORM_ROWS
          *  spells them. An index rather than a name at the call site, because
          *  the two builds keep the boolean in different places. */
         enum PlatAlarm {
@@ -208,16 +208,14 @@ namespace Botanik { namespace Health {
             PA_COUNT
         };
     private:
-        /** @brief What each one is called. Only a build with no table needs it:
-         *  with one, PLATFORM_ROWS below is the binding. */
-        static const char* const PLATFORM_NAMES[PA_COUNT];
 #if BOTANIK_FEATURE_VARS
         /** @brief The row each one IS, generated, in the same enum order. */
         static const uint16_t PLATFORM_ROWS[PA_COUNT];
-#endif
-#if !BOTANIK_FEATURE_VARS
-        /** @brief What the variable table carries for these six when there IS
-         *  one. Kept beside PLATFORM_NAMES, in the same enum order. */
+#else
+        /** @brief What each one is called, and what the variable table carries
+         *  for the six when there IS one. Only a build with no table needs
+         *  either: with one, PLATFORM_ROWS above is the binding. */
+        static const char* const PLATFORM_NAMES[PA_COUNT];
         static const char* const    PLATFORM_DESCS[PA_COUNT];
         static const Alarms::AlarmSpec PLATFORM_SPECS[PA_COUNT];
 #endif

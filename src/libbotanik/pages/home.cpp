@@ -156,7 +156,7 @@ namespace Botanik { namespace Pages {
             if (!_field_place(i, row, lbl, val, w)) break;
             Vars::Var h = _io->var(_fields[i].row);
             char vb[32], buf[40];
-            const char* s = Vars::var_format(*_io, h, vb, sizeof(vb));
+            const char* s = Vars::var_format(h, vb, sizeof(vb));
             const char* u = h.meta().unit;
             if (u && u[0]) snprintf(buf, sizeof(buf), "%s %s", s, u);
             else           snprintf(buf, sizeof(buf), "%s", s);

@@ -419,6 +419,17 @@ def check(t):
                            % (used[pin], r['name'], pin))
             used[pin] = r['name']
 
+    # A field INPUT that can never go stale is a trap: nothing expires a row
+    # whose timeout is 0, so it would hold its last reading, believed, for the
+    # life of the firmware once its device went quiet. The planner used to
+    # refuse it at bring-up, which is a table defect discovered on hardware.
+    for r in table:
+        if KIND[r['_fac']] != 'INPUT': continue
+        if r.get('device', '0') == '0': continue
+        if (r.get('timeout_ms') or '0').strip() in ('', '0'):
+            bad.append('%s: a field input needs a timeout_ms, or nothing ever '
+                       'stops believing it' % r['name'])
+
     # A LOCAL row must be a kind the controller's own terminals can actually be.
     # The OPTA has eight inputs, four relays, four LEDs and a button - and NO
     # analog output. Without this an AO row on device 0 declares, generates and
@@ -487,7 +498,7 @@ def quote(v, col, fac=None):
     return v
 
 
-def _cell(r, col, fac, index):
+def _cell(r, col, fac):
     v = r.get(col, '')
     if col in ROW_COLS:
         return ('Row::' + v) if v else VAR_NONE
@@ -498,9 +509,9 @@ def _cell(r, col, fac, index):
     return quote(v, col, fac)
 
 
-def emit_row(r, index):
+def emit_row(r):
     fac = r['_fac']
-    a = [_cell(r, c, fac, index) for c in FAC_COLS[fac]]
+    a = [_cell(r, c, fac) for c in FAC_COLS[fac]]
     tail = TAIL.get(fac, {})
     cols = FAC_COLS[fac]
     while a and (a[-1] == '' or a[-1] == tail.get(cols[len(a) - 1])):
@@ -508,7 +519,7 @@ def emit_row(r, index):
     return '    %s(%s),' % (fac, ', '.join(a))
 
 
-def emit_cals(cal, index):
+def emit_cals(cal):
     L = []
     for c in cal:
         keys = ('raw_min', 'raw_max', 'eng_min', 'eng_max', 'min', 'max')

@@ -182,9 +182,7 @@ def emit_plant_cpp(site, t, prog, writes):
     ext = sorted({n for e in prog for n, _t, _ro in var_externals(e['path'])})
     we = max(len(n) for n in ext)
     for n in ext:
-        if n.lower() not in {k.lower() for k in index}:
-            sys.exit('%s: no table declares it' % n)
-        row = [k for k in index if k.lower() == n.lower()][0]
+        row = _home(index, n)
         L.append('    ROW_%-*s = ::Botanik::Vars::Row::%s,' % (we, n.upper(), row))
     L += ['};', '',
           '#pragma GCC diagnostic push',
@@ -257,7 +255,7 @@ def _home(index, n):
     sys.exit('%s: no table declares it' % n)
 
 
-def check_laws(site, t, prog, writes):
+def check_laws(t, prog, writes):
     """What only the compiler's own answer can tell: which rows each body
     actually writes, against what the tables and the declarations claim."""
     bad = []
@@ -363,7 +361,6 @@ def plant(site):
         sys.exit('%d ST name(s) declare no row' % len(absent))
 
     w = max(len(n) for n in rows)
-    en = read_table(os.path.join(site, 'tables', 'enums.csv'), AUX['enums'].split())
     wi = max(len(e['instance']) for e in prog)
     L = [H.replace('//', '(*').rstrip() + ' *)', '',
          '(* The enumerated codes a law compares against are enums.st, which is',
@@ -410,7 +407,7 @@ def plant(site):
     if err: return 1
 
     writes = writes_by_pou(site)
-    check_laws(site, t, prog, writes)
+    check_laws(t, prog, writes)
     emit_plant_cpp(site, t, prog, writes)
     print('  plant.st       %d globals, %d POUs' % (len(rows), len(st_files(site))))
     return 0

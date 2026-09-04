@@ -13,9 +13,11 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <cstdio>
 #include <cstring>
 
 #include "libbotanik/config/vars.h"
+#include "libbotanik/hal/platform.h"
 #include "libbotanik/vars/model.h"
 
 namespace Botanik { namespace Vars {
@@ -79,19 +81,22 @@ namespace Botanik { namespace Vars {
     /** @name Rendering
      *  @{ */
 
-    /** @brief Render @p h's current value into @p buf. Returns the text - an
-     *  enum's static string, a T_STR's pool text, or @p buf. */
-    inline const char* var_format(const Bank& io, Var h, char* buf, size_t cap) {
-        (void)io;
+    /** @brief Render one LAYER of @p h into @p buf. Returns the text - an
+     *  enum's static string, a T_STR's pool text, or @p buf.
+     *  @note A T_STR keeps its live text in the pool rather than the slot, so
+     *  @p v is not where its value is and the layer cannot be honoured for one. */
+    inline const char* var_format(Var h, Value v, char* buf, size_t cap) {
         const Descriptor& d = h.meta();
         if (d.type == T_STR) {
             const char* t = h.text();
             return (t != nullptr) ? t : "";
         }
-        return format_scalar(d.type, h.value().v, d.digits, d.labels, buf, cap);
+        return format_scalar(d.type, v.v, d.digits, d.labels, buf, cap);
     }
-    inline const char* var_format(const Bank& io, uint16_t row, char* buf, size_t cap) {
-        return var_format(io, io.var(row), buf, cap);
+
+    /** @brief Render the value in force: the override where one is on. */
+    inline const char* var_format(Var h, char* buf, size_t cap) {
+        return var_format(h, h.value(), buf, cap);
     }
 
     /** @brief Render @p d's declared default or bound. Not the live value - a
@@ -100,6 +105,34 @@ namespace Botanik { namespace Vars {
                                        char* buf, size_t cap) {
         if (d.type == T_STR) return "";
         return format_scalar(d.type, v, d.digits, d.labels, buf, cap);
+    }
+
+    /** @brief Where @p d's value physically comes from, in words: what the
+     *  MONITOR page's Mapping field and `vars info`'s Source line both show.
+     *  @param dev_tag the plant's name for the device, or null to print only
+     *  the unit number an operator would otherwise have to look up. */
+    inline const char* binding_phrase(const Descriptor& d, char* buf, size_t cap,
+                                      const char* dev_tag = nullptr) {
+        const Binding& b = d.bind;
+        if (!bound(d))
+            std::snprintf(buf, cap, "computed (nothing drives it)");
+        else if (pulse(d))
+            // A counter, not a level: the row IS the running edge total.
+            std::snprintf(buf, cap, "pulse counter on channel %u, %s edges",
+                     (unsigned)pulse_channel(d),
+                     HAL::Pulse::edge_label(pulse_edge(d)));
+        else if (local(d))
+            // The wire type is what makes a local channel analog or digital;
+            // the device address only says it is not on the bus.
+            std::snprintf(buf, cap, "%s channel %u",
+                     (b.wire == T_BOOL) ? "digital" : "analog", (unsigned)b.reg);
+        else if (dev_tag != nullptr && dev_tag[0] != '\0')
+            std::snprintf(buf, cap, "Modbus %s (dev %u) fc %u reg %u",
+                     dev_tag, (unsigned)b.device, (unsigned)b.fc, (unsigned)b.reg);
+        else
+            std::snprintf(buf, cap, "Modbus dev %u fc %u reg %u",
+                     (unsigned)b.device, (unsigned)b.fc, (unsigned)b.reg);
+        return buf;
     }
 
     /** @} */

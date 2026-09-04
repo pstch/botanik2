@@ -33,11 +33,12 @@ namespace Botanik { namespace Modbus {
      *  @note Not a re-decision: the value stands, only its delivery is owed. */
     void reassert_block(Vars::Bank& io, const Planner& p, const Block& b);
 
-    /** @brief Invalidate every row of @p b, because the read failed. Left alone a
-     *  row keeps Q_VALID and its last value, and one declared with timeout_ms == 0
-     *  is skipped by expire_stale() entirely, so it would read good for ever.
-     *  @param q Q_REFUSED when the device answered and declined, Q_STALE when
-     *         nothing came back. */
+    /** @brief Drop every row of @p b to @p q, because the read failed. Left
+     *  alone a row keeps its last value, believed, and one declared with
+     *  timeout_ms == 0 is skipped by expire_stale() entirely.
+     *  @param q Q_NONE either way: a refusal and a silence leave a reader with
+     *         the same nothing, and the RTU master's log line is where they
+     *         still differ. */
     void invalidate_block(Vars::Bank& io, const Planner& p, const Block& b,
                           Vars::Quality q);
 

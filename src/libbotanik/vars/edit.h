@@ -7,7 +7,7 @@
  *
  * INTERNAL to vars/: declared here only because writing a parameter, clearing
  * one and forcing an override live in different translation units and parse the
- * same way. Defined in params.cpp.
+ * same way. Defined in model.cpp.
  */
 
 #include <cstdint>

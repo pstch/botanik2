@@ -156,31 +156,28 @@ namespace Botanik { namespace Vars {
         return r;
     }
 
-    uint16_t Persist::save_all(uint16_t* refused) {
+    uint16_t Persist::_save_params(bool owed_only, uint16_t* refused) {
         uint16_t saved = 0, bad = 0;
         for (uint16_t k = 0; k < _io.param_count(); k++) {
             const Var h = _io.param_at(k);
-            // BOTH marks: `params save` is an operator asking for everything
-            // outstanding to land, and a law's write is outstanding too.
-            if (!h.param_unsaved() && !h.param_owed()) continue;
+            if (!h.param_owed() && (owed_only || !h.param_unsaved())) continue;
             if (save(h) == SET_OK) saved++; else bad++;
         }
         if (refused != nullptr) *refused = bad;
         return saved;
     }
 
+    // BOTH marks: `params save` is an operator asking for everything
+    // outstanding to land, and a law's write is outstanding too.
+    uint16_t Persist::save_all(uint16_t* refused) {
+        return _save_params(false, refused);
+    }
+
+    // OWED only. An operator's unsaved edit is theirs to commit: the cadence
+    // committing it would take away the one thing that makes a setting able to
+    // break its own console recoverable by rebooting.
     uint16_t Persist::save_owed(uint16_t* refused) {
-        uint16_t saved = 0, bad = 0;
-        for (uint16_t k = 0; k < _io.param_count(); k++) {
-            const Var h = _io.param_at(k);
-            // OWED only. An operator's unsaved edit is theirs to commit: the
-            // cadence committing it would take away the one thing that makes a
-            // setting able to break its own console recoverable by rebooting.
-            if (!h.param_owed()) continue;
-            if (save(h) == SET_OK) saved++; else bad++;
-        }
-        if (refused != nullptr) *refused = bad;
-        return saved;
+        return _save_params(true, refused);
     }
 
     SetResult Persist::reset(Var h) {

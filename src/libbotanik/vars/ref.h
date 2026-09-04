@@ -34,11 +34,9 @@ namespace Botanik { namespace Vars {
      *  per row, so a name no table declares fails to COMPILE rather than
      *  resolving to a sink at bring-up.
      *
-     *  It carried a DIRECTION too - IN, OUT, INOUT, off the IEC declaration
-     *  section - which guarded a write to a read-only row at compile time. Every
-     *  ST row resolves VAR_IN_OUT, so the guard could not fire: the section a
-     *  program declares a row in is checked at generate time now, against what
-     *  matiec says the body writes. */
+     *  Which SECTION a program declares a row in is checked at generate time,
+     *  against what matiec says the body writes: every ST row resolves
+     *  VAR_IN_OUT, so a type could not carry the direction. */
     template <typename T>
     struct Ref {
         uint16_t i;

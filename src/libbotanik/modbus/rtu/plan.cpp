@@ -137,19 +137,16 @@ void Planner::_collect(const Vars::Bank& io) {
     for (uint16_t i = 0; i < io.count(); ++i) {
         const Vars::Descriptor& d = io.var(i).meta();
         if (d.bind.device == 0) continue;
-        if (d.kind != Vars::K_INPUT && d.kind != Vars::K_OUTPUT) continue;
+        if (!Vars::bound(d)) continue;
         // A row whose code we cannot issue is not a row we can plan. Counted
         // with the overflow: to an operator both mean a row that is not scanned.
         if (block_fc(d.bind.fc, model_of(_devices, d.bind.device)) == 0) {
             _rows_dropped++;
             continue;
         }
-        // An input that can never go stale is a trap: expire_stale() skips
-        // timeout_ms == 0, so a row would hold its last reading at Q_VALID for
-        // the life of the firmware once its device went quiet. Refused loudly
-        // instead, since _rows_dropped is a bring-up critical.
-        if (d.kind == Vars::K_INPUT && is_read(d.bind.fc) &&
-            d.timeout_ms == 0) { _rows_dropped++; continue; }
+        // No timeout check here: a field input with timeout_ms == 0 would hold
+        // its last reading for ever once its device went quiet, and the
+        // generator refuses the table rather than the firmware refusing the row.
         if (_row_count >= Config::MODBUS_MAX_ROWS) { _rows_dropped++; continue; }
         _rows[_row_count++] = i;
     }

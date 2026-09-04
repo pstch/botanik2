@@ -104,8 +104,7 @@ namespace Botanik { namespace Vars {
         const Descriptor& d = meta();
         // No binding, no wire: a parameter or a computed row has none, and a
         // zero is what the one caller converts.
-        if (d.kind != K_INPUT && d.kind != K_OUTPUT)
-            return Value{ Scalar(), &d, d.type };
+        if (!bound(d)) return Value{ Scalar(), &d, d.type };
         const uint8_t off = _s().wire_off;
         // 1:1, so the wire IS the value - nothing is stored twice.
         if (off == WIRE_NONE) return Value{ value().v, &d, d.type };
@@ -263,7 +262,7 @@ namespace Botanik { namespace Vars {
         if (_b->log() != nullptr) {
             char was[48];
             _b->log()->notice(Logs::USER, "forced '%s'\nwas %s", name(),
-                              var_format(*_b, *this, was, sizeof(was)));
+                              var_format(*this, was, sizeof(was)));
         }
         force_slot(_b, _i, v);
         _touch_field();
@@ -294,7 +293,7 @@ namespace Botanik { namespace Vars {
         if (_b->log() != nullptr) {
             char was[48];
             _b->log()->notice(Logs::USER, "released '%s'\nwas %s", name(),
-                              var_format(*_b, *this, was, sizeof(was)));
+                              var_format(*this, was, sizeof(was)));
         }
         _clear((uint8_t)(S_OVR_ON | S_OVR_UNSAVED));
         _touch_field();

@@ -186,11 +186,7 @@ namespace Botanik { namespace Sun {
     }
 
     void SunPositionTracker::wire(Vars::Bank& io) {
-        _io          = &io;
-        _r_ready     = io.find("sol_ready");
-        _r_from_rise = io.find("sol_fromRise_min");
-        _r_from_set  = io.find("sol_fromSet_min");
-        _r_elev      = io.find("sol_elev_deg");
+        _io = &io;
     }
 
     // Clamped to a day either side: the offsets are read against boundaries a
@@ -207,7 +203,7 @@ namespace Botanik { namespace Sun {
         // ONE row for the lot: a law downstream cannot ask the bank whether a
         // solar output is believable, and they go together - the tracker has a
         // location and a clock, or it has neither.
-        if (_r_ready != Vars::VAR_NONE) _io->var(_r_ready).set(_computed);
+        if (Vars::Row::sol_ready != Vars::VAR_NONE) _io->var(Vars::Row::sol_ready).set(_computed);
         // Nothing computed yet: every boot passes through this for as long as
         // NTP takes, and the offsets ARE the sun, so they hold rather than
         // publishing a day nobody has placed.
@@ -217,13 +213,13 @@ namespace Botanik { namespace Sun {
         // boundary in a phase table is declared in. Both belong to the same
         // solar day, so one is always past and the other future.
         const int64_t now = (int64_t)HAL::Clock::wall_ms();
-        if (_r_from_rise != Vars::VAR_NONE)
-            _io->var(_r_from_rise).set_i(_minutes((now - (int64_t)sunrise_ms()) / 60000));
-        if (_r_from_set != Vars::VAR_NONE)
-            _io->var(_r_from_set).set_i(_minutes((now - (int64_t)sunset_ms()) / 60000));
+        if (Vars::Row::sol_fromRise_min != Vars::VAR_NONE)
+            _io->var(Vars::Row::sol_fromRise_min).set_i(_minutes((now - (int64_t)sunrise_ms()) / 60000));
+        if (Vars::Row::sol_fromSet_min != Vars::VAR_NONE)
+            _io->var(Vars::Row::sol_fromSet_min).set_i(_minutes((now - (int64_t)sunset_ms()) / 60000));
         // Degrees, because that is what a person reads. The math is in radians.
-        if (_r_elev != Vars::VAR_NONE)
-            _io->var(_r_elev).set((float)(_pos.elevation * 57.2957795));
+        if (Vars::Row::sol_elev_deg != Vars::VAR_NONE)
+            _io->var(Vars::Row::sol_elev_deg).set((float)(_pos.elevation * 57.2957795));
     }
 
     void SunPositionTracker::on_service(uint64_t now_ms) {

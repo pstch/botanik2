@@ -29,7 +29,7 @@ def generate(site):
     enums(site)
     t = build(site)
     check(t)
-    table, index, tom = t['table'], t['index'], t['toml']
+    table, tom = t['table'], t['toml']
     guard = site_guard(tom)
 
     order = sorted(range(len(table)), key=lambda i: table[i]['name'].lower())
@@ -43,7 +43,7 @@ def generate(site):
          '// Inside the namespace and after the usings: the header names every',
          '// type unqualified, because it is only ever included here and by site.h.',
          '#include "vars.gen.h"', '']
-    L += emit_cals(t['cal'], index)
+    L += emit_cals(t['cal'])
     L += ['// ONE table: the library\'s rows merged into the site\'s, parameters',
           '// first and contiguous, each quality companion directly after the row',
           '// it speaks for, the program rows last.',
@@ -55,7 +55,7 @@ def generate(site):
             if not ln: continue
             L.append('    ' + ln if ln.startswith('/*') else
                      '     ' + ln if ln.startswith('*') else ln)
-        L.append(emit_row(r, index))
+        L.append(emit_row(r))
     L += ['};', '',
           '// Row numbers in NAME order, so Bank::find() binary-searches a const',
           '// array and nothing is built at boot. Case-folded, which is the order',

@@ -21,8 +21,9 @@
 
 namespace Botanik { namespace Health {
 
-    /** @brief One name per PlatAlarm, in enum order. Nothing else names them,
-     *  so this list IS the list: no second copy to drift from. */
+#if !BOTANIK_FEATURE_VARS
+    /** @brief One name per PlatAlarm, in enum order. Only the no-table build
+     *  needs them: with a table the row IS the binding. */
     const char* const HealthMonitor::PLATFORM_NAMES[HealthMonitor::PA_COUNT] = {
         "alarm_system_reset",
         "alarm_cpu_xrun",
@@ -31,6 +32,7 @@ namespace Botanik { namespace Health {
         "alarm_cpu_jitter",
         "alarm_flash_error",
     };
+#endif
 
 #if BOTANIK_FEATURE_VARS
     const uint16_t HealthMonitor::PLATFORM_ROWS[HealthMonitor::PA_COUNT] = {

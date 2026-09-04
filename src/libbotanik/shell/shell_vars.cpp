@@ -25,19 +25,10 @@
 
 namespace Botanik { namespace Shell {
 
-    /** @brief Which edge a pulse row counts, as a word. */
-    inline const char* edge_word(uint8_t edge) {
-        switch ((HAL::Pulse::Edge)edge) {
-            case HAL::Pulse::EDGE_FALLING: return "falling";
-            case HAL::Pulse::EDGE_BOTH:    return "either";
-            default:                       return "rising";
-        }
-    }
 
-
-    void CommandShell::_emit_var(const Vars::Bank& io, Vars::Var h) {
+    void CommandShell::_emit_var(Vars::Var h) {
         char out[128], val[48];
-        const char* s = Vars::var_format(io, h, val, sizeof(val));
+        const char* s = Vars::var_format(h, val, sizeof(val));
         const char* u = h.meta().unit;
         // Flag the three things a bare number hides: the kind (on every row,
         // since it decides whether `set` or `override` applies), that it is
@@ -74,7 +65,7 @@ namespace Botanik { namespace Shell {
         // its QUALITY comes with it: a number a dead sensor is not producing is
         // not a reading, and a bare one would be taken for one.
         _emitf(out, sizeof(out), "%s%s%s%s",
-               Vars::var_format(*io, h, val, sizeof(val)),
+               Vars::var_format(h, val, sizeof(val)),
                (u && u[0]) ? " " : "", (u && u[0]) ? u : "",
                h.valid() ? "" : " INVALID");
     }
@@ -116,7 +107,7 @@ namespace Botanik { namespace Shell {
         // The name and what every other reader sees for it: the override
         // applied. The rows below take that apart.
         _emitf(out, sizeof(out), "%s = %s %s", d.name,
-               Vars::var_format(*io, h, val, sizeof(val)), u);
+               Vars::var_format(h, val, sizeof(val)), u);
 
         // Both derived (the kind is declared, the group is the name's prefix),
         // so neither can disagree with the table.
@@ -138,7 +129,7 @@ namespace Botanik { namespace Shell {
         // publishing underneath), so "held at what" and "would read what if
         // released" are different questions. The raw row says WHY it is
         // invalid, not just that it is.
-        _value_field("Raw value", *io, h, h.live(),
+        _value_field("Raw value", h, h.live(),
                      Vars::quality_label((uint64_t)h.quality()), u);
         // The override's quality is a person's choice, not a diagnosis: a yes
         // or a no. Inside the branch value() IS the force.
@@ -146,7 +137,7 @@ namespace Botanik { namespace Shell {
             char q[32];
             snprintf(q, sizeof(q), "%s%s", h.measured() ? "valid" : "invalid",
                      h.override_unsaved() ? ", unsaved" : "");
-            _value_field("Override value", *io, h, h.value(), q, u);
+            _value_field("Override value", h, h.value(), q, u);
         } else {
             _field("Override value", "-", nullptr);
         }
@@ -185,7 +176,7 @@ namespace Botanik { namespace Shell {
         }
 
         // Where the value physically comes from.
-        _field("Source", _binding_phrase(d, det, sizeof(det)), nullptr);
+        _field("Source", Vars::binding_phrase(d, det, sizeof(det)), nullptr);
         // ...and which of the control programs it passes through, which the
         // binding does not answer: a computed row has no wire and still has an
         // author.
@@ -198,16 +189,11 @@ namespace Botanik { namespace Shell {
 
     // Quality rides on the value row rather than one of its own: a value and
     // whether it is good are one fact, and there are two values.
-    void CommandShell::_value_field(const char* label, const Vars::Bank& io,
-                                    Vars::Var h, Vars::Value val,
+    void CommandShell::_value_field(const char* label, Vars::Var h,
+                                    Vars::Value val,
                                     const char* quality, const char* unit) {
-        const Vars::Descriptor& d = h.meta();
         char num[48], cell[64];
-        // A T_STR keeps its live text in the pool, not the slot, so the Scalar
-        // is not where its value is; var_format() is the only reader that knows.
-        const char* text = (d.type == Vars::T_STR)
-            ? Vars::var_format(io, h, num, sizeof(num))
-            : Vars::format_scalar(d.type, val.v, d.digits, d.labels, num, sizeof(num));
+        const char* text = Vars::var_format(h, val, num, sizeof(num));
         snprintf(cell, sizeof(cell), "%s%s%s", text, unit[0] ? " " : "", unit);
         _field(label, cell, quality);
     }
@@ -245,29 +231,6 @@ namespace Botanik { namespace Shell {
         return "?";
     }
 
-    // Mirrors the MONITOR page's Source field, so a row reads the same whichever
-    // showed it.
-    const char* CommandShell::_binding_phrase(const Vars::Descriptor& d,
-                                              char* buf, size_t cap) {
-        const Vars::Binding& b = d.bind;
-        if (d.kind != Vars::K_INPUT && d.kind != Vars::K_OUTPUT)
-            snprintf(buf, cap, "computed (nothing drives it)");
-        else if (Vars::pulse(d))
-            // A counter, not a level: the row IS the running edge total.
-            snprintf(buf, cap, "pulse counter on channel %u, %s edges",
-                     (unsigned)Vars::pulse_channel(d), edge_word(Vars::pulse_edge(d)));
-        else if (Vars::local(d))
-            // The wire type is what makes a local channel analog or digital;
-            // the device address only says it is not on the bus.
-            snprintf(buf, cap, "%s channel %u",
-                     (b.wire == Vars::T_BOOL) ? "digital" : "analog",
-                     (unsigned)b.reg);
-        else
-            snprintf(buf, cap, "Modbus dev %u fc %u reg %u",
-                     (unsigned)b.device, (unsigned)b.fc, (unsigned)b.reg);
-        return buf;
-    }
-
     void CommandShell::_list_vars(const char* noun, const char* prefix,
                                   uint16_t plen, bool params_only) {
         Vars::Bank* io = _bank();
@@ -283,7 +246,7 @@ namespace Botanik { namespace Shell {
             if (name == nullptr) continue;
             if (params_only && h.kind() != Vars::K_PARAM) continue;
             if (!Utils::glob_bounded(name, prefix, plen)) continue;
-            _emit_var(*io, h);
+            _emit_var(h);
             n++;
         }
         if (n == 0) { _emitf(out, sizeof(out), "%s: nothing matches", noun); return; }
@@ -556,7 +519,7 @@ namespace Botanik { namespace Shell {
             if (!h.override_on()) continue;
             if (h.override_unsaved()) unsaved++;
             _emitf(out, sizeof(out), "  %-20s %-12s %s%s", h.meta().name,
-                   Vars::var_format(*io, h, val, sizeof(val)),
+                   Vars::var_format(h, val, sizeof(val)),
                    h.valid() ? "" : "(reading as invalid) ",
                    h.override_unsaved() ? "(unsaved)" : "");
             n++;
@@ -659,10 +622,9 @@ namespace Botanik { namespace Shell {
     }
 
     void CommandShell::_override_reply(Vars::Var h, const char* verb) {
-        Vars::Bank* io = _bank();
         char out[128], val[48];
         _emitf(out, sizeof(out), "%s: %s %s%s",
-               h.meta().name, verb, Vars::var_format(*io, h, val, sizeof(val)),
+               h.meta().name, verb, Vars::var_format(h, val, sizeof(val)),
                h.valid() ? "" : " (reading as invalid)");
     }
 

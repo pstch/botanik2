@@ -14,6 +14,7 @@
 #include "libbotanik/core/component.h"
 #include "libbotanik/tasks/tasks.h"
 #include "libbotanik/vars/model.h"
+#include "libbotanik/vars/rows.h"
 
 #if BOTANIK_FEATURE_SUN_TRACKER
 
@@ -137,10 +138,6 @@ namespace Botanik { namespace Sun {
         void _publish();
 
         Vars::Bank*  _io = nullptr;
-        uint16_t _r_ready;
-        uint16_t _r_from_rise;
-        uint16_t _r_from_set;
-        uint16_t _r_elev;
     };
 
     /** @} */

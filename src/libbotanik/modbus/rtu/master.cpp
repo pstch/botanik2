@@ -49,21 +49,6 @@ void RtuMaster::on_setup(uint64_t now_ms) {
     // there is nothing to populate, nothing to cap, and no way to end up with a
     // block whose device nobody is watching.
     for (uint8_t i = 0; i < _plan.device_count(); ++i) _peer[i] = Peer();
-    // Resolved once, by name, like every other consumer of the bank.
-    _alarm_ref = _io->find("alarm_fieldbus");
-    _line_ref  = _io->find("alarm_fieldbus_line");
-    _drop_ref  = _io->find("alarm_io_drop");
-    _dead_ref  = _io->find("sys_fieldbus_dead");
-    _crc_ref   = _io->find("sys_fieldbus_crc");
-    _stray_ref = _io->find("sys_fieldbus_stray");
-    // The tuning rows, the same way. Absent (no library splice) is not a fault:
-    // _tune() falls back to the Config constant these default from.
-    _p_timeout     = _io->find("rtu_timeout_ms");
-    _p_retries     = _io->find("rtu_retries");
-    _p_backoff     = _io->find("rtu_backoff_ms");
-    _p_backoff_max = _io->find("rtu_backoff_max_ms");
-    _p_write_min   = _io->find("rtu_write_min_ms");
-    _p_rewrite     = _io->find("rtu_rewrite_ms");
     _publish_health();
 
     if (_logger == nullptr) return;
@@ -182,26 +167,26 @@ void RtuMaster::_publish_health() {
     for (uint8_t i = 0; i < _plan.device_count(); ++i)
         if (_peer[i].misses > _retries()) _dead++;
     if (_io == nullptr) return;
-    _io->var(_alarm_ref).set(_dead != 0);
-    _io->var(_dead_ref).set_i((int64_t)_dead);
+    _io->var(Vars::Row::alarm_fieldbus).set(_dead != 0);
+    _io->var(Vars::Row::sys_fieldbus_dead).set_i((int64_t)_dead);
 
     // Every planned device at once is not twenty devices failing, it is the
     // segment. Guarded on _dead so a plan with no devices in it does not read as
     // a dead line.
-    _io->var(_line_ref).set(_dead != 0 && _dead == _plan.device_count());
+    _io->var(Vars::Row::alarm_fieldbus_line).set(_dead != 0 && _dead == _plan.device_count());
 
     // A verdict from the PLAN, not from the wire, so it stands from bring-up
     // and does not clear on its own: a row nobody scans is a signal that will
     // never be read, and it looks exactly like a sensor that never answers.
-    _io->var(_drop_ref).set(_plan.rows_dropped() != 0 ||
+    _io->var(Vars::Row::alarm_io_drop).set(_plan.rows_dropped() != 0 ||
                             _plan.rows_unscanned() != 0);
 
     // Saturating, never wrapping: a counter that rolls over to nothing reads
     // as a bus that recovered.
     const uint32_t crc   = _framer.crc_errors();
     const uint32_t stray = _framer.stray_bytes() + _stale_rx;
-    _io->var(_crc_ref).set_i((int64_t)(crc   > 65535u ? 65535u : crc));
-    _io->var(_stray_ref).set_i((int64_t)(stray > 65535u ? 65535u : stray));
+    _io->var(Vars::Row::sys_fieldbus_crc).set_i((int64_t)(crc   > 65535u ? 65535u : crc));
+    _io->var(Vars::Row::sys_fieldbus_stray).set_i((int64_t)(stray > 65535u ? 65535u : stray));
 }
 
 void RtuMaster::_enter(State s, uint64_t now_ms) {
