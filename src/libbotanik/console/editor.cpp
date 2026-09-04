@@ -20,6 +20,8 @@
 
 namespace Botanik { namespace Terminal {
 
+    // lifecycle
+
     TextEditor::TextEditor(Console* console, const EditorStorage& store)
         : _console(console), _terminal(&console->terminal()),
           _buf(store.buf), _buf_cap(store.buf_cap), _max_rows(store.max_rows) {
@@ -30,24 +32,39 @@ namespace Botanik { namespace Terminal {
         _layout.count = 1;
     }
 
-    // prompt helpers
+    void TextEditor::reset() {
+        (void)_load(nullptr, 0, 0);
+        _dirty = true;              // reset() discards content; commit() does not
+        _reconcile(0, 0, /*is_insert=*/true);
+    }
+
+    void TextEditor::commit() {
+        // No reconcile: the caller line-fed past the text, now the transcript's.
+        (void)_load(nullptr, 0, 0);
+        if (_anchor == Anchor::BOTTOM) _origin = (uint16_t)(_console->rows() - 1);
+        _paint_view();
+        _place_cursor(_map_cursor_pos(0));
+    }
+
+    void TextEditor::redraw() {
+        _place_rows();          // a page switch handed the band back; reclaim it
+        _paint_view();
+        _place_cursor(_map_cursor_pos(_pos));
+    }
+
+    // prompts
 
     RowPrompt TextEditor::_row_prompt(uint16_t row_idx) const {
         return _row_prompt_in(_layout, row_idx);
     }
+
+    // layout
 
     uint16_t TextEditor::_row_cap(uint16_t row_idx) const {
         uint16_t cols = _terminal->cols();
         uint16_t used = (uint16_t)(_prompt_len(_row_prompt(row_idx)) + _indent);
         return cols > used ? (uint16_t)(cols - used) : 1;
     }
-
-    void TextEditor::_write_prompt(uint16_t row_idx) {
-        RowPrompt p = _row_prompt(row_idx);
-        _terminal->write_chars(_prompt_buf(p), _prompt_len(p));
-    }
-
-    // layout scanning
 
     RowView TextEditor::_scan_row(uint16_t pos, uint16_t cap) const {
         uint16_t len = 0;
@@ -79,12 +96,33 @@ namespace Botanik { namespace Terminal {
             memcpy(_pre.rows, _layout.rows, (size_t)_layout.count * sizeof(RowView));
     }
 
-    uint16_t TextEditor::_console_rows() const { return _console->rows(); }
-
     void TextEditor::_restore_pre() {
         _layout.count = _pre.count;
         if (_pre.count > 0)
             memcpy(_layout.rows, _pre.rows, (size_t)_pre.count * sizeof(RowView));
+    }
+
+    bool TextEditor::_load(const char* text, uint16_t len, uint16_t cursor) {
+        bool fitted = true;
+        if (len > load_capacity()) { len = load_capacity(); fitted = false; }
+        // memmove, not memcpy: a caller may hand back a slice of this buffer.
+        if (text != nullptr && text != _buf && len > 0) memmove(_buf, text, len);
+        _len = len;
+        _buf[_len] = '\0';
+        _view_top   = 0;
+        _goal_valid = false;
+        _mark_set   = false;        // the offsets it anchors are being replaced
+        _snapshot_pre();
+        if (_rebuild_layout()) {
+            // Past the row cap: drop the tail nobody could see or reach.
+            const RowView& last = _layout.rows[_layout.count - 1];
+            _len = (uint16_t)(last.buf_start + last.buf_len);
+            _buf[_len] = '\0';
+            _rebuild_layout();
+            fitted = false;
+        }
+        _pos = cursor < _len ? cursor : _len;
+        return fitted;
     }
 
     CursorPos TextEditor::_map_cursor_pos(uint16_t pos) const {
@@ -94,7 +132,9 @@ namespace Botanik { namespace Terminal {
         return { _hw_row(i), col };
     }
 
-    // viewport
+    // viewport and geometry
+
+    uint16_t TextEditor::_console_rows() const { return _console->rows(); }
 
     uint16_t TextEditor::_view_bottom_hw() const {
         uint16_t rows = _console->rows();
@@ -130,45 +170,6 @@ namespace Botanik { namespace Terminal {
         return true;
     }
 
-    // lifecycle
-
-    bool TextEditor::_load(const char* text, uint16_t len, uint16_t cursor) {
-        bool fitted = true;
-        if (len > load_capacity()) { len = load_capacity(); fitted = false; }
-        // memmove, not memcpy: a caller may hand back a slice of this buffer.
-        if (text != nullptr && text != _buf && len > 0) memmove(_buf, text, len);
-        _len = len;
-        _buf[_len] = '\0';
-        _view_top   = 0;
-        _goal_valid = false;
-        _mark_set   = false;        // the offsets it anchors are being replaced
-        _snapshot_pre();
-        if (_rebuild_layout()) {
-            // Past the row cap: drop the tail nobody could see or reach.
-            const RowView& last = _layout.rows[_layout.count - 1];
-            _len = (uint16_t)(last.buf_start + last.buf_len);
-            _buf[_len] = '\0';
-            _rebuild_layout();
-            fitted = false;
-        }
-        _pos = cursor < _len ? cursor : _len;
-        return fitted;
-    }
-
-    void TextEditor::reset() {
-        (void)_load(nullptr, 0, 0);
-        _dirty = true;              // reset() discards content; commit() does not
-        _reconcile(0, 0, /*is_insert=*/true);
-    }
-
-    void TextEditor::commit() {
-        // No reconcile: the caller line-fed past the text, now the transcript's.
-        (void)_load(nullptr, 0, 0);
-        if (_anchor == Anchor::BOTTOM) _origin = (uint16_t)(_console->rows() - 1);
-        _paint_view();
-        _place_cursor(_map_cursor_pos(0));
-    }
-
     void TextEditor::set_origin(uint16_t row) {
         uint16_t max_row = (uint16_t)(_console->rows() - 1);
         _origin = row > max_row ? max_row : row;
@@ -176,10 +177,9 @@ namespace Botanik { namespace Terminal {
 
     // painting
 
-    void TextEditor::redraw() {
-        _place_rows();          // a page switch handed the band back; reclaim it
-        _paint_view();
-        _place_cursor(_map_cursor_pos(_pos));
+    void TextEditor::_write_prompt(uint16_t row_idx) {
+        RowPrompt p = _row_prompt(row_idx);
+        _terminal->write_chars(_prompt_buf(p), _prompt_len(p));
     }
 
     void TextEditor::_paint_view() {
@@ -229,6 +229,32 @@ namespace Botanik { namespace Terminal {
         }
         _terminal->set_inverted(false);
     }
+
+    void TextEditor::_place_rows() {
+        uint16_t rows = _console->rows();
+        if (rows == 0) return;
+
+        if (_anchor == Anchor::TOP) {
+            // Top-anchored: the viewport is STRUCT and the cursor's row INPUT.
+            // The re-declaration releases the row the cursor left.
+            uint16_t view_bottom = _view_bottom_hw();
+            if (_origin > view_bottom) return;
+            _terminal->set_row_priority(_origin, view_bottom, PRIO_STRUCT);
+            const uint16_t cur = _map_cursor_pos(_pos).row;
+            if (cur >= _origin && cur <= view_bottom)
+                _terminal->set_row_priority(cur, PRIO_INPUT);
+            return;
+        }
+
+        // Bottom-anchored: release the content band, reclaim the rows occupied.
+        uint16_t bottom = (uint16_t)(rows - 1);
+        _terminal->set_row_priority(1, bottom, PRIO_STRUCT);
+        if (_layout.count <= _view_top || _origin > bottom) return;
+        uint16_t last = (uint16_t)(_origin + (_layout.count - _view_top) - 1);
+        if (last > bottom) last = bottom;
+        _terminal->set_row_priority(_origin, last, PRIO_INPUT);
+    }
+
     // editing
 
     void TextEditor::insert_characters(const char* buf, uint16_t len) {
@@ -292,6 +318,22 @@ namespace Botanik { namespace Terminal {
         _reconcile(pos, len, false);
     }
 
+    void TextEditor::backspace(uint16_t count) {
+        if (count == 0 || _pos == 0) return;
+        if (count > _pos) count = _pos;
+        _pos -= count;
+        remove_characters(count);
+    }
+
+    void TextEditor::delete_forward(uint16_t count) {
+        if (count == 0 || _pos >= _len) return;
+        uint16_t avail = (uint16_t)(_len - _pos);
+        if (count > avail) count = avail;
+        remove_characters(count);
+    }
+
+    // bulk content
+
     bool TextEditor::commit_loaded(uint16_t len) {
         const bool fitted = _load(_buf, len, 0);
         _dirty = false;
@@ -305,32 +347,187 @@ namespace Botanik { namespace Terminal {
         _dirty = true;
         _reconcile(0, _len, /*is_insert=*/true);
     }
-    // grow/shrink helpers
 
-    void TextEditor::_place_rows() {
-        uint16_t rows = _console->rows();
-        if (rows == 0) return;
+    // cursor motion
 
-        if (_anchor == Anchor::TOP) {
-            // Top-anchored: the viewport is STRUCT and the cursor's row INPUT.
-            // The re-declaration releases the row the cursor left.
-            uint16_t view_bottom = _view_bottom_hw();
-            if (_origin > view_bottom) return;
-            _terminal->set_row_priority(_origin, view_bottom, PRIO_STRUCT);
-            const uint16_t cur = _map_cursor_pos(_pos).row;
-            if (cur >= _origin && cur <= view_bottom)
-                _terminal->set_row_priority(cur, PRIO_INPUT);
+    void TextEditor::move_left() {
+        if (_pos == 0) return;
+        _pos--;
+        _settle_cursor();
+    }
+
+    void TextEditor::move_right() {
+        if (_pos >= _len) return;
+        _pos++;
+        _settle_cursor();
+    }
+
+    void TextEditor::move_to_line_start() {
+        while (_pos > 0 && _buf[_pos - 1] != '\n') _pos--;
+        _settle_cursor();
+    }
+
+    void TextEditor::move_to_line_end() {
+        while (_pos < _len && _buf[_pos] != '\n') _pos++;
+        _settle_cursor();
+    }
+
+    void TextEditor::move_to_start() { _pos = 0;    _settle_cursor(); }
+
+    void TextEditor::move_to_end()   { _pos = _len; _settle_cursor(); }
+
+    void TextEditor::_move_row(int32_t delta) {
+        if (_layout.count == 0 || delta == 0) return;
+        uint16_t row = _owner_row(_pos, _layout);
+
+        // Latched on the first of a run of vertical moves.
+        if (!_goal_valid) {
+            _goal_col   = (uint16_t)(_pos - _layout.rows[row].buf_start);
+            _goal_valid = true;
+        }
+
+        int32_t last   = (int32_t)_layout.count - 1;
+        int32_t target = (int32_t)row + delta;
+        if (target < 0)    target = 0;
+        if (target > last) target = last;
+
+        if (target == (int32_t)row) {
+            // Already on the edge row: up on the first line means the start.
+            _pos = delta < 0 ? 0 : _len;
+            _settle_cursor();
             return;
         }
 
-        // Bottom-anchored: release the content band, reclaim the rows occupied.
-        uint16_t bottom = (uint16_t)(rows - 1);
-        _terminal->set_row_priority(1, bottom, PRIO_STRUCT);
-        if (_layout.count <= _view_top || _origin > bottom) return;
-        uint16_t last = (uint16_t)(_origin + (_layout.count - _view_top) - 1);
-        if (last > bottom) last = bottom;
-        _terminal->set_row_priority(_origin, last, PRIO_INPUT);
+        const RowView& r = _layout.rows[target];
+        uint16_t col = _goal_col < r.buf_len ? _goal_col : r.buf_len;
+        _pos = (uint16_t)(r.buf_start + col);
+        _settle_cursor(/*keep_goal=*/true);
     }
+
+    void TextEditor::move_up()   { _move_row(-1); }
+
+    void TextEditor::move_down() { _move_row(+1); }
+
+    void TextEditor::page_up() {
+        uint16_t h = _view_height();
+        _move_row(-(int32_t)(h > 1 ? h - 1 : 1));
+    }
+
+    void TextEditor::page_down() {
+        uint16_t h = _view_height();
+        _move_row((int32_t)(h > 1 ? h - 1 : 1));
+    }
+
+    static inline bool _is_word_char(char c) {
+        unsigned char uc = (unsigned char)c;
+        return isalnum(uc) || c == '_';
+    }
+
+    uint16_t TextEditor::_word_start() const {
+        uint16_t p = _pos;
+        while (p > 0 && !_is_word_char(_buf[p - 1])) p--;
+        while (p > 0 &&  _is_word_char(_buf[p - 1])) p--;
+        return p;
+    }
+
+    uint16_t TextEditor::_word_end() const {
+        uint16_t p = _pos;
+        while (p < _len &&  _is_word_char(_buf[p])) p++;
+        while (p < _len && !_is_word_char(_buf[p])) p++;
+        return p;
+    }
+
+    void TextEditor::move_word_left() {
+        _pos = _word_start();
+        _settle_cursor();
+    }
+
+    void TextEditor::move_word_right() {
+        _pos = _word_end();
+        _settle_cursor();
+    }
+
+    // kill and yank
+
+    bool TextEditor::_kill_span(uint16_t from, uint16_t to) {
+        if (to <= from) return false;
+        // Remove only what the ring took, so a yank puts back exactly what went.
+        uint16_t taken = _console->kill_ring().set(_buf + from, (uint16_t)(to - from));
+        if (taken == 0) return false;
+        _pos = from;
+        remove_characters(taken);
+        return true;
+    }
+
+    bool TextEditor::kill_to_line_end() {
+        if (_pos >= _len) return false;
+        // On the newline, the newline is the kill: the line closes up onto the next.
+        if (_buf[_pos] == '\n') return _kill_span(_pos, (uint16_t)(_pos + 1));
+
+        uint16_t end = _pos;
+        while (end < _len && _buf[end] != '\n') end++;
+        return _kill_span(_pos, end);
+    }
+
+    bool TextEditor::kill_word_back() {
+        return _kill_span(_word_start(), _pos);
+    }
+
+    bool TextEditor::yank() {
+        KillRing& ring = _console->kill_ring();
+        if (ring.len() == 0) return false;
+        insert_characters(ring.text(), ring.len());
+        return true;
+    }
+
+    // mark and region
+
+    void TextEditor::set_mark() {
+        _mark     = _pos;
+        _mark_set = true;
+        _paint_view();
+    }
+
+    void TextEditor::clear_mark() {
+        if (!_mark_set) return;
+        _mark_set = false;
+        _paint_view();
+    }
+
+    void TextEditor::toggle_mark() {
+        if (_mark_set) clear_mark();
+        else           set_mark();
+    }
+
+    bool TextEditor::region(uint16_t& from, uint16_t& to) const {
+        if (!_mark_set) return false;
+        from = _mark < _pos ? _mark : _pos;
+        to   = _mark < _pos ? _pos : _mark;
+        return true;
+    }
+
+    bool TextEditor::kill_region() {
+        uint16_t from = 0, to = 0;
+        if (!region(from, to)) return false;
+        // An empty region removes nothing, so nothing drops the mark for it.
+        bool cut = _kill_span(from, to);
+        clear_mark();
+        return cut;
+    }
+
+    bool TextEditor::copy_region() {
+        uint16_t from = 0, to = 0;
+        if (!region(from, to) || to == from) { clear_mark(); return false; }
+        _console->kill_ring().set(_buf + from, (uint16_t)(to - from));
+        clear_mark();
+        return true;
+    }
+
+    bool TextEditor::kill_region_or_word() {
+        return _mark_set ? kill_region() : kill_word_back();
+    }
+
+    // reconciliation
 
     uint16_t TextEditor::_grow_editor() {
         if (_anchor == Anchor::TOP) return _origin;
@@ -362,8 +559,6 @@ namespace Botanik { namespace Terminal {
                                      /*up=*/false, (uint16_t)(new_origin - _origin));
         _origin = new_origin;
     }
-
-    // reconciliation
 
     static int32_t _common(int32_t a0, int32_t a1, int32_t b0, int32_t b1) {
         const int32_t lo = a0 > b0 ? a0 : b0;
@@ -414,6 +609,7 @@ namespace Botanik { namespace Terminal {
         }
         return { (uint16_t)((int32_t)best_pre + row_delta), best_pre };
     }
+
     void TextEditor::_reposition_tail(const SpliceSpan& span, int32_t row_delta) {
         if (span.absorbed_post >= _layout.count || row_delta == 0) return;
 
@@ -448,197 +644,6 @@ namespace Botanik { namespace Terminal {
         // Bottom-anchored, a shorter text slides the band back down.
         _shrink_editor(new_origin);
         _place_cursor(_map_cursor_pos(_pos));
-    }
-
-    // cursor motion
-
-    void TextEditor::move_left() {
-        if (_pos == 0) return;
-        _pos--;
-        _settle_cursor();
-    }
-
-    void TextEditor::move_right() {
-        if (_pos >= _len) return;
-        _pos++;
-        _settle_cursor();
-    }
-
-    void TextEditor::move_to_line_start() {
-        while (_pos > 0 && _buf[_pos - 1] != '\n') _pos--;
-        _settle_cursor();
-    }
-
-    void TextEditor::move_to_line_end() {
-        while (_pos < _len && _buf[_pos] != '\n') _pos++;
-        _settle_cursor();
-    }
-
-    void TextEditor::move_to_start() { _pos = 0;    _settle_cursor(); }
-    void TextEditor::move_to_end()   { _pos = _len; _settle_cursor(); }
-
-    void TextEditor::_move_row(int32_t delta) {
-        if (_layout.count == 0 || delta == 0) return;
-        uint16_t row = _owner_row(_pos, _layout);
-
-        // Latched on the first of a run of vertical moves.
-        if (!_goal_valid) {
-            _goal_col   = (uint16_t)(_pos - _layout.rows[row].buf_start);
-            _goal_valid = true;
-        }
-
-        int32_t last   = (int32_t)_layout.count - 1;
-        int32_t target = (int32_t)row + delta;
-        if (target < 0)    target = 0;
-        if (target > last) target = last;
-
-        if (target == (int32_t)row) {
-            // Already on the edge row: up on the first line means the start.
-            _pos = delta < 0 ? 0 : _len;
-            _settle_cursor();
-            return;
-        }
-
-        const RowView& r = _layout.rows[target];
-        uint16_t col = _goal_col < r.buf_len ? _goal_col : r.buf_len;
-        _pos = (uint16_t)(r.buf_start + col);
-        _settle_cursor(/*keep_goal=*/true);
-    }
-
-    void TextEditor::move_up()   { _move_row(-1); }
-    void TextEditor::move_down() { _move_row(+1); }
-
-    void TextEditor::page_up() {
-        uint16_t h = _view_height();
-        _move_row(-(int32_t)(h > 1 ? h - 1 : 1));
-    }
-
-    void TextEditor::page_down() {
-        uint16_t h = _view_height();
-        _move_row((int32_t)(h > 1 ? h - 1 : 1));
-    }
-
-    void TextEditor::backspace(uint16_t count) {
-        if (count == 0 || _pos == 0) return;
-        if (count > _pos) count = _pos;
-        _pos -= count;
-        remove_characters(count);
-    }
-
-    void TextEditor::delete_forward(uint16_t count) {
-        if (count == 0 || _pos >= _len) return;
-        uint16_t avail = (uint16_t)(_len - _pos);
-        if (count > avail) count = avail;
-        remove_characters(count);
-    }
-
-    static inline bool _is_word_char(char c) {
-        unsigned char uc = (unsigned char)c;
-        return isalnum(uc) || c == '_';
-    }
-
-    uint16_t TextEditor::_word_start() const {
-        uint16_t p = _pos;
-        while (p > 0 && !_is_word_char(_buf[p - 1])) p--;
-        while (p > 0 &&  _is_word_char(_buf[p - 1])) p--;
-        return p;
-    }
-
-    uint16_t TextEditor::_word_end() const {
-        uint16_t p = _pos;
-        while (p < _len &&  _is_word_char(_buf[p])) p++;
-        while (p < _len && !_is_word_char(_buf[p])) p++;
-        return p;
-    }
-
-    void TextEditor::move_word_left() {
-        _pos = _word_start();
-        _settle_cursor();
-    }
-
-    void TextEditor::move_word_right() {
-        _pos = _word_end();
-        _settle_cursor();
-    }
-
-    // kill / yank
-
-    bool TextEditor::_kill_span(uint16_t from, uint16_t to) {
-        if (to <= from) return false;
-        // Remove only what the ring took, so a yank puts back exactly what went.
-        uint16_t taken = _console->kill_ring().set(_buf + from, (uint16_t)(to - from));
-        if (taken == 0) return false;
-        _pos = from;
-        remove_characters(taken);
-        return true;
-    }
-
-    bool TextEditor::kill_to_line_end() {
-        if (_pos >= _len) return false;
-        // On the newline, the newline is the kill: the line closes up onto the next.
-        if (_buf[_pos] == '\n') return _kill_span(_pos, (uint16_t)(_pos + 1));
-
-        uint16_t end = _pos;
-        while (end < _len && _buf[end] != '\n') end++;
-        return _kill_span(_pos, end);
-    }
-
-    bool TextEditor::kill_word_back() {
-        return _kill_span(_word_start(), _pos);
-    }
-
-    bool TextEditor::yank() {
-        KillRing& ring = _console->kill_ring();
-        if (ring.len() == 0) return false;
-        insert_characters(ring.text(), ring.len());
-        return true;
-    }
-
-    // mark / region
-
-    void TextEditor::set_mark() {
-        _mark     = _pos;
-        _mark_set = true;
-        _paint_view();
-    }
-
-    void TextEditor::clear_mark() {
-        if (!_mark_set) return;
-        _mark_set = false;
-        _paint_view();
-    }
-
-    void TextEditor::toggle_mark() {
-        if (_mark_set) clear_mark();
-        else           set_mark();
-    }
-
-    bool TextEditor::kill_region_or_word() {
-        return _mark_set ? kill_region() : kill_word_back();
-    }
-
-    bool TextEditor::region(uint16_t& from, uint16_t& to) const {
-        if (!_mark_set) return false;
-        from = _mark < _pos ? _mark : _pos;
-        to   = _mark < _pos ? _pos : _mark;
-        return true;
-    }
-
-    bool TextEditor::kill_region() {
-        uint16_t from = 0, to = 0;
-        if (!region(from, to)) return false;
-        // An empty region removes nothing, so nothing drops the mark for it.
-        bool cut = _kill_span(from, to);
-        clear_mark();
-        return cut;
-    }
-
-    bool TextEditor::copy_region() {
-        uint16_t from = 0, to = 0;
-        if (!region(from, to) || to == from) { clear_mark(); return false; }
-        _console->kill_ring().set(_buf + from, (uint16_t)(to - from));
-        clear_mark();
-        return true;
     }
 
 }}

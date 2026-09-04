@@ -120,9 +120,24 @@ namespace Botanik { namespace Terminal {
 
     public:
 
+        /** @name Lifecycle
+         *  @{ */
+
         /** @brief Bound to @p console, over the caller-owned buffers in
          *  @p store, which must outlive it. */
         TextEditor(Console* console, const EditorStorage& store);
+
+        /** @brief Discard the text and show an empty prompt. Marks dirty. */
+        void reset();
+
+        /** @brief Start a fresh line after a submitted one. The caller has
+         *  line-fed past the text, which stays on screen as transcript. */
+        void commit();
+
+        /** @brief Repaint the viewport from the buffer, blank rows included. */
+        void redraw();
+
+        /** @} */
 
         /** @name Prompts
          *  @{ */
@@ -135,21 +150,6 @@ namespace Botanik { namespace Terminal {
         uint16_t    ps1_len() const { return _ps_len[0]; }
         const char* ps2() const { return _ps_buf[1]; }
         uint16_t    ps2_len() const { return _ps_len[1]; }
-
-        /** @} */
-
-        /** @name Lifecycle
-         *  @{ */
-
-        /** @brief Discard the text and show an empty prompt. Marks dirty. */
-        void reset();
-
-        /** @brief Start a fresh line after a submitted one. The caller has
-         *  line-fed past the text, which stays on screen as transcript. */
-        void commit();
-
-        /** @brief Repaint the viewport from the buffer, blank rows included. */
-        void redraw();
 
         /** @} */
 
@@ -190,17 +190,35 @@ namespace Botanik { namespace Terminal {
         void insert_characters(const char* buf, uint16_t len);
         void remove_characters(uint16_t len);
 
+        /** @brief Delete @p count chars before / at the cursor, one reconcile. */
+        void backspace(uint16_t count = 1);
+        void delete_forward(uint16_t count = 1);
+
+        /** @} */
+
+        /** @name Cursor motion
+         *  Every one of these ends in _settle_cursor(): viewport, repaint,
+         *  cursor. None of them changes the buffer. @{ */
+
         void move_left();
         void move_right();
         void move_to_line_start();
         void move_to_line_end();
 
-        /** @brief Delete @p count chars before / at the cursor, one reconcile. */
-        void backspace(uint16_t count = 1);
-        void delete_forward(uint16_t count = 1);
-
         void move_word_left();
         void move_word_right();
+
+        /** @brief One display row up / down, holding the goal column; on the
+         *  first / last row, to the start / end of the buffer. */
+        void move_up();
+        void move_down();
+
+        /** @brief One viewport height up / down. */
+        void page_up();
+        void page_down();
+
+        void move_to_start();
+        void move_to_end();
 
         /** @} */
 
@@ -229,10 +247,6 @@ namespace Botanik { namespace Terminal {
         void clear_mark();
         void toggle_mark();
 
-        /** @brief The region when there is one, else the word before the
-         *  cursor (Ctrl-W). */
-        bool kill_region_or_word();
-
         bool mark_active() const { return _mark_set; }
 
         /** @brief The region as an ordered half-open span.
@@ -242,17 +256,9 @@ namespace Botanik { namespace Terminal {
         bool kill_region();
         bool copy_region();
 
-        /** @brief One display row up / down, holding the goal column; on the
-         *  first / last row, to the start / end of the buffer. */
-        void move_up();
-        void move_down();
-
-        /** @brief One viewport height up / down. */
-        void page_up();
-        void page_down();
-
-        void move_to_start();
-        void move_to_end();
+        /** @brief The region when there is one, else the word before the
+         *  cursor (Ctrl-W). */
+        bool kill_region_or_word();
 
         /** @} */
 
@@ -273,9 +279,6 @@ namespace Botanik { namespace Terminal {
          *  @p text may be a slice of the buffer itself. */
         void replace_all(const char* text, uint16_t len);
 
-        bool dirty() const { return _dirty; }
-        void clear_dirty() { _dirty = false; }
-
         /** @} */
 
         /** @name Buffer access
@@ -285,10 +288,13 @@ namespace Botanik { namespace Terminal {
         uint16_t    buffer_len() const { return _len; }
         uint16_t    cursor_offset() const { return _pos; }
 
+        bool dirty() const { return _dirty; }
+        void clear_dirty() { _dirty = false; }
+
         /** @} */
 
     private:
-        /** @name Layout
+        /** @name Prompts
          *  @{ */
 
         void _set_ps(RowPrompt p, const char* buf, uint16_t len) {
@@ -307,6 +313,11 @@ namespace Botanik { namespace Terminal {
 
         const char* _prompt_buf(RowPrompt p) const { return _ps_buf[(uint8_t)p]; }
         uint16_t    _prompt_len(RowPrompt p) const { return _ps_len[(uint8_t)p]; }
+
+        /** @} */
+
+        /** @name Layout
+         *  @{ */
 
         /** @brief Content columns on row @p row_idx. */
         uint16_t _row_cap(uint16_t row_idx) const;
@@ -381,6 +392,11 @@ namespace Botanik { namespace Terminal {
          *  follows finds the kept rows in place. @return whether it moved. */
         bool _follow_cursor();
 
+        /** @} */
+
+        /** @name Cursor motion
+         *  @{ */
+
         /** @brief What every motion ends with: viewport, repaint, cursor.
          *  Drops the goal column unless @p keep_goal. */
         void _settle_cursor(bool keep_goal = false) {
@@ -396,6 +412,11 @@ namespace Botanik { namespace Terminal {
 
         uint16_t _word_start() const;
         uint16_t _word_end() const;
+
+        /** @} */
+
+        /** @name Kill and yank
+         *  @{ */
 
         /** @brief Cut `[from, to)` into the kill ring and remove what it took.
          *  @return false if the span was empty or nothing fit. */
