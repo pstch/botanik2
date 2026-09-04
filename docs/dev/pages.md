@@ -104,7 +104,7 @@ One row per page, in the order they derive:
 | @ref Botanik::Pages::ScrollTablePage | Page | base for the scrollable tables |
 | @ref Botanik::Pages::AlarmsPage | ScrollTablePage | the alarm conditions |
 | @ref Botanik::Pages::ParamsPage | ScrollTablePage | the parameter block, and the only page that writes it |
-| @ref Botanik::Pages::MonitorPage | ScrollTablePage | every published variable, resolved from `VarRef`s at render time; the one read-only table that also WRITES, through the override keys |
+| @ref Botanik::Pages::MonitorPage | ScrollTablePage | every published variable, read by index at render time; the one read-only table that also WRITES, through the override keys |
 | @ref Botanik::Pages::TasksPage | ScrollTablePage | the beat as a table, off the scheduler's `Tasks::TaskCost` samples |
 
 Three of those entries carry a decision worth knowing:
@@ -150,7 +150,7 @@ belongs to `CommandShell`.
 
 Every page is library-owned and site-independent. Sites contribute **data** - the
 home fields, the status groups, the alarm table - not page classes. `HomePage` and
-`MonitorPage` resolve their content generically from `VarRef`s at render time, which
+`MonitorPage` resolve their content generically from row indices at render time, which
 is why adding a reading to a site needs no code at all.
 
 ## Scrollback
@@ -203,7 +203,7 @@ class AlarmCondition {
   recent_s : int32 - "recent" window (0 = a week, <0 forever)
   hold_s : int16 - stay active past the last raw true
   --
-  ref : VarRef - the boolean variable carrying the condition
+  row : uint16_t - the boolean variable carrying the condition
   local_raw : bool - locally asserted, OR'd with ref
   active : bool - active or latched
   on_sent : bool - ON transition announced
@@ -229,12 +229,12 @@ the ack goes with the episode.
 
 **A condition is FORCEABLE through its source.** `AlarmSourceTable` carries
 `force` / `force_clear` / `force_save` alongside the reads, so the ALARMS page holds a
-row by hand without learning where the boolean lives - a `SCOPE_A` override on the
+row by hand without learning where the boolean lives - a `K_ALARM` override on the
 bank with `VARS` on, and nothing at all on a `StaticAlarmTable`, which answers false.
 The model reads a forced condition through `raw()` like any other, so it dwells,
 latches and annunciates exactly as a real one does.
 
-There is **no aggregate bitset**. Each condition names the `VarRef` of the boolean
+There is **no aggregate bitset**. Each condition names the ROW of the boolean
 that carries it and the model reads that variable per condition, OR'd with a local
 override for the platform alarms. A row written out positionally (the platform
 table) gives all four text fields, `notes` included, before the dwell numbers.

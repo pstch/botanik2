@@ -52,7 +52,7 @@ the build log. Guard every feature flag a site pins.
 | `HOME_PAGE` | = `CONSOLE` | `CONSOLE`, `VARS` | the HOME page and its log-tail sink. Its fields are variable rows, hence `VARS` |
 | `SHELL_PAGE` | = `CONSOLE` | `CONSOLE` | the SHELL page **and the whole command interpreter** - `ShellPage` owns `Shell::CommandShell`, so this also gates `register_commands()` |
 | `LOGS_PAGE` | off | `CONSOLE`, `LOGGING` | the LOGS page and its sink |
-| `ALARMS_PAGE` | off | `CONSOLE` | the ALARMS page. The alarm *controller* is unconditional, and needs no variable table: it reads an `Alarms::AlarmSourceTable`, which is the site's `SCOPE_A` rows with `VARS` on and a flash array without |
+| `ALARMS_PAGE` | off | `CONSOLE` | the ALARMS page. The alarm *controller* is unconditional, and needs no variable table: it reads an `Alarms::AlarmSourceTable`, which is the site's `K_ALARM` rows with `VARS` on and a flash array without |
 | `PARAMS_PAGE` | off | `CONSOLE`, `VARS` | the PARAMS page |
 | `MONITOR_PAGE` | off | `CONSOLE`, `VARS` | the MONITOR page. **Not** `LOGS_MONITOR`, which is a serial log sink |
 | `TASKS_PAGE` | off | `CONSOLE` | the TASKS page |
@@ -65,7 +65,7 @@ the build log. Guard every feature flag a site pins.
 | `PLC` | **on** | `VARS` | control authority, the scan cycle, and the site's control programs. Off does *not* remove control authority: the Bank's enable/disable latch has consumers of its own |
 | `MODBUS_TCP_SERVER` | off | `NETWORK`, `VARS` | the Modbus TCP slave: the framing, the register map over the variable table, and the server. Stepped every beat, and it splices four `mb_` parameters into the library's rows. On for `gh_mlb41` |
 | `MODBUS_TCP_CLIENT` | off | `NETWORK` | a Modbus TCP **master**: this unit polling another device. The simulator points one at our own slave as a self-check - a real socket, the real map, the real `Bank::set()` - so the server is exercised end to end every run |
-| `MODBUS_RTU_CLIENT` | off | `VARS` | the RS-485 field bus master. Plans the site's `XP_MODBUS` rows into blocks, honours each device's ceiling and alignment, and scans them at their declared rates. Stepped in `PHASE_INPUT`/`PHASE_OUTPUT`. On for `gh_mlb41` |
+| `MODBUS_RTU_CLIENT` | off | `VARS` | the RS-485 field bus master. Plans the site's field rows into blocks, honours each device's ceiling and alignment, and scans them at their declared rates. Stepped in `PHASE_INPUT`/`PHASE_OUTPUT`. On for `gh_mlb41` |
 | `MODBUS_RTU_SERVER` | off | - | `RtuSlave`, the device model that answers: registers, coils, exceptions and CRC resync. It is what the simulator's `FieldBus` builds the far end of the wire from, one per unit the site addresses. On for `gh_mlb41` |
 
 (Each is spelled `BOTANIK_FEATURE_<NAME>`.)
@@ -197,7 +197,7 @@ unit is nuisance-alarming on. The macros are their factory values.
 | `HEALTH_RESET_WINDOW_MS` | 300000 | how long after boot `SYS_RST` stays asserted |
 | `ALARM_NOTIFIERS_MAX` | 4 | |
 | `ALARM_RECENT_S` | 604800 | RECENT window a cleared alarm stays listed for (a row's own `recent_s` wins) |
-| `ALARM_SLOTS` | 64 | `SCOPE_A` rows the model has room for - the site's and the library's together, since they share one table. See @ref int_variables |
+| `ALARM_SLOTS` | 64 | `K_ALARM` rows the model has room for - the site's and the library's together, since they share one table. See @ref int_variables |
 
 ### Site table capacity
 

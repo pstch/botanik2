@@ -97,21 +97,25 @@ section it puts a row in IS the declaration of intent:
 PROGRAM dc_watch
 VAR_EXTERNAL CONSTANT      (* read: the program may not write these *)
   pwr_dc1_V     : REAL;
-  pwr_dc1_V_qlt : BOOL;
+  pwr_dc1_V_qlt : QUALITY;
 END_VAR
 VAR_EXTERNAL               (* written: this program is the row's author *)
   sys_dc_ok     : BOOL;
 END_VAR
 ```
 
-There is no per-row `bind()` to write. `__INIT_EXTERNAL` resolves each name once
-at bring-up, case-folded, and a name matching no row lands on the inert sink.
+There is no per-row `bind()` to write, and nothing is resolved at bring-up.
+`__INIT_EXTERNAL` binds each row to a generated INDEX - `ROW_PWR_DC1_V`, which
+`plant.cpp` defines from `Vars::Row::pwr_dc1_V` - so a name no table declares
+fails to COMPILE. That is the whole check: there is no unresolved count, no sink
+a law could sit on for the life of the run, and no bring-up verdict about it.
 
-The reference carries the row's C++ type, and a `T` disagreeing with the row's
-declared type resolves to nothing exactly as a missing name does. It used to
-carry a DIRECTION too, so a write to a `VAR_EXTERNAL CONSTANT` row failed to
-compile - but every ST row resolves `VAR_IN_OUT`, so that guard could never
-fire. The section is checked at **generate time** instead, which is stronger:
+The type is the row's own, and a site ENUMERATION is a type like any other: a
+phase compares against `PHASE_DAY` rather than against 3 (@ref dev_st_enums).
+The reference used to carry a DIRECTION too, so a write to a
+`VAR_EXTERNAL CONSTANT` row failed to compile - but every ST row resolves
+`VAR_IN_OUT`, so that guard could never fire. The section is checked at
+**generate time** instead, which is stronger:
 `scripts/tables.py plant` reads what matiec says each body writes
 (`__SET_EXTERNAL`) and fails the build on
 
@@ -126,31 +130,20 @@ are exactly that.
 
 ## Program health
 
-A program answers for itself with a `Plc::Health`, and there are two answers:
+A program answers for itself with a `Plc::Health`, and there is one answer:
 
 | | | |
 |---|---|---|
 | `HEALTHY` | 0 | wired, and running |
-| `INVALID` | 2 | could not be wired at bring-up; never runs |
 
-The codes are published as a `T_ENUM` row, so the vocabulary may gain labels and
-must never renumber them - `INVALID` keeps the code it has always had.
+There was a second, `INVALID`, for a program that named a row no table declared.
+It cannot happen now: a binding is a generated index, so such a program does not
+compile. The code is published as a `T_ENUM` row, so the vocabulary may gain
+labels and must never renumber them.
 
 Anything finer belongs to the ROWS. A reading that is not believable says so in
 its own quality, and every consumer already reads that; a program-level
 "degraded" would be a second, coarser place to say the same thing.
-
-### INVALID is decided in setup, and only there
-
-A program is `INVALID` when it could not be **wired**: it named a row no table
-declares. Nothing about that gets better, so `Plant::wire()` decides it once and
-no activation revisits it. It brackets each program's `init()` with
-`Bank::unresolved_count()` and marks the slot when the count moved.
-
-Such a program is **never activated**. Its refs are inert sinks that read 0 for
-ever, so every value it published would be a zero indistinguishable from a
-reading, and every alarm it derived would be a quiet false negative. Better to
-run nothing and say why - which it does, `LOG_CRITICAL`, naming the program.
 
 ## Control authority
 
@@ -162,13 +155,12 @@ STRICTER wins:
 | the OPERATOR's standing choice | `sys_control` for all of them, `programs disable <pat\|all>` for one | a retained parameter; the per-program gate is not retained, so a maintenance session cannot leave one silently out after a power cut |
 | the SYSTEM's hold | anything but `Scheduler::RunState::RUN` - `sys_startup_sec` at bring-up, `sys_shutdown_sec` on the way out | @ref dev_health |
 
-`Plc::Runtime::Plant::running()` is where they meet, and a program that could
-not be wired fails it whatever either says.
+`Plc::Runtime::Plant::running()` is where they meet.
 
 **A program that is not running does not FREEZE what it drove.** Its rows are
 WRITTEN to their declared value - which is what `Descriptor::def` means for an
 output - and the write marks them owed to the field, so the coil actually moves.
-A `_qlt` companion in the same roster drops to `Q_NO_DATA` with them. A coil left
+A `_qlt` companion in the same roster drops to `Q_NONE` with them. A coil left
 energised by a law nobody is running is the thing this exists to prevent.
 
 ### Parking {#dev_scan_parking}

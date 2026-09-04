@@ -97,7 +97,8 @@ what actually takes a field bus down.
 
 @image html modbus-master.drawio.svg "The master, end to end. The planner is bounded by the device table, and what comes back off the wire lands in the same variable table the plan was built from."
 
-**Planning** (`plan.h`) groups the site's `XP_MODBUS` rows into read and write
+**Planning** (`plan.h`) groups the site's field rows - an INPUT or OUTPUT on a
+device other than 0 - into read and write
 **blocks**, one per contiguous run on one unit with one function code. It is
 bounded by what the device can actually answer, which is why there is a device
 table at all.
@@ -199,15 +200,17 @@ a transaction until `fieldbus_tx_idle()` says the ring has DRAINED, not merely
 that it has room for one more byte. A refused byte is then impossible, and is
 logged as a critical if it ever happens anyway.
 
-**Values** move through `image.h`, both directions, and a read failure
-invalidates the rows it covered (`Q_REFUSED`) rather than leaving the last good
-value in place at `Q_VALID` - a row declared with no timeout would otherwise never
-be caught up with at all.
+**Values** move through `image.h`, both directions, and a read failure drops the
+rows it covered to `Q_NONE` rather than leaving the last good value in place and
+believed - a row declared with no timeout would otherwise never be caught up with
+at all. A refusal and a silence are one code: what a READER does about either is
+identical, and the difference an operator needs is the master's own log line
+naming the device.
 
 The scan never touches the wire. A sweep of this plant is hundreds of
 milliseconds - tens of beats - so cycle-boundary I/O is out of reach: the bus
 runs on its own clock and maintains a **process image** the cycle reads.
-`Vars::Bank` already is that image and `XP_MODBUS` already marks the rows the
+`Vars::Bank` already is that image and a device address already marks the rows the
 driver owns, so `image.h` builds nothing - it only moves values in two
 directions.
 

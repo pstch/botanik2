@@ -214,15 +214,15 @@ Subsystems under `src/libbotanik/`. Each row's doc is the reference; the header 
 | `tasks/` | The task table and `TaskTimer`. `LoopScheduler` decides WHEN the beat happens, `Tasks::Registry` decides WHAT runs in it. Sits BELOW `core/` | `tasks.md` |
 | `core/` | The BOTTOM of the stack: `Component` (one hook per phase, `register_tasks()`) and `SystemContext` (a borrowed-pointer aggregate, constructor-injected into its consumers, NOT reachable through the console) | `architecture.md` |
 | `firmware/` | `BotanikFirmware`, the Template-Method base owning every generic component and the non-overridable per-tick order. Sites customize only through the protected hooks | `architecture.md` |
-| `vars/` | Gated by `BOTANIK_FEATURE_VARS`. The one model everything the firmware exposes goes through, along three independent fields: `VarType`, `Transport`, `VarRole`, plus `VarScope` for what a table filters on. `Bank` is the one object that gets, sets and overrides | `vars.md` |
+| `vars/` | Gated by `BOTANIK_FEATURE_VARS`. The one model everything the firmware exposes goes through. A row is a `Kind` and a `VarType`; published, mapped, local, analog and writable are DERIVED. `Bank` holds the generated table and the RAM over it, `Var` (bank + index) is every row-level operation, and `Persist` is the durable half | `vars.md` |
 | `plc/` | The POU vocabulary, in ST: `functions/*.st` has no state, `blocks/*.st` has state, and `runtime/` is the join between the beat and matiec's generated C. If it has to remember something it is a block. `functions/ieclib.txt` is what `iec2c -I` points at - OUR standard functions, so matiec's own GPL library is never loaded | `scan.md`, `st-toolchain.md` |
-| `io/` | `LocalInputs`, the controller's own input terminals: every `XP_LOCAL` DI row found by walking the table at bring-up, published at `PHASE_INPUT` with `F_INVERT` folded in. The field-bus mirror image, so a program reads a terminal by name | `io.md` |
+| `io/` | `LocalInputs`, the controller's own input terminals: every LOCAL input row found by walking the table at bring-up, published at `PHASE_INPUT` with `F_INVERT` folded in. The field-bus mirror image, so a program reads a terminal by name | `io.md` |
 | `modbus/` | Four corners in one tree: `rtu/` is the RS-485 field bus, `tcp/` the plant network, each with both ends. `wire.h` and `response.h` are what they share | `modbus.md` |
 | `console/` | Two layers: `AnsiTerminal` is the VT device owning a screen back-buffer, `Console` the multiplexed page display. `TextEditor` is the byte-efficient editing state machine | `screen.md`, `editor.md`, `input.md` |
 | `pages/` | Full-screen views behind a common `Page` interface, all base-owned and site-independent | `pages.md` |
 | `shell/` | `CommandShell`: commands are **noun then verb**, a noun parsing its own verb. Depends on the terminal device, not on `Console` or `pages/` | `pages.md` |
 | `logs/` | `Logger` with a dual-bucket token-bucket rate limiter before its `LogWriter`s. `LOG_CRITICAL` is undroppable | `logging.md` |
-| `alarms/` | `AlarmController` reads an `AlarmSourceTable`, never a bank. With `VARS` on that is `Vars::BankAlarms` over the site's `SCOPE_A` rows, each carrying both its boolean and its dwell policy; without it, `StaticAlarmTable` over a flash array. Not feature-gated: every build has alarms | `health.md`, `blind-spots.md` |
+| `alarms/` | `AlarmController` reads an `AlarmSourceTable`, never a bank. With `VARS` on that is `Vars::BankAlarms` over the site's `K_ALARM` rows, each carrying both its boolean and its dwell policy; without it, `StaticAlarmTable` over a flash array. Not feature-gated: every build has alarms | `health.md`, `blind-spots.md` |
 | `health/` | `HealthMonitor` owns the `AlarmController`, raises the platform-health alarms from scheduler metrics, runs the POST, and produces the watchdog verdict | `health.md` |
 | `network/` | `NetworkHandler` / `NameResolver` / `NtpClient` / `MqttClient`, all non-blocking. The sim backend is hermetic - it emulates DNS/NTP/MQTT in-process | `network.md` |
 | `sun/` | `SunPositionTracker` over the NOAA solar-position math. `BotanikFirmware` owns the instance, registers it and binds its `geo_` parameters; a program reads it through `SetupContext::sun` | - |
@@ -251,28 +251,28 @@ Subsystems under `src/libbotanik/`. Each row's doc is the reference; the header 
   dropped, never caught up. There is no `dt_ms` and no `first_scan`: a program takes no
   argument, so a block that needs elapsed time reads `sys_now_ms` and differences it
   itself, and one that needs "have I run before" seeds on its first call. See `scan.md`.
-- **Library rows.** The library declares rows of its own in `vars/vars.cpp` and hands
-  them over with `register_library_vars()`; a site hands over its own the same way, and
-  `Bank` runs ONE index space across the segments in registration order, so nothing
-  outside it knows there is more than one array. The library's go first. Two ordering rules,
-  both from the contiguous `ROLE_PARAM` run: the block goes first, and its parameters go
-  last within it. Registers 900-999 are the library's. **Whatever the library reads by
-  name, the library declares.** A site tunes one by REDECLARING it: `Bank::freeze()`
-  keeps the LAST declaration of a name and compacts the earlier row out of the table, so
-  the whole row is the site's and no `BOTANIK_*` macro is needed per overridable field.
-  Keep `reg` as the library assigned it. See `vars.md`.
+- **Library rows.** The library declares rows of its own in
+  `vars/tables/library.csv`, and the GENERATOR merges them into the site's table -
+  one array, one index space, nothing registered at runtime. The library's
+  parameters come first, so the contiguous `K_PARAM` run holds. Registers 900-999
+  are the library's. **Whatever the library reads by name, the library declares**,
+  and it reads it through a generated `Vars::Row::` constant. A site tunes one by
+  REDECLARING it: the generator replaces the library's row IN PLACE and keeps its
+  register, so the whole row is the site's and no `BOTANIK_*` macro is needed per
+  overridable field. See `vars.md`.
 - **Analog calibration.** An `AI`/`AO` row points at a shared `const AnalogCal` of six
   `Tunable`s; `scale`/`offset` are never stored but derived, so a recalibration lands the
-  moment the parameter commits. Anything DISPLAYING a band goes through `var_band()`, not
-  `num_band()`. See `vars.md`.
-- **A band may name another row.** A pair with a required relationship - a target's floor
-  and ceiling, a ramp's start and end - is only wrong AS A PAIR, and a fixed band cannot
-  see that: each value alone is legal. A row in `tables/param_band.csv` gets a
-  `NumRefBand` of two `Tunable`s and is emitted as `PR()` rather than `P()`, and
-  `param_check()` judges an edit against `var_band()`, so the limit is whatever the other
-  row holds NOW. Constrain BOTH ends against each other; the pair stays reachable as long
-  as it starts valid, which `tables.py` refuses to generate without. Anything READING a
-  band goes through `var_band()` - `num_band()` reads one of these as "no band".
+  moment the parameter commits. Anything DISPLAYING a band goes through
+  `Var::band()`, which resolves it. See `vars.md`.
+- **A band may name another row.** A pair with a required relationship - a target's
+  floor and ceiling, a ramp's start and end - is only wrong AS A PAIR, and a fixed
+  band cannot see that: each value alone is legal. `params.csv` and `modbus_in.csv`
+  carry a `lo_row` / `hi_row` beside the numbers, the generator resolves them to
+  indices, and `param_check()` judges an edit against `Var::band()` - so the limit
+  is whatever the other row holds NOW. Constrain BOTH ends against each other; the
+  pair stays reachable as long as it starts valid, which `tables.py` refuses to
+  generate without. Anything READING a band goes through `Var::band()`; a band whose
+  two ends are equal and fixed is NO band.
 - **Some things the plant cannot see are DECISIONS**, not gaps: an actuator
   reports no fault because no fault contact is wired, and `cli_phase_qlt` says
   where a phase came from rather than whether it is legal. `docs/dev/blind-spots.md`
@@ -289,17 +289,19 @@ Subsystems under `src/libbotanik/`. Each row's doc is the reference; the header 
   `_parked` row. Not for an actuator whose safe state is where it already is - the
   thermal screen. See `scan.md`.
 - **Quality is a ROW.** `x_qlt` carries `x`'s `Vars::Quality` and is the only
-  place a quality is stored: `Bank::freeze()` pairs the two by name, `Var::valid()`
+  place a quality is stored: the generator emits the companion IMMEDIATELY AFTER
+  its row and `F_QLT` marks the pair, `Var::valid()`
   reads that row, a driver's `publish()` writes it, and ST reads and writes it like
   any other. There is nothing to keep in step. A row with no companion is valid,
   always, and so is every companion. Which rows get one is GENERATED - one per
   input, one per row a program that opted in (`quality` in `programs.csv`) writes,
   never an alarm - and opting in obliges the law to write every one of them, which
   `tables.py plant` checks off matiec's write list. `Ref::get()` substitutes the
-  declared value for a law unless `quality_holds()` - `Q_VALID`, or
-  `Q_SUBSTITUTED`, which is a law's own fallback that readers should compute on
-  though nothing measured it; `Var::value()` never substitutes, so a page shows
-  the reading that was implausible. See `quality-companions.md`.
+  declared value for a law unless the quality is USABLE - `Q_GOOD`, or `Q_HELD`,
+  which is a law's own fallback that readers should compute on though nothing
+  measured it; `Var::value()` never substitutes, so a page shows the reading that
+  was implausible. Three codes, and the four that went were diagnoses with homes
+  of their own. See `quality-companions.md`.
 - **Naming files a variable.** `var_group()` is the prefix of a name up to the first `_`;
   `var_published()` is true iff a row is neither a parameter, an alarm, nor a quality.
   There is no group table to add a variable to and none to forget.
@@ -331,7 +333,7 @@ Optional subsystems are gated at compile time by the 24 `BOTANIK_FEATURE_*` flag
 | pages | `HOME_PAGE`, `SHELL_PAGE` (both = `CONSOLE`), `LOGS_PAGE`, `ALARMS_PAGE`, `PARAMS_PAGE`, `MONITOR_PAGE`, `TASKS_PAGE`, `SYSTEM_PAGE`, `NOTES_PAGE` | all require `CONSOLE`; `LOGS_PAGE` also requires `LOGGING`. **`SHELL_PAGE` gates the whole command interpreter** - `ShellPage` owns `Shell::CommandShell`. The boot page is whichever registers first, so it is positional, not `HOME`'s property |
 | transports | `LOGS_PUBLISH`, `ALARMS_PUBLISH` (both need `LOGGING`+`MQTT`), `LOGS_MONITOR` (needs `LOGGING`) | `LOGS_MONITOR` is the secondary serial log sink - **not** `MONITOR_PAGE`, which is a console page |
 | PLC | `PLC` (on) | `PLC` off keeps `SiteDescriptor`'s program fields (removing trailing aggregate fields would break every site's initialiser) and does **not** remove control authority. The POU vocabulary is ST now, compiled into the site, so there is nothing per-block to gate |
-| field bus | `MODBUS_TCP_SERVER`, `MODBUS_TCP_CLIENT`, `MODBUS_RTU_CLIENT`, `MODBUS_RTU_SERVER` | all four implemented. The two SERVERs answer, the two CLIENTs ask: `RtuClient` is the field-bus master that scans the site's `XP_MODBUS` rows, `TcpSlave` serves the register map, `TcpMaster` is the sim's own self-check against that map, and `RtuSlave` is the device model the simulated field is built from. `TCP_*` need `NETWORK`; `RTU_CLIENT` and `TCP_SERVER` need `VARS` |
+| field bus | `MODBUS_TCP_SERVER`, `MODBUS_TCP_CLIENT`, `MODBUS_RTU_CLIENT`, `MODBUS_RTU_SERVER` | all four implemented. The two SERVERs answer, the two CLIENTs ask: `RtuClient` is the field-bus master that scans the site's field rows (an INPUT or OUTPUT on a device other than 0), `TcpSlave` serves the register map, `TcpMaster` is the sim's own self-check against that map, and `RtuSlave` is the device model the simulated field is built from. `TCP_*` need `NETWORK`; `RTU_CLIENT` and `TCP_SERVER` need `VARS` |
 | standalone | `SUN_TRACKER` | owned by `BotanikFirmware` and reached through `SetupContext::sun`, so no site declares one. Off in the header, on in `gh_mlb41/config.h` - otherwise nothing compiles `sun/` and its two test files contribute nothing to the gate |
 
 A site's opt-in must yield to the command line, and `#ifndef` alone does not do that: with `-DBOTANIK_FEATURE_CONSOLE=OFF` the page flags are still undefined when the site config is read, so a bare `#define ..._PAGE 1` would turn the builder's choice into a dependency error the builder never wrote. Guard the block with `#if !defined(X) || X` ("unless explicitly turned off") - see `gh_mlb41/config.h`.
@@ -390,17 +392,19 @@ with `-DBOTANIK_SITE=<name>`.
 A site is DATA plus ST. Its rows, its enums, its home screen, its field devices
 and its `SiteDescriptor` are generated from `tables/*.csv` and `site.toml` by
 `scripts/tables.py`; its LAWS are the ST under `programs/`, compiled by matiec.
+Its enumerated codes are generated on BOTH sides from `tables/enums.csv` - a C++
+enum and an ST one that are the SAME type - so a law compares a phase against
+`PHASE_DAY` rather than against 3.
 The library declares its own rows the SAME way, in
 `src/libbotanik/vars/tables/library.csv` - one table rather than one per kind,
-because the rows interleave and the `ROLE_PARAM` run has to stay contiguous, and
-with a `guard` column for the feature flags a row needs. It generates
-`vars_table.gen.h`, which `firmware/vars_wiring.cpp` includes and registers
-ahead of the site's into the same table. The site states how many as
-`library_rows` in `site.toml`.
+because the rows interleave and the `K_PARAM` run has to stay contiguous, and
+with a `guard` column for the feature flags a row needs. The generator MERGES
+those rows into the site's and emits ONE table: nothing is registered at
+runtime, and the site states no count.
 
-A site OVERRIDES a library row by redeclaring the name: `Bank::freeze()` keeps
-the LAST declaration and compacts the earlier row out, so the whole row becomes
-the site's - `geo_lat_deg` is the worked example.
+A site OVERRIDES a library row by redeclaring the name: the generator replaces
+the library's row in place and keeps its register - `geo_lat_deg` is the worked
+example.
 
 A control program is ONE file, `programs/<stage>/<name>/<name>.st`, plus a row
 in `tables/programs.csv` giving its instance, source and rate. No header, no
@@ -412,15 +416,26 @@ Its RS-485 field devices are `tables/modbus_devices.csv` and
 `tables/modbus_models.csv`.
 
 **The generated files are committed and never built.** Run
-`scripts/tables.py generate|config|plant|points <site>` after editing a table or an ST
-file, and commit what comes out - `make check-generated` is what catches you if you
-forget. `plant` is the one that runs matiec, and it
-checks what nothing downstream can: a row declared writable that the body never
-writes, and an output, alarm or status row no program writes at all - both fail
-the build, read off matiec's own `__SET_EXTERNAL` calls. The suite checks the
-rest (`tests/test_site.cpp`: register uniqueness, parameter contiguity, pool
-bytes, alarm codes, bands). What neither can check is caught at bring-up: a
-program naming a row no table declares is INVALID for the life of the run.
+`scripts/tables.py generate|config|plant|points [<site>]` after editing a table or
+an ST file, and commit what comes out - `make check-generated` is what catches you
+if you forget.
+
+**The generator owns the checks.** It is the one thing that sees the whole table,
+so everything the site test used to assert about it is refused at generate time
+instead: names unique under case folding, registers unique and inside their
+block, a mapped kind with no register, local terminals unique per direction, a
+band end that names no row or the wrong type, a default outside its own band, an
+alarm code too long for the page. Nothing it checks is checked again at runtime.
+
+`plant` is the one that runs matiec, and it checks what only the compiler's own
+answer can: a row declared writable that the body never writes, an output, alarm
+or status row no program writes at all, a quality an opted-in program owes and
+does not write, and a parking program that never answers - all read off matiec's
+`__SET_EXTERNAL` calls. A program naming a row no table declares fails to
+COMPILE, because a binding is a generated index.
+
+What is left for the suite is BEHAVIOUR: `tests/test_site.cpp` runs the whole
+site and checks that nothing moved a parameter it does not own.
 
 ### Rules
 
@@ -432,11 +447,13 @@ program naming a row no table declares is INVALID for the life of the run.
   rather than standing in for it.
 - **The site stays portable.** It must cross-compile for the OPTA, which does not define
   `TARGET_SIMULATOR`, so simulator-only code stays behind that guard.
-- **Generic components address variables by NAME**, resolved once at bring-up into
-  parallel `VarRef` arrays. A name matching no row resolves to the inert sink, and
-  `tests/test_site.cpp` fails the gate if any does. **The one trap:** a `VarRef` in
-  a `const` table is zero, and zero is a real row - never read a resolved index back out
-  of the flash table it was declared in.
+- **Generic components address variables by INDEX**, through the generated
+  `Vars::Row::<name>` constants (`generated/rows.gen.h`, reached by the library
+  through `BOTANIK_SITE_ROWS`). A name no table declares is a COMPILE error.
+  `Bank::find()` stays for the console and for a log sink naming its own level row.
+  **The one trap:** an index is a bare `uint16_t` and zero is a real row - never
+  read one back out of a `const` table it was declared in; `VAR_NONE` is 0xFFFF for
+  that reason.
 - **Config is one file per concern.** `libbotanik_config.h` is only the AGGREGATE; values
   live in `libbotanik/config/<concern>.h` and a module includes the one it reads.
   `config/base.h` is the preamble every concern header pulls first, and it reads the

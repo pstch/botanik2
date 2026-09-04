@@ -12,7 +12,7 @@ the PLC to an expansion module by editing one CSV cell.
 ## The channel map
 
 The Arduino OPTA has eight input terminals, I1 to I8, wired to A0 to A7. A row
-declares one by naming **device 0** - `xp_of()` reads that as `XP_LOCAL` - and
+declares one by naming **device 0**, which `local()` is the whole of, and
 putting the channel in the register column, which a local row has no other use
 for.
 
@@ -32,8 +32,8 @@ refuses the pair.
 
 ## What the scan does
 
-`LocalInputs` walks the table once at bring-up, finds every `XP_LOCAL` +
-`SCOPE_DI` row, and attaches its terminal. There is no channel table beside the
+`LocalInputs` walks the table once at bring-up, finds every LOCAL `K_INPUT` row
+- an input on device 0 - and attaches its terminal. There is no channel table beside the
 variable table, because the variable table **is** it - the defect that gets
 avoided is the one where a row says I3 and the firmware attaches I4.
 

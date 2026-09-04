@@ -6,16 +6,16 @@ a set of protected virtual hooks.
 
 | Hook | Gate | Called | Default |
 |---|---|---|---|
-| `register_vars()` | `FEATURE_VARS` | at the top of `setup()`, before anything reads the bank | nothing; a site calls the generated `Site::register_all()` |
+| `register_vars()` | `FEATURE_VARS` | at the top of `setup()`, after the bank has taken the generated table | nothing; a site with a generated table needs none |
 | `register_commands()` | `FEATURE_SHELL_PAGE` | in `setup()`, after the built-ins | registers the descriptor's command table with the live `Vars::Bank*` as `ctx` |
 | `register_pages()` | `FEATURE_CONSOLE` | in `setup()`, before the terminal handshake | registers home / shell / logs / alarms / params / monitor / tasks / notes, in that order, each under its own flag |
 | `register_telemetry()` | `FEATURE_MQTT` | in `setup()`, after the MQTT sinks are wired | publishes the descriptor's status groups |
 | `on_setup()` | always | once, near the end of `setup()` - **before** the setup pass, the watchdog and control being enabled | nothing |
 | `on_loop(now_ms)` | always | after every phase, before the watchdog kick | nothing |
 
-Two of them are what a site normally writes: `register_vars()`, one line, and
-`on_setup()`, where its control programs register. The reference site overrides
-those two and nothing else.
+One of them is what a site normally writes: `on_setup()`, where components of
+its own register. The reference site overrides none: it is DATA, and its laws are
+ST that the base's resource dispatches.
 
 There is no per-phase hook on the firmware. Work that has to happen at a point in
 the beat is a `Component` (@ref dev_architecture) or a `Plc::Program`
@@ -24,14 +24,20 @@ phase and a row on the TASKS page, which a hook on the base class would not.
 
 ## Declaring the site's rows
 
+By pointing the descriptor at the generated table. There is no call to write:
+
 ```cpp
-void register_vars() override { Site::register_all(io()); }
+// generated/vars.gen.cpp
+const Botanik::SiteDescriptor g_site = {
+    ...
+    rows,          row_order, ROWS_COUNT, PARAM_FIRST, PARAM_COUNT,
+};
 ```
 
-`register_all()` is generated from the CSV tables and holds the one ordering rule
-the bank checks: the parameters come first, the library's already at the front of
-a run that has to stay contiguous. Splitting the call up is allowed, getting that
-order wrong is not - `Bank::freeze()` names the row that broke it.
+The generator merges the library's rows into the site's, orders them - parameters
+first and contiguous - and emits the bounds beside the table, so the ordering rule
+holds by construction rather than being checked at bring-up. `register_vars()` is
+left as the hook for a site whose rows are not one generated array.
 
 ## Adding shell commands
 
