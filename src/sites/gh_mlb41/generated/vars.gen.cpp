@@ -3,6 +3,10 @@
 
 #include "libbotanik.h"
 
+// Outside the namespace: it opens its own, and the ST binding in it
+// is not a site-scoped thing.
+#include "enums.gen.h"
+
 namespace Site {
 
 using namespace Botanik;

@@ -6,8 +6,8 @@ VAR_EXTERNAL CONSTANT
   cli_stratDem   : REAL;
   cli_coolDem    : REAL;
   cli_fanIrrDem  : REAL;
-  irr_state      : USINT;
-  cli_phase      : USINT;
+  irr_state      : IrrState;
+  cli_phase      : DayPhase;
   cli_breezeDem  : REAL;
   cli_fanLowDem  : REAL;
   cli_fanMedDem  : REAL;
@@ -36,13 +36,14 @@ END_VAR
      the floor: still air is a rot risk and the fans keep turning. *)
 
   (* A cycle in progress wants air moving over the trays it has just wetted. *)
-  IF irr_state <> 0 THEN watering := cli_fanIrrDem;
+  IF irr_state <> IRR_IDLE THEN watering := cli_fanIrrDem;
   ELSE watering := 0.0; END_IF;
 
   (* The day's two breezes. At dusk it dries the leaves before the stomata
      open - these plants breathe at night, and a wet leaf cannot - and at dawn
      it takes the night's condensation off them. A FLOOR like the others. *)
-  IF cli_phase = 2 OR cli_phase = 5 THEN breeze := cli_breezeDem;
+  IF cli_phase = PHASE_DAWN_BREEZE OR cli_phase = PHASE_DUSK_BREEZE THEN
+    breeze := cli_breezeDem;
   ELSE breeze := 0.0; END_IF;
 
   demand := MAX(MAX(cli_stratDem, cli_coolDem), MAX(watering, breeze));

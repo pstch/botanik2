@@ -3,7 +3,7 @@
 
 PROGRAM irr_valves
 VAR_EXTERNAL CONSTANT
-  irr_state             : USINT;
+  irr_state             : IrrState;
   irr_activeTray        : USINT;
   irr_parkDrain_sec     : UINT;
   prog_irr_valves_park  : BOOL;
@@ -38,10 +38,10 @@ END_VAR
      to IDLE and no tray, which is a safe pattern rather than a dangerous one -
      but it is a pattern nobody asked for, so every coil below is written from
      it rather than left where it was. *)
-  filling  := irr_state = 1;
-  draining := irr_state = 2;
-  flushing := irr_state = 3;
-  soaking  := irr_state = 4;
+  filling  := irr_state = IRR_FILLING;
+  draining := irr_state = IRR_DRAINING;
+  flushing := irr_state = IRR_FLUSHING;
+  soaking  := irr_state = IRR_SOAKING;
 
   (* Fill: inlet open, this tray open, outlet shut. Drain: inlet shut, tray
      still open, outlet open. FLUSHING opens BOTH ends with no tray between

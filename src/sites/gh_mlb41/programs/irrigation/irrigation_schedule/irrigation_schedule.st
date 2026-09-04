@@ -18,7 +18,7 @@ VAR_EXTERNAL CONSTANT
   cli_temp_ext       : REAL;
   cli_temp_ext_qlt   : QUALITY;
   irr_dawnGate_degC  : REAL;
-  cli_phase          : USINT;
+  cli_phase          : DayPhase;
   cli_phase_qlt      : QUALITY;
   sol_ready          : BOOL;
   sol_fromRise_min   : INT;
@@ -103,7 +103,7 @@ END_VAR
      watering goes instead. Never the afternoon - a tray filled then is still
      wet at dusk.
      1 COLD_BANK, 2 DAWN_BREEZE, 3 DAY. *)
-  ELSIF cli_phase = 1 OR cli_phase = 2 THEN
+  ELSIF cli_phase = PHASE_COLD_BANK OR cli_phase = PHASE_DAWN_BREEZE THEN
     (* An outside temperature nobody measured cannot clear the tray for cold
        roots. Dawn is the OPTIONAL slot, so the tray simply waits for the
        morning one rather than being watered on a held reading. *)
@@ -111,7 +111,7 @@ END_VAR
   ELSE
     (* START OF THE DAY, for a window an operator sets: the tray has to drain
        and dry before the stomata open at dusk. *)
-    open_slot := cli_phase = 3
+    open_slot := cli_phase = PHASE_DAY
              AND sol_fromRise_min <= sol_dayRise_min + UINT_TO_INT(irr_morningWin_min);
   END_IF;
   irr_slotOpen := open_slot;

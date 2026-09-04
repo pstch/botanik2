@@ -8,7 +8,7 @@ VAR_EXTERNAL CONSTANT
   irr_rateWin_ms      : UINT;
   irr_leak_Lpm        : REAL;
   irr_minFill_Lpm     : REAL;
-  irr_state           : USINT;
+  irr_state           : IrrState;
   sys_now_ms          : UDINT;
 END_VAR
 VAR_EXTERNAL
@@ -76,8 +76,8 @@ END_VAR
      fill opened. Both fired on every cycle the plant ran.
      0 IDLE, 1 FILLING. *)
   win := 2 * UINT_TO_UDINT(irr_rateWin_ms);
-  idle_for(IN := irr_state = 0, PT := win, NOW := sys_now_ms);
-  fill_for(IN := irr_state = 1, PT := win, NOW := sys_now_ms);
+  idle_for(IN := irr_state = IRR_IDLE, PT := win, NOW := sys_now_ms);
+  fill_for(IN := irr_state = IRR_FILLING, PT := win, NOW := sys_now_ms);
   idle := idle_for.Q;
   fill := fill_for.Q;
 

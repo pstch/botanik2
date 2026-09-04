@@ -236,7 +236,9 @@ def var_externals(path):
     for m in re.finditer(r'^VAR_EXTERNAL(\s+CONSTANT)?$(.*?)^END_VAR',
                          src, re.S | re.M):
         for line in m.group(2).split('\n'):
-            mm = re.match(r'\s*([A-Za-z_]\w*)\s*:\s*([A-Z]+)\s*;', line)
+            # The TYPE may be a site enumeration, which is not all-caps: the
+            # ST spells it as enums.csv does and matiec folds it.
+            mm = re.match(r'\s*([A-Za-z_]\w*)\s*:\s*([A-Za-z_]\w*)\s*;', line)
             if mm: out.append((mm.group(1), mm.group(2), bool(m.group(1))))
     return out
 
@@ -531,7 +533,111 @@ def emit_cals(cal, index):
     return L
 
 
+# ---- the site's enumerations, on both sides ---------------------------------
+
+def enums(site):
+    """`generated/enums.st` and `generated/enums.gen.h` from enums.csv.
+
+    ONE declaration, two languages. matiec numbers an enumerated type 0,1,2...
+    in declaration ORDER and rejects explicit values, so the ST side can only
+    spell a set that is contiguous from zero - which is checked here, because
+    the codes are also a Modbus contract and a gap in one would silently
+    renumber the other.
+
+    The C++ side is the same type, not a second one with equal values: matiec's
+    own member list is discarded and these constants take its place, exactly as
+    QUALITY does. A member added to the CSV and not regenerated fails to
+    compile on the name matiec emits for it."""
+    en = read_table(os.path.join(site, 'tables', 'enums.csv'), AUX['enums'].split())
+    names = list(dict.fromkeys(e['enum'] for e in en))
+    groups = [(n, [e for e in en if e['enum'] == n]) for n in names]
+
+    bad = []
+    for n, mem in groups:
+        for i, e in enumerate(mem):
+            if int(e['value'], 0) != i:
+                bad.append('%s.%s is %s, and an ST enumeration is numbered by '
+                           'its declaration order (%d here)'
+                           % (n, e['symbol'], e['value'], i))
+    if bad:
+        for b in bad: print('  ' + b, file=sys.stderr)
+        sys.exit('%d enumeration(s) ST cannot spell' % len(bad))
+
+    L = [H.replace('//', '(*').rstrip() + ' *)', '',
+         "(* The site's enumerated codes, so a law compares against the WORD.",
+         '   matiec numbers these in declaration order and the C++ side is the',
+         '   SAME type, so the order IS the wire contract: a member may be',
+         '   appended, never moved. *)', '', 'TYPE', '']
+    for n, mem in groups:
+        w = max(len(e['symbol']) for e in mem)
+        L.append('  %s : (' % n)
+        for i, e in enumerate(mem):
+            L.append('    %-*s%s%s' % (w, e['symbol'],
+                                       ',' if i + 1 < len(mem) else '',
+                                       '   (* %s *)' % e['desc'] if e['desc'] else ''))
+        L += ['  );', '']
+    L += ['END_TYPE', '']
+    open(os.path.join(site, 'generated', 'enums.st'), 'w').write('\n'.join(L))
+
+    guard = site_guard(toml(os.path.join(site, 'site.toml')))
+    G = [H, '/**', ' * @file enums.gen.h',
+         " * @brief The site's enumerated codes: the C++ enum, the word for each",
+         ' *        code, and the ST binding.',
+         ' *',
+         ' * Included OUTSIDE namespace Site (it opens its own), and before the',
+         ' * generated POUs: the `BOTANIK_ST_TYPE_*` blocks below are what',
+         " * `__DECLARE_ENUMERATED_TYPE` expands to, so matiec's own member list",
+         ' * is discarded and ST compares against these constants.',
+         ' */', '',
+         '#ifndef %s_ENUMS_GEN_H' % guard, '#define %s_ENUMS_GEN_H' % guard, '',
+         '#include <cstdint>', '',
+         '#include "libbotanik/vars/model.h"', '',
+         'namespace Site {', '']
+    for n, mem in groups:
+        w = max(len(e['symbol']) for e in mem)
+        G.append('enum %s : %s {' % (n, mem[0]['ctype']))
+        G += ['    %-*s = %s,%s' % (w, e['symbol'], e['value'],
+                                    '   ///< ' + e['desc'] if e['desc'] else '')
+              for e in mem]
+        G += ['};', '',
+              '/** @brief A %s as the word an operator reads and types.' % n,
+              ' *  Null for an unmapped code, which is what refuses it. */',
+              'inline const char* %s_label(uint64_t code) {' % n,
+              '    switch (code) {']
+        G += ['        case %s: return "%s";' % (e['value'], e['label']) for e in mem]
+        G += ['        default: return nullptr;', '    }', '}', '']
+    G += ['}  // namespace Site', '',
+          '// matiec upper-cases every identifier, so this is the spelling its',
+          '// generated C uses for the type and for each member.']
+    for n, mem in groups:
+        u = n.upper()
+        w = max(len(e['symbol']) for e in mem)
+        G += ['', 'typedef ::Site::%s %s;' % (n, u),
+              '#define BOTANIK_ST_TYPE_%s \\' % u]
+        G += ['    static const %s %s__%-*s = ::Site::%-*s;%s'
+              % (u, u, w, e['symbol'], w, e['symbol'],
+                 ' \\' if i + 1 < len(mem) else '')
+              for i, e in enumerate(mem)]
+    G += ['', '// ...and how a Ref of one reaches the row, which is a T_ENUM: the',
+          '// code is what sits in storage and in a master\'s register.',
+          'namespace Botanik { namespace Vars {', '']
+    for n, _mem in groups:
+        G += ['    template <> struct RefIo< ::Site::%s > {' % n,
+              '        static ::Site::%s read(Var h) { return (::Site::%s)h.as<uint8_t>(); }' % (n, n),
+              '        static ::Site::%s of(Value v) { return (::Site::%s)v.as<uint8_t>(); }' % (n, n),
+              '        static void write(Var h, ::Site::%s v) { h.set_i((int64_t)v); }' % n,
+              '        static SetResult edit(Var h, ::Site::%s v) {' % n,
+              '            return h.param_set(from_i64(h.type(), (int64_t)v));',
+              '        }',
+              '    };', '']
+    G += ['}}  // namespace Botanik::Vars', '',
+          '#endif  // %s_ENUMS_GEN_H' % guard, '']
+    open(os.path.join(site, 'generated', 'enums.gen.h'), 'w').write('\n'.join(G))
+    print('  enums.gen.h    %d enumeration(s), %d code(s)' % (len(groups), len(en)))
+
+
 def generate(site):
+    enums(site)
     t = build(site)
     check(t)
     table, index, tom = t['table'], t['index'], t['toml']
@@ -539,7 +645,11 @@ def generate(site):
 
     order = sorted(range(len(table)), key=lambda i: table[i]['name'].lower())
 
-    L = [H, '', '#include "libbotanik.h"', '', 'namespace Site {', '',
+    L = [H, '', '#include "libbotanik.h"', '',
+         '// Outside the namespace: it opens its own, and the ST binding in it',
+         '// is not a site-scoped thing.',
+         '#include "enums.gen.h"', '',
+         'namespace Site {', '',
          'using namespace Botanik;', 'using namespace Botanik::Vars;', '',
          '// Inside the namespace and after the usings: the header names every',
          '// type unqualified, because it is only ever included here and by site.h.',
@@ -599,24 +709,13 @@ def generate(site):
     open(os.path.join(site, 'generated', 'vars.gen.cpp'), 'w').write('\n'.join(L))
 
     # ---- vars.gen.h
-    en = read_table(os.path.join(site, 'tables', 'enums.csv'), AUX['enums'].split())
     G = [H, '// Included from INSIDE namespace Site, so it opens none of its own.',
          '// The guard is named for the SITE: every site generates a file by this',
-         '// name, and a shared symbol would silently skip the second one.', '',
+         '// name, and a shared symbol would silently skip the second one.',
+         '//',
+         '// The site\'s ENUMERATIONS are enums.gen.h, which the ST side needs',
+         '// too and which therefore opens its own namespace.', '',
          '#ifndef %s_VARS_GEN_H' % guard, '#define %s_VARS_GEN_H' % guard, '']
-    for name in dict.fromkeys(e['enum'] for e in en):
-        mem = [e for e in en if e['enum'] == name]
-        w = max(len(e['symbol']) for e in mem)
-        G.append('enum %s : %s {' % (name, mem[0]['ctype']))
-        G += ['    %-*s = %s,%s' % (w, e['symbol'], e['value'],
-                                    '   ///< ' + e['desc'] if e['desc'] else '') for e in mem]
-        G += ['};', '',
-              '/** @brief A %s as the word an operator reads and types.' % name,
-              ' *  Null for an unmapped code, which is what refuses it. */',
-              'inline const char* %s_label(uint64_t code) {' % name,
-              '    switch (code) {']
-        G += ['        case %s: return "%s";' % (e['value'], e['label']) for e in mem]
-        G += ['        default: return nullptr;', '    }', '}', '']
     G += ['// The build this table was cut for. The row indices in rows.gen.h are',
           '// this profile\'s, so a build with one of these OFF would address the',
           '// wrong rows. @see BOTANIK_SITE_ASSERT_FEATURES',
@@ -809,6 +908,9 @@ def emit_plant_cpp(site, t, prog, writes):
          '#include "libbotanik/plc/runtime/program.h"',
          '#include "libbotanik/plc/runtime/runtime.h"',
          '#include "libbotanik/vars/rows.h"', '',
+         '/* Before the POUs: the site\'s enumerated types, which matiec\'s',
+         ' * generated C names and whose member list it leaves to us. */',
+         '#include "enums.gen.h"', '',
          '/* Every row an ST body names, as matiec spells it. `accessor.h` binds',
          ' * each external to Ref<type>{ ROW_<NAME> }, so a name no table declares',
          ' * fails to compile rather than resolving to the sink at bring-up. */',
@@ -964,11 +1066,22 @@ def check_laws(site, t, prog, writes):
 def plant(site):
     """plant.st and plant.cpp from programs.csv, then matiec."""
     import subprocess, tempfile
+    enums(site)
     t = build(site)
     prog = t['prog']
     for e in prog:
         e['path'] = os.path.join(site, e['source'])
         e['pou'] = pou_of(e['path'])
+    # IEC identifiers are case-insensitive, so a program INSTANCE that folds
+    # onto an enumerated type is one name for two things - and matiec says only
+    # "invalid program name", about the RESOURCE, three thousand lines away.
+    types = {e['enum'].lower() for e in
+             read_table(os.path.join(site, 'tables', 'enums.csv'),
+                        AUX['enums'].split())}
+    clash = [e['name'] for e in prog if e['instance'].lower() in types]
+    if clash:
+        sys.exit('%s: the instance name folds onto an enumerated type; '
+                 'rename it in programs.csv' % ', '.join(clash))
     rows, whence = {}, {}
     for p in st_files(site):
         for n, ty, _ in var_externals(p):
@@ -988,15 +1101,9 @@ def plant(site):
     w = max(len(n) for n in rows)
     en = read_table(os.path.join(site, 'tables', 'enums.csv'), AUX['enums'].split())
     wi = max(len(e['instance']) for e in prog)
-    ref = ['(* Enumerated codes, for the laws that compare against one. ST has no',
-           '   readable spelling for them: matiec rejects an enumerated TYPE with',
-           '   explicit values, and a zero-argument FUNCTION does not parse.']
-    for name in dict.fromkeys(e['enum'] for e in en):
-        ref.append('     %s: %s' % (name, '  '.join(
-            '%s=%s' % (e['symbol'], e['value']) for e in en if e['enum'] == name)))
-    ref.append('   The codes are a Modbus contract, so they do not move. *)')
     L = [H.replace('//', '(*').rstrip() + ' *)', '',
-         '\n'.join(ref), '',
+         '(* The enumerated codes a law compares against are enums.st, which is',
+         '   generated beside this and compiled ahead of it. *)', '',
          '(* NO PROGRAM IS BOUND TO A TASK. plant.cpp calls each body itself, at',
          '   the period programs.csv states, so a program keeps its own registry',
          '   entry: its health row, its cost and missed counts, and its writer',
@@ -1016,7 +1123,9 @@ def plant(site):
     # matiec FIRST: plant.cpp's write rosters are read out of the POUS.c it
     # emits, so the compiler's own answer is what they are built from.
     with tempfile.NamedTemporaryFile('w', suffix='.st', delete=False) as fh:
-        for f in LIBST + st_files(site) + [pl]: fh.write(open(f).read() + '\n')
+        corpus = (LIBST + [os.path.join(site, 'generated', 'enums.st')]
+                  + st_files(site) + [pl])
+        for f in corpus: fh.write(open(f).read() + '\n')
         tmp = fh.name
     # -I OURS: matiec loads <dir>/ieclib.txt unconditionally, and its own
     # declares 28 function blocks under names we use for our own - and is GPL

@@ -227,6 +227,10 @@ if(_python3 AND _iec2c)
         COMMAND ${CMAKE_COMMAND} -E compare_files
                 ${CMAKE_SOURCE_DIR}/${_site}/rows.gen.h  ${_gen}/${_site}/rows.gen.h
         COMMAND ${CMAKE_COMMAND} -E compare_files
+                ${CMAKE_SOURCE_DIR}/${_site}/enums.gen.h ${_gen}/${_site}/enums.gen.h
+        COMMAND ${CMAKE_COMMAND} -E compare_files
+                ${CMAKE_SOURCE_DIR}/${_site}/enums.st    ${_gen}/${_site}/enums.st
+        COMMAND ${CMAKE_COMMAND} -E compare_files
                 ${CMAKE_SOURCE_DIR}/src/libbotanik/plc/runtime/quality.gen.h
                 ${_gen}/src/libbotanik/plc/runtime/quality.gen.h
         COMMAND ${CMAKE_COMMAND} -E rm -rf ${_gen}

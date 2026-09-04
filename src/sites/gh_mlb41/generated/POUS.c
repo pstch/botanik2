@@ -2756,8 +2756,8 @@ static void FAN_CONTROLLER_init__(FAN_CONTROLLER_data__ *data__, BOOL retain) {
   __INIT_EXTERNAL(REAL,CLI_STRATDEM,data__->CLI_STRATDEM,retain)
   __INIT_EXTERNAL(REAL,CLI_COOLDEM,data__->CLI_COOLDEM,retain)
   __INIT_EXTERNAL(REAL,CLI_FANIRRDEM,data__->CLI_FANIRRDEM,retain)
-  __INIT_EXTERNAL(USINT,IRR_STATE,data__->IRR_STATE,retain)
-  __INIT_EXTERNAL(USINT,CLI_PHASE,data__->CLI_PHASE,retain)
+  __INIT_EXTERNAL(IRRSTATE,IRR_STATE,data__->IRR_STATE,retain)
+  __INIT_EXTERNAL(DAYPHASE,CLI_PHASE,data__->CLI_PHASE,retain)
   __INIT_EXTERNAL(REAL,CLI_BREEZEDEM,data__->CLI_BREEZEDEM,retain)
   __INIT_EXTERNAL(REAL,CLI_FANLOWDEM,data__->CLI_FANLOWDEM,retain)
   __INIT_EXTERNAL(REAL,CLI_FANMEDDEM,data__->CLI_FANMEDDEM,retain)
@@ -2780,12 +2780,12 @@ static void FAN_CONTROLLER_body__(FAN_CONTROLLER_data__ *data__) {
   __SET_VAR(data__->,BREEZE,,0);
   __SET_VAR(data__->,DEMAND,,0);
 
-  if ((__GET_EXTERNAL(data__->IRR_STATE,) != __USINT_LITERAL(0))) {
+  if ((__GET_EXTERNAL(data__->IRR_STATE,) != IRRSTATE__IRR_IDLE)) {
     __SET_VAR(data__->,WATERING,,__GET_EXTERNAL(data__->CLI_FANIRRDEM,));
   } else {
     __SET_VAR(data__->,WATERING,,__REAL_LITERAL(0.0));
   };
-  if (((__GET_EXTERNAL(data__->CLI_PHASE,) == __USINT_LITERAL(2)) || (__GET_EXTERNAL(data__->CLI_PHASE,) == __USINT_LITERAL(5)))) {
+  if (((__GET_EXTERNAL(data__->CLI_PHASE,) == DAYPHASE__PHASE_DAWN_BREEZE) || (__GET_EXTERNAL(data__->CLI_PHASE,) == DAYPHASE__PHASE_DUSK_BREEZE))) {
     __SET_VAR(data__->,BREEZE,,__GET_EXTERNAL(data__->CLI_BREEZEDEM,));
   } else {
     __SET_VAR(data__->,BREEZE,,__REAL_LITERAL(0.0));
@@ -2986,7 +2986,7 @@ static void SCREEN_CONTROLLER_init__(SCREEN_CONTROLLER_data__ *data__, BOOL reta
   __INIT_EXTERNAL(REAL,CLI_COOLDEM,data__->CLI_COOLDEM,retain)
   __INIT_EXTERNAL(QUALITY,CLI_COOLDEM_QLT,data__->CLI_COOLDEM_QLT,retain)
   __INIT_EXTERNAL(REAL,CLI_THERMALSCREENDEM,data__->CLI_THERMALSCREENDEM,retain)
-  __INIT_EXTERNAL(USINT,CLI_PHASE,data__->CLI_PHASE,retain)
+  __INIT_EXTERNAL(DAYPHASE,CLI_PHASE,data__->CLI_PHASE,retain)
   __INIT_EXTERNAL(UINT,CLI_SCREENTRAVEL_SEC,data__->CLI_SCREENTRAVEL_SEC,retain)
   __INIT_EXTERNAL(UINT,CLI_SCREENTMO_SEC,data__->CLI_SCREENTMO_SEC,retain)
   __INIT_EXTERNAL(UINT,CLI_SCREENMINRUN_MS,data__->CLI_SCREENMINRUN_MS,retain)
@@ -3014,9 +3014,9 @@ static void SCREEN_CONTROLLER_body__(SCREEN_CONTROLLER_data__ *data__) {
     NULL,
     (QUALITY)__GET_EXTERNAL(data__->CLI_COOLDEM_QLT,))) || (__GET_EXTERNAL(data__->CLI_COOLDEM,) <= __GET_EXTERNAL(data__->CLI_THERMALSCREENDEM,))));
   if (__GET_VAR(data__->COLD,)) {
-    __SET_VAR(data__->,ALLOWS,,(((__GET_EXTERNAL(data__->CLI_PHASE,) == __USINT_LITERAL(0)) || (__GET_EXTERNAL(data__->CLI_PHASE,) == __USINT_LITERAL(5))) || (__GET_EXTERNAL(data__->CLI_PHASE,) == __USINT_LITERAL(4))));
+    __SET_VAR(data__->,ALLOWS,,(((__GET_EXTERNAL(data__->CLI_PHASE,) == DAYPHASE__PHASE_NIGHT) || (__GET_EXTERNAL(data__->CLI_PHASE,) == DAYPHASE__PHASE_DUSK_BREEZE)) || (__GET_EXTERNAL(data__->CLI_PHASE,) == DAYPHASE__PHASE_HEAT_BANK)));
   } else {
-    __SET_VAR(data__->,ALLOWS,,(((__GET_EXTERNAL(data__->CLI_PHASE,) == __USINT_LITERAL(3)) || (__GET_EXTERNAL(data__->CLI_PHASE,) == __USINT_LITERAL(2))) || (__GET_EXTERNAL(data__->CLI_PHASE,) == __USINT_LITERAL(1))));
+    __SET_VAR(data__->,ALLOWS,,(((__GET_EXTERNAL(data__->CLI_PHASE,) == DAYPHASE__PHASE_DAY) || (__GET_EXTERNAL(data__->CLI_PHASE,) == DAYPHASE__PHASE_DAWN_BREEZE)) || (__GET_EXTERNAL(data__->CLI_PHASE,) == DAYPHASE__PHASE_COLD_BANK)));
   };
   if (__GET_VAR(data__->ALLOWS,)) {
     __SET_EXTERNAL(data__->,CLI_SCREEN,,__GET_VAR(data__->COLD,));
@@ -3487,7 +3487,7 @@ static void DAY_PHASE_CONTROLLER_init__(DAY_PHASE_CONTROLLER_data__ *data__, BOO
   __INIT_EXTERNAL(INT,SOL_HEATBANKSET_MIN,data__->SOL_HEATBANKSET_MIN,retain)
   __INIT_EXTERNAL(INT,SOL_DUSKSET_MIN,data__->SOL_DUSKSET_MIN,retain)
   __INIT_EXTERNAL(INT,SOL_NIGHTSET_MIN,data__->SOL_NIGHTSET_MIN,retain)
-  __INIT_EXTERNAL(USINT,CLI_PHASE,data__->CLI_PHASE,retain)
+  __INIT_EXTERNAL(DAYPHASE,CLI_PHASE,data__->CLI_PHASE,retain)
   __INIT_EXTERNAL(QUALITY,CLI_PHASE_QLT,data__->CLI_PHASE_QLT,retain)
   __INIT_EXTERNAL(BOOL,CLI_COLDBANKARM,data__->CLI_COLDBANKARM,retain)
   __INIT_EXTERNAL(QUALITY,CLI_COLDBANKARM_QLT,data__->CLI_COLDBANKARM_QLT,retain)
@@ -3497,7 +3497,7 @@ static void DAY_PHASE_CONTROLLER_init__(DAY_PHASE_CONTROLLER_data__ *data__, BOO
   __INIT_EXTERNAL(QUALITY,CLI_PREVDAYMAX_DEGC_QLT,data__->CLI_PREVDAYMAX_DEGC_QLT,retain)
   __INIT_EXTERNAL(REAL,CLI_PREVNIGHTMIN_DEGC,data__->CLI_PREVNIGHTMIN_DEGC,retain)
   __INIT_EXTERNAL(QUALITY,CLI_PREVNIGHTMIN_DEGC_QLT,data__->CLI_PREVNIGHTMIN_DEGC_QLT,retain)
-  __INIT_VAR(data__->PHASE,__USINT_LITERAL(0),retain)
+  __INIT_VAR(data__->PHASE,DAYPHASE__PHASE_NIGHT,retain)
   __INIT_VAR(data__->SEEDED,__BOOL_LITERAL(FALSE),retain)
   __INIT_VAR(data__->DAY_MAX,0,retain)
   __INIT_VAR(data__->NIGHT_MIN,0,retain)
@@ -3506,7 +3506,7 @@ static void DAY_PHASE_CONTROLLER_init__(DAY_PHASE_CONTROLLER_data__ *data__, BOO
 // Code part
 static void DAY_PHASE_CONTROLLER_body__(DAY_PHASE_CONTROLLER_data__ *data__) {
   // Initialise TEMP variables
-  __SET_VAR(data__->,PREV_PHASE,,0);
+  __SET_VAR(data__->,PREV_PHASE,,DAYPHASE__PHASE_NIGHT);
 
   if (!(__GET_VAR(data__->SEEDED,))) {
     __SET_VAR(data__->,DAY_MAX,,__GET_EXTERNAL(data__->CLI_TEMP_IN,));
@@ -3522,33 +3522,33 @@ static void DAY_PHASE_CONTROLLER_body__(DAY_PHASE_CONTROLLER_data__ *data__) {
   __SET_VAR(data__->,PREV_PHASE,,__GET_VAR(data__->PHASE,));
   if (__GET_EXTERNAL(data__->SOL_READY,)) {
     if ((__GET_EXTERNAL(data__->SOL_FROMRISE_MIN,) < __GET_EXTERNAL(data__->SOL_COLDBANKRISE_MIN,))) {
-      __SET_VAR(data__->,PHASE,,__USINT_LITERAL(0));
+      __SET_VAR(data__->,PHASE,,DAYPHASE__PHASE_NIGHT);
     } else if ((__GET_EXTERNAL(data__->SOL_FROMRISE_MIN,) < __GET_EXTERNAL(data__->SOL_BREEZERISE_MIN,))) {
       if (__GET_EXTERNAL(data__->CLI_COLDBANKARM,)) {
-        __SET_VAR(data__->,PHASE,,__USINT_LITERAL(1));
+        __SET_VAR(data__->,PHASE,,DAYPHASE__PHASE_COLD_BANK);
       } else {
-        __SET_VAR(data__->,PHASE,,__USINT_LITERAL(0));
+        __SET_VAR(data__->,PHASE,,DAYPHASE__PHASE_NIGHT);
       };
     } else if ((__GET_EXTERNAL(data__->SOL_FROMRISE_MIN,) < __GET_EXTERNAL(data__->SOL_DAYRISE_MIN,))) {
-      __SET_VAR(data__->,PHASE,,__USINT_LITERAL(2));
+      __SET_VAR(data__->,PHASE,,DAYPHASE__PHASE_DAWN_BREEZE);
     } else if ((__GET_EXTERNAL(data__->SOL_FROMSET_MIN,) < __GET_EXTERNAL(data__->SOL_HEATBANKSET_MIN,))) {
-      __SET_VAR(data__->,PHASE,,__USINT_LITERAL(3));
+      __SET_VAR(data__->,PHASE,,DAYPHASE__PHASE_DAY);
     } else if ((__GET_EXTERNAL(data__->SOL_FROMSET_MIN,) < __GET_EXTERNAL(data__->SOL_DUSKSET_MIN,))) {
       if (__GET_EXTERNAL(data__->CLI_HEATBANKARM,)) {
-        __SET_VAR(data__->,PHASE,,__USINT_LITERAL(4));
+        __SET_VAR(data__->,PHASE,,DAYPHASE__PHASE_HEAT_BANK);
       } else {
-        __SET_VAR(data__->,PHASE,,__USINT_LITERAL(3));
+        __SET_VAR(data__->,PHASE,,DAYPHASE__PHASE_DAY);
       };
     } else if ((__GET_EXTERNAL(data__->SOL_FROMSET_MIN,) < __GET_EXTERNAL(data__->SOL_NIGHTSET_MIN,))) {
-      __SET_VAR(data__->,PHASE,,__USINT_LITERAL(5));
+      __SET_VAR(data__->,PHASE,,DAYPHASE__PHASE_DUSK_BREEZE);
     } else {
-      __SET_VAR(data__->,PHASE,,__USINT_LITERAL(0));
+      __SET_VAR(data__->,PHASE,,DAYPHASE__PHASE_NIGHT);
     };
   };
-  if (((__GET_VAR(data__->PHASE,) == __USINT_LITERAL(3)) && (__GET_VAR(data__->PREV_PHASE,) != __USINT_LITERAL(3)))) {
+  if (((__GET_VAR(data__->PHASE,) == DAYPHASE__PHASE_DAY) && (__GET_VAR(data__->PREV_PHASE,) != DAYPHASE__PHASE_DAY))) {
     __SET_VAR(data__->,DAY_MAX,,__GET_EXTERNAL(data__->CLI_TEMP_IN,));
   };
-  if (((__GET_VAR(data__->PHASE,) == __USINT_LITERAL(0)) && (__GET_VAR(data__->PREV_PHASE,) != __USINT_LITERAL(0)))) {
+  if (((__GET_VAR(data__->PHASE,) == DAYPHASE__PHASE_NIGHT) && (__GET_VAR(data__->PREV_PHASE,) != DAYPHASE__PHASE_NIGHT))) {
     __SET_VAR(data__->,NIGHT_MIN,,__GET_EXTERNAL(data__->CLI_TEMP_IN,));
   };
   __SET_EXTERNAL(data__->,CLI_PHASE,,__GET_VAR(data__->PHASE,));
@@ -3818,7 +3818,7 @@ __end:
 static void TARGET_TEMP_CONTROLLER_init__(TARGET_TEMP_CONTROLLER_data__ *data__, BOOL retain) {
   __INIT_EXTERNAL(REAL,CLI_TARGETMIN_DEGC,data__->CLI_TARGETMIN_DEGC,retain)
   __INIT_EXTERNAL(REAL,CLI_TARGETMAX_DEGC,data__->CLI_TARGETMAX_DEGC,retain)
-  __INIT_EXTERNAL(USINT,CLI_PHASE,data__->CLI_PHASE,retain)
+  __INIT_EXTERNAL(DAYPHASE,CLI_PHASE,data__->CLI_PHASE,retain)
   __INIT_EXTERNAL(QUALITY,CLI_PHASE_QLT,data__->CLI_PHASE_QLT,retain)
   __INIT_EXTERNAL(BOOL,CLI_COLDBANKARM,data__->CLI_COLDBANKARM,retain)
   __INIT_EXTERNAL(BOOL,CLI_HEATBANKARM,data__->CLI_HEATBANKARM,retain)
@@ -3841,9 +3841,9 @@ static void TARGET_TEMP_CONTROLLER_body__(TARGET_TEMP_CONTROLLER_data__ *data__)
     (BOOL)__BOOL_LITERAL(TRUE),
     NULL,
     (QUALITY)__GET_EXTERNAL(data__->CLI_PHASE_QLT,))) {
-    if (((__GET_EXTERNAL(data__->CLI_PHASE,) == __USINT_LITERAL(1)) && __GET_EXTERNAL(data__->CLI_COLDBANKARM,))) {
+    if (((__GET_EXTERNAL(data__->CLI_PHASE,) == DAYPHASE__PHASE_COLD_BANK) && __GET_EXTERNAL(data__->CLI_COLDBANKARM,))) {
       __SET_VAR(data__->,HELD,,(__GET_VAR(data__->HELD,) - __GET_EXTERNAL(data__->CLI_COLDBANKOFS_DEGC,)));
-    } else if (((__GET_EXTERNAL(data__->CLI_PHASE,) == __USINT_LITERAL(4)) && __GET_EXTERNAL(data__->CLI_HEATBANKARM,))) {
+    } else if (((__GET_EXTERNAL(data__->CLI_PHASE,) == DAYPHASE__PHASE_HEAT_BANK) && __GET_EXTERNAL(data__->CLI_HEATBANKARM,))) {
       __SET_VAR(data__->,HELD,,(__GET_VAR(data__->HELD,) + __GET_EXTERNAL(data__->CLI_HEATBANKOFS_DEGC,)));
     };
   };
@@ -3880,7 +3880,7 @@ static void IRR_MTR_INPUT_init__(IRR_MTR_INPUT_data__ *data__, BOOL retain) {
   __INIT_EXTERNAL(UINT,IRR_RATEWIN_MS,data__->IRR_RATEWIN_MS,retain)
   __INIT_EXTERNAL(REAL,IRR_LEAK_LPM,data__->IRR_LEAK_LPM,retain)
   __INIT_EXTERNAL(REAL,IRR_MINFILL_LPM,data__->IRR_MINFILL_LPM,retain)
-  __INIT_EXTERNAL(USINT,IRR_STATE,data__->IRR_STATE,retain)
+  __INIT_EXTERNAL(IRRSTATE,IRR_STATE,data__->IRR_STATE,retain)
   __INIT_EXTERNAL(UDINT,SYS_NOW_MS,data__->SYS_NOW_MS,retain)
   __INIT_EXTERNAL(REAL,IRR_INTOTAL_L,data__->IRR_INTOTAL_L,retain)
   __INIT_EXTERNAL(REAL,IRR_INFLOW_LPM,data__->IRR_INFLOW_LPM,retain)
@@ -3932,11 +3932,11 @@ static void IRR_MTR_INPUT_body__(IRR_MTR_INPUT_data__ *data__) {
     (BOOL)__BOOL_LITERAL(TRUE),
     NULL,
     (UINT)__GET_EXTERNAL(data__->IRR_RATEWIN_MS,))));
-  __SET_VAR(data__->IDLE_FOR.,IN,,(__GET_EXTERNAL(data__->IRR_STATE,) == __USINT_LITERAL(0)));
+  __SET_VAR(data__->IDLE_FOR.,IN,,(__GET_EXTERNAL(data__->IRR_STATE,) == IRRSTATE__IRR_IDLE));
   __SET_VAR(data__->IDLE_FOR.,PT,,__GET_VAR(data__->WIN,));
   __SET_VAR(data__->IDLE_FOR.,NOW,,__GET_EXTERNAL(data__->SYS_NOW_MS,));
   TON_MS_body__(&data__->IDLE_FOR);
-  __SET_VAR(data__->FILL_FOR.,IN,,(__GET_EXTERNAL(data__->IRR_STATE,) == __USINT_LITERAL(1)));
+  __SET_VAR(data__->FILL_FOR.,IN,,(__GET_EXTERNAL(data__->IRR_STATE,) == IRRSTATE__IRR_FILLING));
   __SET_VAR(data__->FILL_FOR.,PT,,__GET_VAR(data__->WIN,));
   __SET_VAR(data__->FILL_FOR.,NOW,,__GET_EXTERNAL(data__->SYS_NOW_MS,));
   TON_MS_body__(&data__->FILL_FOR);
@@ -4029,7 +4029,7 @@ __end:
 
 
 static void IRR_VALVES_init__(IRR_VALVES_data__ *data__, BOOL retain) {
-  __INIT_EXTERNAL(USINT,IRR_STATE,data__->IRR_STATE,retain)
+  __INIT_EXTERNAL(IRRSTATE,IRR_STATE,data__->IRR_STATE,retain)
   __INIT_EXTERNAL(USINT,IRR_ACTIVETRAY,data__->IRR_ACTIVETRAY,retain)
   __INIT_EXTERNAL(UINT,IRR_PARKDRAIN_SEC,data__->IRR_PARKDRAIN_SEC,retain)
   __INIT_EXTERNAL(BOOL,PROG_IRR_VALVES_PARK,data__->PROG_IRR_VALVES_PARK,retain)
@@ -4059,10 +4059,10 @@ static void IRR_VALVES_body__(IRR_VALVES_data__ *data__) {
   __SET_VAR(data__->,SOAKING,,__BOOL_LITERAL(FALSE));
   __SET_VAR(data__->,ONTO,,__BOOL_LITERAL(FALSE));
 
-  __SET_VAR(data__->,FILLING,,(__GET_EXTERNAL(data__->IRR_STATE,) == __USINT_LITERAL(1)));
-  __SET_VAR(data__->,DRAINING,,(__GET_EXTERNAL(data__->IRR_STATE,) == __USINT_LITERAL(2)));
-  __SET_VAR(data__->,FLUSHING,,(__GET_EXTERNAL(data__->IRR_STATE,) == __USINT_LITERAL(3)));
-  __SET_VAR(data__->,SOAKING,,(__GET_EXTERNAL(data__->IRR_STATE,) == __USINT_LITERAL(4)));
+  __SET_VAR(data__->,FILLING,,(__GET_EXTERNAL(data__->IRR_STATE,) == IRRSTATE__IRR_FILLING));
+  __SET_VAR(data__->,DRAINING,,(__GET_EXTERNAL(data__->IRR_STATE,) == IRRSTATE__IRR_DRAINING));
+  __SET_VAR(data__->,FLUSHING,,(__GET_EXTERNAL(data__->IRR_STATE,) == IRRSTATE__IRR_FLUSHING));
+  __SET_VAR(data__->,SOAKING,,(__GET_EXTERNAL(data__->IRR_STATE,) == IRRSTATE__IRR_SOAKING));
   __SET_EXTERNAL(data__->,IRR_INPUT_RO1,,(__GET_VAR(data__->FILLING,) || __GET_VAR(data__->FLUSHING,)));
   __SET_EXTERNAL(data__->,IRR_INPUT_RO2,,(__GET_VAR(data__->FILLING,) || __GET_VAR(data__->FLUSHING,)));
   __SET_EXTERNAL(data__->,IRR_OUTPUT_RO1,,(__GET_VAR(data__->DRAINING,) || __GET_VAR(data__->FLUSHING,)));
@@ -4127,7 +4127,7 @@ static void IRRIGATION_CYCLE_init__(IRRIGATION_CYCLE_data__ *data__, BOOL retain
   __INIT_EXTERNAL(UINT,IRR_LITERS_TRAY7,data__->IRR_LITERS_TRAY7,retain)
   __INIT_EXTERNAL(UINT,IRR_LITERS_TRAY8,data__->IRR_LITERS_TRAY8,retain)
   __INIT_EXTERNAL(REAL,IRR_VOLUME_L,data__->IRR_VOLUME_L,retain)
-  __INIT_EXTERNAL(USINT,IRR_STATE,data__->IRR_STATE,retain)
+  __INIT_EXTERNAL(IRRSTATE,IRR_STATE,data__->IRR_STATE,retain)
   __INIT_EXTERNAL(USINT,IRR_ACTIVETRAY,data__->IRR_ACTIVETRAY,retain)
   __INIT_EXTERNAL(REAL,IRR_DELIVERED_L,data__->IRR_DELIVERED_L,retain)
   __INIT_EXTERNAL(REAL,IRR_DRAINED_L,data__->IRR_DRAINED_L,retain)
@@ -4169,7 +4169,7 @@ static void IRRIGATION_CYCLE_init__(IRRIGATION_CYCLE_data__ *data__, BOOL retain
   __INIT_EXTERNAL(BOOL,ALARM_IRR_DRAIN_TRAY8,data__->ALARM_IRR_DRAIN_TRAY8,retain)
   TON_MS_init__(&data__->DWELL,retain);
   __INIT_VAR(data__->TRAY,0,retain)
-  __INIT_VAR(data__->MODE,0,retain)
+  __INIT_VAR(data__->MODE,IRRSTATE__IRR_IDLE,retain)
   __INIT_VAR(data__->FORCED,__BOOL_LITERAL(FALSE),retain)
   __INIT_VAR(data__->FILL_AT,0,retain)
   __INIT_VAR(data__->DRAIN_AT,0,retain)
@@ -4199,22 +4199,22 @@ static void IRRIGATION_CYCLE_body__(IRRIGATION_CYCLE_data__ *data__) {
   __SET_VAR(data__->,JUDGED,,__BOOL_LITERAL(FALSE));
   __SET_VAR(data__->,BLAME,,__BOOL_LITERAL(FALSE));
   __SET_VAR(data__->,CLOG,,__BOOL_LITERAL(FALSE));
-  if ((__GET_VAR(data__->MODE,) == __USINT_LITERAL(1))) {
+  if ((__GET_VAR(data__->MODE,) == IRRSTATE__IRR_FILLING)) {
     __SET_VAR(data__->,DWELL_MS,,___SEC_MS(
       (BOOL)__BOOL_LITERAL(TRUE),
       NULL,
       (UINT)__GET_EXTERNAL(data__->IRR_MAXFILL_SEC,)));
-  } else if ((__GET_VAR(data__->MODE,) == __USINT_LITERAL(4))) {
+  } else if ((__GET_VAR(data__->MODE,) == IRRSTATE__IRR_SOAKING)) {
     __SET_VAR(data__->,DWELL_MS,,___SEC_MS(
       (BOOL)__BOOL_LITERAL(TRUE),
       NULL,
       (UINT)__GET_EXTERNAL(data__->IRR_SOAK_SEC,)));
-  } else if ((__GET_VAR(data__->MODE,) == __USINT_LITERAL(2))) {
+  } else if ((__GET_VAR(data__->MODE,) == IRRSTATE__IRR_DRAINING)) {
     __SET_VAR(data__->,DWELL_MS,,___SEC_MS(
       (BOOL)__BOOL_LITERAL(TRUE),
       NULL,
       (UINT)__GET_EXTERNAL(data__->IRR_DRAINWINDOW_SEC,)));
-  } else if ((__GET_VAR(data__->MODE,) == __USINT_LITERAL(3))) {
+  } else if ((__GET_VAR(data__->MODE,) == IRRSTATE__IRR_FLUSHING)) {
     __SET_VAR(data__->,DWELL_MS,,___SEC_MS(
       (BOOL)__BOOL_LITERAL(TRUE),
       NULL,
@@ -4222,7 +4222,7 @@ static void IRRIGATION_CYCLE_body__(IRRIGATION_CYCLE_data__ *data__) {
   } else {
     __SET_VAR(data__->,DWELL_MS,,__UDINT_LITERAL(0));
   };
-  __SET_VAR(data__->DWELL.,IN,,(__GET_VAR(data__->MODE,) != __USINT_LITERAL(0)));
+  __SET_VAR(data__->DWELL.,IN,,(__GET_VAR(data__->MODE,) != IRRSTATE__IRR_IDLE));
   __SET_VAR(data__->DWELL.,PT,,__GET_VAR(data__->DWELL_MS,));
   __SET_VAR(data__->DWELL.,NOW,,__GET_EXTERNAL(data__->SYS_NOW_MS,));
   TON_MS_body__(&data__->DWELL);
@@ -4285,16 +4285,16 @@ static void IRRIGATION_CYCLE_body__(IRRIGATION_CYCLE_data__ *data__) {
     __SET_VAR(data__->,DOSE,,__REAL_LITERAL(0.0));
   };
   __SET_EXTERNAL(data__->,IRR_VOLUME_L,,__GET_VAR(data__->DOSE,));
-  if ((__GET_VAR(data__->MODE,) == __USINT_LITERAL(0))) {
+  if ((__GET_VAR(data__->MODE,) == IRRSTATE__IRR_IDLE)) {
     __SET_EXTERNAL(data__->,IRR_DELIVERED_L,,__REAL_LITERAL(0.0));
     __SET_EXTERNAL(data__->,IRR_DRAINED_L,,__REAL_LITERAL(0.0));
     if ((__GET_EXTERNAL(data__->IRR_DUETRAY,) != __USINT_LITERAL(0))) {
       __SET_VAR(data__->,TRAY,,__GET_EXTERNAL(data__->IRR_DUETRAY,));
       __SET_VAR(data__->,FORCED,,__GET_EXTERNAL(data__->IRR_FORCENOW,));
-      __SET_VAR(data__->,MODE,,__USINT_LITERAL(1));
+      __SET_VAR(data__->,MODE,,IRRSTATE__IRR_FILLING);
       __SET_VAR(data__->,MOVED,,__BOOL_LITERAL(TRUE));
     };
-  } else if ((__GET_VAR(data__->MODE,) == __USINT_LITERAL(1))) {
+  } else if ((__GET_VAR(data__->MODE,) == IRRSTATE__IRR_FILLING)) {
     __SET_EXTERNAL(data__->,IRR_DELIVERED_L,,(__GET_EXTERNAL(data__->IRR_INTOTAL_L,) - __GET_VAR(data__->FILL_AT,)));
     __SET_VAR(data__->,DELIVERED_L,,__GET_EXTERNAL(data__->IRR_DELIVERED_L,));
     if (((__GET_VAR(data__->DELIVERED_L,) >= __GET_VAR(data__->DOSE,)) && (__GET_VAR(data__->DOSE,) > __REAL_LITERAL(0.0)))) {
@@ -4303,9 +4303,9 @@ static void IRRIGATION_CYCLE_body__(IRRIGATION_CYCLE_data__ *data__) {
       __SET_VAR(data__->,SERVED,,__BOOL_LITERAL(TRUE));
       __SET_VAR(data__->,DOSE_L,,__GET_VAR(data__->DELIVERED_L,));
       if ((__GET_EXTERNAL(data__->IRR_SOAK_SEC,) > __UINT_LITERAL(0))) {
-        __SET_VAR(data__->,MODE,,__USINT_LITERAL(4));
+        __SET_VAR(data__->,MODE,,IRRSTATE__IRR_SOAKING);
       } else {
-        __SET_VAR(data__->,MODE,,__USINT_LITERAL(2));
+        __SET_VAR(data__->,MODE,,IRRSTATE__IRR_DRAINING);
       };
       __SET_VAR(data__->,MOVED,,__BOOL_LITERAL(TRUE));
     } else if (__GET_VAR(data__->EXPIRED,)) {
@@ -4313,15 +4313,15 @@ static void IRRIGATION_CYCLE_body__(IRRIGATION_CYCLE_data__ *data__) {
       __SET_VAR(data__->,BLAME,,__BOOL_LITERAL(TRUE));
       __SET_VAR(data__->,SERVED,,__BOOL_LITERAL(TRUE));
       __SET_VAR(data__->,DOSE_L,,__GET_VAR(data__->DELIVERED_L,));
-      __SET_VAR(data__->,MODE,,__USINT_LITERAL(2));
+      __SET_VAR(data__->,MODE,,IRRSTATE__IRR_DRAINING);
       __SET_VAR(data__->,MOVED,,__BOOL_LITERAL(TRUE));
     };
-  } else if ((__GET_VAR(data__->MODE,) == __USINT_LITERAL(4))) {
+  } else if ((__GET_VAR(data__->MODE,) == IRRSTATE__IRR_SOAKING)) {
     if (__GET_VAR(data__->EXPIRED,)) {
-      __SET_VAR(data__->,MODE,,__USINT_LITERAL(2));
+      __SET_VAR(data__->,MODE,,IRRSTATE__IRR_DRAINING);
       __SET_VAR(data__->,MOVED,,__BOOL_LITERAL(TRUE));
     };
-  } else if ((__GET_VAR(data__->MODE,) == __USINT_LITERAL(2))) {
+  } else if ((__GET_VAR(data__->MODE,) == IRRSTATE__IRR_DRAINING)) {
     __SET_EXTERNAL(data__->,IRR_DRAINED_L,,(__GET_EXTERNAL(data__->IRR_OUTTOTAL_L,) - __GET_VAR(data__->DRAIN_AT,)));
     if (__GET_VAR(data__->EXPIRED,)) {
       __SET_VAR(data__->,JUDGED,,__BOOL_LITERAL(TRUE));
@@ -4337,7 +4337,7 @@ static void IRRIGATION_CYCLE_body__(IRRIGATION_CYCLE_data__ *data__) {
     };
   } else {
     if (__GET_VAR(data__->EXPIRED,)) {
-      __SET_VAR(data__->,MODE,,__USINT_LITERAL(0));
+      __SET_VAR(data__->,MODE,,IRRSTATE__IRR_IDLE);
       __SET_VAR(data__->,MOVED,,__BOOL_LITERAL(TRUE));
     };
   };
@@ -4449,14 +4449,14 @@ static void IRRIGATION_CYCLE_body__(IRRIGATION_CYCLE_data__ *data__) {
   };
   if (__GET_VAR(data__->JUDGED,)) {
     __SET_VAR(data__->,TRAY,,__USINT_LITERAL(0));
-    __SET_VAR(data__->,MODE,,__USINT_LITERAL(3));
+    __SET_VAR(data__->,MODE,,IRRSTATE__IRR_FLUSHING);
     __SET_VAR(data__->,MOVED,,__BOOL_LITERAL(TRUE));
   };
   if (__GET_VAR(data__->MOVED,)) {
-    if ((__GET_VAR(data__->MODE,) == __USINT_LITERAL(1))) {
+    if ((__GET_VAR(data__->MODE,) == IRRSTATE__IRR_FILLING)) {
       __SET_VAR(data__->,FILL_AT,,__GET_EXTERNAL(data__->IRR_INTOTAL_L,));
     };
-    if ((__GET_VAR(data__->MODE,) == __USINT_LITERAL(2))) {
+    if ((__GET_VAR(data__->MODE,) == IRRSTATE__IRR_DRAINING)) {
       __SET_VAR(data__->,DRAIN_AT,,__GET_EXTERNAL(data__->IRR_OUTTOTAL_L,));
       __SET_EXTERNAL(data__->,IRR_DRAINED_L,,__REAL_LITERAL(0.0));
     };
@@ -4600,7 +4600,7 @@ static void IRRIGATION_SCHEDULE_init__(IRRIGATION_SCHEDULE_data__ *data__, BOOL 
   __INIT_EXTERNAL(REAL,CLI_TEMP_EXT,data__->CLI_TEMP_EXT,retain)
   __INIT_EXTERNAL(QUALITY,CLI_TEMP_EXT_QLT,data__->CLI_TEMP_EXT_QLT,retain)
   __INIT_EXTERNAL(REAL,IRR_DAWNGATE_DEGC,data__->IRR_DAWNGATE_DEGC,retain)
-  __INIT_EXTERNAL(USINT,CLI_PHASE,data__->CLI_PHASE,retain)
+  __INIT_EXTERNAL(DAYPHASE,CLI_PHASE,data__->CLI_PHASE,retain)
   __INIT_EXTERNAL(QUALITY,CLI_PHASE_QLT,data__->CLI_PHASE_QLT,retain)
   __INIT_EXTERNAL(BOOL,SOL_READY,data__->SOL_READY,retain)
   __INIT_EXTERNAL(INT,SOL_FROMRISE_MIN,data__->SOL_FROMRISE_MIN,retain)
@@ -4670,13 +4670,13 @@ static void IRRIGATION_SCHEDULE_body__(IRRIGATION_SCHEDULE_data__ *data__) {
     NULL,
     (QUALITY)__GET_EXTERNAL(data__->CLI_PHASE_QLT,)))) {
     __SET_VAR(data__->,OPEN_SLOT,,__BOOL_LITERAL(FALSE));
-  } else if (((__GET_EXTERNAL(data__->CLI_PHASE,) == __USINT_LITERAL(1)) || (__GET_EXTERNAL(data__->CLI_PHASE,) == __USINT_LITERAL(2)))) {
+  } else if (((__GET_EXTERNAL(data__->CLI_PHASE,) == DAYPHASE__PHASE_COLD_BANK) || (__GET_EXTERNAL(data__->CLI_PHASE,) == DAYPHASE__PHASE_DAWN_BREEZE))) {
     __SET_VAR(data__->,OPEN_SLOT,,(___GOOD(
       (BOOL)__BOOL_LITERAL(TRUE),
       NULL,
       (QUALITY)__GET_EXTERNAL(data__->CLI_TEMP_EXT_QLT,)) && (__GET_EXTERNAL(data__->CLI_TEMP_EXT,) >= __GET_EXTERNAL(data__->IRR_DAWNGATE_DEGC,))));
   } else {
-    __SET_VAR(data__->,OPEN_SLOT,,((__GET_EXTERNAL(data__->CLI_PHASE,) == __USINT_LITERAL(3)) && (__GET_EXTERNAL(data__->SOL_FROMRISE_MIN,) <= (__GET_EXTERNAL(data__->SOL_DAYRISE_MIN,) + ___UINT_TO_INT(
+    __SET_VAR(data__->,OPEN_SLOT,,((__GET_EXTERNAL(data__->CLI_PHASE,) == DAYPHASE__PHASE_DAY) && (__GET_EXTERNAL(data__->SOL_FROMRISE_MIN,) <= (__GET_EXTERNAL(data__->SOL_DAYRISE_MIN,) + ___UINT_TO_INT(
       (BOOL)__BOOL_LITERAL(TRUE),
       NULL,
       (UINT)__GET_EXTERNAL(data__->IRR_MORNINGWIN_MIN,))))));

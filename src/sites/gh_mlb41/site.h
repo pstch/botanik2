@@ -24,6 +24,10 @@
 
 #include "libbotanik.h"
 
+// RELATIVE, like the table below, and OUTSIDE the namespace: it opens its own,
+// and the ST binding in it is not a site-scoped thing.
+#include "generated/enums.gen.h"
+
 namespace Site {
 
 using namespace Botanik;

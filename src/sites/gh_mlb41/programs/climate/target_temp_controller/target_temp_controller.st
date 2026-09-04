@@ -5,7 +5,7 @@ PROGRAM target_temp_controller
 VAR_EXTERNAL CONSTANT
   cli_targetMin_degC   : REAL;
   cli_targetMax_degC   : REAL;
-  cli_phase            : USINT;
+  cli_phase            : DayPhase;
   cli_phase_qlt        : QUALITY;
   cli_coldBankArm      : BOOL;
   cli_heatBankArm      : BOOL;
@@ -33,12 +33,11 @@ END_VAR
 
   (* A bank phase shifts the base only when yesterday justified it: pre-cool
      before dawn after a hot day, bank heat at dusk after a cold night. In
-     force but not armed, the phase runs at the ordinary target.
-     1 is PHASE_COLD_BANK, 4 is PHASE_HEAT_BANK. *)
+     force but not armed, the phase runs at the ordinary target. *)
   IF GOOD(cli_phase_qlt) THEN
-    IF cli_phase = 1 AND cli_coldBankArm THEN
+    IF cli_phase = PHASE_COLD_BANK AND cli_coldBankArm THEN
       held := held - cli_coldBankOfs_degC;
-    ELSIF cli_phase = 4 AND cli_heatBankArm THEN
+    ELSIF cli_phase = PHASE_HEAT_BANK AND cli_heatBankArm THEN
       held := held + cli_heatBankOfs_degC;
     END_IF;
   END_IF;

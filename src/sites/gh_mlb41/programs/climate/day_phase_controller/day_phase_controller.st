@@ -18,7 +18,7 @@ VAR_EXTERNAL CONSTANT
   sol_nightSet_min     : INT;
 END_VAR
 VAR_EXTERNAL
-  cli_phase             : USINT;
+  cli_phase             : DayPhase;
   cli_phase_qlt         : QUALITY;
   cli_coldBankArm       : BOOL;
   cli_coldBankArm_qlt   : QUALITY;
@@ -30,13 +30,13 @@ VAR_EXTERNAL
   cli_prevNightMin_degC_qlt : QUALITY;
 END_VAR
 VAR
-  phase    : USINT := 0;   (* PHASE_NIGHT *)
+  phase      : DayPhase := PHASE_NIGHT;
   seeded   : BOOL  := FALSE;
   day_max   : REAL;
   night_min : REAL;
 END_VAR
 VAR_TEMP
-  prev_phase : USINT;
+  prev_phase : DayPhase;
 END_VAR
 
   (* The extremes start at the house as it is: from zero, the first beat of
@@ -57,31 +57,34 @@ END_VAR
      not in.
 
      Down the day IN ORDER, so a boundary an operator has trimmed past the one
-     after it shortens its own phase rather than swallowing the next.
-     0 NIGHT, 1 COLD_BANK, 2 DAWN_BREEZE, 3 DAY, 4 HEAT_BANK, 5 DUSK_BREEZE. *)
+     after it shortens its own phase rather than swallowing the next. *)
   IF sol_ready THEN
     IF sol_fromRise_min < sol_coldBankRise_min THEN
-      phase := 0;
+      phase := PHASE_NIGHT;
     ELSIF sol_fromRise_min < sol_breezeRise_min THEN
-      IF cli_coldBankArm THEN phase := 1; ELSE phase := 0; END_IF;
+      IF cli_coldBankArm THEN phase := PHASE_COLD_BANK;
+      ELSE phase := PHASE_NIGHT; END_IF;
     ELSIF sol_fromRise_min < sol_dayRise_min THEN
-      phase := 2;
+      phase := PHASE_DAWN_BREEZE;
     ELSIF sol_fromSet_min < sol_heatBankSet_min THEN
-      phase := 3;
+      phase := PHASE_DAY;
     ELSIF sol_fromSet_min < sol_duskSet_min THEN
-      IF cli_heatBankArm THEN phase := 4; ELSE phase := 3; END_IF;
+      IF cli_heatBankArm THEN phase := PHASE_HEAT_BANK;
+      ELSE phase := PHASE_DAY; END_IF;
     ELSIF sol_fromSet_min < sol_nightSet_min THEN
-      phase := 5;
+      phase := PHASE_DUSK_BREEZE;
     ELSE
-      phase := 0;
+      phase := PHASE_NIGHT;
     END_IF;
   END_IF;
 
   (* The extremes are gathered PER PHASE, not per calendar day: what a cold
      bank needs is how hot it got before it, and the phase boundary is where
      that window closes. *)
-  IF phase = 3 AND prev_phase <> 3 THEN day_max   := cli_temp_in; END_IF;
-  IF phase = 0 AND prev_phase <> 0 THEN night_min := cli_temp_in; END_IF;
+  IF phase = PHASE_DAY AND prev_phase <> PHASE_DAY THEN
+    day_max   := cli_temp_in; END_IF;
+  IF phase = PHASE_NIGHT AND prev_phase <> PHASE_NIGHT THEN
+    night_min := cli_temp_in; END_IF;
 
   cli_phase     := phase;
   (* WHERE the phase came from, not whether it is a legal one - it always is,

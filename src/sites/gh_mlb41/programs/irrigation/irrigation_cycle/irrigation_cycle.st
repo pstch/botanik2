@@ -29,7 +29,7 @@ VAR_EXTERNAL CONSTANT
 END_VAR
 VAR_EXTERNAL
   irr_volume_L          : REAL;
-  irr_state             : USINT;
+  irr_state             : IrrState;
   irr_activeTray        : USINT;
   irr_delivered_L       : REAL;
   irr_drained_L         : REAL;
@@ -73,7 +73,7 @@ END_VAR
 VAR
   dwell    : TON_MS;
   tray     : USINT;
-  mode     : USINT;   (* 0 IDLE 1 FILLING 2 DRAINING 3 FLUSHING 4 SOAKING *)
+  mode     : IrrState := IRR_IDLE;
   forced   : BOOL;
   fill_at  : REAL;    (* the inlet counter when this fill started *)
   drain_at : REAL;    (* ...and the outlet counter when the drain did *)
@@ -103,13 +103,13 @@ END_VAR
 
   (* The dwell for whichever state is in force, TICKED before the machine reads
      it and zeroed again below if the state moves. *)
-  IF    mode = 1 THEN dwell_ms := SEC_MS(irr_maxFill_sec);
-  ELSIF mode = 4 THEN dwell_ms := SEC_MS(irr_soak_sec);
-  ELSIF mode = 2 THEN dwell_ms := SEC_MS(irr_drainWindow_sec);
-  ELSIF mode = 3 THEN dwell_ms := SEC_MS(irr_flush_sec);
+  IF    mode = IRR_FILLING  THEN dwell_ms := SEC_MS(irr_maxFill_sec);
+  ELSIF mode = IRR_SOAKING  THEN dwell_ms := SEC_MS(irr_soak_sec);
+  ELSIF mode = IRR_DRAINING THEN dwell_ms := SEC_MS(irr_drainWindow_sec);
+  ELSIF mode = IRR_FLUSHING THEN dwell_ms := SEC_MS(irr_flush_sec);
   ELSE dwell_ms := UDINT#0;
   END_IF;
-  dwell(IN := mode <> 0, PT := dwell_ms, NOW := sys_now_ms);
+  dwell(IN := mode <> IRR_IDLE, PT := dwell_ms, NOW := sys_now_ms);
   expired := dwell.Q;
 
   (* The dose is the tray's summer figure scaled by the modulation. One nobody
@@ -136,7 +136,7 @@ END_VAR
 
   irr_volume_L := dose;
 
-  IF mode = 0 THEN
+  IF mode = IRR_IDLE THEN
     irr_delivered_L := 0.0;
     irr_drained_L   := 0.0;
     (* WHICH tray, and whether now: irr_schedule has decided both. A
@@ -146,11 +146,11 @@ END_VAR
     IF irr_dueTray <> 0 THEN
       tray   := irr_dueTray;
       forced := irr_forceNow;
-      mode   := 1;
+      mode   := IRR_FILLING;
       moved  := TRUE;
     END_IF;
 
-  ELSIF mode = 1 THEN
+  ELSIF mode = IRR_FILLING THEN
     irr_delivered_L := irr_inTotal_L - fill_at;
     (* ...and read BACK, so the fill ends on the row an operator can watch and
        force rather than on a local difference. *)
@@ -162,7 +162,8 @@ END_VAR
       dose_L := delivered_L;
       (* A soak of zero is SKIPPED, not passed through for one activation: a
          state the field bus sees flicker is a state somebody has to explain. *)
-      IF irr_soak_sec > 0 THEN mode := 4; ELSE mode := 2; END_IF;
+      IF irr_soak_sec > 0 THEN mode := IRR_SOAKING;
+      ELSE mode := IRR_DRAINING; END_IF;
       moved := TRUE;
     ELSIF expired THEN
       (* The dose never arrived: water off, a stuck inlet, or a meter that has
@@ -177,16 +178,16 @@ END_VAR
       blame  := TRUE;
       served := TRUE;
       dose_L := delivered_L;
-      mode   := 2;
+      mode   := IRR_DRAINING;
       moved  := TRUE;
     END_IF;
 
-  ELSIF mode = 4 THEN
+  ELSIF mode = IRR_SOAKING THEN
     (* The tray sits full. Nothing is measured here and nothing can go wrong:
        the fill has been judged and the drain window has not started. *)
-    IF expired THEN mode := 2; moved := TRUE; END_IF;
+    IF expired THEN mode := IRR_DRAINING; moved := TRUE; END_IF;
 
-  ELSIF mode = 2 THEN
+  ELSIF mode = IRR_DRAINING THEN
     irr_drained_L := irr_outTotal_L - drain_at;
     IF expired THEN
       judged := TRUE;
@@ -206,7 +207,7 @@ END_VAR
     END_IF;
 
   ELSE
-    IF expired THEN mode := 0; moved := TRUE; END_IF;
+    IF expired THEN mode := IRR_IDLE; moved := TRUE; END_IF;
   END_IF;
 
   (* The per-tray alarms, while `tray` still says which one. The any-form
@@ -284,15 +285,15 @@ END_VAR
   (* The drain ends the cycle, and only after its verdict has named the tray. *)
   IF judged THEN
     tray  := 0;
-    mode  := 3;
+    mode  := IRR_FLUSHING;
     moved := TRUE;
   END_IF;
 
   (* Entering a state stamps the counter the next one is judged on: a meter is
      a running total, so a window is a DIFFERENCE between two readings of it. *)
   IF moved THEN
-    IF mode = 1 THEN fill_at := irr_inTotal_L; END_IF;
-    IF mode = 2 THEN
+    IF mode = IRR_FILLING THEN fill_at := irr_inTotal_L; END_IF;
+    IF mode = IRR_DRAINING THEN
       drain_at      := irr_outTotal_L;
       irr_drained_L := 0.0;
     END_IF;

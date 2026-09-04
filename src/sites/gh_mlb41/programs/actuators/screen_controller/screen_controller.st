@@ -6,7 +6,7 @@ VAR_EXTERNAL CONSTANT
   cli_coolDem          : REAL;
   cli_coolDem_qlt      : QUALITY;
   cli_thermalScreenDem : REAL;
-  cli_phase            : USINT;
+  cli_phase            : DayPhase;
   cli_screenTravel_sec : UINT;
   cli_screenTmo_sec    : UINT;
   cli_screenMinRun_ms  : UINT;
@@ -42,12 +42,13 @@ END_VAR
   (* Deploying belongs to the half of the day that is closing down, retracting
      to the half that is opening up. An hour of cold at midday therefore never
      shuts the fabric against the sun, and a mild night never opens it and
-     gives back the heat it was holding.
-     0 NIGHT, 1 COLD_BANK, 2 DAWN_BREEZE, 3 DAY, 4 HEAT_BANK, 5 DUSK_BREEZE. *)
+     gives back the heat it was holding. *)
   IF cold THEN
-    allows := cli_phase = 0 OR cli_phase = 5 OR cli_phase = 4;
+    allows := cli_phase = PHASE_NIGHT OR cli_phase = PHASE_DUSK_BREEZE
+           OR cli_phase = PHASE_HEAT_BANK;
   ELSE
-    allows := cli_phase = 3 OR cli_phase = 2 OR cli_phase = 1;
+    allows := cli_phase = PHASE_DAY OR cli_phase = PHASE_DAWN_BREEZE
+           OR cli_phase = PHASE_COLD_BANK;
   END_IF;
 
   (* The phase gives PERMISSION, the demand asks for the move - and nothing

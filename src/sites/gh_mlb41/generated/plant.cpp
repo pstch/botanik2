@@ -11,6 +11,10 @@
 #include "libbotanik/plc/runtime/runtime.h"
 #include "libbotanik/vars/rows.h"
 
+/* Before the POUs: the site's enumerated types, which matiec's
+ * generated C names and whose member list it leaves to us. */
+#include "enums.gen.h"
+
 /* Every row an ST body names, as matiec spells it. `accessor.h` binds
  * each external to Ref<type>{ ROW_<NAME> }, so a name no table declares
  * fails to compile rather than resolving to the sink at bring-up. */
@@ -491,7 +495,7 @@ namespace Botanik { namespace Plc { namespace Runtime {
     X(temp_rh_zone,    TEMP_RH_ZONE,           ZONE,       BOTANIK_SITE_SENSE_MS) \
     X(climate_watch,   CLIMATE_WATCH,          CLIMWATCH,  BOTANIK_SITE_CONTROL_MS) \
     X(weather_watch,   WEATHER_WATCH,          WXWATCH,    BOTANIK_SITE_CONTROL_MS) \
-    X(day_phase,       DAY_PHASE_CONTROLLER,   DAYPHASE,   BOTANIK_SITE_CONTROL_MS) \
+    X(day_phase,       DAY_PHASE_CONTROLLER,   PHASECTL,   BOTANIK_SITE_CONTROL_MS) \
     X(target_temp,     TARGET_TEMP_CONTROLLER, TARGET,     BOTANIK_SITE_CONTROL_MS) \
     X(cooling,         COOLING_CONTROLLER,     COOLING,    BOTANIK_SITE_SENSE_MS) \
     X(humidity,        HUMIDITY_CONTROLLER,    HUMIDITY,   BOTANIK_SITE_CONTROL_MS) \
@@ -540,7 +544,7 @@ static const uint16_t _writes_STRAT[] = { Vars::Row::cli_dTStrat_degC, Vars::Row
 static const uint16_t _writes_ZONE[] = { Vars::Row::cli_temp_in, Vars::Row::cli_temp_in_qlt, Vars::Row::cli_dewPoint_degC, Vars::Row::cli_dewPoint_degC_qlt, Vars::Row::cli_dpMargin_degC, Vars::Row::cli_dpMargin_degC_qlt, Vars::Row::cli_satPress_kPa, Vars::Row::cli_satPress_kPa_qlt, Vars::Row::cli_vpd_kPa, Vars::Row::cli_vpd_kPa_qlt, Vars::Row::alarm_rot, Vars::Row::alarm_zone_blind,};
 static const uint16_t _writes_CLIMWATCH[] = { Vars::Row::alarm_too_hot, Vars::Row::alarm_too_cold, Vars::Row::alarm_too_humid, Vars::Row::alarm_strat, Vars::Row::alarm_sensor_fault,};
 static const uint16_t _writes_WXWATCH[] = { Vars::Row::alarm_weather_storm, Vars::Row::cli_sinceRain_h,};
-static const uint16_t _writes_DAYPHASE[] = { Vars::Row::cli_phase, Vars::Row::cli_phase_qlt, Vars::Row::cli_coldBankArm, Vars::Row::cli_coldBankArm_qlt, Vars::Row::cli_heatBankArm, Vars::Row::cli_heatBankArm_qlt, Vars::Row::cli_prevDayMax_degC, Vars::Row::cli_prevDayMax_degC_qlt, Vars::Row::cli_prevNightMin_degC, Vars::Row::cli_prevNightMin_degC_qlt,};
+static const uint16_t _writes_PHASECTL[] = { Vars::Row::cli_phase, Vars::Row::cli_phase_qlt, Vars::Row::cli_coldBankArm, Vars::Row::cli_coldBankArm_qlt, Vars::Row::cli_heatBankArm, Vars::Row::cli_heatBankArm_qlt, Vars::Row::cli_prevDayMax_degC, Vars::Row::cli_prevDayMax_degC_qlt, Vars::Row::cli_prevNightMin_degC, Vars::Row::cli_prevNightMin_degC_qlt,};
 static const uint16_t _writes_TARGET[] = { Vars::Row::cli_targetTemp_degC,};
 static const uint16_t _writes_COOLING[] = { Vars::Row::cli_coolDem, Vars::Row::cli_coolDem_qlt, Vars::Row::cli_windowDem, Vars::Row::cli_windowDem_qlt,};
 static const uint16_t _writes_HUMIDITY[] = { Vars::Row::cli_humidDem, Vars::Row::cli_rotLockout, Vars::Row::cli_rotVentDem,};
@@ -579,8 +583,8 @@ static const uint16_t _park_CLIMWATCH   = Vars::VAR_NONE;
 static const uint16_t _parked_CLIMWATCH = Vars::VAR_NONE;
 static const uint16_t _park_WXWATCH   = Vars::VAR_NONE;
 static const uint16_t _parked_WXWATCH = Vars::VAR_NONE;
-static const uint16_t _park_DAYPHASE   = Vars::VAR_NONE;
-static const uint16_t _parked_DAYPHASE = Vars::VAR_NONE;
+static const uint16_t _park_PHASECTL   = Vars::VAR_NONE;
+static const uint16_t _parked_PHASECTL = Vars::VAR_NONE;
 static const uint16_t _park_TARGET   = Vars::VAR_NONE;
 static const uint16_t _parked_TARGET = Vars::VAR_NONE;
 static const uint16_t _park_COOLING   = Vars::VAR_NONE;
@@ -629,7 +633,7 @@ static const uint16_t _health_STRAT = Vars::Row::prog_strat;
 static const uint16_t _health_ZONE = Vars::Row::prog_temp_rh_zone;
 static const uint16_t _health_CLIMWATCH = Vars::Row::prog_climate_watch;
 static const uint16_t _health_WXWATCH = Vars::Row::prog_weather_watch;
-static const uint16_t _health_DAYPHASE = Vars::Row::prog_day_phase;
+static const uint16_t _health_PHASECTL = Vars::Row::prog_day_phase;
 static const uint16_t _health_TARGET = Vars::Row::prog_target_temp;
 static const uint16_t _health_COOLING = Vars::Row::prog_cooling;
 static const uint16_t _health_HUMIDITY = Vars::Row::prog_humidity;
