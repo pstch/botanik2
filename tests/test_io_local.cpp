@@ -108,7 +108,7 @@ TEST_CASE("io in: a terminal with no _qlt companion is valid, always") {
     // before the first scan and after it. Asserted because the OPPOSITE would
     // be the surprising thing to inherit from the Modbus side.
     CHECK(f.var("in_plain").valid());
-    CHECK(f.bank.quality_ref(f.bank.find("in_plain")).index == VAR_NONE);
+    CHECK(f.bank.quality_ref(f.bank.find("in_plain")) == VAR_NONE);
 
     HAL::DigitalIn::inject(HAL::Pin::IN1, true);
     f.in.step(1000, Tasks::PHASE_INPUT);

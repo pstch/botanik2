@@ -12,377 +12,365 @@
 
 #include <cstddef>
 #include <cstdint>
-#include "libbotanik/alarms/spec.h"
 
+#include "libbotanik/alarms/spec.h"
+#include "libbotanik/vars/ref.h"
 #include "libbotanik/vars/scalar.h"
 
 namespace Botanik { namespace Vars {
 
 
-    /** @brief Where a variable's value comes from. This is the axis the model
-     *  is organised on - not analog/digital, which is a property of the wire and
-     *  of the value type respectively. */
-    enum Transport : uint8_t {
-        XP_NONE,            ///< nothing drives it: a computed global or a parameter
-        XP_LOCAL,           ///< an internal digital/analogic/relay input/output
-        XP_MODBUS           ///< a Modbus RTU digital/analogic/relay input/output
-    };
-
-    /** @brief What a variable is FOR. Drives behaviour that the type system used
-     *  to encode, so the rules live in one switch instead of in six tables. */
-    enum VarRole : uint8_t {
-        ROLE_INPUT,      ///< read from the field; goes invalid past its timeout
-        ROLE_OUTPUT,     ///< driven to the field; dropped to `def` on a fault
-        ROLE_COMPUTED,   ///< computed; never expires, never swept
-        ROLE_PARAM       ///< persisted, editable, and always valid
-    };
-
-    /** @brief Which concrete kind of row this is - declared, never
-     *  reconstructed from (transport, role, type), so a table filters on one
-     *  comparison. One factory each in declare.h.
+    /** @brief What a row IS, in one field. Everything a table used to filter on
+     *  by scope, role or transport is either this or derived from a field the
+     *  row carries anyway.
      *
-     *  Two distinctions the names hide: **MI/MO vs AI/AO** is whether a
-     *  CONVERSION happens; **SV vs G** is who can see it (SV is published, so
-     *  its name and scaling are an external contract). Local I/O is not a scope
-     *  - a local row is one whose Modbus device address is 0. */
-    enum VarScope : uint8_t {
-        SCOPE_A = 0,   ///< alarm: the boolean an AlarmCondition reads
-        SCOPE_P,       ///< parameter: persisted, editable
-        SCOPE_G,       ///< computed value, HMI only
-        SCOPE_SV,      ///< status value, published (MQTT + Modbus TCP slave)
-        SCOPE_MI,      ///< direct input, register 1:1 (device 0 = local)
-        SCOPE_AI,      ///< analog input, raw count via scale/offset
-        SCOPE_DI,      ///< digital input
-        SCOPE_MO,      ///< direct output, register 1:1
-        SCOPE_AO,      ///< analog output, engineering value via scale/offset
-        SCOPE_DO,      ///< digital output
-        SCOPE_RO,      ///< relay output (a coil)
-        /** @brief A `_qlt` companion: the quality of the row it is named after.
-         *  Mapped for a master, not published - a subscriber already learns a
-         *  row is unbelievable by its absence from the payload. */
-        SCOPE_Q,
-        SCOPE_COUNT
+     *  It is also the payload discriminant, with @c type and @c B_ANALOG. */
+    enum Kind : uint8_t {
+        K_PARAM,     ///< persisted, editable; band, labels or text slot
+        K_ALARM,     ///< the boolean an AlarmCondition reads; carries its spec
+        K_STATUS,    ///< computed by a law, published unless its register is 0
+        K_INPUT,     ///< read from the field; expires, and always has a companion
+        K_OUTPUT,    ///< driven to the field; drops to `def` when nothing drives it
+        K_QUALITY    ///< an input's or a status's `_qlt`: the row before it speaks
     };
+
+    /** @brief A Kind as a short column label: what a table page's first column
+     *  and a point list write. */
+    inline const char* kind_label(Kind k) {
+        switch (k) {
+            case K_PARAM:   return "P";
+            case K_ALARM:   return "A";
+            case K_STATUS:  return "S";
+            case K_INPUT:   return "I";
+            case K_OUTPUT:  return "O";
+            case K_QUALITY: return "Q";
+        }
+        return "?";
+    }
 
     /** @brief WHY a value reads as it does, written by whichever path judged the
-     *  reading - a diagnosis, not a guess made at display time.
+     *  reading.
      *
      *  This is the VALUE of a `_qlt` companion row, and the only place a quality
      *  is ever stored. A row without a companion has no quality to store: it is
-     *  valid, always. @see quality_base()
+     *  good, always.
      *
      *  @warning The codes are the ST enumeration's too, which matiec numbers
-     *  0,1,2... in declaration order - so this order is `plc/types.st`'s and
-     *  cannot move. Q_NO_DATA leads for a second reason: a companion nothing has
-     *  written yet must read as "nothing wrote this". */
+     *  0,1,2... in declaration order - so this order is `plc/functions/quality.st`'s
+     *  and cannot move. Q_NONE leads for a second reason: a companion nothing
+     *  has written yet must read as "nothing wrote this". */
     enum Quality : uint8_t {
-        Q_NO_DATA = 0,   ///< nothing has ever written it; the row reads its declared default
-        Q_VALID,         ///< a real value from whoever owns the row
-        Q_STALE,         ///< it was live and stopped: no good read within its timeout
-        Q_IMPLAUSIBLE,   ///< answering with nonsense: outside its band, or non-finite
-        Q_REFUSED,       ///< the device answered, and declined: it has no such register
-        /** @brief A law's own fallback: nothing measured it, but the number is
-         *  one the law stands behind and readers should compute on. The
-         *  interior temperature with every probe gone, held levels and the
-         *  outside taken as evidence - substituting the declared 14 degC there
-         *  would stop the roof venting on the day it matters most. */
-        Q_SUBSTITUTED
+        Q_NONE = 0,   ///< nothing usable behind the row; it reads its declared value
+        Q_GOOD,       ///< measured, restored, or forced
+        /** @brief A law holds a number it stands behind, though nothing
+         *  measured it. The interior temperature with every probe gone, held
+         *  levels and the outside taken as evidence - substituting the declared
+         *  14 degC there would stop the roof venting on the day it matters. */
+        Q_HELD
     };
 
-    /** @brief Does @p q have a NUMBER behind it a law should compute on?
-     *
-     *  The one rule Ref::get() branches on. Q_VALID because something measured
-     *  it, Q_SUBSTITUTED because something stood behind it; every other code
-     *  reads the row's declared value instead. Distinct from valid(), which
-     *  stays "measured" - a law gating on whether the plant can be SEEN wants
-     *  that one. */
-    inline bool quality_holds(Quality q) {
-        return q == Q_VALID || q == Q_SUBSTITUTED;
-    }
+    /** @brief Is there a NUMBER behind @p q a reader should compute on? The one
+     *  rule Ref::get() branches on. */
+    constexpr bool usable(Quality q) { return q != Q_NONE; }
 
-    /** @brief @p q as a phrase for an operator: "valid", or invalid and why. */
-    inline const char* quality_str(Quality q) {
-        switch (q) {
-            case Q_VALID:       return "valid";
-            case Q_NO_DATA:     return "invalid: nothing has written it";
-            case Q_STALE:       return "invalid: past its timeout";
-            case Q_IMPLAUSIBLE: return "invalid: outside its band";
-            case Q_REFUSED:     return "invalid: the device refused the read";
-            case Q_SUBSTITUTED: return "unmeasured: a fallback the law stands behind";
-            default:            return "invalid";
-        }
-    }
+    /** @brief Did something MEASURE it? What a law gating on whether the plant
+     *  can be SEEN asks, and what Var::valid() answers. */
+    constexpr bool measured(Quality q) { return q == Q_GOOD; }
 
     /** @brief A Quality code's label, and the range check with it: a code this
      *  does not know renders and PARSES as nothing. The T_ENUM converter every
      *  `_qlt` row is declared with. */
     inline const char* quality_label(uint64_t q) {
         switch ((Quality)q) {
-            case Q_NO_DATA:     return "NO_DATA";
-            case Q_VALID:       return "VALID";
-            case Q_STALE:       return "STALE";
-            case Q_IMPLAUSIBLE: return "IMPLAUSIBLE";
-            case Q_REFUSED:     return "REFUSED";
-            case Q_SUBSTITUTED: return "SUBSTITUTED";
+            case Q_NONE: return "NONE";
+            case Q_GOOD: return "GOOD";
+            case Q_HELD: return "HELD";
         }
         return nullptr;
     }
 
-    /** @brief @p name less a trailing `_qlt`, into @p base. False when it does
-     *  not end in one, or will not fit.
-     *
-     *  The suffix is the whole link between a row and its quality: `freeze()`
-     *  pairs them by name, so there is no table to add a companion to and none
-     *  to forget. A `_qlt` row has no companion of its own, which is what stops
-     *  the regress. */
-    bool quality_base(const char* name, char* base, size_t cap);
-
     /** @brief Per-variable behaviour bits. */
     enum VarFlags : uint8_t {
-        F_INVERT  = 1u << 0,   ///< active-low wiring, folded in so logic reads true = asserted
-        F_BOUNDED = 1u << 1,   ///< min/max are a real band, not "unset"
-        F_RDONLY  = 1u << 2,   ///< a parameter shown but not written: read-only
+        F_INVERT = 1u << 0,   ///< active-low wiring, folded in so logic reads true = asserted
+        F_RDONLY = 1u << 1,   ///< a parameter shown but not written: read-only
+        /** @brief This row's value IS the history: litres delivered, hours run,
+         *  the day a tray was last watered. On a K_STATUS row it goes to the
+         *  retained store; on a K_PARAM one it already persists, so the flag
+         *  means `params reset` leaves it alone. */
+        F_RETAIN = 1u << 2,
+        /** @brief The NEXT row is this one's `_qlt` companion. Adjacency is the
+         *  whole link: the generator emits the pair together, so there is no
+         *  index to store and no pairing pass to run. */
+        F_QLT    = 1u << 3
+    };
+
+    /** @brief Per-binding bits: how a driver reaches the row, not what the row
+     *  is for. */
+    enum BindFlags : uint8_t {
         /** @brief A 32-bit value's registers arrive low word first. Registers
          *  are big-endian on the wire; only which half of a PAIR carries the
-         *  high word varies. Meaningless unless `bind.regs` is 2. */
-        F_WORD_SWAP = 1u << 3,
-        /** @brief This row's value IS the history: litres delivered, hours
-         *  run, the day a tray was last watered. Read by role - a
-         *  `ROLE_COMPUTED` row goes to the retained store (@see
-         *  Bank::retainable), a `ROLE_PARAM` one already persists, so the flag
-         *  means `params reset` leaves it alone (@see Bank::param_retained). */
-        F_RETAIN = 1u << 4,
+         *  high word varies. Meaningless unless `regs` is 2. */
+        B_WORD_SWAP = 1u << 0,
         /** @brief A LOCAL digital input counted by an interrupt rather than
-         *  polled as a level (`HAL::Pulse`). The terminal is attached once, as
-         *  a counter: the level of a meter's pulse line is not a reading of
-         *  anything, and configuring one pin two ways is a hardware fault
-         *  waiting for the first wet week. */
-        F_PULSE = 1u << 5,
-
-        /** @brief The band's ends are in a NumRefBand, not in the payload's
-         *  own scalars: this row's limits are other rows. */
-        F_BAND_REF = 1u << 6
+         *  polled as a level (`HAL::Pulse`). The terminal is attached once, as a
+         *  counter: the level of a meter's pulse line is not a reading of
+         *  anything. Channel is in @c reg and edge in @c fc. */
+        B_PULSE     = 1u << 1,
+        /** @brief The payload is an AnalogCal pointer: the wire carries a raw
+         *  count and the value is the engineering number derived from it. The
+         *  one thing that makes an analog row analog. */
+        B_ANALOG    = 1u << 2
     };
 
-    /** @brief Per-slot state bits, as opposed to the row's declared behaviour.
-     *
-     *  One byte carved out of Slot's spare three, so the slot stays 32 bytes. */
-    enum ValueFlags : uint8_t {
+    /** @brief Per-slot state bits, as opposed to the row's declared behaviour. */
+    enum SlotFlags : uint8_t {
+        S_OVR_ON        = 1u << 0,   ///< an override is in force
+        S_OVR_UNSAVED   = 1u << 1,   ///< ...and it will not survive a reboot yet
+        /** @brief This parameter's edit is live but not durable: what a display
+         *  marks, and what a bare `params save` writes. */
+        S_PARAM_UNSAVED = 1u << 2,
+        /** @brief A PROGRAM's durable write, waiting on the retain cadence
+         *  rather than on an operator. Distinct from S_PARAM_UNSAVED so the two
+         *  survive each other: a law stamping a watering date must not read as
+         *  an unsaved SETTING, and the cadence must not commit a setting the
+         *  operator has not confirmed. */
+        S_PARAM_OWED    = 1u << 3,
         /** @brief This output's demand has moved and has not reached the field.
          *  Cleared by the driver once a transaction has carried it. */
-        VF_FIELD_DIRTY = 1u << 0,
-        /** @brief A PROGRAM's durable write to a parameter, waiting on the
-         *  retain cadence rather than on an operator. Distinct from
-         *  VF_PARAM_UNSAVED so that the two survive each other: a law stamping
-         *  a watering date must not read as an unsaved SETTING on the params
-         *  page, and the cadence must not commit a setting the operator has
-         *  not confirmed. @see Bank::param_owe() */
-        VF_PARAM_OWED    = 1u << 2,
-        /** @brief This parameter's edit is live but not durable. What lets a
-         *  display mark the row, and a bare `params save` find every row still
-         *  owed a write. Cleared by save(), and by a load that overwrites the
-         *  edit. @see Bank::set() @see Bank::save() */
-        VF_PARAM_UNSAVED = 1u << 3,
-        /** @brief The same, for this row's override: forced now, but it will
-         *  not survive a reboot until `overrides save`.
-         *  @see Bank::override_set() @see Bank::save_override() */
-        VF_OVR_UNSAVED   = 1u << 4,
+        S_FIELD_DIRTY   = 1u << 4,
+        /** @brief Something has written this slot at least once. What the
+         *  stamp's zero cannot say, since 0 ms is a real uptime. */
+        S_WRITTEN       = 1u << 5
     };
 
-    /** @brief What the firmware may drive, strictest first. The order is
-     *  load-bearing: the effective mode is the MINIMUM of the operator's
-     *  choice and what the system's hold allows. */
-    enum ControlMode : uint8_t {
-        /** @brief Outputs safe and the programs stopped, but an override still
-         *  drives - how you take the plant by hand, since an override is then
-         *  the only thing left that can move an actuator.
-         *
-         *  This rung does NOT mute overrides: one that stops driving without
-         *  saying so is worse than one that keeps driving visibly. `override
-         *  clear` takes a force off; what ERASES them is the system's own
-         *  hold, a different axis. */
-        CONTROL_WITHHELD = 0,
-        /** @brief Normal operation. */
-        CONTROL_ENABLED  = 1
-    };
-
-    /** @brief How a driver reaches a variable.
+    /** @brief How a driver reaches a variable. Eight bytes, and every field is
+     *  meaningless on a row with no binding.
      *
      *  @c wire is the type ON THE WIRE, deliberately distinct from the
      *  variable's own VarType: a Modbus REAL feeding an f32, or a raw u32 count
-     *  feeding an f32 engineering value via `value = wire * scale + offset`. */
+     *  feeding an f32 engineering value through a calibration. */
     struct Binding {
-        Transport transport;
-        VarType   wire;
-        uint8_t   device;      ///< Modbus unit id / expansion module
-        uint8_t   fc;          ///< Modbus function code
-        uint16_t  reg;         ///< register address, coil, or local channel
-        uint16_t  regs;        ///< registers spanned (2 for a 32-bit value)
-        float     scale, offset;
+        uint16_t reg;      ///< register address, coil, or local channel
+        uint8_t  device;   ///< Modbus unit id; 0 = one of the controller's own terminals
+        uint8_t  fc;       ///< Modbus function code, or a pulse row's edge
+        uint8_t  regs;     ///< registers spanned (2 for a 32-bit value)
+        VarType  wire;
+        uint8_t  flags;    ///< BindFlags
+        uint8_t  _rsv;
+    };
+
+    /** @brief One end of a band, or one point of a calibration: a number, or the
+     *  ROW holding it - which is what lets a limit be re-trimmed from the PARAMS
+     *  page without a rebuild, and a pair with a required relationship be judged
+     *  as a pair.
+     *
+     *  @c v is also the FALLBACK the generator checks a default against, so the
+     *  meaning is the same whether the end is fixed or not. */
+    struct Tunable {
+        Scalar   v;
+        uint16_t row;   ///< VAR_NONE: fixed at @c v
     };
 
     /** @brief A numeric row's band: a parameter's EDIT BOUNDS, or an input's
      *  PLAUSIBILITY BAND (a disconnected sensor usually reads a rail, and a
-     *  reading outside marks the row invalid). Needs F_BOUNDED. */
-    struct NumBand { Scalar min, max; };
+     *  reading outside marks the row unusable).
+     *
+     *  Two Tunables, flattened so the pair packs into 24 bytes. Ends equal and
+     *  both fixed is NO BAND - which is what a row with no meaningful bounds
+     *  carries, and why there is no flag saying so. */
+    struct Band {
+        Scalar   lo, hi;
+        uint16_t lo_row, hi_row;
 
-    /** @brief What a T_STR row DECLARES about its pool slot: its size and what
-     *  a new value is checked against - not where it sits, which Bank::init()
-     *  derives into the Slot. */
+        /** @brief Whether this is a band at all. */
+        bool set() const {
+            return lo_row != VAR_NONE || hi_row != VAR_NONE || lo.u != hi.u;
+        }
+        Tunable low()  const { return Tunable{ lo, lo_row }; }
+        Tunable high() const { return Tunable{ hi, hi_row }; }
+    };
+
+    /** @brief What a T_STR row DECLARES about its pool slot: its size and what a
+     *  new value is checked against - not where it sits, which the bank derives
+     *  into the Slot. */
     struct TextSlot {
         uint16_t cap;    ///< capacity including the NUL; 0 = no slot
         StrKind  kind;   ///< edit validation
     };
 
-    /** @brief An alarm's announce policy. Defined in `alarms/spec.h` because it
-     *  is an ALARM concept that a row happens to carry: a build with no variable
-     *  model still has alarms, and they still have a dwell.
-     *  @see Alarms::AlarmSpec */
-    using Alarms::AlarmSpec;
-
-
-    /** @brief A number a row declares: a fixed value, or the parameter holding
-     *  it - which is what lets a calibration be re-trimmed from the PARAMS page
-     *  without a rebuild. @c k is also the FALLBACK, so a mistyped name degrades
-     *  to the declared constant rather than to zero (and the bank counts the
-     *  miss, which the site test asserts is never). */
-    struct Tunable {
-        float       k;      ///< the value, when @c param is null or absent
-        const char* param;  ///< the parameter to read instead (null = fixed)
-    };
-
     /** @brief One analog channel's six tunables: a two-point calibration plus a
      *  plausibility band. @c scale / @c offset are never stored - they derive
      *  from the endpoints, so a recalibration lands the moment the parameter
-     *  commits. min/max are separate and usually wider. Blocks are SHARED by
-     *  pointer, which shares their parameters too. */
+     *  commits. Blocks are SHARED by pointer, which shares their parameters. */
     struct AnalogCal {
-        Tunable raw_min, raw_max;   ///< wire units at the two calibration points
-        Tunable eng_min, eng_max;   ///< engineering units at those same points
-        Tunable min, max;           ///< plausibility band, engineering units
+        Scalar   raw_min, raw_max;   ///< wire units at the two calibration points
+        Scalar   eng_min, eng_max;   ///< engineering units at those same points
+        Scalar   min, max;           ///< plausibility band, engineering units
+        uint16_t row[6];             ///< the row each reads instead, or VAR_NONE
     };
 
-    /** @brief An edit band whose ends may be OTHER ROWS, so a pair with a
-     *  required relationship cannot be edited into an impossible one: a target
-     *  floor above its own ceiling, a ramp starting past where it ends. Both
-     *  ends carry a fallback, so a mistyped name degrades to a fixed band. */
-    struct NumRefBand {
-        Tunable min, max;
+    /** @brief An analog channel's six numbers, resolved now.
+     *
+     *  Read together, in one call: they are used together, and per-field reads
+     *  would pay an indirection each, every sample. */
+    struct AnalogValues {
+        float raw_min, raw_max;
+        float eng_min, eng_max;
+        float min, max;
+
+        /** @brief Slope of the raw-to-engineering conversion. 0 for a degenerate
+         *  calibration (both raw endpoints equal), which would otherwise divide
+         *  by zero and hand the control programs an infinity. */
+        float scale() const {
+            const float span = raw_max - raw_min;
+            return (span == 0.0f) ? 0.0f : (eng_max - eng_min) / span;
+        }
+        /** @brief Whether the raw endpoints coincide, so there is no conversion
+         *  to do. NOT a value: to_eng() would collapse every reading to eng_min,
+         *  which is a plausible number and would read as a measurement. */
+        bool degenerate() const { return scale() == 0.0f; }
+        /** @brief Intercept, so `eng = raw * scale() + offset()`. */
+        float offset() const { return eng_min - raw_min * scale(); }
+        float to_eng(float raw) const { return raw * scale() + offset(); }
+        /** @brief The inverse, for an analog OUTPUT. Returns raw_min for a
+         *  degenerate calibration. */
+        float to_raw(float eng) const {
+            const float sc = scale();
+            return (sc == 0.0f) ? raw_min : (eng - offset()) / sc;
+        }
+        bool plausible(float eng) const { return eng >= min && eng <= max; }
     };
 
-    /** @brief Which arm of Payload a row is using. The one place the question is
-     *  answered; nothing open-codes it. */
-    enum PayloadArm : uint8_t { PAY_NUM, PAY_TEXT, PAY_ALARM, PAY_ANALOG,
-                                PAY_NUM_REF };
+    /** @brief An alarm's announce policy. Defined in `alarms/spec.h` because it
+     *  is an ALARM concept that a row happens to carry: a build with no variable
+     *  model still has alarms, and they still have a dwell. */
+    using Alarms::AlarmSpec;
 
     /** @brief The half of a row that depends on its kind. No two arms coexist,
-     *  so one slot serves all four; payload_arm() is the discriminant. Constexpr
-     *  constructors because C++11 can only brace-initialise a union's FIRST
-     *  member (as with Scalar).
-     *  @warning Reach the arms through num_band() / text_slot() / analog_cal() /
-     *  alarm_spec(), which check it: a number read as a slot hands
+     *  so one slot serves all four. Constexpr constructors because C++11 can
+     *  only brace-initialise a union's FIRST member (as with Scalar).
+     *  @warning Reach the arms through band() / text_slot() / analog_cal() /
+     *  alarm_spec(), which check the discriminant: a number read as a slot hands
      *  `copy_bounded` an arbitrary pool offset. */
     union Payload {
-        NumBand   num;
-        TextSlot  text;
-        AlarmSpec alarm;
+        Band             num;
+        TextSlot         text;
+        AlarmSpec        alarm;
         /** @brief Borrowed, and shareable: several rows may name one block. A
-         *  pointer because six Tunables are 48 bytes and this union is 16. */
+         *  pointer because six tunables are 60 bytes and this union is 24. */
         const AnalogCal* cal;
-        /// Borrowed the same way, and for the same reason.
-        const NumRefBand* ref;
-        /// An unset band: what a row with no meaningful bounds carries.
-        constexpr Payload() : num{Scalar(), Scalar()} {}
-        constexpr Payload(Scalar lo, Scalar hi) : num{lo, hi} {}
+
+        /// No band: what a row with no meaningful bounds carries.
+        constexpr Payload() : num{Scalar(), Scalar(), VAR_NONE, VAR_NONE} {}
+        constexpr Payload(Scalar lo, Scalar hi, uint16_t lo_row, uint16_t hi_row)
+            : num{lo, hi, lo_row, hi_row} {}
         constexpr Payload(uint16_t cap, StrKind kind) : text{cap, kind} {}
         constexpr Payload(const char* code, int16_t on_s, int16_t off_s,
                           int32_t recent_s, int16_t hold_s)
             : alarm{code, on_s, off_s, recent_s, hold_s} {}
         constexpr Payload(const AnalogCal* c) : cal(c) {}
-        constexpr Payload(const NumRefBand* b) : ref(b) {}
     };
 
     /** @brief Every variable, whatever its kind.
      *
-     *  @warning Field order is load-bearing: @c pay is 8-aligned, so @c str must
-     *  stay AFTER it, where it lands in the tail hole (72 bytes on the M7).
-     *  Ahead of it, the padding costs 8 more.
-     *
-     *  Built through the declare.h factories, not brace-initialised. */
+     *  @warning Field order is load-bearing: @c pay is 8-aligned, so the four
+     *  strings must stay AFTER it, where they land in the tail hole (72 bytes on
+     *  the M7). Ahead of it, the padding costs 8 more. */
     struct Descriptor {
-        Scalar      def;        ///< invalid-read fallback / safe state / factory value
+        Scalar      def;        ///< invalid-read substitute / safe state / factory value
+        Payload     pay;
         const char* name;       ///< symbolic name; the telemetry leaf; the storage key
         const char* unit;       ///< "C", "%", "" for none
-        const char* desc;       ///< description
-        const char* notes;      ///< additional notes
-        Payload     pay;        ///< band or pool slot, per `type == T_STR`
+        const char* desc;
+        const char* notes;
         Binding     bind;
-        uint32_t    timeout_ms;///< ROLE_INPUT: no good read within this -> invalid; 0 = never
+        uint32_t    timeout_ms; ///< K_INPUT: no good read within this -> Q_NONE; 0 = never
         /** @brief How often to ASK for this row, in ms; 0 derives it from
          *  @c timeout_ms. Kept apart from it: the timeout is a CONTRACT with
-         *  readers ("believe this for 15 s"), the poll is a COST on the bus, so
-         *  a meter can say "poll every 10 s, stale at 15". 16 bits, landing in
-         *  the padding after @c timeout_ms. */
+         *  readers ("believe this for 15 s"), the poll is a COST on the bus. */
         uint16_t    poll_ms;
-        /** @brief T_ENUM renderer; null for a plain number. */
-        const char* (*str)(uint64_t);
+        Kind        kind;
         VarType     type;
-        VarRole     role;
-        VarScope    scope;     ///< which kind of row this is; what tables filter on
-        uint8_t     digits;    ///< T_F32 display decimals
-        uint8_t     flags;     ///< VarFlags
-        uint8_t     _rsv[3];
+        /** @brief T_ENUM renderer; null for a plain number. */
+        const char* (*labels)(uint64_t);
+        uint8_t     digits;     ///< T_F32 display decimals
+        uint8_t     flags;      ///< VarFlags
     };
+
+    /** @name Derived properties
+     *  What a table filters on. Each is one comparison over fields the row
+     *  carries anyway, so none of them is a declared field.
+     *  @{ */
+
+    /** @brief Belongs on the MONITOR page and in MQTT telemetry: everything but
+     *  the three kinds that have a page of their own or speak for another row. */
+    constexpr bool published(const Descriptor& d) {
+        return d.kind != K_PARAM && d.kind != K_ALARM && d.kind != K_QUALITY;
+    }
+    /** @brief Carries a Modbus TCP slave register. An INPUT or an OUTPUT does
+     *  not: its @c reg addresses a device on the FIELD bus, which is a different
+     *  space entirely. The generator refuses a mapped kind with no register. */
+    constexpr bool mapped(const Descriptor& d) {
+        return d.bind.reg != 0 && d.kind != K_INPUT && d.kind != K_OUTPUT;
+    }
+    /** @brief Wired to one of the controller's own terminals rather than to the
+     *  field bus. */
+    constexpr bool local(const Descriptor& d) {
+        return (d.kind == K_INPUT || d.kind == K_OUTPUT) && d.bind.device == 0;
+    }
+    /** @brief The wire carries a raw count and the value is derived from it. */
+    constexpr bool analog(const Descriptor& d) {
+        return (d.bind.flags & B_ANALOG) != 0;
+    }
+    /** @brief A pulse-counted local terminal: the row IS the running edge count. */
+    constexpr bool pulse(const Descriptor& d) { return (d.bind.flags & B_PULSE) != 0; }
+    /** @name A pulse row's terminal
+     *  `PI()` puts the channel in the two Binding fields a local row has no
+     *  other use for. These read it back, so the encoding is stated once and
+     *  everything that wants it ASKS. The edge is a `HAL::Pulse::Edge`, which
+     *  this layer must not name.
+     *  @{ */
+    constexpr uint8_t pulse_channel(const Descriptor& d) { return (uint8_t)d.bind.reg; }
+    constexpr uint8_t pulse_edge(const Descriptor& d) { return d.bind.fc; }
+    /** @} */
+    /** @brief Anything may WRITE it: a parameter that is not read-only. Nothing
+     *  writes a reading. */
+    constexpr bool writable(const Descriptor& d) {
+        return d.kind == K_PARAM && (d.flags & F_RDONLY) == 0;
+    }
+    /** @brief The next row is this one's `_qlt` companion. */
+    constexpr bool has_quality(const Descriptor& d) { return (d.flags & F_QLT) != 0; }
+
+    /** @} */
 
     /** @name Payload access
      *  The only sanctioned way to reach the union. Each checks the
      *  discriminant, so a caller that forgets which kind of row it has gets an
-     *  inert answer rather than the other arm reinterpreted. @{ */
+     *  inert answer rather than the other arm reinterpreted. Resolving a band's
+     *  ROW ends needs the bank - Var::band().
+     *  @{ */
 
-    /** @brief Which arm @p d's payload holds. Alarm first: it is a T_BOOL, so
-     *  the type alone would say "band". */
-    constexpr PayloadArm payload_arm(const Descriptor& d) {
-        return (d.scope == SCOPE_A)  ? PAY_ALARM
-             : (d.scope == SCOPE_AI ||
-                d.scope == SCOPE_AO) ? PAY_ANALOG
-             : (d.type == T_STR)     ? PAY_TEXT
-             : (d.flags & F_BAND_REF) != 0 ? PAY_NUM_REF : PAY_NUM;
-    }
-
-    /** @brief @p d's numeric band; unset unless the row actually has one. */
-    constexpr NumBand num_band(const Descriptor& d) {
-        return (payload_arm(d) == PAY_NUM) ? d.pay.num : NumBand{Scalar(), Scalar()};
+    /** @brief @p d's declared band, ends unresolved; no band unless the row
+     *  actually has one. An analog row's band is in its calibration. */
+    constexpr Band declared_band(const Descriptor& d) {
+        return (analog(d) || d.type == T_STR || d.kind == K_ALARM)
+                   ? Band{Scalar(), Scalar(), VAR_NONE, VAR_NONE}
+                   : d.pay.num;
     }
     /** @brief @p d's declared pool slot; capacity 0 for a non-text row, which
      *  every writer already treats as "no slot". */
     constexpr TextSlot text_slot(const Descriptor& d) {
-        return (payload_arm(d) == PAY_TEXT) ? d.pay.text : TextSlot{0, STR_NONE};
+        return (d.type == T_STR) ? d.pay.text : TextSlot{0, STR_NONE};
     }
-    /** @brief @p d's calibration block; null for anything but SCOPE_AI/AO.
-     *  Resolving its live numbers needs the bank - Vars::analog_values(). */
+    /** @brief @p d's calibration block; null unless the row is analog. */
     constexpr const AnalogCal* analog_cal(const Descriptor& d) {
-        return (payload_arm(d) == PAY_ANALOG) ? d.pay.cal : nullptr;
+        return analog(d) ? d.pay.cal : nullptr;
     }
-    /** @brief @p d's referenced band; null unless it declared one. Resolving it
-     *  needs the bank - Vars::var_band(). */
-    constexpr const NumRefBand* num_ref_band(const Descriptor& d) {
-        return (payload_arm(d) == PAY_NUM_REF) ? d.pay.ref : nullptr;
-    }
-    /** @brief @p d's alarm policy; a null code for anything but SCOPE_A. */
+    /** @brief @p d's alarm policy; a null code for anything but a K_ALARM. */
     constexpr AlarmSpec alarm_spec(const Descriptor& d) {
-        return (payload_arm(d) == PAY_ALARM) ? d.pay.alarm
-                                             : AlarmSpec{nullptr, 0, 0, 0, 0};
+        return (d.kind == K_ALARM) ? d.pay.alarm
+                                   : AlarmSpec{nullptr, 0, 0, 0, 0};
     }
-
-    /** @brief Is @p v a believable reading for @p d? Non-finite first (a NaN is
-     *  in no range, and calling that "out of band" would send an operator to a
-     *  limit that is fine), then `F_BOUNDED` against the descriptor's band.
-     *
-     *  SCOPE_AI/AO are NOT judged here - their band is in the parameter table,
-     *  so num_band() reads unset and would reject everything; their driver does
-     *  it. One predicate, because the table sweep and the field-bus driver must
-     *  agree about it. */
-    bool value_implausible(const Descriptor& d, const Scalar& v);
 
     /** @} */
 
@@ -393,8 +381,7 @@ namespace Botanik { namespace Vars {
      *
      *  Whether the LAYER exists at all is @c present, not a quality: the
      *  override of an unforced row and the wire of a row with no binding are
-     *  not conditions a row can be in, and putting them in the same vocabulary
-     *  meant Q_NONE had to explain why it could not be 0.
+     *  not conditions a row can be in.
      *
      *  @c v is always the best number available for @c q: a bad reading already
      *  carries the descriptor's `def`, so it never has to be inspected first. */
@@ -402,9 +389,7 @@ namespace Botanik { namespace Vars {
         Scalar            v;
         const Descriptor* d;
         /** @brief What @c v actually is. USUALLY the row's type, but a wire
-         *  reading is in the WIRE type - a u16 count feeding an f32 row. Held
-         *  rather than derived from @c d, or that count would be read back as
-         *  the bit pattern of a float. */
+         *  reading is in the WIRE type - a u16 count feeding an f32 row. */
         VarType           t;
         Quality           q;
         /** @brief Whether this LAYER exists. False for the override of a row
@@ -414,15 +399,14 @@ namespace Botanik { namespace Vars {
         bool              present_;
 
         bool present() const { return present_; }
-        bool good()    const { return q == Q_VALID; }
+        bool good()    const { return measured(q); }
 
         VarType type() const { return t; }
 
         /** @name Conversions
          *  All SATURATING: 300 read as a u8 is 255, not 44. A wrapped value is
          *  indistinguishable from a real reading; a pinned one is obviously at
-         *  the rail. T_STR is refused - its text is in the bank's pool, not
-         *  here.
+         *  the rail. T_STR is refused - its text is in the bank's pool.
          *  @{ */
         float    as_f32() const;
         bool     as_bool() const;

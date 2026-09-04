@@ -68,13 +68,10 @@ namespace Botanik { namespace Shell {
     // program leaves the scan, and `reset`/`exit` do not go through it.
     void CommandShell::_leave_running() {
 #if BOTANIK_FEATURE_VARS
-        if (Vars::Bank* io = _bank()) {
-            // A deliberate stop loses no counting: the retain cadence bounds
-            // what a power cut costs, a planned stop should cost nothing. The
-            // parameters a PROGRAM owes ride with them, for the same reason.
-            (void)io->save_retained();
-            (void)io->save_owed_params();
-        }
+        // A deliberate stop loses no counting: the retain cadence bounds what a
+        // power cut costs, a planned stop should cost nothing. The parameters a
+        // PROGRAM owes ride with them, for the same reason.
+        if (Vars::Persist* p = _store()) (void)p->flush(HAL::Clock::uptime_ms());
 #endif
         // Wipe the screen (flushed straight to the wire) before leaving: the
         // main loop won't run again to drain the TX ring.

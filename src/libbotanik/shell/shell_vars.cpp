@@ -15,7 +15,7 @@
 
 #include "libbotanik/utils/text.h"
 #include "libbotanik/vars/access.h"
-#include "libbotanik/vars/params.h"
+#include "libbotanik/vars/persist.h"
 
 #if BOTANIK_FEATURE_PLC
 #include "libbotanik/tasks/tasks.h"
@@ -28,14 +28,14 @@ namespace Botanik { namespace Shell {
     void CommandShell::_emit_var(const Vars::Bank& io, Vars::Var h) {
         char out[128], val[48];
         const char* s = Vars::var_format(io, h, val, sizeof(val));
-        const char* u = h.meta()->unit;
-        // Flag the three things a bare number hides: the scope (on every row,
+        const char* u = h.meta().unit;
+        // Flag the three things a bare number hides: the kind (on every row,
         // since it decides whether `set` or `override` applies), that it is
         // forced by hand, and that a reading is really its default because
         // nothing has written it.
-        _emitf(out, sizeof(out), "  %-20s %-12s %-4s (%s)%s%s%s", h.meta()->name, s,
+        _emitf(out, sizeof(out), "  %-20s %-12s %-4s (%s)%s%s%s", h.meta().name, s,
                (u && u[0]) ? u : "",
-               Vars::var_scope(*h.meta()),
+               Vars::kind_label(h.kind()),
                h.override().present() ? " OVERRIDDEN" : "",
                h.param_unsaved() ? " UNSAVED" : "",
                h.valid() ? "" : " (default: nothing has written it)");
@@ -54,12 +54,12 @@ namespace Botanik { namespace Shell {
                    noun, noun);
             return;
         }
-        const Vars::VarRef r = io->find(name, nlen);
-        if (r.index == Vars::VAR_NONE) {
+        const uint16_t r = io->find(name, nlen);
+        if (r == Vars::VAR_NONE) {
             _emitf(out, sizeof(out), "%s: unknown variable", noun); return;
         }
         const Vars::Var h = io->var(r);
-        const char* u = h.meta()->unit;
+        const char* u = h.meta().unit;
         // The value is the one every other reader sees, override applied. Only
         // its QUALITY comes with it: a number a dead sensor is not producing is
         // not a reading, and a bare one would be taken for one.
@@ -84,51 +84,52 @@ namespace Botanik { namespace Shell {
             return;
         }
 
-        const Vars::VarRef r = io->find(name, nlen);
-        if (r.index == Vars::VAR_NONE) {
+        const uint16_t r = io->find(name, nlen);
+        if (r == Vars::VAR_NONE) {
             _emitf(out, sizeof(out), "%s: unknown variable", noun); return;
         }
         const Vars::Var h = io->var(r);
-        const Vars::Descriptor* d = h.meta();
+        const Vars::Descriptor& d = h.meta();
         // `params get` answers about parameters only: pointing at the noun that
         // does own the row beats "unknown", which would send someone looking
         // for a typo that is not there.
-        if (params_only && d->role != Vars::ROLE_PARAM) {
+        if (params_only && d.kind != Vars::K_PARAM) {
             _emitf(out, sizeof(out), "%s: %s is not a parameter (vars info %s)",
-                   noun, d->name, d->name);
+                   noun, d.name, d.name);
             return;
         }
 
         char val[64], det[80];
 
-        const char* u = (d->unit && d->unit[0]) ? d->unit : "";
+        const char* u = (d.unit && d.unit[0]) ? d.unit : "";
 
         // The name and what every other reader sees for it: the override
         // applied. The rows below take that apart.
-        _emitf(out, sizeof(out), "%s = %s %s", d->name,
+        _emitf(out, sizeof(out), "%s = %s %s", d.name,
                Vars::var_format(*io, h, val, sizeof(val)), u);
 
-        // Both derived (scope from the factory that declared it, group from the
-        // name), so neither can disagree with the table.
-        _field("Scope", Vars::var_scope(*d), _scope_phrase(d->scope));
-        _field("Group", Vars::var_group(*d), nullptr);
+        // Both derived (the kind is declared, the group is the name's prefix),
+        // so neither can disagree with the table.
+        _field("Kind", Vars::kind_label(d.kind), _kind_phrase(d));
+        _field("Group", Vars::var_group(d), nullptr);
         // Whether `set` works; everything is forceable, so that is the only
         // question.
         // The row's DECLARED level, not this channel's: the console is not
         // levelled, and what an operator wants to know here is which channel
         // could change it.
-        _field("Access", Vars::access_label(*h.meta()), nullptr);
+        _field("Access", Vars::access_label(h.meta()), nullptr);
         // Only on a parameter, and only when it matters: a row that is durable
         // has nothing to say here, and saying it on every row would train the
         // eye to skip the line that does.
-        if (d->role == Vars::ROLE_PARAM && h.param_unsaved())
+        if (d.kind == Vars::K_PARAM && h.param_unsaved())
             _field("Saved", "NO", "edited since the last save");
 
         // The two values, kept apart: an override SHADOWS (the driver keeps
         // publishing underneath), so "held at what" and "would read what if
         // released" are different questions. The raw row says WHY it is
         // invalid, not just that it is.
-        _value_field("Raw value", *io, h, h.live(), Vars::quality_str(h.live().q), u);
+        _value_field("Raw value", *io, h, h.live(),
+                     Vars::quality_label((uint64_t)h.live().q), u);
         // The override's quality is a person's choice, not a diagnosis: a yes
         // or a no.
         const Vars::Value ovr = h.override();
@@ -146,41 +147,41 @@ namespace Botanik { namespace Shell {
             char num[48], cell[64];
             // Not var_format(): that reads the LIVE text out of the pool, and a
             // T_STR's default is the flash literal the row was declared with.
-            const char* text = (d->type == Vars::T_STR)
-                ? (d->def.s != nullptr ? d->def.s : "")
-                : Vars::format_scalar(d->type, d->def, d->digits, d->str,
+            const char* text = (d.type == Vars::T_STR)
+                ? (d.def.s != nullptr ? d.def.s : "")
+                : Vars::format_scalar(d.type, d.def, d.digits, d.labels,
                                       num, sizeof(num));
             snprintf(cell, sizeof(cell), "%s%s%s", text, u[0] ? " " : "", u);
-            _field("Default", cell, _default_phrase(*d));
+            _field("Default", cell, _default_phrase(d));
         }
-        // Only where it is true, like Saved above. Asked of the bank rather than
+        // Only where it is true, like Saved above. Asked of Persist rather than
         // of the flag: F_RETAIN reads two ways and neither is the raw bit - a
         // computed row is written back to the retained store, a PARAMETER is
         // one `params reset` leaves alone. A line here that storage does not
         // keep would be worse than none.
-        if (Vars::Bank::retainable(*d))
+        if (Vars::Persist::retainable(d))
             _field("Retained", "yes", "written back; survives a reboot");
-        else if (Vars::Bank::param_retained(*d))
+        else if (Vars::Persist::param_retained(d))
             _field("Retained", "yes", "a record; `params reset` leaves it alone");
 
-        // The declared band, live: an analog row's comes from its calibration
-        // parameters, so var_band() rather than the flash constants.
-        if ((d->flags & Vars::F_BOUNDED) != 0 && d->type != Vars::T_STR) {
+        // The band, live: an end may name another row, and an analog row's
+        // comes from its calibration - Var::band() resolves both.
+        const Vars::Band b = h.band();
+        if (b.set()) {
             char lo[24], hi[24];
-            const Vars::NumBand b = Vars::var_band(io, *d);
             snprintf(det, sizeof(det), "%s .. %s %s",
-                     Vars::format_scalar(d->type, b.min, d->digits, nullptr, lo, sizeof(lo)),
-                     Vars::format_scalar(d->type, b.max, d->digits, nullptr, hi, sizeof(hi)), u);
-            _field(d->role == Vars::ROLE_PARAM ? "Range" : "Plausible", det, nullptr);
+                     Vars::format_scalar(d.type, b.lo, d.digits, nullptr, lo, sizeof(lo)),
+                     Vars::format_scalar(d.type, b.hi, d.digits, nullptr, hi, sizeof(hi)), u);
+            _field(d.kind == Vars::K_PARAM ? "Range" : "Plausible", det, nullptr);
         }
 
         // Where the value physically comes from.
-        _field("Source", _binding_phrase(d->bind, det, sizeof(det)), nullptr);
+        _field("Source", _binding_phrase(d, det, sizeof(det)), nullptr);
         // ...and which of the control programs it passes through, which the
         // binding does not answer: a computed row has no wire and still has an
         // author.
-        if (d->desc  && d->desc[0])  _field("Description", d->desc,  nullptr);
-        if (d->notes && d->notes[0]) _field("Notes",       d->notes, nullptr);
+        if (d.desc  && d.desc[0])  _field("Description", d.desc,  nullptr);
+        if (d.notes && d.notes[0]) _field("Notes",       d.notes, nullptr);
     }
 
     // The leader is built rather than written into each label, so the column
@@ -191,13 +192,13 @@ namespace Botanik { namespace Shell {
     void CommandShell::_value_field(const char* label, const Vars::Bank& io,
                                     Vars::Var h, Vars::Value val,
                                     const char* quality, const char* unit) {
-        const Vars::Descriptor* d = h.meta();
+        const Vars::Descriptor& d = h.meta();
         char num[48], cell[64];
         // A T_STR keeps its live text in the pool, not the slot, so the Scalar
         // is not where its value is; var_format() is the only reader that knows.
-        const char* text = (d->type == Vars::T_STR)
+        const char* text = (d.type == Vars::T_STR)
             ? Vars::var_format(io, h, num, sizeof(num))
-            : Vars::format_scalar(d->type, val.v, d->digits, d->str, num, sizeof(num));
+            : Vars::format_scalar(d.type, val.v, d.digits, d.labels, num, sizeof(num));
         snprintf(cell, sizeof(cell), "%s%s%s", text, unit[0] ? " " : "", unit);
         _field(label, cell, quality);
     }
@@ -207,56 +208,50 @@ namespace Botanik { namespace Shell {
     const char* CommandShell::_default_phrase(const Vars::Descriptor& d) {
         // The descriptor, not the role alone: a RETAINED parameter is the one
         // kind whose default nothing puts back, so the phrase would be a lie.
-        if (Vars::Bank::param_retained(d))
+        if (Vars::Persist::param_retained(d))
             return "factory value; retained, so nothing puts it back";
-        switch ((Vars::VarRole)d.role) {
-            case Vars::ROLE_PARAM:  return "factory value; `params reset` restores it";
-            case Vars::ROLE_OUTPUT: return "safe state, driven when control is withdrawn";
-            case Vars::ROLE_INPUT:  return "substituted while the reading is invalid";
-            default:                return "value before anything computes it";
+        switch (d.kind) {
+            case Vars::K_PARAM:  return "factory value; `params reset` restores it";
+            case Vars::K_OUTPUT: return "safe state, driven when nothing drives it";
+            case Vars::K_INPUT:  return "substituted while nothing is behind the row";
+            default:             return "value before anything computes it";
         }
     }
 
-    // What a scope abbreviation means, for the detail column: the table shows
-    // the two-character code because a column cannot spare eight.
-    const char* CommandShell::_scope_phrase(uint8_t scope) {
-        switch ((Vars::VarScope)scope) {
-            case Vars::SCOPE_A:  return "alarm condition";
-            case Vars::SCOPE_P:  return "parameter";
-            case Vars::SCOPE_G:  return "computed";
-            case Vars::SCOPE_SV: return "status value, published";
-            case Vars::SCOPE_Q:  return "quality";
-            case Vars::SCOPE_MI: return "input, direct";
-            case Vars::SCOPE_AI: return "input, calibrated";
-            case Vars::SCOPE_DI: return "input, digital";
-            case Vars::SCOPE_MO: return "output, direct";
-            case Vars::SCOPE_AO: return "output, scaled";
-            case Vars::SCOPE_DO: return "output, digital";
-            case Vars::SCOPE_RO: return "relay coil";
-            default:             return "?";
+    // What the one-letter kind means, for the detail column: the table shows
+    // the letter because a column cannot spare eight.
+    const char* CommandShell::_kind_phrase(const Vars::Descriptor& d) {
+        switch (d.kind) {
+            case Vars::K_ALARM:   return "alarm condition";
+            case Vars::K_PARAM:   return "parameter";
+            case Vars::K_QUALITY: return "quality of the row above it";
+            case Vars::K_STATUS:
+                return Vars::mapped(d) ? "status value, published" : "computed";
+            case Vars::K_INPUT:
+                return Vars::analog(d) ? "input, calibrated"
+                     : Vars::pulse(d)  ? "input, edge count" : "input, direct";
+            case Vars::K_OUTPUT:
+                return Vars::analog(d) ? "output, scaled" : "output, direct";
         }
+        return "?";
     }
 
     // Mirrors the MONITOR page's Source field, so a row reads the same whichever
     // showed it.
-    const char* CommandShell::_binding_phrase(const Vars::Binding& b,
+    const char* CommandShell::_binding_phrase(const Vars::Descriptor& d,
                                               char* buf, size_t cap) {
-        switch (b.transport) {
-            case Vars::XP_MODBUS:
-                snprintf(buf, cap, "Modbus dev %u fc %u reg %u",
-                         (unsigned)b.device, (unsigned)b.fc, (unsigned)b.reg);
-                break;
-            case Vars::XP_LOCAL:
-                // The wire type is what makes a local channel analog or digital;
-                // the transport only says it is not Modbus.
-                snprintf(buf, cap, "%s channel %u",
-                         (b.wire == Vars::T_BOOL) ? "digital" : "analog",
-                         (unsigned)b.reg);
-                break;
-            default:
-                snprintf(buf, cap, "computed (nothing drives it)");
-                break;
-        }
+        const Vars::Binding& b = d.bind;
+        if (d.kind != Vars::K_INPUT && d.kind != Vars::K_OUTPUT)
+            snprintf(buf, cap, "computed (nothing drives it)");
+        else if (Vars::local(d))
+            // The wire type is what makes a local channel analog or digital;
+            // the device address only says it is not on the bus.
+            snprintf(buf, cap, "%s channel %u",
+                     (b.wire == Vars::T_BOOL) ? "digital" : "analog",
+                     (unsigned)b.reg);
+        else
+            snprintf(buf, cap, "Modbus dev %u fc %u reg %u",
+                     (unsigned)b.device, (unsigned)b.fc, (unsigned)b.reg);
         return buf;
     }
 
@@ -271,9 +266,9 @@ namespace Botanik { namespace Shell {
         uint16_t n = 0;
         for (uint16_t i = 0; i < io->count(); i++) {
             Vars::Var h = io->var(i);
-            const char* name = h.meta()->name;
+            const char* name = h.meta().name;
             if (name == nullptr) continue;
-            if (params_only && h.role() != Vars::ROLE_PARAM) continue;
+            if (params_only && h.kind() != Vars::K_PARAM) continue;
             if (!Utils::glob_bounded(name, prefix, plen)) continue;
             _emit_var(*io, h);
             n++;
@@ -333,6 +328,8 @@ namespace Botanik { namespace Shell {
     // Back to the factory default, live and durably - the stored copy goes too,
     // or the next boot would undo it. `clear` is the lighter one below.
     void CommandShell::_params_reset(const char* nm, uint16_t wn) {
+        Vars::Persist* st = _store();
+        if (st == nullptr) { _println("params: nothing to save to"); return; }
         Vars::Bank* io = _bank();
         char out[128];
         if (io == nullptr) { _println("params: no variables"); return; }
@@ -343,8 +340,8 @@ namespace Botanik { namespace Shell {
             uint16_t done = 0, refused = 0, kept = 0;
             for (uint16_t k = 0; k < io->param_count(); k++) {
                 Vars::Var p = io->param_at(k);
-                if (Vars::Bank::param_retained(*p.meta())) { kept++; continue; }
-                switch (io->param_reset(p)) {
+                if (Vars::Persist::param_retained(p.meta())) { kept++; continue; }
+                switch (st->reset(p)) {
                     case Vars::SET_OK:             done++;    break;
                     case Vars::SET_NOT_PERSISTED:  refused++; break;
                     default: break;                // read-only rows are not errors
@@ -360,26 +357,26 @@ namespace Botanik { namespace Shell {
             return;
         }
 
-        const Vars::VarRef r = io->find(nm, wn);
-        if (r.index == Vars::VAR_NONE) { _println("params: unknown parameter"); return; }
+        const uint16_t r = io->find(nm, wn);
+        if (r == Vars::VAR_NONE) { _println("params: unknown parameter"); return; }
         Vars::Var p = io->var(r);
-        if (Vars::Bank::param_retained(*p.meta())) {
+        if (Vars::Persist::param_retained(p.meta())) {
             _emitf(out, sizeof(out), "%s is retained: `params reset` leaves it alone",
-                   p.meta()->name);
+                   p.meta().name);
             _println("  it records what happened; `params set` is how it moves");
             return;
         }
-        switch (io->param_reset(p)) {
+        switch (st->reset(p)) {
             case Vars::SET_OK:
-                _emitf(out, sizeof(out), "%s reset to its default", p.meta()->name);
+                _emitf(out, sizeof(out), "%s reset to its default", p.meta().name);
                 break;
             case Vars::SET_NOT_PERSISTED:
                 _emitf(out, sizeof(out),
-                       "%s reset, but storage kept the saved copy", p.meta()->name);
+                       "%s reset, but storage kept the saved copy", p.meta().name);
                 break;
             default:
                 _emitf(out, sizeof(out), "params: %s is not an editable parameter",
-                       p.meta()->name);
+                       p.meta().name);
                 break;
         }
     }
@@ -388,6 +385,8 @@ namespace Botanik { namespace Shell {
     // would give it and the stored copy is left alone. `params reset` is the
     // destructive one - this is the undo.
     void CommandShell::_params_clear(const char* nm, uint16_t wn) {
+        Vars::Persist* st = _store();
+        if (st == nullptr) { _println("params: nothing to save to"); return; }
         Vars::Bank* io = _bank();
         char out[128];
         if (io == nullptr) { _println("params: no variables"); return; }
@@ -400,26 +399,26 @@ namespace Botanik { namespace Shell {
                 // Count what actually had something outstanding, not every row
                 // walked: "142 cleared" after editing one is a lie.
                 if (!p.param_unsaved()) continue;
-                if (io->param_clear(p) == Vars::SET_OK) done++;
+                if (st->revert(p) == Vars::SET_OK) done++;
             }
             _emitf(out, sizeof(out), "params: %u unsaved edit%s forgotten",
                    done, done == 1 ? "" : "s");
             return;
         }
 
-        const Vars::VarRef r = io->find(nm, wn);
-        if (r.index == Vars::VAR_NONE) { _println("params: unknown parameter"); return; }
+        const uint16_t r = io->find(nm, wn);
+        if (r == Vars::VAR_NONE) { _println("params: unknown parameter"); return; }
         Vars::Var p = io->var(r);
         const bool had = p.param_unsaved();
-        switch (io->param_clear(p)) {
+        switch (st->revert(p)) {
             case Vars::SET_OK:
                 _emitf(out, sizeof(out), had ? "%s back to its saved value"
                                              : "%s had no unsaved edit",
-                       p.meta()->name);
+                       p.meta().name);
                 break;
             default:
                 _emitf(out, sizeof(out), "params: %s is not an editable parameter",
-                       p.meta()->name);
+                       p.meta().name);
                 break;
         }
     }
@@ -437,15 +436,15 @@ namespace Botanik { namespace Shell {
         if (nm == nullptr || v == nullptr) {
             _verb_usage("params", "set"); return;
         }
-        const Vars::VarRef r = io->find(nm, wn);
-        if (r.index == Vars::VAR_NONE) { _println("params: unknown parameter"); return; }
+        const uint16_t r = io->find(nm, wn);
+        if (r == Vars::VAR_NONE) { _println("params: unknown parameter"); return; }
         Vars::Var p = io->var(r);
         // Point at `overrides` rather than failing flatly: the next scan would
         // put a value written here straight back.
-        if (p.role() != Vars::ROLE_PARAM) {
+        if (p.kind() != Vars::K_PARAM) {
             _emitf(out, sizeof(out),
                    "params: %s is not a parameter (overrides set %s <value> to force it)",
-                   p.meta()->name, p.meta()->name);
+                   p.meta().name, p.meta().name);
             return;
         }
 
@@ -453,15 +452,17 @@ namespace Botanik { namespace Shell {
         uint16_t vc = std::min(wv, (uint16_t)(sizeof(val) - 1));
         memcpy(val, v, vc); val[vc] = '\0';
 
-        if (io->param_set(p, val) != Vars::SET_OK) {
-            _emitf(out, sizeof(out), "params: invalid value for %s", p.meta()->name);
+        if (p.param_set(val) != Vars::SET_OK) {
+            _emitf(out, sizeof(out), "params: invalid value for %s", p.meta().name);
             return;
         }
         _emitf(out, sizeof(out), "%s = %s  (unsaved: `params save %s`)",
-               p.meta()->name, val, p.meta()->name);
+               p.meta().name, val, p.meta().name);
     }
 
     void CommandShell::_params_save(const char* nm, uint16_t wn) {
+        Vars::Persist* st = _store();
+        if (st == nullptr) { _println("params: nothing to save to"); return; }
         Vars::Bank* io = _bank();
         char out[128];
         if (io == nullptr) { _println("params: no variables"); return; }
@@ -470,7 +471,7 @@ namespace Botanik { namespace Shell {
 
         if (arg_is_all(nm, wn)) {
             uint16_t refused = 0;
-            const uint16_t saved = io->save_params(&refused);
+            const uint16_t saved = st->save_all(&refused);
             if (saved == 0 && refused == 0) { _println("params: nothing to save"); return; }
             if (refused != 0)
                 _emitf(out, sizeof(out), "params: %u saved, %u REFUSED by storage",
@@ -480,39 +481,39 @@ namespace Botanik { namespace Shell {
             return;
         }
 
-        const Vars::VarRef r = io->find(nm, wn);
-        if (r.index == Vars::VAR_NONE) { _println("params: unknown parameter"); return; }
+        const uint16_t r = io->find(nm, wn);
+        if (r == Vars::VAR_NONE) { _println("params: unknown parameter"); return; }
         Vars::Var p = io->var(r);
-        if (p.role() != Vars::ROLE_PARAM) {
-            _emitf(out, sizeof(out), "params: %s is not a parameter", p.meta()->name);
+        if (p.kind() != Vars::K_PARAM) {
+            _emitf(out, sizeof(out), "params: %s is not a parameter", p.meta().name);
             return;
         }
-        switch (io->param_save(p)) {
+        switch (st->save(p)) {
             case Vars::SET_OK:
-                _emitf(out, sizeof(out), "%s saved", p.meta()->name);
+                _emitf(out, sizeof(out), "%s saved", p.meta().name);
                 break;
             case Vars::SET_NOT_PERSISTED:
                 // The value stays live and stays marked, so the next `params
                 // save` tries again: say which of the two failed, the fixes are
                 // different.
                 _emitf(out, sizeof(out), "%s NOT saved: storage refused it",
-                       p.meta()->name);
+                       p.meta().name);
                 break;
             default:
-                _emitf(out, sizeof(out), "params: cannot save %s", p.meta()->name);
+                _emitf(out, sizeof(out), "params: cannot save %s", p.meta().name);
                 break;
         }
     }
 
     // Shared by every table verb: one lookup, one message.
-    Vars::VarRef CommandShell::_resolve(const char* noun, const char* nm,
+    uint16_t CommandShell::_resolve(const char* noun, const char* nm,
                                         uint16_t wn) {
         Vars::Bank* io = _bank();
         char err[96];
-        const Vars::VarRef none = { Vars::VAR_NONE };
+        const uint16_t none = { Vars::VAR_NONE };
         if (io == nullptr) { _emitf(err, sizeof(err), "%s: no variables", noun); return none; }
-        const Vars::VarRef r = io->find(nm, wn);
-        if (r.index == Vars::VAR_NONE) _emitf(err, sizeof(err), "%s: unknown variable", noun);
+        const uint16_t r = io->find(nm, wn);
+        if (r == Vars::VAR_NONE) _emitf(err, sizeof(err), "%s: unknown variable", noun);
         return r;
     }
 
@@ -541,7 +542,7 @@ namespace Botanik { namespace Shell {
             Vars::Var h = io->var(i);
             if (!h.override().present()) continue;
             if (h.override_unsaved()) unsaved++;
-            _emitf(out, sizeof(out), "  %-20s %-12s %s%s", h.meta()->name,
+            _emitf(out, sizeof(out), "  %-20s %-12s %s%s", h.meta().name,
                    Vars::var_format(*io, h, val, sizeof(val)),
                    h.valid() ? "" : "(reading as invalid) ",
                    h.override_unsaved() ? "(unsaved)" : "");
@@ -554,34 +555,38 @@ namespace Botanik { namespace Shell {
     }
 
     void CommandShell::_overrides_clear(const char* nm, uint16_t wn) {
+        Vars::Persist* st = _store();
+        if (st == nullptr) { _println("overrides: nothing to save to"); return; }
         Vars::Bank* io = _bank();
         char out[128];
         if (nm == nullptr) { _verb_usage("overrides", "clear"); return; }
 
         if (arg_is_all(nm, wn)) {
-            _emitf(out, sizeof(out), "overrides: cleared %u", io->override_clear_all());
+            _emitf(out, sizeof(out), "overrides: cleared %u", st->override_clear_all());
             return;
         }
-        const Vars::VarRef r = _resolve("overrides", nm, wn);
-        if (r.index == Vars::VAR_NONE) return;
+        const uint16_t r = _resolve("overrides", nm, wn);
+        if (r == Vars::VAR_NONE) return;
         Vars::Var h = io->var(r);
-        // Through the bank, not the handle: the handle cannot reach the store,
+        // Through Persist, not the handle: the handle cannot reach the store,
         // and a release leaving the stored copy behind would come back at the
         // next boot.
-        io->override_clear(h);
-        _emitf(out, sizeof(out), "%s: override cleared", h.meta()->name);
+        st->override_clear(h);
+        _emitf(out, sizeof(out), "%s: override cleared", h.meta().name);
     }
 
     void CommandShell::_overrides_set(const char* nm, uint16_t wn,
                                       const char* args, uint16_t alen) {
+        Vars::Persist* st = _store();
+        if (st == nullptr) { _println("overrides: nothing to save to"); return; }
         Vars::Bank* io = _bank();
         char out[128];
         if (nm == nullptr) {
             _verb_usage("overrides", "set");
             return;
         }
-        const Vars::VarRef r = _resolve("overrides", nm, wn);
-        if (r.index == Vars::VAR_NONE) return;
+        const uint16_t r = _resolve("overrides", nm, wn);
+        if (r == Vars::VAR_NONE) return;
         Vars::Var h = io->var(r);
 
         uint16_t wa; const char* a = arg_next(args, alen, wa);
@@ -589,8 +594,8 @@ namespace Botanik { namespace Shell {
         // `set <name> off` is the older spelling for a release, and it reads
         // naturally next to a value; `on` is optional sugar before one.
         if (a != nullptr && arg_eq(a, wa, "off")) {
-            io->override_clear(h);
-            _emitf(out, sizeof(out), "%s: override cleared", h.meta()->name);
+            st->override_clear(h);
+            _emitf(out, sizeof(out), "%s: override cleared", h.meta().name);
             return;
         }
         if (a != nullptr && arg_eq(a, wa, "on")) a = arg_next(args, alen, wa);
@@ -616,29 +621,27 @@ namespace Botanik { namespace Shell {
         }
 
         if (value != nullptr) {
-            if (io->override_set(h, value) != Vars::SET_OK) {
-                _emitf(out, sizeof(out), "overrides: invalid value for %s", h.meta()->name);
+            if (h.override_set(value) != Vars::SET_OK) {
+                _emitf(out, sizeof(out), "overrides: invalid value for %s", h.meta().name);
                 return;
             }
         } else if (!quality) {
-            io->override_set(h, h.value().v);   // no value: hold it where it is
+            h.override_set(h.value().v);   // no value: hold it where it is
         }
 
         if (quality && !_force_quality(r, valid)) {
             _emitf(out, sizeof(out), "overrides: %s carries no quality to force",
-                   h.meta()->name);
+                   h.meta().name);
             return;
         }
         _override_reply(h, value != nullptr ? "forced to"
                                             : (quality ? "reading" : "frozen at"));
     }
 
-    bool CommandShell::_force_quality(Vars::VarRef r, bool valid) {
-        Vars::Bank* io = _bank();
-        const Vars::VarRef q = io->quality_ref(r);
-        if (q.index == Vars::VAR_NONE) return false;
-        io->override_set(io->var(q),
-                         Vars::Scalar::U(valid ? Vars::Q_VALID : Vars::Q_NO_DATA));
+    bool CommandShell::_force_quality(uint16_t r, bool valid) {
+        const Vars::Var q = _bank()->var(r).quality_var();
+        if (q.null()) return false;
+        q.override_set(Vars::Scalar::U(valid ? Vars::Q_GOOD : Vars::Q_NONE));
         return true;
     }
 
@@ -646,7 +649,7 @@ namespace Botanik { namespace Shell {
         Vars::Bank* io = _bank();
         char out[128], val[48];
         _emitf(out, sizeof(out), "%s: %s %s%s",
-               h.meta()->name, verb, Vars::var_format(*io, h, val, sizeof(val)),
+               h.meta().name, verb, Vars::var_format(*io, h, val, sizeof(val)),
                h.valid() ? "" : " (reading as invalid)");
     }
 
@@ -656,6 +659,8 @@ namespace Botanik { namespace Shell {
     // override left in place ON PURPOSE (a failed sensor bypassed until the
     // spare arrives) is exactly what wants committing.
     void CommandShell::_overrides_save(const char* nm, uint16_t wn) {
+        Vars::Persist* st = _store();
+        if (st == nullptr) { _println("overrides: nothing to save to"); return; }
         Vars::Bank* io = _bank();
         char out[128];
         if (io == nullptr) { _println("overrides: no variables"); return; }
@@ -664,7 +669,7 @@ namespace Botanik { namespace Shell {
 
         if (arg_is_all(nm, wn)) {
             uint16_t refused = 0;
-            const uint16_t saved = io->save_overrides(&refused);
+            const uint16_t saved = st->save_overrides(&refused);
             if (saved == 0 && refused == 0) { _println("overrides: nothing to save"); return; }
             if (refused != 0)
                 _emitf(out, sizeof(out), "overrides: %u saved, %u REFUSED by storage",
@@ -674,19 +679,19 @@ namespace Botanik { namespace Shell {
             return;
         }
 
-        const Vars::VarRef r = io->find(nm, wn);
-        if (r.index == Vars::VAR_NONE) { _println("overrides: unknown variable"); return; }
+        const uint16_t r = io->find(nm, wn);
+        if (r == Vars::VAR_NONE) { _println("overrides: unknown variable"); return; }
         Vars::Var h = io->var(r);
-        switch (io->save_override(h)) {
+        switch (st->save_override(h)) {
             case Vars::SET_OK:
-                _emitf(out, sizeof(out), "%s: override saved", h.meta()->name);
+                _emitf(out, sizeof(out), "%s: override saved", h.meta().name);
                 break;
             case Vars::SET_NOT_PERSISTED:
                 _emitf(out, sizeof(out), "%s: override NOT saved: storage refused it",
-                       h.meta()->name);
+                       h.meta().name);
                 break;
             default:
-                _emitf(out, sizeof(out), "%s: nothing forced on it", h.meta()->name);
+                _emitf(out, sizeof(out), "%s: nothing forced on it", h.meta().name);
                 break;
         }
     }

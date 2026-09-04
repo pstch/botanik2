@@ -38,13 +38,13 @@ VAR
   cranking : TON_MS;
 END_VAR
   supply.V     := ats_V;
-  supply.V_OK  := GOOD(ats_V_qlt);
+  supply.V_Q   := ats_V_qlt;
   supply.A     := ats_A;
-  supply.A_OK  := GOOD(ats_A_qlt);
+  supply.A_Q   := ats_A_qlt;
   supply.W     := ats_W;
-  supply.W_OK  := GOOD(ats_W_qlt);
+  supply.W_Q   := ats_W_qlt;
   supply.HZ    := ats_Hz;
-  supply.HZ_OK := GOOD(ats_Hz_qlt);
+  supply.HZ_Q  := ats_Hz_qlt;
   supply.LO_V  := pwr_localLo_V;
   supply.HI_V  := pwr_localHi_V;
   supply.LO_HZ := pwr_localLo_Hz;
@@ -52,13 +52,13 @@ END_VAR
   supply();
 
   sys_local_V      := supply.OUT_V;
-  sys_local_V_qlt  := QUAL(supply.OUT_V_OK, supply.OUT_V_SEEDED);
+  sys_local_V_qlt  := supply.OUT_V_Q;
   sys_local_A      := supply.OUT_A;
-  sys_local_A_qlt  := QUAL(supply.OUT_A_OK, supply.OUT_A_SEEDED);
+  sys_local_A_qlt  := supply.OUT_A_Q;
   sys_local_W      := supply.OUT_W;
-  sys_local_W_qlt  := QUAL(supply.OUT_W_OK, supply.OUT_W_SEEDED);
+  sys_local_W_qlt  := supply.OUT_W_Q;
   sys_local_Hz     := supply.OUT_HZ;
-  sys_local_Hz_qlt := QUAL(supply.OUT_HZ_OK, supply.OUT_HZ_SEEDED);
+  sys_local_Hz_qlt := supply.OUT_HZ_Q;
   sys_local_ok     := supply.OK;
   sys_local_ok_qlt := QUAL(supply.ANSWERED, FALSE);
   alarm_ac_local   := supply.FAULT;

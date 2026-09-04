@@ -22,11 +22,12 @@ namespace Botanik { namespace Vars {
     /** @brief Parse @p text as @p d's type into @p out, holding it to @p band.
      *
      *  Shared by param_set() and override_set(), which differ only in whether a
-     *  band applies: null is unbounded. The band is the CALLER's because a row
-     *  whose ends are other rows has none until the bank resolves it.
+     *  band applies: null is unbounded. The band is the CALLER's because it is
+     *  RESOLVED - an end that names a row is only a limit once the bank has
+     *  read it.
      *  @param band the band to hold to, or null for none */
     SetResult parse_for(const Descriptor& d, const char* text,
-                        const NumBand* band, Scalar* out);
+                        const Band* band, Scalar* out);
 
 }}  // namespace Botanik::Vars
 

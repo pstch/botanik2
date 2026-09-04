@@ -12,6 +12,7 @@
 #include "libbotanik/alarms/notifier.h"
 #include "libbotanik/logs/logger.h"
 #include "libbotanik/vars/declare.h"
+#include "site_bank.h"
 #include "doctest.h"
 #include "term_fixture.h"
 #include <cstdint>
@@ -68,8 +69,7 @@ namespace {
          *  reads now, in place of the bank itself. */
         Vars::BankAlarms rows;
         AlarmBank(const Vars::Descriptor* v, uint16_t n) {
-            bank.register_vars(v, n);
-            bank.freeze();
+            TestSite::build(bank, v, n);
             rows.bind(&bank);
         }
     };
@@ -192,11 +192,11 @@ TEST_CASE("alarm: releasing an override clears a condition it was holding on") {
     Vars::Var v = f.bank.var(f.rows.row(0));
 
     m.step(0);
-    f.bank.override_set(v, Vars::from_bool(Vars::T_BOOL, true));
+    v.override_set(Vars::from_bool(Vars::T_BOOL, true));
     m.step(1000);
     REQUIRE(m.condition(0).active == true);
 
-    f.bank.override_clear(v);
+    v.override_clear();
     m.step(2000);
     CHECK(m.condition(0).active == false);
     CHECK(m.active_count() == 0);
@@ -211,11 +211,11 @@ TEST_CASE("alarm: a forced alarm comes down when the force does") {
     Vars::Var v = f.bank.var(f.rows.row(0));
 
     m.step(0);
-    f.bank.override_set(v, Vars::from_bool(Vars::T_BOOL, true));
+    v.override_set(Vars::from_bool(Vars::T_BOOL, true));
     m.step(1000);
     REQUIRE(m.condition(0).active == true);
 
-    f.bank.override_set(v, Vars::from_bool(Vars::T_BOOL, false));
+    v.override_set(Vars::from_bool(Vars::T_BOOL, false));
     m.step(2000);
     INFO("the force is authoritative: the hold does not outlive it");
     CHECK(m.condition(0).active == false);
@@ -378,8 +378,7 @@ namespace {
             // with no bank sets them through the same path.
             console.reconfigure(Terminal::ConsoleConfig().type, 80, rows);
             console.terminal().set_baud(4000000u);
-            bank.register_vars(TABLE, 4);
-            bank.freeze();
+            TestSite::build(bank, TABLE, 4);
             // The scan is on_setup() now, and the source had nothing to offer
             // before the freeze above - so both run after it, in this order.
             alarm_rows.bind(&bank);
@@ -695,8 +694,7 @@ TEST_CASE("AlarmController: a transition fans out to every registered notifier")
     // announce ON/OFF at once (on_s = off_s = 0).
     const Vars::Descriptor TABLE[] = { Vars::A("x", "X", 0, 0, 0, 0, 800, "", "") };
     Vars::Bank bank;
-    bank.register_vars(TABLE, 1);
-    bank.freeze();
+    TestSite::build(bank, TABLE, 1);
     Vars::BankAlarms rows;
     rows.bind(&bank);
     AlarmController m(Botanik::SetupContext(), &rows);

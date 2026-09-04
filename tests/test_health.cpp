@@ -297,8 +297,8 @@ TEST_CASE("quality: a row losing its validity is announced once, not per beat") 
     uint64_t t = SETTLED;
     for (uint16_t i = 0; i < 40; i++) reg.run_phase(Botanik::Tasks::PHASE_SERVICE, t += 100);
 
-    const Vars::VarRef r = f.bank.find("cli_temp_hi1");
-    REQUIRE(r.index != Vars::VAR_NONE);
+    const uint16_t r = f.bank.find("cli_temp_hi1");
+    REQUIRE(r != Vars::VAR_NONE);
     f.bank.var(r).publish(Vars::from_f32(Vars::T_F32, 21.0f), t);
     for (uint16_t i = 0; i < 40; i++) reg.run_phase(Botanik::Tasks::PHASE_SERVICE, t += 100);
     f.writer.all_msgs.clear();
@@ -336,8 +336,8 @@ TEST_CASE("quality: bring-up is adopted in silence, not announced row by row") {
     h.register_tasks();
     reg.setup(0);
 
-    const Vars::VarRef r = f.bank.find("cli_temp_hi1");
-    REQUIRE(r.index != Vars::VAR_NONE);
+    const uint16_t r = f.bank.find("cli_temp_hi1");
+    REQUIRE(r != Vars::VAR_NONE);
 
     // Inside the quiet window: the table is swept, the row goes valid, and
     // nothing is said about it.

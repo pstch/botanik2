@@ -33,6 +33,11 @@ namespace Botanik { namespace Utils {
      *  their own copy of the terminator check that makes a prefix not a match. */
     int compare_bounded(const char* s, const char* key, uint16_t len);
 
+    /** @brief compare_bounded()'s ASCII case-folded form. What the variable
+     *  bank's generated name order is sorted by and searched with: IEC
+     *  identifiers are case-insensitive and matiec upper-cases every one. */
+    int compare_bounded_ci(const char* s, const char* key, uint16_t len);
+
     /** @brief The equality form of compare_bounded(). */
     inline bool equals_bounded(const char* s, const char* key, uint16_t len) {
         return compare_bounded(s, key, len) == 0;

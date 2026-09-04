@@ -1,66 +1,102 @@
 #!/usr/bin/env python3
 """The site, from its tables.
 
-    tables.py generate   tables/*.csv       -> vars.gen.{h,cpp}
-    tables.py config     site.toml          -> config.gen.h
-    tables.py plant      programs.csv + ST  -> plant.st, plant.cpp, and matiec
-    tables.py library    vars/tables/library.csv -> vars_table.gen.h
-    tables.py points     the lot            -> docs/reference/points.md
+    tables.py generate   library.csv + tables/*.csv -> vars.gen.{h,cpp}, rows.gen.h
+    tables.py config     site.toml + the tables     -> config.gen.h
+    tables.py plant      programs.csv + ST          -> plant.st, plant.cpp, and matiec
+    tables.py points     the lot                    -> docs/reference/points.md
 
 Offline: the output is COMMITTED and never built. `make check-generated` is
 what holds the two together - it regenerates into a scratch copy and diffs.
+
+The generator owns the whole table. It merges the library's rows into the
+site's, applies the site's overrides, orders the rows, assigns every index and
+every generated register, resolves every name to an index, and CHECKS. Nothing
+it checks is checked again at runtime.
 """
 
 import csv, os, re, sys
 
-# Overridable so `check-st` can regenerate into a COPY and diff against what is
-# committed: a check never writes into the tree it is checking. Only `plant` is
-# safe to redirect - `points` writes a FIXED docs/reference/points.md.
+# Overridable so `check-generated` can regenerate into a COPY and diff against
+# what is committed: a check never writes into the tree it is checking. Only
+# `points` writes a FIXED path.
 SITE = os.environ.get('BOTANIK_SITE_DIR', 'src/sites/gh_mlb41')
-PAD = 34
 
-ROWS = {  # factory -> (csv stem, columns == the factory's parameters)
-    'P':   ('params',      'name type def lo hi digits unit reg desc notes writable retained'),
+VAR_NONE = 'VAR_NONE'
+
+# factory -> (csv stem, the CSV's columns). The factory's own parameter list is
+# FAC_COLS below: `qlt` is generated, not declared.
+ROWS = {
+    'P':   ('params',      'name type def lo hi lo_row hi_row digits unit reg desc notes writable retained'),
+    'PE':  ('params_enum', 'name def label reg desc notes writable retained'),
+    'PS':  ('params_text', 'name def cap kind reg desc notes writable retained'),
+    'A':   ('alarms',      'name code on_s off_s recent_s hold_s reg desc notes'),
     'SV':  ('status',      'name type def digits unit reg desc notes retained'),
     'SVE': ('status_enum', 'name def label reg desc notes'),
-    'A':   ('alarms',      'name code on_s off_s recent_s hold_s reg desc notes'),
-    'MI':  ('modbus_in',   'name type device fc reg regs lo hi def timeout_ms digits unit desc notes poll_ms word_swap'),
+    'MI':  ('modbus_in',   'name type device fc reg regs lo hi lo_row hi_row def timeout_ms digits unit desc notes poll_ms word_swap'),
     'MO':  ('modbus_out',  'name type device fc reg regs safe digits unit desc notes word_swap'),
     'AI':  ('analog_in',   'name cal device fc reg regs wire def timeout_ms digits unit desc notes poll_ms word_swap'),
     'AO':  ('analog_out',  'name cal device fc reg regs wire safe digits unit desc notes word_swap'),
     'DI':  ('digital_in',  'name device fc reg def timeout_ms invert desc notes poll_ms'),
     'DO':  ('digital_out', 'name device fc reg safe invert desc notes'),
     'RO':  ('relay_out',   'name device coil safe invert desc notes'),
-    'PE':  ('params_enum', 'name def label reg desc notes writable retained'),
-    'PS':  ('params_text', 'name def cap kind reg desc notes writable retained'),
-    'G':   ('globals',     'name type def digits unit desc notes retained'),
     'PI':  ('pulse_in',    'name channel edge desc notes'),
 }
-FAC_OF = {stem: fac for fac, (stem, _c) in ROWS.items()}
+
+# What each factory takes, in order. Equal to the CSV's columns except where the
+# generator supplies one.
+FAC_COLS = dict((f, c.split()) for f, (_s, c) in ROWS.items())
+FAC_COLS['SV']  = ROWS['SV'][1].split()  + ['qlt']
+FAC_COLS['SVE'] = ROWS['SVE'][1].split() + ['retained', 'qlt']
+FAC_COLS['Q']   = ['name', 'reg', 'desc']
+
+# The six Kinds, and which factories build each.
+KIND = {'P': 'PARAM', 'PE': 'PARAM', 'PS': 'PARAM',
+        'A': 'ALARM',
+        'SV': 'STATUS', 'SVE': 'STATUS',
+        'MI': 'INPUT', 'AI': 'INPUT', 'DI': 'INPUT', 'PI': 'INPUT',
+        'MO': 'OUTPUT', 'AO': 'OUTPUT', 'DO': 'OUTPUT', 'RO': 'OUTPUT',
+        'Q': 'QUALITY'}
+
+# Emission order within each half. Parameters first and contiguous; then
+# everything else, each companion directly after its row.
+PARAM_FACS = ['P', 'PE', 'PS']
+OTHER_FACS = ['A', 'SV', 'SVE', 'MI', 'MO', 'AI', 'AO', 'DI', 'PI', 'DO', 'RO']
+
 TEXT = {'name', 'unit', 'desc', 'notes', 'code', 'tag', 'model_name'}
 # Columns whose type depends on the FACTORY: a text parameter's default is a
-# string where every other factory's is a number. Latent until the library's
-# net_ip moved into a table - the site's params_text.csv is empty, so no PS row
-# had ever been through here.
+# string where every other factory's is a number.
 TEXT_BY_FAC = {'PS': {'def'}}
 # Not quoted, but not a number either: a symbol the emitted C++ names.
 #
 # `reg`, `coil` and `channel` carry a NUMBER on the field bus (a register, a
 # coil) and a PIN LABEL locally, where there is no register to address. Both
 # spellings are allowed in one column and told apart by shape: a number is a
-# number, anything else is a HAL::Pin. So a local row says RELAY_1 and a bus
-# row says 12, and neither has to know about the other.
+# number, anything else is a HAL::Pin.
 SYMBOL = {'edge': 'HAL::Pulse::', 'reg': 'HAL::Pin::',
           'coil': 'HAL::Pin::', 'channel': 'HAL::Pin::'}
+# Columns naming a ROW, resolved to a generated index.
+ROW_COLS = {'lo_row', 'hi_row'}
+# A column read as a boolean, and what an empty cell means.
+BOOLS = {'writable': 'true', 'retained': 'false', 'qlt': 'false',
+         'word_swap': 'false', 'invert': 'false', 'safe': 'false'}
+# ...plus `def`, which is a boolean on the two factories whose rows are bits.
+BOOL_DEF = ('DI',)
+# The tail a factory defaults, popped when the row agrees with it.
+TAIL = {'P': {'writable': 'true', 'retained': 'false'},
+        'PE': {'writable': 'true', 'retained': 'false'},
+        'PS': {'writable': 'true', 'retained': 'false'},
+        'SV': {'retained': 'false', 'qlt': 'false'},
+        'SVE': {'retained': 'false', 'qlt': 'false'},
+        'MI': {'poll_ms': '0', 'word_swap': 'false'},
+        'AI': {'poll_ms': '0', 'word_swap': 'false'},
+        'MO': {'word_swap': 'false'},
+        'AO': {'word_swap': 'false'},
+        'DI': {'poll_ms': '0'}}
 
 AUX = {  # stem -> columns, for the tables that are not rows
     'analog_cal':     'cal raw_min_row raw_min raw_max_row raw_max eng_min_row eng_min '
                       'eng_max_row eng_max min_row min max_row max',
-    # A parameter whose band end is ANOTHER parameter, so a pair with a required
-    # relationship cannot be edited into an impossible one. Same shape as
-    # analog_cal: a `_row` name plus the fallback used when it does not resolve.
-    # An empty `_row` pins that end to its number.
-    'param_band':     'param lo_row lo hi_row hi',
     'modbus_models':  'symbol kind model_name regs words',
     'modbus_devices': 'addr model tag',
     'enums':          'enum ctype symbol value label desc',
@@ -68,18 +104,42 @@ AUX = {  # stem -> columns, for the tables that are not rows
     'home':           'label var',
 }
 
+LIB_CSV = 'src/libbotanik/vars/tables/library.csv'
+CONFIG_DIR = 'src/libbotanik/config'
+# The always-on core, from libbotanik_features.h's defaults.
+CORE_FEATURES = {'CONSOLE', 'LOGGING', 'VARS', 'PLC', 'HOME_PAGE', 'SHELL_PAGE'}
+
+H = '// GENERATED by scripts/tables.py from tables/*.csv. Do not edit.\n'
+
+
+# ---- reading ---------------------------------------------------------------
 
 def _numeric(v):
     try: int(v, 0); return True
     except ValueError: return False
 
 
-def quote(v, col, fac=None):
-    if col in TEXT or col in TEXT_BY_FAC.get(fac, ()):
-        return '"%s"' % v.replace('"', '\\"')
-    if col in SYMBOL and v and not _numeric(v) and not v.startswith(SYMBOL[col]):
-        return SYMBOL[col] + v
-    return v
+def config_defaults():
+    """Every `BOTANIK_<NAME> <int>` default the config headers declare.
+
+    A library text row states its capacity as one of these, so the pool the
+    generator sizes is a number the library owns rather than one restated
+    here. Read, never copied."""
+    out = {}
+    for f in sorted(os.listdir(CONFIG_DIR)):
+        if not f.endswith('.h'): continue
+        for m in re.finditer(r'^#\s*define\s+(BOTANIK_\w+)\s+(\d+)\s*$',
+                             open(os.path.join(CONFIG_DIR, f)).read(), re.M):
+            out.setdefault(m.group(1), int(m.group(2)))
+    return out
+
+
+def as_int(v, defs):
+    """A CSV cell that is a number, or a config macro standing for one."""
+    try: return int(v, 0)
+    except ValueError: pass
+    if v in defs: return defs[v]
+    sys.exit('%r is neither a number nor a config default' % v)
 
 
 def read_table(path, cols):
@@ -90,133 +150,6 @@ def read_table(path, cols):
         if head != cols: sys.exit('%s: header %s != %s' % (path, head, cols))
         return [dict(zip(head, [c.strip() for c in r])) for r in rd
                 if r and any(c.strip() for c in r)]
-
-
-H = '// GENERATED by scripts/tables.py from tables/*.csv. Do not edit.\n'
-# What `make -C build matiec` builds, then whatever is on PATH. CMake's own
-# targets pass IEC2C explicitly, so this default only serves a hand run - and it
-# is what makes `python3 scripts/tables.py plant` work in a tree that has just
-# built the pinned one. Relative to CWD, like SITE and the -I below.
-_PINNED = os.path.join('build', 'matiec', 'iec2c')
-IEC2C = os.environ.get('IEC2C') or (_PINNED if os.access(_PINNED, os.X_OK)
-                                    else 'iec2c')
-# ORDER MATTERS: matiec needs a block declared before it is instanced, and
-# there is no forward declaration. filters before analog, because DC_RAIL holds
-# an EWMA.
-# What `iec2c -I` is pointed at: the directory holding OUR ieclib.txt.
-IECLIB_DIR = 'src/libbotanik/plc/functions'
-
-LIBST = ['src/libbotanik/plc/functions/quality.st',
-         'src/libbotanik/plc/functions/math.st',
-         'src/libbotanik/plc/functions/psychro.st',
-         'src/libbotanik/plc/functions/time.st',
-         'src/libbotanik/plc/blocks/timers.st',
-         'src/libbotanik/plc/blocks/filters.st',
-         'src/libbotanik/plc/blocks/analog.st',
-         'src/libbotanik/plc/blocks/pid.st',
-         'src/libbotanik/plc/blocks/actuator.st',
-         'src/libbotanik/plc/blocks/meter.st']
-
-
-# Tables whose rows are READINGS. Each gets a `_qlt` companion, because a
-# reading can always stop being one: no timeout fires on a computed row and no
-# device refuses it.
-INPUT_TABLES = ('analog_in', 'digital_in', 'modbus_in', 'pulse_in')
-
-
-def quality_rows(site):
-    """The `_qlt` companions this site gets: [(name, base, desc)], in the order
-    they are emitted.
-
-    One per INPUT row, plus one per row an opted-in program writes - a law that
-    can fail to compute has to be able to say so. Nothing else: a row with no
-    companion is valid, always.
-
-    ALARMS are excluded even under an opt-in. An alarm is a verdict rather than
-    a reading: AlarmController takes the boolean and has nothing to substitute,
-    so a quality beside it would be a row nothing consults.
-
-    The opted-in set comes from the ST's own `VAR_EXTERNAL` sections rather
-    than from matiec's output, so this does not depend on a POUS.c that the
-    same run is about to replace."""
-    out, seen = [], set()
-
-    def add(base, desc):
-        if base in seen: return
-        seen.add(base)
-        out.append((base + '_qlt', base, desc))
-
-    for stem in INPUT_TABLES:
-        f = os.path.join(site, 'tables', stem + '.csv')
-        if not os.path.exists(f): continue
-        for r in read_table(f, ROWS[FAC_OF[stem]][1].split()):
-            add(r['name'], 'quality of %s' % r['name'])
-
-    alarms = {r['name'] for r in
-              read_table(os.path.join(site, 'tables', 'alarms.csv'),
-                         ROWS['A'][1].split())}
-    fp = os.path.join(site, 'tables', 'programs.csv')
-    if os.path.exists(fp):
-        for e in read_table(fp, AUX['programs'].split()):
-            if not _opted_in(e, 'quality'): continue
-            for n, _t, ro in var_externals(os.path.join(site, e['source'])):
-                if ro or n.endswith('_qlt') or n in alarms: continue
-                add(n, 'quality of %s' % n)
-    return out
-
-
-def _opted_in(e, col):
-    return e[col].strip().lower() in ('1', 'yes', 'true')
-
-
-def park_rows(site):
-    """The `prog_<name>_park` / `_parked` pair per PARKING program.
-
-    A program that opts in is not simply dropped when it leaves the scan: it is
-    told to park, keeps scanning while it travels, and says when it is done.
-    `_park` is Plant's to write and the program's to read; `_parked` is the
-    program's answer. Both are generated, so a site adds parking by saying so
-    in programs.csv and writing the law."""
-    fp = os.path.join(site, 'tables', 'programs.csv')
-    if not os.path.exists(fp): return []
-    out = []
-    for e in read_table(fp, AUX['programs'].split()):
-        if not _opted_in(e, 'park'): continue
-        out.append(('prog_%s_park' % e['name'],
-                    '%s is parking to its safe state' % e['name']))
-        out.append(('prog_%s_parked' % e['name'],
-                    '%s has reached its parked state' % e['name']))
-    return out
-
-
-def declared_rows(site):
-    """Every row name the site and the library declare, folded to lower case.
-
-    What an ST `VAR_EXTERNAL` resolves against at bring-up. Folded because the
-    runtime folds: IEC identifiers are case-insensitive and matiec upper-cases
-    every one of them."""
-    out = set()
-    for stem, _cols in ROWS.values():
-        f = os.path.join(site, 'tables', stem + '.csv')
-        if not os.path.exists(f): continue
-        for ln in open(f).read().splitlines()[1:]:
-            n = ln.split(',')[0].strip()
-            if n: out.add(n.lower())
-    for r in lib_rows():
-        out.add(r['name'].lower())
-    for n, _b, _d in quality_rows(site):
-        out.add(n.lower())
-    for n, _d in park_rows(site):
-        out.add(n.lower())
-    return out
-
-
-def st_files(site):
-    out = []
-    for base in (os.path.join(site, 'blocks'), os.path.join(site, 'programs')):
-        for r, _, fs in os.walk(base):
-            out += [os.path.join(r, f) for f in fs if f.endswith('.st')]
-    return sorted(out)
 
 
 def toml(path):
@@ -242,6 +175,499 @@ def site_guard(t):
     return re.sub(r'\W', '_', t['site']['name']).upper()
 
 
+def features_on(tom):
+    return CORE_FEATURES | {k for k, v in tom.get('features', {}).items() if v}
+
+
+def lib_rows(tom):
+    """The library's own rows, filtered to what this site's flags compile.
+
+    ORDER IS THE FILE'S: the rows interleave kinds, and the parameter run has to
+    stay contiguous, so one table with a `fac` column rather than one per kind.
+    A guard is AND-ed flags; a flag the site does not name takes the header's
+    default, which is off for every optional one."""
+    on = features_on(tom)
+    with open(LIB_CSV, newline='') as fh:
+        recs = list(csv.DictReader(fh))
+    out = []
+    for r in recs:
+        want = [g for g in (r.get('guard') or '').split() if g]
+        if not all(g in on for g in want): continue
+        row = dict((k, (v or '').strip()) for k, v in r.items())
+        row['_fac'] = row.pop('fac')
+        row['_lib'] = True
+        out.append(row)
+    return out
+
+
+def st_files(site):
+    out = []
+    for base in (os.path.join(site, 'blocks'), os.path.join(site, 'programs')):
+        for r, _, fs in os.walk(base):
+            out += [os.path.join(r, f) for f in fs if f.endswith('.st')]
+    return sorted(out)
+
+
+def var_externals(path):
+    """Every row one ST file names, as (name, type, read_only). `VAR_EXTERNAL
+    CONSTANT` is read-only and plain `VAR_EXTERNAL` is written - that IS the
+    site's in/out declaration, there is no table saying so."""
+    out = []
+    # Comments FIRST: a law that opens with a block explaining itself would
+    # otherwise swallow the CONSTANT block behind it. Anchored to a line start
+    # for the same reason.
+    src = re.sub(r'\(\*.*?\*\)', ' ', open(path).read(), flags=re.S)
+    for m in re.finditer(r'^VAR_EXTERNAL(\s+CONSTANT)?$(.*?)^END_VAR',
+                         src, re.S | re.M):
+        for line in m.group(2).split('\n'):
+            mm = re.match(r'\s*([A-Za-z_]\w*)\s*:\s*([A-Z]+)\s*;', line)
+            if mm: out.append((mm.group(1), mm.group(2), bool(m.group(1))))
+    return out
+
+
+def _opted_in(e, col):
+    return e[col].strip().lower() in ('1', 'yes', 'true')
+
+
+def programs(site):
+    return read_table(os.path.join(site, 'tables', 'programs.csv'),
+                      AUX['programs'].split())
+
+
+# ---- the table -------------------------------------------------------------
+
+def quality_names(site, prog):
+    """Which rows get a `_qlt` companion.
+
+    One per INPUT row - a reading can always stop being one - plus one per row
+    an opted-in program writes, because a law that can fail to compute has to be
+    able to say so. Nothing else: a row with no companion is good, always.
+
+    ALARMS are excluded even under an opt-in. An alarm is a verdict rather than
+    a reading: AlarmController takes the boolean and has nothing to substitute,
+    so a quality beside it would be a row nothing consults.
+
+    The opted-in set comes from the ST's own `VAR_EXTERNAL` sections rather than
+    from matiec's output, so this does not depend on a POUS.c the same run is
+    about to replace."""
+    out = set()
+    for fac in ('MI', 'AI', 'DI', 'PI'):
+        for r in read_table(os.path.join(site, 'tables', ROWS[fac][0] + '.csv'),
+                            ROWS[fac][1].split()):
+            out.add(r['name'])
+    alarms = {r['name'] for r in
+              read_table(os.path.join(site, 'tables', 'alarms.csv'),
+                         ROWS['A'][1].split())}
+    for e in prog:
+        if not _opted_in(e, 'quality'): continue
+        for n, _t, ro in var_externals(os.path.join(site, e['source'])):
+            if ro or n.endswith('_qlt') or n in alarms: continue
+            out.add(n)
+    return out
+
+
+def _merge(site, tom):
+    """The library's rows and the site's, with the site's overrides applied.
+
+    A site OVERRIDES a library row by redeclaring the name: the site's row
+    replaces the library's IN PLACE, keeping the library's register, so the
+    whole row is the site's and the map does not move."""
+    lib = lib_rows(tom)
+    own = []
+    for fac in PARAM_FACS + OTHER_FACS:
+        stem, cols = ROWS[fac]
+        for r in read_table(os.path.join(site, 'tables', stem + '.csv'),
+                            cols.split()):
+            r['_fac'] = fac
+            r['_lib'] = False
+            own.append(r)
+
+    at = dict((r['name'], i) for i, r in enumerate(lib))
+    rest = []
+    for r in own:
+        i = at.get(r['name'])
+        if i is None: rest.append(r); continue
+        r['reg'] = lib[i]['reg']
+        lib[i] = r
+    return lib, rest
+
+
+def _gen_row(fac, **kw):
+    r = dict(kw)
+    r['_fac'] = fac
+    r['_lib'] = False
+    r['_gen'] = True    # its register comes out of a generated block
+    return r
+
+
+def build(site):
+    """The whole table, ordered and indexed, plus what is emitted beside it."""
+    tom  = toml(os.path.join(site, 'site.toml'))
+    prog = programs(site)
+    lib, own = _merge(site, tom)
+    wants_qlt = quality_names(site, prog)
+
+    def is_param(r): return KIND[r['_fac']] == 'PARAM'
+
+    table = [r for r in lib if is_param(r)] + [r for r in own if is_param(r)]
+    n_param = len(table)
+
+    qreg = int(tom['registers']['quality_base'])
+    for r in [x for x in lib if not is_param(x)] + [x for x in own if not is_param(x)]:
+        table.append(r)
+        if KIND[r['_fac']] == 'INPUT' or r['name'] in wants_qlt:
+            r['qlt'] = 'true'
+            table.append(_gen_row('Q', name=r['name'] + '_qlt', reg=str(qreg),
+                                  desc='quality of ' + r['name']))
+            qreg += 1
+
+    # The program rows, last and in roster order: a health row per program - the
+    # one status value no law writes, since it is Plant's own verdict - then the
+    # parking pair per program that opted in.
+    preg = int(tom['registers']['prog_base'])
+    for e in prog:
+        table.append(_gen_row('SVE', name='prog_%s' % e['name'], **{
+            'def': '3', 'label': '&Plc::health_label', 'reg': str(preg),
+            'desc': 'health of the %s program' % e['name'],
+            'notes': '3 is INHIBITED: nothing has run yet'}))
+        preg += 1
+    kreg = int(tom['registers']['park_base'])
+    for e in prog:
+        if not _opted_in(e, 'park'): continue
+        for suffix, what in (('park', 'is parking to its safe state'),
+                             ('parked', 'has reached its parked state')):
+            table.append(_gen_row('SV', name='prog_%s_%s' % (e['name'], suffix),
+                                  type='T_BOOL', **{
+                'def': '0', 'digits': '0', 'unit': '', 'reg': str(kreg),
+                'desc': '%s %s' % (e['name'], what), 'notes': ''}))
+            kreg += 1
+
+    for i, r in enumerate(table): r['_i'] = i
+    return {'site': site, 'toml': tom, 'prog': prog, 'table': table,
+            'index': dict((r['name'], r['_i']) for r in table),
+            'param_first': 0, 'param_count': n_param,
+            'cal': read_table(os.path.join(site, 'tables', 'analog_cal.csv'),
+                              AUX['analog_cal'].split()),
+            'home': read_table(os.path.join(site, 'tables', 'home.csv'),
+                               AUX['home'].split())}
+
+
+# ---- checks ----------------------------------------------------------------
+
+def _num(v):
+    try: return float(v)
+    except ValueError: return None
+
+
+def check(t):
+    """Every rule the table has to satisfy. All fatal: a table that breaks one
+    produces firmware whose failure is silent."""
+    bad, table, index = [], t['table'], t['index']
+
+    seen = {}
+    for r in table:
+        k = r['name'].lower()
+        if k in seen: bad.append('duplicate row name %s' % r['name'])
+        seen[k] = r
+
+    # The TCP-slave register: unique, and present on every kind an external
+    # master addresses. An INPUT or an OUTPUT has none - its `reg` addresses a
+    # device on the FIELD bus - and a status value with register 0 is simply not
+    # published, which is what the old `G` scope was.
+    regs = {}
+    gen_base = min(int(t['toml']['registers'][k])
+                   for k in ('quality_base', 'park_base', 'prog_base'))
+    for r in table:
+        kind = KIND[r['_fac']]
+        if kind in ('INPUT', 'OUTPUT'): continue
+        reg = r.get('reg', '')
+        if not _numeric(reg):
+            bad.append('%s: register %r is not a number' % (r['name'], reg))
+            continue
+        n = int(reg, 0)
+        if n == 0:
+            if kind != 'STATUS':
+                bad.append('%s: a %s row needs a register' % (r['name'], kind))
+            continue
+        if n in regs:
+            bad.append('%s and %s both claim register %d'
+                       % (regs[n], r['name'], n))
+        regs[n] = r['name']
+        # A hand-assigned register must stay out of the generated blocks, or a
+        # new reading would take a register something already answers on.
+        if n >= gen_base and not r.get('_gen'):
+            bad.append('%s: register %d is inside the generated block (>= %d)'
+                       % (r['name'], n, gen_base))
+
+    # Local terminals: unique per direction. Device 0 means one of the
+    # controller's own, and configuring one pin two ways is a hardware fault
+    # waiting for the first wet week.
+    for way in ('INPUT', 'OUTPUT'):
+        used = {}
+        for r in table:
+            if KIND[r['_fac']] != way: continue
+            if r.get('device', '1') != '0': continue
+            pin = r.get('reg') or r.get('coil') or r.get('channel') or ''
+            if pin in used:
+                bad.append('%s and %s share local terminal %s'
+                           % (used[pin], r['name'], pin))
+            used[pin] = r['name']
+
+    # A LOCAL row must be a kind the controller's own terminals can actually be.
+    # The OPTA has eight inputs, four relays, four LEDs and a button - and NO
+    # analog output. Without this an AO row on device 0 declares, generates and
+    # passes every other check, and is then driven by nothing.
+    for r in table:
+        if r['_fac'] in ('AO', 'MI', 'MO') and r.get('device') == '0':
+            bad.append('%s: device 0 means LOCAL, and there is no local %s'
+                       % (r['name'], r['_fac']))
+
+    # Every row a band end names must exist, share the referring row's type, and
+    # leave that row's own default inside the band - which is what keeps a pair
+    # reachable: an operator can always move one end and then the other, but only
+    # if the pair was valid to begin with.
+    by_name = dict((r['name'], r) for r in table)
+    for r in table:
+        ends = []
+        for side in ('lo', 'hi'):
+            nm = r.get(side + '_row', '')
+            if not nm:
+                ends.append(_num(r.get(side, '')))
+                continue
+            q = by_name.get(nm)
+            if q is None:
+                bad.append('%s: %s names no row %s' % (r['name'], side, nm))
+                ends.append(None); continue
+            if q.get('type') != r.get('type'):
+                bad.append('%s: %s is %s, %s is %s'
+                           % (r['name'], side, r.get('type'), nm, q.get('type')))
+            ends.append(_num(q.get('def', '')))
+        lo, hi = ends
+        d = _num(r.get('def', ''))
+        if lo is None or hi is None or d is None or lo == hi: continue
+        if not (lo <= d <= hi):
+            bad.append('%s defaults to %s, outside [%g, %g]'
+                       % (r['name'], r['def'], lo, hi))
+
+    # A calibration's tunables, the same way.
+    for c in t['cal']:
+        for k in ('raw_min', 'raw_max', 'eng_min', 'eng_max', 'min', 'max'):
+            nm = c[k + '_row']
+            if nm and nm not in index:
+                bad.append('%s: %s names no row %s' % (c['cal'], k, nm))
+
+    for h in t['home']:
+        if h['var'] not in index:
+            bad.append('home field %r names no row %s' % (h['label'], h['var']))
+
+    # An alarm's code is a column on the ALARMS page, and a longer one is
+    # truncated where an operator reads it.
+    for r in table:
+        if r['_fac'] == 'A' and len(r['code']) > 9:
+            bad.append('%s: alarm code %r is longer than 9' % (r['name'], r['code']))
+
+    if bad:
+        for b in bad: print('  ' + b, file=sys.stderr)
+        sys.exit('%d table error(s)' % len(bad))
+
+
+# ---- emitting --------------------------------------------------------------
+
+def quote(v, col, fac=None):
+    if col in TEXT or col in TEXT_BY_FAC.get(fac, ()):
+        return '"%s"' % v.replace('"', '\\"')
+    if col in SYMBOL and v and not _numeric(v) and not v.startswith(SYMBOL[col]):
+        return SYMBOL[col] + v
+    return v
+
+
+def _cell(r, col, fac, index):
+    v = r.get(col, '')
+    if col in ROW_COLS:
+        return ('Row::' + v) if v else VAR_NONE
+    if col in BOOLS or (col == 'def' and fac in BOOL_DEF):
+        if not v: return BOOLS.get(col, 'false')
+        return 'true' if v.lower() in ('1', 'yes', 'true') else 'false'
+    if col == 'poll_ms' and not v: return '0'
+    return quote(v, col, fac)
+
+
+def emit_row(r, index):
+    fac = r['_fac']
+    a = [_cell(r, c, fac, index) for c in FAC_COLS[fac]]
+    tail = TAIL.get(fac, {})
+    cols = FAC_COLS[fac]
+    while a and (a[-1] == '' or a[-1] == tail.get(cols[len(a) - 1])):
+        a.pop()
+    return '    %s(%s),' % (fac, ', '.join(a))
+
+
+def emit_cals(cal, index):
+    L = []
+    for c in cal:
+        keys = ('raw_min', 'raw_max', 'eng_min', 'eng_max', 'min', 'max')
+        L.append('const AnalogCal %s = {' % c['cal'])
+        L.append('    ' + ' '.join('SF(%s),' % c[k].rstrip('f') for k in keys))
+        L.append('    { ' + ', '.join(
+            ('Row::' + c[k + '_row']) if c[k + '_row'] else VAR_NONE
+            for k in keys) + ' },')
+        L += ['};', '']
+    return L
+
+
+def generate(site):
+    t = build(site)
+    check(t)
+    table, index, tom = t['table'], t['index'], t['toml']
+    guard = site_guard(tom)
+
+    order = sorted(range(len(table)), key=lambda i: table[i]['name'].lower())
+
+    L = [H, '', '#include "libbotanik.h"', '', 'namespace Site {', '',
+         'using namespace Botanik;', 'using namespace Botanik::Vars;', '',
+         '// Inside the namespace and after the usings: the header names every',
+         '// type unqualified, because it is only ever included here and by site.h.',
+         '#include "vars.gen.h"', '']
+    L += emit_cals(t['cal'], index)
+    L += ['// ONE table: the library\'s rows merged into the site\'s, parameters',
+          '// first and contiguous, each quality companion directly after the row',
+          '// it speaks for, the program rows last.',
+          'const Descriptor rows[] = {',
+          '    // parameters, first and contiguous']
+    for i, r in enumerate(table):
+        if i == t['param_count']: L.append('    // ...and everything else')
+        for ln in (r.get('lead') or '').split('\n'):
+            if not ln: continue
+            L.append('    ' + ln if ln.startswith('/*') else
+                     '     ' + ln if ln.startswith('*') else ln)
+        L.append(emit_row(r, index))
+    L += ['};', '',
+          '// Row numbers in NAME order, so Bank::find() binary-searches a const',
+          '// array and nothing is built at boot. Case-folded, which is the order',
+          '// the lookup compares in.',
+          'const uint16_t row_order[] = {']
+    for i in range(0, len(order), 12):
+        L.append('    ' + ' '.join('%d,' % k for k in order[i:i + 12]))
+    L += ['};', '']
+
+    mdl = read_table(os.path.join(site, 'tables', 'modbus_models.csv'),
+                     AUX['modbus_models'].split())
+    dev = read_table(os.path.join(site, 'tables', 'modbus_devices.csv'),
+                     AUX['modbus_devices'].split())
+    for m in mdl:
+        args = '"%s", %s' % (m['model_name'], m['regs']) + (', %s' % m['words'] if m['words'] else '')
+        L += ['const Modbus::DeviceModel %s = Modbus::%s(%s);' % (m['symbol'], m['kind'], args)]
+    L += ['', 'const Modbus::Device g_devices[] = {']
+    L += ['    { %s, &%s, "%s" },' % (d['addr'], d['model'], d['tag']) for d in dev]
+    L += ['};', '', 'const Modbus::DeviceTable g_device_table = {',
+          '    g_devices, (uint8_t)(sizeof(g_devices) / sizeof(g_devices[0]))', '};', '',
+          '// Home-screen readings: label + row. A caption is a person\'s choice',
+          '// and nothing in a row\'s name says it belongs on the landing page, so',
+          '// it is the one table no rule derives.',
+          'const HomeVar g_home_fields[] = {']
+    L += ['    { "%s", Row::%s },' % (h['label'], h['var']) for h in t['home']]
+    L += ['};', '',
+          '/** @brief The site\'s shell commands: none. A site table is matched',
+          ' *  BEFORE the library built-ins, so a name reused there shadows one. */',
+          'const Botanik::Shell::ShellCommand* const g_commands = nullptr;',
+          'const uint8_t g_command_count = 0;', '',
+          '// Field order matches Botanik::SiteDescriptor; any table may be null.',
+          'const Botanik::SiteDescriptor g_site = {',
+          '    Botanik::Config::SITE_NAME,',
+          '    g_commands,    g_command_count,',
+          '    g_home_fields, g_home_field_count,',
+          '    &g_device_table,',
+          '    rows,          row_order, ROWS_COUNT, PARAM_FIRST, PARAM_COUNT,',
+          '};', '',
+          '}  // namespace Site', '']
+    open(os.path.join(site, 'generated', 'vars.gen.cpp'), 'w').write('\n'.join(L))
+
+    # ---- vars.gen.h
+    en = read_table(os.path.join(site, 'tables', 'enums.csv'), AUX['enums'].split())
+    G = [H, '// Included from INSIDE namespace Site, so it opens none of its own.',
+         '// The guard is named for the SITE: every site generates a file by this',
+         '// name, and a shared symbol would silently skip the second one.', '',
+         '#ifndef %s_VARS_GEN_H' % guard, '#define %s_VARS_GEN_H' % guard, '']
+    for name in dict.fromkeys(e['enum'] for e in en):
+        mem = [e for e in en if e['enum'] == name]
+        w = max(len(e['symbol']) for e in mem)
+        G.append('enum %s : %s {' % (name, mem[0]['ctype']))
+        G += ['    %-*s = %s,%s' % (w, e['symbol'], e['value'],
+                                    '   ///< ' + e['desc'] if e['desc'] else '') for e in mem]
+        G += ['};', '',
+              '/** @brief A %s as the word an operator reads and types.' % name,
+              ' *  Null for an unmapped code, which is what refuses it. */',
+              'inline const char* %s_label(uint64_t code) {' % name,
+              '    switch (code) {']
+        G += ['        case %s: return "%s";' % (e['value'], e['label']) for e in mem]
+        G += ['        default: return nullptr;', '    }', '}', '']
+    G += ['// The build this table was cut for. The row indices in rows.gen.h are',
+          '// this profile\'s, so a build with one of these OFF would address the',
+          '// wrong rows. @see BOTANIK_SITE_ASSERT_FEATURES',
+          '#if !(BOTANIK_SITE_ASSERT_FEATURES)',
+          '#  error "this site assumes every optional feature it declares is enabled"',
+          '#endif', '']
+    G += ['extern const AnalogCal %s;' % c['cal'] for c in t['cal']]
+    G += ['',
+          '// The whole table, library rows merged in, and the name order beside it.',
+          'extern const Descriptor rows[];',
+          'extern const uint16_t   row_order[];',
+          'const uint16_t ROWS_COUNT  = %d;' % len(table),
+          'const uint16_t PARAM_FIRST = %d;' % t['param_first'],
+          'const uint16_t PARAM_COUNT = %d;' % t['param_count'], '',
+          'static_assert(ROWS_COUNT == Config::VAR_MAX,',
+          '              "the table and the bank\'s arrays are generated together");', '']
+    G += ['extern const Modbus::DeviceModel %s;' % m['symbol'] for m in mdl]
+    G += ['extern const Modbus::Device g_devices[];',
+          'extern const Modbus::DeviceTable g_device_table;', '',
+          '// The one table no rule derives: a caption is a person\'s choice, and',
+          '// nothing in a row\'s name says it belongs on the landing page.',
+          'extern const HomeVar g_home_fields[];',
+          'const uint8_t g_home_field_count = %d;' % len(t['home']),
+          '// The home screen silently ignores fields past its columns.',
+          'static_assert(g_home_field_count <= Config::HOME_FIELDS_MAX,',
+          '              "too many home fields: the HomePage would drop the tail");', '',
+          '// The whole handoff to the library: this site, as data.',
+          'extern const Botanik::SiteDescriptor g_site;', '',
+          '/** @brief The firmware, bound to this site. A FUNCTION-LOCAL static,',
+          ' *  so it is constructed on first use and not during static init: on',
+          ' *  the OPTA that has to be after the Arduino core\'s init() has brought',
+          ' *  up the UARTs, and a file-scope object would run before it.',
+          ' *  @note There is no subclass. A site that needs an extra page or a',
+          ' *  component of its own derives BotanikFirmware and overrides a hook;',
+          ' *  one that is only data, like this one, just names the descriptor. */',
+          'inline Botanik::BotanikFirmware& firmware() {',
+          '    static Botanik::BotanikFirmware fw(g_site);',
+          '    return fw;',
+          '}', '']
+    G += ['#endif  // %s_VARS_GEN_H' % guard, '']
+    open(os.path.join(site, 'generated', 'vars.gen.h'), 'w').write('\n'.join(G))
+
+    # ---- rows.gen.h
+    w = max(len(r['name']) for r in table)
+    R = [H, '/**', ' * @file rows.gen.h',
+         ' * @brief One index per row, library and site, in ONE namespace.',
+         ' *',
+         ' * What everything but the console addresses a row through. A name no',
+         ' * table declares is a COMPILE error here, rather than a reference that',
+         ' * resolves to the sink for the life of the run.',
+         ' */', '',
+         '#ifndef %s_ROWS_GEN_H' % guard, '#define %s_ROWS_GEN_H' % guard, '',
+         '#include <cstdint>', '',
+         'namespace Botanik { namespace Vars { namespace Row {', '']
+    for r in table:
+        R.append('    const uint16_t %-*s = %d;' % (w, r['name'], r['_i']))
+    R += ['', '}}}  // namespace Botanik::Vars::Row', '',
+          '#endif  // %s_ROWS_GEN_H' % guard, '']
+    open(os.path.join(site, 'generated', 'rows.gen.h'), 'w').write('\n'.join(R))
+
+    print('  vars.gen.cpp   %d rows (%d params), %d quality, %d order'
+          % (len(table), t['param_count'],
+             sum(1 for r in table if r['_fac'] == 'Q'), len(order)))
+
+
+# ---- config.gen.h ----------------------------------------------------------
+
 def prereqs():
     out = {}
     for m in re.finditer(r'#\s*error "BOTANIK_FEATURE_(\w+) requires BOTANIK_FEATURE_(\w+)"',
@@ -251,19 +677,31 @@ def prereqs():
 
 
 def config(site):
-    t, dep = toml(os.path.join(site, 'site.toml')), prereqs()
+    t = build(site)
+    tom, dep = t['toml'], prereqs()
+    table = t['table']
     # Named for the SITE: "BOTANIK_SITE_*" is the same symbol in every site's
     # generated header, so two of them in one translation unit would silently
     # skip the second.
-    guard = site_guard(t)
-    val = [('SITE_NAME', '"%s"' % t['site']['name']),
-           ('SITE_CONTROL_MS', t['rates']['control']),
-           ('SITE_SENSE_MS', t['rates']['sense']),
-           ('VAR_MAX', t['limits']['var_max']),
-           ('MODBUS_TCP_MAX_ROWS', t['limits']['modbus_tcp_max_rows']),
-           ('STR_POOL_BYTES', t['limits']['str_pool_bytes']),
-           ('MODBUS_BAUD', t['fieldbus']['baud'])]
-    if t.get('build', {}).get('pin_sizes'): val.append(('PIN_SIZES', 1))
+    guard = site_guard(tom)
+
+    defs = config_defaults()
+    pool = 0
+    for r in table:
+        if r['_fac'] == 'PS': pool += as_int(r['cap'], defs)
+    analog = sum(1 for r in table if r['_fac'] in ('AI', 'AO'))
+
+    val = [('SITE_NAME', '"%s"' % tom['site']['name']),
+           ('SITE_CONTROL_MS', tom['rates']['control']),
+           ('SITE_SENSE_MS', tom['rates']['sense']),
+           # COMPUTED, not stated: the table is generated, so its size is a fact
+           # about it rather than a ceiling somebody has to keep ahead of.
+           ('VAR_MAX', len(table)),
+           ('STR_POOL_BYTES', pool),
+           ('ANALOG_ROWS_MAX', analog),
+           ('MODBUS_TCP_MAX_ROWS', tom['limits']['modbus_tcp_max_rows']),
+           ('MODBUS_BAUD', tom['fieldbus']['baud'])]
+    if tom.get('build', {}).get('pin_sizes'): val.append(('PIN_SIZES', 1))
 
     L = ['// GENERATED by scripts/tables.py from site.toml. Do not edit.', '',
          '#ifndef %s_CONFIG_GEN_H' % guard, '#define %s_CONFIG_GEN_H' % guard, '']
@@ -273,7 +711,7 @@ def config(site):
     L += ['// Every flag this site turns on, each under the prerequisites the LIBRARY',
           '// declares. The guard is "unless explicitly turned off", so precedence',
           '// stays command line > site > header default.']
-    on = [f for f, v in t['features'].items() if v]
+    on = [f for f, v in tom['features'].items() if v]
     for f in on:
         need = [d for d in dep.get(f, []) if d not in ('VARS',)]
         ind = '  ' * len(need)
@@ -284,10 +722,10 @@ def config(site):
               '%s#endif' % ind]
         L += ['%s#endif' % ('  ' * i) for i in range(len(need) - 1, -1, -1)]
     L += ['',
-          '// This site turns every optional feature ON, and its table reserves rows',
-          '// on that basis. Built with one OFF, the table declares rows the library',
-          '// never registers, which misaligns every register after them - so refuse',
-          '// rather than drift. Here rather than in a header the site hand-writes,',
+          '// This site turns every optional feature ON, and its table is CUT for',
+          '// that: a guarded library row the build leaves out shifts every index',
+          '// after it, and the indices are generated constants. So refuse rather',
+          '// than drift. Here rather than in a header the site hand-writes,',
           '// because the flags have their defaults by the time this is read again.',
           '#define BOTANIK_SITE_ASSERT_FEATURES \\']
     L += ['    BOTANIK_FEATURE_%s && \\' % f for f in on]
@@ -297,10 +735,54 @@ def config(site):
     print('  config.gen.h   %d values, %d features' % (len(val), len(on)))
 
 
-def emit_plant_cpp(site, prog, writes):
+# ---- plant -----------------------------------------------------------------
+
+# What `make -C build matiec` builds, then whatever is on PATH. CMake's own
+# targets pass IEC2C explicitly, so this default only serves a hand run.
+_PINNED = os.path.join('build', 'matiec', 'iec2c')
+IEC2C = os.environ.get('IEC2C') or (_PINNED if os.access(_PINNED, os.X_OK)
+                                    else 'iec2c')
+# What `iec2c -I` is pointed at: the directory holding OUR ieclib.txt.
+IECLIB_DIR = 'src/libbotanik/plc/functions'
+# ORDER MATTERS: matiec needs a block declared before it is instanced, and there
+# is no forward declaration. filters before analog, because DC_RAIL holds an EWMA.
+LIBST = ['src/libbotanik/plc/functions/quality.st',
+         'src/libbotanik/plc/functions/math.st',
+         'src/libbotanik/plc/functions/psychro.st',
+         'src/libbotanik/plc/functions/time.st',
+         'src/libbotanik/plc/blocks/timers.st',
+         'src/libbotanik/plc/blocks/filters.st',
+         'src/libbotanik/plc/blocks/analog.st',
+         'src/libbotanik/plc/blocks/pid.st',
+         'src/libbotanik/plc/blocks/actuator.st',
+         'src/libbotanik/plc/blocks/meter.st']
+
+
+def writes_by_pou(site):
+    """What each PROGRAM writes, off matiec's own generated C.
+
+    A write is `__SET_EXTERNAL` and a read is `__GET_EXTERNAL` - our macros,
+    emitted from matiec's parse. So this is the COMPILER's answer, not a second
+    reading of the ST: no comments to skip, and a call's named arguments cannot
+    look like an assignment. Names come back matiec-folded (upper)."""
+    src = open(os.path.join(site, 'generated', 'POUS.c')).read()
+    out = {}
+    for m in re.finditer(r'^static void (\w+)_body__\(.*?^\}', src, re.M | re.S):
+        w = re.findall(r'__SET_EXTERNAL\(\w+->,\s*(\w+)\s*,', m.group(0))
+        if w: out[m.group(1)] = w
+    return out
+
+
+def pou_of(path):
+    m = re.search(r'^PROGRAM (\w+)', open(path).read(), re.M)
+    return m.group(1).upper() if m else sys.exit('%s: no PROGRAM' % path)
+
+
+def emit_plant_cpp(site, t, prog, writes):
     w = max(len(e['pou']) for e in prog)
     wi = max(len(e['instance'].upper()) for e in prog)
     wn = max(len(e['name']) for e in prog)
+    index = t['index']
     L = ['/**', ' * @file plant.cpp',
          ' * @brief GENERATED by scripts/tables.py from tables/programs.csv.',
          ' *',
@@ -310,19 +792,28 @@ def emit_plant_cpp(site, prog, writes):
          ' */', '',
          '#include "libbotanik/plc/runtime/program.h"',
          '#include "libbotanik/plc/runtime/runtime.h"',
-         '#include "libbotanik/plc/runtime/bank.h"',
-         '#include "libbotanik/plc/runtime/resolve.h"', '',
-         '#pragma GCC diagnostic push',
-         '#pragma GCC diagnostic ignored "-Wunused-parameter"',
-         '#pragma GCC diagnostic ignored "-Wunused-function"',
-         '#pragma GCC diagnostic ignored "-Wunused-but-set-variable"',
-         '#pragma GCC diagnostic ignored "-Wshadow"',
-         '#include "plc.c"',
-         '#pragma GCC diagnostic pop', '',
-         '/* Named by every generated read, write and resolve. */',
-         'namespace Botanik { namespace Plc { namespace Runtime { Vars::Bank* io = 0; } } }',
-         '', 'namespace Botanik { namespace Plc { namespace Runtime {', '',
-         '#define PLANT_PROGRAM_LIST(X) \\']
+         '#include "libbotanik/vars/rows.h"', '',
+         '/* Every row an ST body names, as matiec spells it. `accessor.h` binds',
+         ' * each external to Ref<type>{ ROW_<NAME> }, so a name no table declares',
+         ' * fails to compile rather than resolving to the sink at bring-up. */',
+         'enum {']
+    ext = sorted({n for e in prog for n, _t, _ro in var_externals(e['path'])})
+    we = max(len(n) for n in ext)
+    for n in ext:
+        if n.lower() not in {k.lower() for k in index}:
+            sys.exit('%s: no table declares it' % n)
+        row = [k for k in index if k.lower() == n.lower()][0]
+        L.append('    ROW_%-*s = ::Botanik::Vars::Row::%s,' % (we, n.upper(), row))
+    L += ['};', '',
+          '#pragma GCC diagnostic push',
+          '#pragma GCC diagnostic ignored "-Wunused-parameter"',
+          '#pragma GCC diagnostic ignored "-Wunused-function"',
+          '#pragma GCC diagnostic ignored "-Wunused-but-set-variable"',
+          '#pragma GCC diagnostic ignored "-Wshadow"',
+          '#include "plc.c"',
+          '#pragma GCC diagnostic pop', '',
+          'namespace Botanik { namespace Plc { namespace Runtime {', '',
+          '#define PLANT_PROGRAM_LIST(X) \\']
     for i, e in enumerate(prog):
         L.append('    X(%-*s %-*s %-*s BOTANIK_SITE_%s_MS)%s' % (
             wn + 1, e['name'] + ',', w + 1, e['pou'] + ',', wi + 1,
@@ -342,144 +833,33 @@ def emit_plant_cpp(site, prog, writes):
           ' * is the author of. `VAR_EXTERNAL CONSTANT` is a read and is not here.',
           ' * Taking a program out of the scan drops exactly these to their',
           ' * declared safe state, so the list has to be the ST\'s own. */']
-    # Checked HERE because nothing downstream can: an ST row resolves
-    # VAR_IN_OUT, so the bank's writer claim records no owner and has caught
-    # nothing since the migration.
-    #
-    # A row DECLARED writable and never written is a mis-declaration and fails
-    # the build - it belongs in VAR_EXTERNAL CONSTANT, and leaving it here puts
-    # a row the program only reads on its safe-state roster. Two programs that
-    # both WRITE one row is different: read-modify-written shared state is the
-    # design (the irrigation force flags), so it is reported, not refused.
-    ghosts, author, shared = [], {}, []
-    for e in prog:
-        wr = set(writes.get(e['pou'], ()))
-        for n, _t, ro in var_externals(e['path']):
-            if ro: continue
-            if n.upper() not in wr: ghosts.append((e['name'], n)); continue
-            if n in author: shared.append((n, author[n], e['name']))
-            else: author[n] = e['name']
-    if ghosts:
-        for who, n in ghosts:
-            print('  %s: declares %s writable and never writes it' % (who, n),
-                  file=sys.stderr)
-        sys.exit('%d row(s) declared writable but never written; '
-                 'move them to VAR_EXTERNAL CONSTANT' % len(ghosts))
-    if shared:
-        print('  %d row(s) with two authors (read-modify-write): %s'
-              % (len(shared), ', '.join(n for n, _a, _b in shared)))
-
-    # A LOCAL row (device 0) must be a kind the controller's own terminals can
-    # actually be. The OPTA has eight inputs, four relays, four LEDs and a
-    # button - and NO analog output: the variant's `#define DAC (A6)` is
-    # inherited boilerplate, and A6 is terminal I7, so a DAC there would fight
-    # the input conditioning on a pin a site may already be reading. Analog out
-    # comes from an expansion module, which is a Modbus address.
-    #
-    # Without this an AO row on device 0 declares, generates and passes every
-    # other check, and is then driven by nothing - the failure a local DO had
-    # until Io::LocalOutputs, and the one worth refusing outright.
-    LOCAL_KINDS = {'digital_in': 'DI', 'analog_in': 'AI', 'pulse_in': 'PI',
-                   'digital_out': 'DO', 'relay_out': 'RO'}
-    stranded = []
-    for stem in ('analog_out', 'modbus_in', 'modbus_out'):
-        f = os.path.join(site, 'tables', stem + '.csv')
-        if not os.path.exists(f): continue
-        rows = [l for l in open(f).read().splitlines() if l.strip()]
-        head = [h.strip() for h in rows[0].split(',')]
-        if 'device' not in head: continue
-        di = head.index('device')
-        for r in rows[1:]:
-            c = [x.strip() for x in r.split(',')]
-            if c[di] == '0': stranded.append((stem, c[0]))
-    if stranded:
-        for stem, n in stranded:
-            print('  %s %s: device 0 means LOCAL, and there is no local %s'
-                  % (stem, n, stem.replace('_', ' ')), file=sys.stderr)
-        sys.exit('%d row(s) on device 0 that nothing local can drive; '
-                 'give them a field-bus address' % len(stranded))
-
-    # ...and the other direction: a row nothing writes. An OUTPUT or an ALARM
-    # with no author is a law somebody meant to write and did not, and it reads
-    # its declared value for the life of the plant with nothing to say so.
-    #
-    # `prog_<name>` is the one status value no program writes and never will:
-    # it is Plc::Runtime::Plant's own verdict. Named here rather than exempted
-    # by a flag, so a SECOND one has to come and say so.
-    def _col0(stem):
-        f = os.path.join(site, 'tables', stem + '.csv')
-        if not os.path.exists(f): return []
-        return [l.split(',')[0].strip() for l in open(f).read().splitlines()[1:]
-                if l.split(',')[0].strip()]
-
-    field = set()
-    for t in ('analog_in', 'digital_in', 'modbus_in', 'pulse_in',
-              'analog_out', 'digital_out', 'relay_out', 'modbus_out'):
-        field |= set(_col0(t))
-    every = set()
-    for pou in writes.values(): every |= {w.upper() for w in pou}
-
-    unwritten = []
-    for stem, kind in (('digital_out', 'output'), ('analog_out', 'output'),
-                       ('relay_out', 'output'), ('modbus_out', 'output'),
-                       ('alarms', 'alarm'),
-                       ('status', 'status'), ('status_enum', 'status')):
-        for n in _col0(stem):
-            if n.upper() in every: continue
-            if kind == 'status' and n.startswith('prog_'): continue   # Plant
-            unwritten.append((kind, n))
-    if unwritten:
-        for kind, n in unwritten:
-            print('  %s %s: no program writes it' % (kind, n), file=sys.stderr)
-        sys.exit('%d row(s) nothing writes' % len(unwritten))
-
-    # A program that OPTS IN owes a quality for every row it writes: the
-    # companion EXISTS for each of them, and one nothing writes sits at
-    # Q_NO_DATA for the life of the run - so the output reads unbelievable and
-    # nothing says why. Off matiec's write list, like the check above.
-    alarms = {n.upper() for n in _col0('alarms')}
-    owed = []
-    for e in prog:
-        if e['quality'].strip().lower() not in ('1', 'yes', 'true'): continue
-        wr = {n.upper() for n in writes.get(e['pou'], ())}
-        for n in sorted(wr):
-            if n.endswith('_QLT') or n in alarms: continue
-            if n + '_QLT' not in wr: owed.append((e['name'], n.lower()))
-    if owed:
-        for nm, n in owed:
-            print('  %s: writes %s and owes %s_qlt' % (nm, n, n), file=sys.stderr)
-        sys.exit('%d quality row(s) an opted-in program does not write' % len(owed))
-
-    # ...and the same for PARKING: a program told to park that never answers
-    # holds the whole shutdown open until plc_parkTimeout_sec runs out.
-    unparked = [e['name'] for e in prog if _opted_in(e, 'park')
-                and ('PROG_%s_PARKED' % e['name']).upper()
-                    not in {n.upper() for n in writes.get(e['pou'], ())}]
-    if unparked:
-        for n in unparked:
-            print('  %s: parks and owes prog_%s_parked' % (n, n), file=sys.stderr)
-        sys.exit('%d parking program(s) that never say so' % len(unparked))
-
     for e in prog:
         wr = set(writes.get(e['pou'], ()))
         wr = [n for n, _t, ro in var_externals(e['path']) if not ro and n.upper() in wr]
-        L.append('static const char* const _writes_%s[] = {%s};'
+        L.append('static const uint16_t _writes_%s[] = {%s};'
                  % (e['instance'].upper(),
-                    ''.join(' "%s",' % n for n in wr) or ' 0'))
+                    ''.join(' Vars::Row::%s,' % _home(index, n) for n in wr) or ' 0'))
     L.append('')
-    L.append('// The parking pair, or null for a program that is simply dropped.')
+    L.append('// The parking pair, or VAR_NONE for a program that is simply dropped.')
     for e in prog:
-        pk = ('"prog_%s_park"' % e['name'], '"prog_%s_parked"' % e['name']) \
-             if _opted_in(e, 'park') else ('0', '0')
-        L.append('static const char* const _park_%s   = %s;' % (e['instance'].upper(), pk[0]))
-        L.append('static const char* const _parked_%s = %s;' % (e['instance'].upper(), pk[1]))
+        pk = ('Vars::Row::prog_%s_park' % e['name'],
+              'Vars::Row::prog_%s_parked' % e['name']) \
+             if _opted_in(e, 'park') else ('Vars::VAR_NONE', 'Vars::VAR_NONE')
+        L.append('static const uint16_t _park_%s   = %s;' % (e['instance'].upper(), pk[0]))
+        L.append('static const uint16_t _parked_%s = %s;' % (e['instance'].upper(), pk[1]))
+    L += ['',
+          '// The health row per program: Plant\'s own verdict, generated beside',
+          '// the roster so a program cannot exist without one.']
+    for e in prog:
+        L.append('static const uint16_t _health_%s = Vars::Row::prog_%s;'
+                 % (e['instance'].upper(), e['name']))
     L += ['',
           'const Program programs[] = {',
           '#define X(name, POU, INST, PERIOD)                                             \\',
           '    { #name, PERIOD, &_init_##INST, &_run_##INST, &_task_##INST,               \\',
           '      _writes_##INST,                                                          \\',
           '      (uint8_t)(sizeof _writes_##INST / sizeof _writes_##INST[0]),             \\',
-          '      _park_##INST, _parked_##INST },',
+          '      _park_##INST, _parked_##INST, _health_##INST },',
           '    PLANT_PROGRAM_LIST(X)', '#undef X', '};', '',
           'const uint8_t PROGRAM_COUNT =',
           '    (uint8_t)(sizeof(programs) / sizeof(programs[0]));', '',
@@ -487,159 +867,108 @@ def emit_plant_cpp(site, prog, writes):
     open(os.path.join(site, 'generated', 'plant.cpp'), 'w').write('\n'.join(L))
 
 
-LIB_CSV   = 'src/libbotanik/vars/tables/library.csv'
-LIB_GEN   = 'src/libbotanik/vars/vars_table.gen.h'
-LIB_SPEC  = {
-    'A':  'name code on_s off_s recent_s hold_s reg desc notes',
-    'P':  'name type def lo hi digits unit reg desc notes writable retained',
-    'PE': 'name def label reg desc notes writable retained',
-    'PS': 'name def cap kind reg desc notes writable retained',
-    'SV': 'name type def digits unit reg desc notes retained',
-}
+def _home(index, n):
+    """The table's own spelling of a name an ST file wrote in any case."""
+    if n in index: return n
+    for k in index:
+        if k.lower() == n.lower(): return k
+    sys.exit('%s: no table declares it' % n)
 
 
-def lib_rows():
-    """The library's own rows, from its table. ORDER IS THE FILE'S: the rows
-    interleave kinds, and the ROLE_PARAM run has to stay contiguous, so one
-    table with a `fac` column rather than one per kind."""
-    with open(LIB_CSV, newline='') as fh:
-        return list(csv.DictReader(fh))
+def check_laws(site, t, prog, writes):
+    """What only the compiler's own answer can tell: which rows each body
+    actually writes, against what the tables and the declarations claim."""
+    bad = []
+    table = t['table']
+    kind_of = dict((r['name'], KIND[r['_fac']]) for r in table)
+    alarms = {n for n, k in kind_of.items() if k == 'ALARM'}
 
+    # A row DECLARED writable and never written is a mis-declaration: it belongs
+    # in VAR_EXTERNAL CONSTANT, and leaving it here puts a row the program only
+    # reads on its safe-state roster. Two programs that both WRITE one row is
+    # different - read-modify-written shared state is the design - so it is
+    # reported, not refused.
+    author, shared = {}, []
+    for e in prog:
+        wr = set(writes.get(e['pou'], ()))
+        for n, _ty, ro in var_externals(e['path']):
+            if ro: continue
+            if n.upper() not in wr:
+                bad.append('%s: declares %s writable and never writes it'
+                           % (e['name'], n))
+                continue
+            if n in author: shared.append(n)
+            else: author[n] = e['name']
+    if shared:
+        print('  %d row(s) with two authors (read-modify-write): %s'
+              % (len(shared), ', '.join(shared)))
 
-def _library_rows_for(tom):
-    """How many library rows THIS site compiles: the table's, less the ones its
-    feature flags switch off. A guard is AND-ed flags, and a flag the site does
-    not name takes libbotanik_features.h's own default - which is off for every
-    optional one, so an absent flag means the row is absent."""
-    on = {k for k, v in tom.get('features', {}).items() if v}
-    # The always-on core, from libbotanik_features.h's defaults.
-    on |= {'CONSOLE', 'LOGGING', 'VARS', 'PLC', 'HOME_PAGE', 'SHELL_PAGE'}
-    n = 0
-    for r in lib_rows():
-        want = [g for g in r['guard'].split() if g]
-        if all(g in on for g in want): n += 1
-    return n
+    # ...and the other direction: a row nothing writes. An OUTPUT, an ALARM or a
+    # STATUS with no author is a law somebody meant to write and did not, and it
+    # reads its declared value for the life of the plant with nothing to say so.
+    every = set()
+    for pou in writes.values(): every |= {x.upper() for x in pou}
+    for r in table:
+        k = KIND[r['_fac']]
+        if k not in ('OUTPUT', 'ALARM', 'STATUS'): continue
+        # The LIBRARY's own rows are written by the library, in C++: its alarms
+        # come from HealthMonitor and its status values from the components that
+        # produce them. Only the SITE's rows are a law's to write.
+        if r.get('_lib'): continue
+        # `prog_*` is Plant's own verdict, and the parking pair is half Plant's.
+        if r['name'].startswith('prog_'): continue
+        if r['name'].upper() not in every:
+            bad.append('%s %s: no program writes it' % (k.lower(), r['name']))
 
+    # A program that OPTS IN owes a quality for every row it writes: the
+    # companion EXISTS for each of them, and one nothing writes sits at Q_NONE
+    # for the life of the run with nothing to say why.
+    for e in prog:
+        if not _opted_in(e, 'quality'): continue
+        wr = {n.upper() for n in writes.get(e['pou'], ())}
+        for n in sorted(wr):
+            if n.endswith('_QLT') or n.lower() in {a.lower() for a in alarms}: continue
+            if n + '_QLT' not in wr:
+                bad.append('%s: writes %s and owes %s_qlt'
+                           % (e['name'], n.lower(), n.lower()))
 
-def library():
-    """vars_table.gen.h, from library.csv.
+    # ...and the same for PARKING: a program told to park that never answers
+    # holds the whole shutdown open until plc_parkTimeout_sec runs out.
+    for e in prog:
+        if not _opted_in(e, 'park'): continue
+        if ('PROG_%s_PARKED' % e['name']).upper() not in \
+                {n.upper() for n in writes.get(e['pou'], ())}:
+            bad.append('%s: parks and owes prog_%s_parked' % (e['name'], e['name']))
 
-    The rows the LIBRARY declares into the site's one index space, registered
-    ahead of the site's. Guards are emitted around runs: `guard` holds the
-    AND-ed feature flags a row needs, so consecutive rows sharing a prefix
-    share the `#if` - which is what keeps this file diffable against the
-    hand-written one it replaced."""
-    recs = lib_rows()
-    L = ['/**',
-         ' * @file vars_table.gen.h',
-         ' * @brief GENERATED by scripts/tables.py from vars/tables/library.csv.',
-         ' *',
-         " * The library's OWN rows: how many there are, and what they are",
-         ' * numbered. Registered ahead of the site\'s, into the same table.',
-         ' *',
-         ' * A site OVERRIDES one by redeclaring the name: Bank::freeze() keeps the',
-         ' * LAST declaration and compacts the earlier row out, so the whole row',
-         ' * becomes the site\'s. Keep `reg` as the library assigned it.',
-         ' */', '',
-         '#ifndef LIBBOTANIK_VARS_TABLE_GEN_H',
-         '#define LIBBOTANIK_VARS_TABLE_GEN_H', '',
-         '// Included by firmware/vars_wiring.cpp, AFTER the feature-gated includes',
-         '// its row defaults read. Not a standalone header.', '',
-         'namespace Botanik { namespace Vars {', '',
-         "/** @brief The library's own rows. Its PARAMETERS come last, so a site's",
-         ' *  parameter segment abuts them. @see lib_order */',
-         'const Descriptor library_vars[] = {']
-    open_guards = []
-    for r in recs:
-        want = [g for g in r['guard'].split() if g]
-        # close what this row does not want, innermost first
-        while open_guards and open_guards != want[:len(open_guards)]:
-            open_guards.pop(); L.append('#endif')
-        for g in want[len(open_guards):]:
-            open_guards.append(g); L.append('#if BOTANIK_FEATURE_%s' % g)
-        if r['lead']:
-            for ln in r['lead'].split('\n'):
-                L.append(('    ' + ln) if ln.startswith(('/*', '*')) else ln)
-        cols = LIB_SPEC[r['fac']].split()
-        a = [quote(r.get(c, ''), c, r['fac']) for c in cols]
-        while a and a[-1] == '': a.pop()
-        L.append('    %s(%s),' % (r['fac'], ', '.join(a)))
-    while open_guards: open_guards.pop(); L.append('#endif')
-    L += ['};', '',
-          '/** @brief How many, for the site that states LIBRARY_ROWS. */',
-          'const uint16_t LIBRARY_VARS_COUNT =',
-          '    (uint16_t)(sizeof library_vars / sizeof library_vars[0]);', '',
-          '}}  // namespace Botanik::Vars', '',
-          '#endif', '']
-    open(LIB_GEN, 'w').write('\n'.join(L))
-    print('  vars_table.gen.h  %d rows' % len(recs))
-
-
-def var_externals(path):
-    """Every row one ST file names, as (name, type, read_only). `VAR_EXTERNAL
-    CONSTANT` is read-only and plain `VAR_EXTERNAL` is written - that IS the
-    site's in/out declaration, there is no table saying so."""
-    out = []
-    # Comments FIRST: roof_lockout opens with a block explaining why it uses
-    # VAR_EXTERNAL, and matching that swallowed the real CONSTANT block behind
-    # it - every row in it came back writable. Anchored to a line start too,
-    # for the same reason.
-    src = re.sub(r'\(\*.*?\*\)', ' ', open(path).read(), flags=re.S)
-    for m in re.finditer(r'^VAR_EXTERNAL(\s+CONSTANT)?$(.*?)^END_VAR',
-                         src, re.S | re.M):
-        for line in m.group(2).split('\n'):
-            mm = re.match(r'\s*([A-Za-z_]\w*)\s*:\s*([A-Z]+)\s*;', line)
-            if mm: out.append((mm.group(1), mm.group(2), bool(m.group(1))))
-    return out
-
-
-def writes_by_pou(site):
-    """What each PROGRAM writes, off matiec's own generated C.
-
-    A write is `__SET_EXTERNAL` and a read is `__GET_EXTERNAL` - our macros,
-    emitted from matiec's parse. So this is the COMPILER's answer, not a second
-    reading of the ST: no comments to skip, and a call's named arguments cannot
-    look like an assignment. Only PROGRAM bodies write externals; a function
-    block has no VAR_EXTERNAL to write.
-
-    Names come back matiec-folded (upper); the caller maps them home.
-    """
-    src = open(os.path.join(site, 'generated', 'POUS.c')).read()
-    out = {}
-    for m in re.finditer(r'^static void (\w+)_body__\(.*?^\}', src, re.M | re.S):
-        w = re.findall(r'__SET_EXTERNAL\(\w+->,\s*(\w+)\s*,', m.group(0))
-        if w: out[m.group(1)] = w
-    return out
-
-
-def pou_of(path):
-    m = re.search(r'^PROGRAM (\w+)', open(path).read(), re.M)
-    return m.group(1).upper() if m else sys.exit('%s: no PROGRAM' % path)
+    if bad:
+        for b in bad: print('  ' + b, file=sys.stderr)
+        sys.exit('%d law error(s)' % len(bad))
 
 
 def plant(site):
     """plant.st and plant.cpp from programs.csv, then matiec."""
     import subprocess, tempfile
-    prog = read_table(os.path.join(site, 'tables', 'programs.csv'),
-                      AUX['programs'].split())
+    t = build(site)
+    prog = t['prog']
     for e in prog:
         e['path'] = os.path.join(site, e['source'])
         e['pou'] = pou_of(e['path'])
     rows, whence = {}, {}
     for p in st_files(site):
-        for n, t, _ in var_externals(p):
-            if rows.get(n, t) != t: sys.exit('type clash on %s' % n)
-            rows[n] = t
+        for n, ty, _ in var_externals(p):
+            if rows.get(n, ty) != ty: sys.exit('type clash on %s' % n)
+            rows[n] = ty
             whence.setdefault(n, os.path.basename(p))
     # A name no table declares is a program that cannot be wired. Checked HERE
     # because nothing downstream can: these go to matiec as VAR_GLOBAL, so it
-    # declares whatever it is given, and the runtime only binds by name at
-    # bring-up - where the cost of a miss is a program that never runs.
-    absent = sorted(n for n in rows if n.lower() not in declared_rows(site))
+    # declares whatever it is given.
+    folded = {k.lower() for k in t['index']}
+    absent = sorted(n for n in rows if n.lower() not in folded)
     if absent:
         for n in absent:
             print('  %s: no table declares it (%s)' % (n, whence[n]), file=sys.stderr)
         sys.exit('%d ST name(s) declare no row' % len(absent))
+
     w = max(len(n) for n in rows)
     en = read_table(os.path.join(site, 'tables', 'enums.csv'), AUX['enums'].split())
     wi = max(len(e['instance']) for e in prog)
@@ -654,19 +983,20 @@ def plant(site):
          '\n'.join(ref), '',
          '(* NO PROGRAM IS BOUND TO A TASK. plant.cpp calls each body itself, at',
          '   the period programs.csv states, so a program keeps its own registry',
-         '   entry: its health row, its cost and missed counts, its writer slot,',
-         '   and its own INVALID when a name it binds resolves to nothing.',
+         '   entry: its health row, its cost and missed counts, and its writer',
+         '   roster.',
          '',
          '   The TASK below is a formality - matiec refuses a RESOURCE without a',
          '   periodic one. Nothing binds to it and nothing reads its interval. *)',
          '', 'CONFIGURATION gh_mlb41', '', '  VAR_GLOBAL']
-    L += ['    %-*s : %s;' % (w, n, t) for n, t in sorted(rows.items())]
+    L += ['    %-*s : %s;' % (w, n, ty) for n, ty in sorted(rows.items())]
     L += ['  END_VAR', '', '  RESOURCE plc ON OPTA',
           '    TASK unbound (INTERVAL := T#100ms, PRIORITY := 1);', '']
     L += ['    PROGRAM %-*s : %s;' % (wi, e['instance'], e['pou'].lower()) for e in prog]
     L += ['  END_RESOURCE', '', 'END_CONFIGURATION', '']
     pl = os.path.join(site, 'generated', 'plant.st')
     open(pl, 'w').write('\n'.join(L))
+
     # matiec FIRST: plant.cpp's write rosters are read out of the POUS.c it
     # emits, so the compiler's own answer is what they are built from.
     with tempfile.NamedTemporaryFile('w', suffix='.st', delete=False) as fh:
@@ -674,7 +1004,7 @@ def plant(site):
         tmp = fh.name
     # -I OURS: matiec loads <dir>/ieclib.txt unconditionally, and its own
     # declares 28 function blocks under names we use for our own - and is GPL
-    # besides. Ours sits with the ST functions it declares.
+    # besides.
     try:
         r = subprocess.run([IEC2C, '-I', IECLIB_DIR,
                             '-T', os.path.join(site, 'generated'), tmp],
@@ -690,322 +1020,85 @@ def plant(site):
     for l in err[:6]: print('  ' + l)
     if err: return 1
 
-    emit_plant_cpp(site, prog, writes_by_pou(site))
+    writes = writes_by_pou(site)
+    check_laws(site, t, prog, writes)
+    emit_plant_cpp(site, t, prog, writes)
     print('  plant.st       %d globals, %d POUs' % (len(rows), len(st_files(site))))
     return 0
 
 
-def band_sym(param):
-    return 'BAND_' + param
+# ---- the ST quality enumeration --------------------------------------------
+
+QUALITY_GEN = 'src/libbotanik/plc/runtime/quality.gen.h'
 
 
-def emit_rows(fac, cols, recs, band=None):
-    """Emit one factory call per record.
+def quality_block():
+    """The accessor's QUALITY enumeration block, off descriptor.h.
 
-    `band` maps a parameter name to its NumRefBand symbol; those rows go out as
-    PR() with the block in place of the lo/hi pair.
-    """
-    out = []
-    for r in recs:
-        fac_r, cols_r = fac, cols
-        if band and r.get('name') in band:
-            fac_r = 'PR'
-            cols_r = [c for c in cols if c not in ('lo', 'hi')]
-            r = dict(r, band='&' + band[r['name']])
-            cols_r.insert(cols_r.index('def') + 1, 'band')
-        a = [quote(r.get(c, ''), c, fac_r) for c in cols_r]
-        while a and a[-1] == '': a.pop()
-        out.append('    %s(%s),' % (fac_r, ', '.join(a)))
-    return out
-
-
-def check_param_bands(bands, params):
-    """A referenced end must exist, share the row's type, and leave the row's
-    own default inside the band. The last is what keeps a pair reachable: an
-    operator can always move one end and then the other, but only if the pair
-    was valid to begin with."""
-    by_name = {p['name']: p for p in params}
-    bad = 0
-    for b in bands:
-        p = by_name.get(b['param'])
-        if p is None:
-            print('param_band: %s names no parameter' % b['param']); bad += 1; continue
-        ends = []
-        for side in ('lo', 'hi'):
-            row = b[side + '_row']
-            if not row:
-                ends.append(float(b[side])); continue
-            q = by_name.get(row)
-            if q is None:
-                print('param_band: %s %s names no parameter %s'
-                      % (b['param'], side, row)); bad += 1; ends.append(None); continue
-            if q['type'] != p['type']:
-                print('param_band: %s %s is %s, %s is %s'
-                      % (b['param'], side, p['type'], row, q['type'])); bad += 1
-            ends.append(float(q['def']))
-        lo, hi = ends
-        if lo is None or hi is None: continue
-        if not (lo <= float(p['def']) <= hi):
-            print('param_band: %s defaults to %s, outside [%g, %g]'
-                  % (b['param'], p['def'], lo, hi)); bad += 1
-    return bad
-
-
-def generate(site):
-    t = lambda stem, cols: read_table(os.path.join(site, 'tables', stem + '.csv'), cols.split())
-    cal  = t('analog_cal', AUX['analog_cal'])
-    band = t('param_band', AUX['param_band'])
-    home = t('home', AUX['home'])
-    tom  = toml(os.path.join(site, 'site.toml'))
-    mdl, dev = t('modbus_models', AUX['modbus_models']), t('modbus_devices', AUX['modbus_devices'])
-    per = {f: t(stem, cols) for f, (stem, cols) in ROWS.items()}
-    qlt  = quality_rows(site)
-    qlt_base = int(tom['registers']['quality_base'])
-    park = park_rows(site)
-    park_base = int(tom['registers']['park_base'])
-    n_par = sum(len(per[f]) for f in ('P', 'PE', 'PS'))
-    n_row = (sum(len(per[f]) for f in ROWS if f not in ('P', 'PE', 'PS'))
-             + len(qlt) + len(park))
-
-    if check_param_bands(band, per['P']):
-        sys.exit('param_band: refusing to generate')
-
-    L = [H, '', '#include "libbotanik.h"', '', 'namespace Site {', '',
-         'using namespace Botanik;', 'using namespace Botanik::Vars;', '',
-         '// Inside the namespace and after the usings: the header names every',
-         '// type unqualified, because it is only ever included here and by site.h.',
-         '#include "vars.gen.h"', '']
-    for c in cal:
-        L.append('const AnalogCal %s = {' % c['cal'])
-        for k in ('raw_min', 'raw_max', 'eng_min', 'eng_max', 'min', 'max'):
-            L.append('    R("%s", %s),' % (c[k + '_row'], c[k]))
-        L += ['};', '']
-    # An end with no `_row` is K(): fixed, and not the operator's to change.
-    for b in band:
-        L.append('const NumRefBand %s = {' % band_sym(b['param']))
-        for k in ('lo', 'hi'):
-            L.append('    %s,' % (('R("%s", %s)' % (b[k + '_row'], b[k]))
-                                  if b[k + '_row'] else 'K(%s)' % b[k]))
-        L += ['};', '']
-    L.append('const AnalogCal* const g_analog_cals[] = {')
-    L += ['    &%s,' % c['cal'] for c in cal] + ['};', '']
-    # ONE table, parameters FIRST: the ROLE_PARAM run has to abut the
-    # library's, and emitting the two runs in order is the whole of that rule.
-    L.append('const Descriptor rows[] = {')
-    L.append('    // parameters, first and contiguous')
-    bands = {b['param']: band_sym(b['param']) for b in band}
-    for f in ('P', 'PE', 'PS'):
-        L += emit_rows(f, ROWS[f][1].split(), per[f], bands if f == 'P' else None)
-    L.append('    // ...and everything else')
-    for f in ('A', 'SV', 'SVE', 'G', 'MI', 'MO', 'AI', 'AO', 'DI', 'PI', 'DO', 'RO'):
-        L += emit_rows(f, ROWS[f][1].split(), per[f])
-    # The quality companions, last and in one run: registers are handed out
-    # from a block of their own, so nothing here can collide with a hand-assigned
-    # one. Sequential in emission order - append an input and its companion
-    # lands at the end of the block, which is what keeps the map stable.
-    L.append('    // ...and one quality per reading, generated (see quality_rows)')
-    L += ['    Q("%s", %d, "%s"),' % (n, reg, desc)
-          for reg, (n, _b, desc) in enumerate(qlt, qlt_base)]
-    L.append('    // ...and the parking pair per parking program (see park_rows)')
-    L += ['    SV("%s", T_BOOL, 0, 0, "", %d, "%s", ""),' % (n, reg, desc)
-          for reg, (n, desc) in enumerate(park, park_base)]
-    L += ['};', '']
-    for m in mdl:
-        args = '"%s", %s' % (m['model_name'], m['regs']) + (', %s' % m['words'] if m['words'] else '')
-        L += ['const Modbus::DeviceModel %s = Modbus::%s(%s);' % (m['symbol'], m['kind'], args)]
-    L += ['', 'const Modbus::Device g_devices[] = {']
-    L += ['    { %s, &%s, "%s" },' % (d['addr'], d['model'], d['tag']) for d in dev]
-    L += ['};', '', 'const Modbus::DeviceTable g_device_table = {',
-          '    g_devices, (uint8_t)(sizeof(g_devices) / sizeof(g_devices[0]))', '};', '',
-          '// Home-screen readings: label + variable. A caption is a person\'s',
-          '// choice and nothing in a row\'s name says it belongs on the landing',
-          '// page, so it is the one table no rule derives.',
-          'const HomeVar g_home_fields[] = {']
-    L += ['    { "%s", "%s" },' % (h['label'], h['var']) for h in home]
-    L += ['};', '',
-          '// Filled at bring-up; extern in the header, or every TU including it',
-          '// would carry a definition.',
-          'VarRef home_refs[g_home_field_count] = {};', '',
-          '/** @brief The site\'s shell commands: none. A site table is matched',
-          ' *  BEFORE the library built-ins, so a name reused there shadows one. */',
-          'const Botanik::Shell::ShellCommand* const g_commands = nullptr;',
-          'const uint8_t g_command_count = 0;', '',
-          '// Field order matches Botanik::SiteDescriptor; any table may be null.',
-          '// Alarms are not here (a SCOPE_A row) and neither are the status groups',
-          '// (a variable\'s group is its name prefix).',
-          'const Botanik::SiteDescriptor g_site = {',
-          '    Botanik::Config::SITE_NAME,',
-          '    g_commands,    g_command_count,',
-          '    g_home_fields, g_home_field_count, home_refs,',
-          '    &g_device_table,',
-          '    rows,          ROWS_COUNT,',
-          '};', '',
-          '}  // namespace Site', '']
-    open(os.path.join(site, 'generated', 'vars.gen.cpp'), 'w').write('\n'.join(L))
-
-    en = t('enums', AUX['enums'])
-    guard = site_guard(tom)
-    G = [H, '// Included from INSIDE namespace Site, so it opens none of its own.',
-         '// The guard is named for the SITE: every site generates a file by this',
-         '// name, and a shared symbol would silently skip the second one.', '',
-         '#ifndef %s_VARS_GEN_H' % guard, '#define %s_VARS_GEN_H' % guard, '']
-    for name in dict.fromkeys(e['enum'] for e in en):
-        mem = [e for e in en if e['enum'] == name]
-        w = max(len(e['symbol']) for e in mem)
-        G.append('enum %s : %s {' % (name, mem[0]['ctype']))
-        G += ['    %-*s = %s,%s' % (w, e['symbol'], e['value'],
-                                    '   ///< ' + e['desc'] if e['desc'] else '') for e in mem]
-        G += ['};', '',
-              '/** @brief A %s as the word an operator reads and types.' % name,
-              ' *  Null for an unmapped code, which is what refuses it. */',
-              'inline const char* %s_label(uint64_t code) {' % name,
-              '    switch (code) {']
-        G += ['        case %s: return "%s";' % (e['value'], e['label']) for e in mem]
-        G += ['        default: return nullptr;', '    }', '}', '']
-    G += ['// The build this table was cut for. @see BOTANIK_SITE_ASSERT_FEATURES',
-          '#if !(BOTANIK_SITE_ASSERT_FEATURES)',
-          '#  error "this site assumes every optional feature it declares is enabled"',
-          '#endif', '']
-    G += ['extern const AnalogCal %s;' % c['cal'] for c in cal]
-    G += ['', 'extern const AnalogCal* const g_analog_cals[];',
-          'const uint8_t g_analog_cal_count = %d;' % len(cal), '',
-          '// ONE table, parameters first. Registering it is one call, and the',
-          '// ROLE_PARAM run stays contiguous because the emit order is the rule.',
-          'extern const Descriptor rows[];', 'const uint16_t ROWS_COUNT = %d;' % (n_par + n_row), '',
-          ]
-    G += ['extern const Modbus::DeviceModel %s;' % m['symbol'] for m in mdl]
-    G += ['extern const Modbus::Device g_devices[];',
-          'extern const Modbus::DeviceTable g_device_table;', '',
-          '// The one table no rule derives: a caption is a person\'s choice, and',
-          '// nothing in a row\'s name says it belongs on the landing page.',
-          'extern const HomeVar g_home_fields[];',
-          'const uint8_t g_home_field_count = %d;' % len(home),
-          '// The home screen silently ignores fields past its columns.',
-          'static_assert(g_home_field_count <= Config::HOME_FIELDS_MAX,',
-          '              "too many home fields: the HomePage would drop the tail");', '',
-          '// Where those names resolve to, filled at bring-up. VAR_NONE until',
-          '// then, which reads as the inert sink rather than as row 0.',
-          'extern VarRef home_refs[g_home_field_count];', '',
-          '// Rows the LIBRARY registers ahead of these, from site.toml. One row',
-          '// past VAR_MAX and registration is REFUSED: every name in it resolves',
-          '// to the sink for the life of the run, and only refused_count() sees it.',
-          # DERIVED, not stated. It was hand-kept because vars_table.h was a
-          # header the firmware's wiring TU alone included, so the count could
-          # not be taken from it. It is a TABLE now, and the count is what the
-          # table says once this site's feature flags have decided which
-          # guarded rows survive. Understating it let the VAR_MAX guard pass on
-          # a table that then overflowed, dropping rows in silence.
-          'const uint16_t LIBRARY_ROWS = %d;' % _library_rows_for(tom),
-          'static_assert(LIBRARY_ROWS + ROWS_COUNT <= Config::VAR_MAX,',
-          '              "site table exceeds VAR_MAX - raise it in site.toml "',
-          '              "(about 36 bytes of RAM per row)");', '',
-          '// The whole handoff to the library: this site, as data.',
-          'extern const Botanik::SiteDescriptor g_site;', '',
-          '/** @brief The firmware, bound to this site. A FUNCTION-LOCAL static,',
-          ' *  so it is constructed on first use and not during static init: on',
-          ' *  the OPTA that has to be after the Arduino core\'s init() has brought',
-          ' *  up the UARTs, and a file-scope object would run before it.',
-          ' *  @note There is no subclass. A site that needs an extra page or a',
-          ' *  component of its own derives BotanikFirmware and overrides a hook;',
-          ' *  one that is only data, like this one, just names the descriptor. */',
-          'inline Botanik::BotanikFirmware& firmware() {',
-          '    static Botanik::BotanikFirmware fw(g_site);',
-          '    return fw;',
-          '}', '']
-    G += ['#endif  // %s_VARS_GEN_H' % guard, '']
-    open(os.path.join(site, 'generated', 'vars.gen.h'), 'w').write('\n'.join(G))
-    print('  vars.gen.cpp   %d params, %d rows' % (n_par, n_row))
+    matiec initialises a QUALITY-returning function with `QUALITY__Q_NONE`, so
+    the members have to be named constants of the REAL C++ type. Generated so a
+    code added to one side and not the other cannot compile."""
+    src = open('src/libbotanik/vars/descriptor.h').read()
+    m = re.search(r'enum Quality : uint8_t \{(.*?)\n    \};', src, re.S)
+    if not m: sys.exit('descriptor.h: no `enum Quality`')
+    codes = re.findall(r'^\s*(Q_[A-Z_]+)', m.group(1), re.M)
+    w = max(len(c) for c in codes)
+    L = ['/* GENERATED by scripts/tables.py from vars/descriptor.h. Do not edit. */',
+         '#ifndef BOTANIK_PLC_RUNTIME_QUALITY_GEN_H',
+         '#define BOTANIK_PLC_RUNTIME_QUALITY_GEN_H', '',
+         '/* matiec discards its own member list for this type: the ST enumeration',
+         ' * and the C++ one must be the SAME type, not two with equal values. */',
+         '#define BOTANIK_ST_TYPE_QUALITY \\']
+    for i, c in enumerate(codes):
+        L.append('    static const QUALITY QUALITY__%-*s = ::Botanik::Vars::%-*s;%s'
+                 % (w, c, w, c, ' \\' if i + 1 < len(codes) else ''))
+    L += ['', '#endif', '']
+    open(QUALITY_GEN, 'w').write('\n'.join(L))
+    print('  quality.gen.h  %d codes' % len(codes))
 
 
 # ---- points.md -------------------------------------------------------------
 
-DECLARE_H  = 'src/libbotanik/vars/declare.h'
-
-# BY SCOPE, in the order Vars::VarScope declares them - which is also the order
-# a reader wants: what an operator sets, what alarms, what the plant computes,
-# then the wiring. One factory can only ever land in one scope.
-def _factory_kinds():
-    """What each factory BUILDS - its scope, and its type where it pins one -
-    read off declare.h, which is where the C++ hard-codes both.
-
-    DERIVED, not restated. These were two hand-kept maps with a `check` command
-    to hold them against this same file: 61 lines defending a copy that a parse
-    removes the need for. This tree has been bitten by a second hand-kept
-    roster before, which is why BOTANIK_FEATURE_LIST exists.
-
-    A factory taking a VarType builds rows of whatever the table says, so it
-    pins a SCOPE but not a type; those are absent from `typ`. A factory that
-    does not parse is FATAL - quietly mis-filing rows in the point list is the
-    failure the old guard existed to catch, and it must not become silent by
-    deleting the guard."""
-    src = open(DECLARE_H).read()
-    scope, typ, missing = {}, {}, []
-    for fac in ROWS:
-        # One factory's body only: the next `constexpr Descriptor` ends it, or a
-        # greedy match reads the SCOPE of whichever factory comes after.
-        body = re.search(r'constexpr Descriptor %s\((.*?)(?=constexpr Descriptor|\Z)'
-                         % fac, src, re.S)
-        m = body and re.search(r'\b(T_[A-Z0-9]+|type), ROLE_[A-Z]+, SCOPE_([A-Z]+)',
-                               body.group(1))
-        if not m: missing.append(fac); continue
-        scope[fac] = m.group(2)
-        if m.group(1) != 'type': typ[fac] = m.group(1)
-    if missing:
-        sys.exit('%s: no Descriptor{} found for %s - a factory moved, or its '
-                 'shape changed' % (DECLARE_H, ', '.join(sorted(missing))))
-    return scope, typ
-
-
-FAC_SCOPE, FAC_TYPE = _factory_kinds()
-SCOPES = [
-    ('A',  'Alarms',          'the boolean an AlarmCondition reads',
+KINDS = [
+    ('ALARM',  'Alarms',     'the boolean an AlarmCondition reads',
      'name code on_s off_s recent_s hold_s reg desc notes'),
-    ('P',  'Parameters',      'persisted, editable',
+    ('PARAM',  'Parameters', 'persisted, editable',
      'name type def accepts unit access reg desc notes'),
-    ('G',  'Computed values', 'HMI only, not published',
-     'name type def digits unit desc notes'),
-    ('SV', 'Status values',   'published: MQTT and the Modbus TCP slave',
+    ('STATUS', 'Status values', 'computed by a law; published when it has a register',
      'name type def digits unit reg desc notes'),
-    ('MI', 'Direct inputs',   'register 1:1 (device 0 = local)',
+    ('INPUT',  'Inputs',     'read from the field; each has a quality companion',
      'name type device fc reg regs unit desc notes'),
-    ('AI', 'Analog inputs',   'raw count through scale/offset',
-     'name cal device fc reg regs unit desc notes'),
-    ('DI', 'Digital inputs',  'one bit, polled - or an edge COUNT, which is a PI row',
-     'name type device fc reg desc notes'),
-    ('MO', 'Direct outputs',  'register 1:1',
+    ('OUTPUT', 'Outputs',    'driven to the field',
      'name type device fc reg safe desc notes'),
-    ('DO', 'Digital outputs', 'one bit',
-     'name type device fc reg safe invert desc notes'),
-    ('AO', 'Analog outputs',  'engineering value through scale/offset',
-     'name cal device fc reg safe desc notes'),
-    ('RO', 'Relay outputs',   'a coil',
-     'name device coil safe invert desc notes'),
+    ('QUALITY', 'Quality companions', 'the quality of the row before it',
+     'name reg desc'),
 ]
-
-
-
-def _cell(v):
-    """One table cell: markdown-safe, and '-' rather than an empty column."""
-    v = (v or '').strip().strip('"')
-    return v.replace('|', '\\|').replace('\n', ' ') if v else '-'
-
-
-def _point_row(fac, r, want):
-    lo, hi = r.get('lo', ''), r.get('hi', '')
-    out = []
-    for c in want.split():
-        if   c == 'accepts': out.append('%s .. %s' % (_cell(lo), _cell(hi))
-                                        if lo or hi else '-')
-        elif c == 'access':  out.append('RW' if r.get('writable') == 'true' else 'RO')
-        elif c == 'type':    out.append(_cell(r.get('type') or FAC_TYPE.get(fac, '')))
-        else:                out.append(_cell(r.get(c)))
-    return out
-
 
 # The CSV's keys are terse where a reference table wants words.
 HEADINGS = {'def': 'default', 'desc': 'description', 'cal': 'calibration',
             'on_s': 'on (s)', 'off_s': 'off (s)', 'recent_s': 'recent (s)',
             'hold_s': 'hold (s)', 'regs': 'registers'}
+# What a factory pins where the CSV does not carry it.
+FAC_TYPE = {'A': 'T_BOOL', 'PE': 'T_ENUM', 'PS': 'T_STR', 'SVE': 'T_ENUM',
+            'AI': 'T_F32', 'AO': 'T_F32', 'DI': 'T_BOOL', 'DO': 'T_BOOL',
+            'RO': 'T_BOOL', 'PI': 'T_U32', 'Q': 'T_ENUM'}
+
+
+def _md(v):
+    v = (v or '').strip().strip('"')
+    return v.replace('|', '\\|').replace('\n', ' ') if v else '-'
+
+
+def _point_row(r, want):
+    lo, hi = r.get('lo', ''), r.get('hi', '')
+    out = []
+    for c in want.split():
+        if   c == 'accepts': out.append('%s .. %s' % (_md(lo), _md(hi))
+                                        if lo or hi else '-')
+        elif c == 'access':  out.append('RW' if r.get('writable', 'true') != 'false' else 'RO')
+        elif c == 'type':    out.append(_md(r.get('type') or FAC_TYPE.get(r['_fac'], '')))
+        else:                out.append(_md(r.get(c)))
+    return out
 
 
 def _table(rows, want):
@@ -1014,78 +1107,45 @@ def _table(rows, want):
             + ['| ' + ' | '.join(r) + ' |' for r in rows])
 
 
-def _lib_by_fac():
-    """The library's rows grouped by factory, which is the shape points() wants.
-    Off the same table the header is generated from - it used to PARSE the C++,
-    which was the last hand-written C++ this script read."""
-    out = {}
-    for r in lib_rows(): out.setdefault(r['fac'], []).append(r)
-    return out
-
-
-def _st_interface(path):
-    """What one law reads and writes, off its VAR_EXTERNAL blocks."""
-    ext = var_externals(path)
-    return ([n for n, _, ro in ext if ro], [n for n, _, ro in ext if not ro])
-
-
 def points(site):
-    """docs/reference/points.md, from the tables and the ST."""
-    tom  = toml(os.path.join(site, 'site.toml'))
-    name = tom['site']['name']
-    per  = {f: read_table(os.path.join(site, 'tables', ROWS[f][0] + '.csv'),
-                          ROWS[f][1].split()) for f in ROWS}
-    lib  = _lib_by_fac()
-
-    def of(src, sc):
-        return [(f, r) for f in ROWS if FAC_SCOPE.get(f) == sc
-                for r in src.get(f, [])]
-
-    # Grouped ONCE: the summary below counts what the sections then render.
-    group = {sc: (of(per, sc), of(lib, sc)) for sc, _, _, _ in SCOPES}
-    n_site = sum(len(v) for v in per.values())
-    n_lib  = sum(len(v) for v in lib.values())
+    t = build(site)
+    table, prog = t['table'], t['prog']
+    name = t['toml']['site']['name']
+    n_lib = sum(1 for r in table if r.get('_lib'))
     L = ['# %s: variables and programs' % name, '',
          'GENERATED by `scripts/tables.py points`. Do not edit.', '',
          'Every row the firmware exposes, what it is for, and where an integrator',
-         'finds it. The site half comes from `tables/*.csv`, the library half from',
-         '`%s`, and the programs from the ST itself.' % LIB_CSV, '',
-         'One section per SCOPE, in the order `Vars::VarScope` declares them.', '',
+         'finds it. ONE table: the library\'s rows are merged into the site\'s by',
+         'the generator, and a site OVERRIDES one by redeclaring the name.', '',
+         'One section per KIND, in the order `Vars::Kind` declares them.', '',
          '%d rows: %d declared by the site, %d by the library.'
-         % (n_site + n_lib, n_site, n_lib), '',
-         '| scope | what it is | site | library |', '|---|---|---|---|']
-    for sc, title, blurb, _ in SCOPES:
-        L.append('| %s | %s | %d | %d |'
-                 % (title, blurb, len(group[sc][0]), len(group[sc][1])))
+         % (len(table), len(table) - n_lib, n_lib), '',
+         '| kind | what it is | rows |', '|---|---|---|']
+    group = dict((k, [r for r in table if KIND[r['_fac']] == k])
+                 for k, _t, _b, _w in KINDS)
+    for k, title, blurb, _w in KINDS:
+        L.append('| %s | %s | %d |' % (title, blurb, len(group[k])))
     L.append('')
 
-    for sc, title, blurb, want in SCOPES:
-        rows, libr = group[sc]
-        if not rows and not libr: continue
-        L += ['## %s' % title, '', '`SCOPE_%s`: %s.' % (sc, blurb), '']
-        if rows:
-            L += ['### %s (%d)' % (name, len(rows)), '']
-            L += _table([_point_row(f, r, want) for f, r in rows], want) + ['']
-        if libr:
-            L += ['### Library (%d)' % len(libr), '']
-            L += _table([_point_row(f, r, want) for f, r in libr], want) + ['']
+    for k, title, blurb, want in KINDS:
+        rows = group[k]
+        if not rows: continue
+        L += ['## %s' % title, '', '`K_%s`: %s.' % (k, blurb), '']
+        L += _table([_point_row(r, want) for r in rows], want) + ['']
 
-    cal = read_table(os.path.join(site, 'tables', 'analog_cal.csv'),
-                     AUX['analog_cal'].split())
-    if cal:
+    if t['cal']:
         L += ['## Analog scaling', '',
-              'A raw reading maps to engineering units through four parameters.',
-              '`scale` and `offset` are DERIVED rather than stored, so a',
-              'recalibration lands the moment the parameter commits.', '']
-        L += _table([[_cell(c[k]) for k in ('cal', 'raw_min_row', 'raw_min',
-                                            'raw_max_row', 'raw_max',
-                                            'eng_min_row', 'eng_min',
-                                            'eng_max_row', 'eng_max')] for c in cal],
+              'A raw reading maps to engineering units through four numbers, each',
+              'of them fixed or a row an operator edits. `scale` and `offset` are',
+              'DERIVED rather than stored, so a recalibration lands the moment the',
+              'parameter commits.', '']
+        L += _table([[_md(c[k]) for k in ('cal', 'raw_min_row', 'raw_min',
+                                          'raw_max_row', 'raw_max',
+                                          'eng_min_row', 'eng_min',
+                                          'eng_max_row', 'eng_max')] for c in t['cal']],
                     'block raw_min_row raw_min raw_max_row raw_max '
                     'eng_min_row eng_min eng_max_row eng_max') + ['']
 
-    prog = read_table(os.path.join(site, 'tables', 'programs.csv'),
-                      AUX['programs'].split())
     L += ['## Programs', '',
           '%d laws, all of them IEC 61131-3 Structured Text compiled by matiec.'
           % len(prog),
@@ -1097,11 +1157,12 @@ def points(site):
           '|---|---|---|---|---|---|']
     iface = {}
     for i, e in enumerate(prog, 1):
-        path = os.path.join(site, e['source'])
-        iface[e['name']] = _st_interface(path)
+        ext = var_externals(os.path.join(site, e['source']))
+        iface[e['name']] = ([n for n, _t, ro in ext if ro],
+                            [n for n, _t, ro in ext if not ro])
         L.append('| %d | %s | %s | %d | %d | %s |'
                  % (i, e['name'], e['rate'], len(iface[e['name']][0]),
-                    len(iface[e['name']][1]), _cell(e['desc'])))
+                    len(iface[e['name']][1]), _md(e['desc'])))
     L.append('')
     for e in prog:
         reads, writes = iface[e['name']]
@@ -1113,14 +1174,13 @@ def points(site):
               '| writes | %s |' % (', '.join('`%s`' % w for w in writes) or '-'), '']
 
     open('docs/reference/points.md', 'w').write('\n'.join(L))
-    print('  points.md      %d rows, %d programs' % (n_site + n_lib, len(prog)))
+    print('  points.md      %d rows, %d programs' % (len(table), len(prog)))
 
 
 if __name__ == '__main__':
     cmd = sys.argv[1] if len(sys.argv) > 1 else ''
-    if   cmd == 'generate': generate(SITE)
+    if   cmd == 'generate': generate(SITE); quality_block()
     elif cmd == 'plant':    sys.exit(plant(SITE))
     elif cmd == 'config':   config(SITE)
-    elif cmd == 'library':  library()
     elif cmd == 'points':   points(SITE)
     else:                   sys.exit(__doc__)

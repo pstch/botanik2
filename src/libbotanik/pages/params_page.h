@@ -27,7 +27,7 @@
  * (BACKSPACE pops a character, ESC clears); the legend badge shows the filter.
  *
  * An applied value is LIVE but not durable: the row shows a trailing '*', the
- * prompt row counts what is outstanding, and ^O (Bank::save_params) writes them
+ * prompt row counts what is outstanding, and ^O (Persist::save_all) writes them
  * all. Applying a config GROUP is still a separate act - bump that group's
  * commit serial by hand.
  */
@@ -44,7 +44,7 @@
 #include "libbotanik/pages/page.h"
 #include "libbotanik/pages/scroll_table.h"
 #include "libbotanik/vars/access.h"
-#include "libbotanik/vars/params.h"
+#include "libbotanik/vars/persist.h"
 
 namespace Botanik { namespace Pages {
 
@@ -86,6 +86,8 @@ namespace Botanik { namespace Pages {
         /** @name State
          *  @{ */
         Vars::Bank* _params;
+        /** @brief What makes an edit durable; null leaves ^O a no-op. */
+        Vars::Persist* _persist = nullptr;
         bool                _dirty    = true;    ///< table needs a redraw
         uint64_t            _last_refresh_ms = 0; ///< last cadence rebuild
 
@@ -109,8 +111,9 @@ namespace Botanik { namespace Pages {
     public:
         /** @brief @p console owns the content geometry; @p config is the backend
          *  the table reads/writes (may be null -> empty table). */
-        ParamsPage(Console& console, Vars::Bank* config)
-            : ScrollTablePage(console), _params(config),
+        ParamsPage(Console& console, Vars::Bank* config,
+                   Vars::Persist* persist = nullptr)
+            : ScrollTablePage(console), _params(config), _persist(persist),
               _editor(&console, _editor_bufs.storage()) {}
 
         const char* name() const override { return "PARAMS"; }
@@ -153,7 +156,7 @@ namespace Botanik { namespace Pages {
 
         /** @brief True when parameter @p k passes the filter. */
         bool _visible(uint16_t k) const {
-            return _filter_match(_params->param_at(k).meta()->name);
+            return _filter_match(_params->param_at(k).meta().name);
         }
 
         /** @brief Map a visible row to its parameter index (VAR_NONE-ish: the
@@ -220,12 +223,9 @@ namespace Botanik { namespace Pages {
 
         /** @brief Format a bound, in the parameter's OWN type - so a real
          *  parameter's band shows its decimals instead of being truncated to
-         *  whole numbers. "-" when there is no declared band. */
+         *  whole numbers. */
         const char* _fmt_bound(char* buf, size_t cap, const Vars::Descriptor& d,
                                Vars::Scalar v) const {
-            if (d.type == Vars::T_STR || (d.flags & Vars::F_BOUNDED) == 0) {
-                snprintf(buf, cap, "-"); return buf;
-            }
             const char* t = Vars::format_declared(d, v, buf, cap);
             if (t != buf) { strncpy(buf, t, cap - 1); buf[cap - 1] = 0; }
             return buf;
@@ -249,7 +249,7 @@ namespace Botanik { namespace Pages {
 
         /** @brief " name = " static label for the parameter being edited. */
         uint16_t _edit_label(char* buf, size_t cap) const {
-            int n = snprintf(buf, cap, " %s = ", _params->param_at(_edit_index).meta()->name);
+            int n = snprintf(buf, cap, " %s = ", _params->param_at(_edit_index).meta().name);
             return (n < 0) ? 0 : (uint16_t)n;
         }
 

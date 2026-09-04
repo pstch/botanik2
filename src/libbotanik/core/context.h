@@ -12,6 +12,7 @@
 namespace Botanik { namespace Scheduler { struct SchedulerContext;  } }
 namespace Botanik { namespace Tasks     {  class Registry;          } }
 namespace Botanik { namespace Vars      {  class Bank;              } }
+namespace Botanik { namespace Vars      {  class Persist;           } }
 namespace Botanik { namespace Plc { namespace Runtime { class Plant; } } }
 
 
@@ -51,6 +52,10 @@ namespace Botanik {
          *  it. Consumers reach it here, so there is one wiring point rather than
          *  one per consumer. */
         Vars::Bank*                    vars      = nullptr;
+
+        /** @brief What makes a value durable. Separate from the bank, which is
+         *  RAM-only: every verb with a storage side is one of these. */
+        Vars::Persist*                 persist   = nullptr;
 
 
         const Network::NetworkHandler* network   = nullptr; ///< IP config handler

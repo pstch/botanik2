@@ -16,7 +16,9 @@
 
 #include "libbotanik/config/vars.h"
 #include "libbotanik/core/component.h"
+#include "libbotanik/vars/ref.h"
 
+namespace Botanik { namespace Logs { class Logger; } }
 namespace Botanik { namespace Tasks { struct Tick; } }
 namespace Botanik { namespace Terminal { class Console; } }
 namespace Botanik { namespace Sun { class SunPositionTracker; } }
@@ -30,16 +32,16 @@ namespace Botanik { namespace Vars {
 
     /** @brief One component's settings, and the rows behind them.
      *
-     *  @p serial names the group whose commit STAGES this binding: the settings
-     *  land together on the bump rather than one per edit, so a half-typed
-     *  geometry never reaches the screen. Null means unstaged - re-read every
-     *  beat, for settings where a partial apply is invisible. */
+     *  @p serial_row is the group's commit serial, which STAGES this binding:
+     *  the settings land together on the bump rather than one per edit, so a
+     *  half-typed geometry never reaches the screen. VAR_NONE means unstaged -
+     *  re-read every beat, for settings where a partial apply is invisible. */
     struct ConfigBinding {
-        const char* serial;
-        void*       target;
-        void      (*apply)(void*, const Bank&, bool announce);
-        uint32_t    applied;   ///< last serial pushed
-        bool        ever;      ///< pushed at least once (the first push is unconditional)
+        uint16_t serial_row;
+        void*    target;
+        void   (*apply)(void*, const Bank&, bool announce);
+        uint32_t applied;   ///< last serial pushed
+        bool     ever;      ///< pushed at least once (the first push is unconditional)
     };
 
     /** @brief Pushes each registered component its configuration, out of the
@@ -61,11 +63,11 @@ namespace Botanik { namespace Vars {
         ConfigBinder(const SetupContext& ctx, const Bank* io)
             : Component(ctx, "Config"), _io(io) {}
 
-        /** @brief Bind @p target's configuration to @p serial's group. @p apply
-         *  reads the rows and calls the component's set_config(); it is the only
-         *  code that sees both sides. Silently drops past
+        /** @brief Bind @p target's configuration to @p serial_row's group.
+         *  @p apply reads the rows and calls the component's set_config(); it is
+         *  the only code that sees both sides. Silently drops past
          *  Config::CONFIG_BINDINGS_MAX. */
-        void add(const char* serial, void* target,
+        void add(uint16_t serial_row, void* target,
                  void (*apply)(void*, const Bank&, bool announce));
 
         void register_tasks() override;
@@ -89,6 +91,11 @@ namespace Botanik { namespace Vars {
      *  @{ */
 
     void bind_console(ConfigBinder& binder, Terminal::Console& console);
+    /** @brief Each log sink's floor, from the row that sink names. A page
+     *  cannot reach the bank and should not learn how; the LOGGER cannot read it
+     *  either, or `logs/` would depend back on `vars/` and the lowest service in
+     *  the tree would stop building without the variable model. */
+    void bind_logger(ConfigBinder& binder, Logs::Logger& logger);
     void bind_sun(ConfigBinder& binder, Sun::SunPositionTracker& sun);
     void bind_monitor(ConfigBinder& binder, MonitorStack& monitor);
     void bind_network(ConfigBinder& binder, Network::NetworkHandler& net);
@@ -112,7 +119,7 @@ namespace Botanik { namespace Vars {
      *  Public because the CONFIG and the console must agree: a `net` report
      *  showing an empty broker while the client talks to the gateway would be
      *  the report lying. */
-    const char* host_or_gateway(const Bank& io, const char* row);
+    const char* host_or_gateway(const Bank& io, uint16_t row);
 
 }}  // namespace Botanik::Vars
 

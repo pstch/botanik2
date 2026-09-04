@@ -159,7 +159,7 @@ namespace Botanik { namespace Pages {
             Vars::Var h = _io->var(_refs[i]);
             char vb[32], buf[40];
             const char* s = Vars::var_format(*_io, h, vb, sizeof(vb));
-            const char* u = h.meta()->unit;
+            const char* u = h.meta().unit;
             if (u && u[0]) snprintf(buf, sizeof(buf), "%s %s", s, u);
             else           snprintf(buf, sizeof(buf), "%s", s);
             _cell(row, val, buf, w);

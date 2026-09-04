@@ -138,10 +138,10 @@ namespace Botanik { namespace Sun {
         void _publish();
 
         Vars::Bank*  _io = nullptr;
-        Vars::VarRef _r_ready;
-        Vars::VarRef _r_from_rise;
-        Vars::VarRef _r_from_set;
-        Vars::VarRef _r_elev;
+        uint16_t _r_ready;
+        uint16_t _r_from_rise;
+        uint16_t _r_from_set;
+        uint16_t _r_elev;
     };
 
     /** @} */

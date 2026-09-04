@@ -25,7 +25,7 @@ TEST_CASE("plc: a name no table declares counts as unresolved") {
     INFO("the count is the ONLY thing Plant::wire() sees a bad binding by, so "
          "a miss that does not move it leaves the program HEALTHY and running");
     CHECK(bank.unresolved_count() == before + 1);
-    CHECK(r.r.index == Vars::VAR_NONE);
+    CHECK(r.r == Vars::VAR_NONE);
 
     INFO("and the reference carries a bank, so the sink is reachable at all");
     REQUIRE(r.io != nullptr);
@@ -43,7 +43,7 @@ TEST_CASE("plc: a row bound at the wrong type counts as unresolved too") {
     Vars::Ref<bool> r = Plc::Runtime::resolve_ci<bool>(bank, "SYS_NOW_MS");
 
     CHECK(bank.unresolved_count() == before + 1);
-    CHECK(r.r.index == Vars::VAR_NONE);
+    CHECK(r.r == Vars::VAR_NONE);
     REQUIRE(r.io != nullptr);
 }
 
@@ -55,5 +55,5 @@ TEST_CASE("plc: a name spelled in another case is the same row") {
     Vars::Ref<uint32_t> r = Plc::Runtime::resolve_ci<uint32_t>(bank, "SYS_NOW_MS");
 
     CHECK(bank.unresolved_count() == before);
-    CHECK(r.r.index != Vars::VAR_NONE);
+    CHECK(r.r != Vars::VAR_NONE);
 }

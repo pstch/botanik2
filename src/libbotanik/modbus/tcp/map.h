@@ -19,6 +19,7 @@
 #include "libbotanik/modbus/tcp/pdu.h"
 #include "libbotanik/vars/access.h"
 #include "libbotanik/vars/model.h"
+#include "libbotanik/vars/persist.h"
 
 #if BOTANIK_FEATURE_MODBUS_TCP_SERVER
 
@@ -43,6 +44,9 @@ namespace Botanik { namespace Modbus {
          *  @{ */
 
         Vars::Bank* _io;
+        /** @brief What carries a committed write to flash. Borrowed; null makes
+         *  every write live-only, which is what a rig without a store wants. */
+        Vars::Persist* _persist = nullptr;
         uint16_t _rows[Config::MODBUS_TCP_MAX_ROWS];  ///< bank indices, ascending by register
         /** @brief Whether a master may write @p d at all. */
         static bool _writable(const Vars::Descriptor& d);
@@ -62,8 +66,9 @@ namespace Botanik { namespace Modbus {
         /** @} */
 
     public:
-        explicit Map(Vars::Bank* io = nullptr)
-            : _io(io), _rows(), _count(0), _overflow(0), _reg_lo(0), _reg_hi(0) {}
+        explicit Map(Vars::Bank* io = nullptr, Vars::Persist* persist = nullptr)
+            : _io(io), _persist(persist), _rows(), _count(0), _overflow(0),
+              _reg_lo(0), _reg_hi(0) {}
 
         /** @name Building
          *  @{ */

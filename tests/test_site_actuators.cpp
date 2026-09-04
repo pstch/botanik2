@@ -44,9 +44,9 @@ TEST_CASE("scan: an ST program publishes its own health row") {
     char row[40];
     for (uint8_t i = 0; i < Plc::Runtime::PROGRAM_COUNT; i++) {
         snprintf(row, sizeof row, "prog_%s", Plc::Runtime::programs[i].name);
-        const VarRef r = live.ref(row);
+        const uint16_t r = live.ref(row);
         INFO("row ", row);
-        REQUIRE(r.index != Vars::VAR_NONE);
+        REQUIRE(r != Vars::VAR_NONE);
         INFO("...and it says HEALTHY rather than the INHIBITED it declares");
         CHECK(live.bank.var(r).value().as<uint32_t>() ==
               (uint32_t)Plc::Health::HEALTHY);

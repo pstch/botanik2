@@ -18,15 +18,14 @@ namespace Botanik { namespace Io {
 
         for (uint16_t i = 0; i < _io->count(); i++) {
             const Vars::Descriptor& d = _io->descriptor(i);
-            if (d.bind.transport != Vars::XP_LOCAL) continue;
-            if (d.scope != Vars::SCOPE_DI && d.scope != Vars::SCOPE_AI) continue;
+            if (!Vars::local(d) || d.kind != Vars::K_INPUT) continue;
 
             // The SAME eight terminals, read as a voltage instead of a level.
             // Which it is, is the row's declaration and nothing else - so the
             // pin is configured one way here, once, and a terminal claimed by
             // two rows of different kinds is refused rather than reconfigured
             // under whichever ran last.
-            if (d.scope == Vars::SCOPE_AI) {
+            if (Vars::analog(d)) {
                 if (_analogs < HAL::DigitalIn::CHANNELS
                     && HAL::AnalogIn::attach(d.bind.reg)) {
                     _analog_row[_analogs] = i;
@@ -44,10 +43,11 @@ namespace Botanik { namespace Io {
             // a pulse line is a moment of a train and not a reading of
             // anything. It is attached once, here, and configuring one pin two
             // ways is a hardware fault waiting for the first wet week.
-            if (d.flags & Vars::F_PULSE) {
+            if (Vars::pulse(d)) {
                 if (_pulses < HAL::Pulse::MAX_CHANNELS) {
-                    const uint8_t pch = Io::pulse_channel(d);
-                    if (HAL::Pulse::attach(pch, Io::pulse_edge(d))) {
+                    const uint8_t pch = Vars::pulse_channel(d);
+                    if (HAL::Pulse::attach(
+                            pch, (HAL::Pulse::Edge)Vars::pulse_edge(d))) {
                         _pulse_row[_pulses] = i;
                         _pulse_ch[_pulses]  = pch;
                         _pulses++;
@@ -93,10 +93,10 @@ namespace Botanik { namespace Io {
         // of code and a recalibration lands on both the same way.
         for (uint8_t i = 0; i < _analogs; i++) {
             const Vars::Descriptor& d = _io->descriptor(_analog_row[i]);
-            _io->publish_wire(Vars::VarRef{ _analog_row[i] },
-                              Vars::from_f32(d.bind.wire,
-                                             (float)HAL::AnalogIn::read(_analog_pin[i])),
-                              now_ms);
+            _io->var(_analog_row[i]).publish_wire(
+                Vars::from_f32(d.bind.wire,
+                               (float)HAL::AnalogIn::read(_analog_pin[i])),
+                now_ms);
         }
 
         // The raw edge total, as the counter has it. A meter's law turns it

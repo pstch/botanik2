@@ -13,13 +13,16 @@
 #  define BOTANIK_SITE_SENSE_MS 10
 #endif
 #ifndef BOTANIK_VAR_MAX
-#  define BOTANIK_VAR_MAX 704
-#endif
-#ifndef BOTANIK_MODBUS_TCP_MAX_ROWS
-#  define BOTANIK_MODBUS_TCP_MAX_ROWS 576
+#  define BOTANIK_VAR_MAX 659
 #endif
 #ifndef BOTANIK_STR_POOL_BYTES
 #  define BOTANIK_STR_POOL_BYTES 512
+#endif
+#ifndef BOTANIK_ANALOG_ROWS_MAX
+#  define BOTANIK_ANALOG_ROWS_MAX 7
+#endif
+#ifndef BOTANIK_MODBUS_TCP_MAX_ROWS
+#  define BOTANIK_MODBUS_TCP_MAX_ROWS 576
 #endif
 #ifndef BOTANIK_MODBUS_BAUD
 #  define BOTANIK_MODBUS_BAUD 38400
@@ -120,10 +123,10 @@
 #  define BOTANIK_FEATURE_SUN_TRACKER 1
 #endif
 
-// This site turns every optional feature ON, and its table reserves rows
-// on that basis. Built with one OFF, the table declares rows the library
-// never registers, which misaligns every register after them - so refuse
-// rather than drift. Here rather than in a header the site hand-writes,
+// This site turns every optional feature ON, and its table is CUT for
+// that: a guarded library row the build leaves out shifts every index
+// after it, and the indices are generated constants. So refuse rather
+// than drift. Here rather than in a header the site hand-writes,
 // because the flags have their defaults by the time this is read again.
 #define BOTANIK_SITE_ASSERT_FEATURES \
     BOTANIK_FEATURE_LOGS_PAGE && \

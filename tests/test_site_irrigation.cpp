@@ -57,8 +57,8 @@ TEST_CASE_FIXTURE(StRig, "irrigation: every row it reads back is written before 
     const char* const readback[] = { "irr_delivered_L", "irr_drained_L",
                                      "irr_servedToday", "irr_today" };
     for (const char* r : readback) {
-        Vars::VarRef ref = live.bank.find(r);
-        REQUIRE(ref.index != Vars::VAR_NONE);
+        uint16_t ref = live.bank.find(r);
+        REQUIRE(ref != Vars::VAR_NONE);
         INFO("row: ", r);
         CHECK(live.bank.var(ref).valid());
     }
@@ -79,8 +79,8 @@ TEST_CASE_FIXTURE(StRig, "irrigation: a modulation nobody can read still waters,
     // programs are on this beat and would put their own answer back.
     distrust(live, "cli_dpMargin_degC");
 
-    const VarRef due = live.ref("irr_dueTray");
-    const VarRef vol = live.ref("irr_volume_L");
+    const uint16_t due = live.ref("irr_dueTray");
+    const uint16_t vol = live.ref("irr_volume_L");
     uint64_t t = 0;
     for (uint32_t i = 0; i < 5; i++) d.step(t += 1000);
     REQUIRE(live.bank.var(live.ref("irr_state")).as_i64() != Site::IRR_IDLE);
@@ -242,9 +242,9 @@ TEST_CASE_FIXTURE(StRig,
     // the state before: the flush's flow read as a leak the instant the cycle
     // went idle, and idle's zero read as a pressure fault the instant a fill
     // opened. Both fired on every cycle the plant ran.
-    const VarRef st   = live.ref("irr_state");
-    const VarRef leak = live.ref("alarm_water_leak");
-    const VarRef pres = live.ref("alarm_water_pressure");
+    const uint16_t st   = live.ref("irr_state");
+    const uint16_t leak = live.ref("alarm_water_leak");
+    const uint16_t pres = live.ref("alarm_water_pressure");
     // The law waits two of these: a window straddling the change closes with
     // the old state's water in it, and that figure stands for a window more.
     const uint32_t win =
@@ -376,7 +376,7 @@ TEST_CASE_FIXTURE(StRig, "irrigation: the two ways the slot can be told a lie") 
     summer(live);
     live.bank.param_set(live.bank.var(live.ref("irr_forceOn_tray1")), true);
     live.bank.param_set(live.bank.var(live.ref("irr_liters_tray1")), 5.0f);
-    const VarRef slot = live.ref("irr_slotOpen");
+    const uint16_t slot = live.ref("irr_slotOpen");
 
     // The PROBES, not the derived row: temp_rh_sensors votes cli_temp_ext from
     // them every scan and would overwrite anything published straight onto it.
@@ -689,7 +689,7 @@ TEST_CASE_FIXTURE(StRig, "irrigation: the pulse line says whether the meter is t
     // publish this row - it read as never-written for the life of the run.
     // Its LEVEL is meaningless (a pulse is a moment of a train), so what it
     // carries is whether an edge arrived in the beat.
-    const Vars::VarRef line = live.ref("irr_inPulse");
+    const uint16_t line = live.ref("irr_inPulse");
 
     uint64_t t = 0;
     d.step(t += 1000);

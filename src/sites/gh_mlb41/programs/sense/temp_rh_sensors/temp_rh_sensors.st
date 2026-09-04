@@ -90,17 +90,17 @@ END_VAR
   tau_s := UINT_TO_REAL(cli_sensorTau_ms) / 1000.0;
 
   ceiling.T1    := cli_temp_hi1;
-  ceiling.T1_OK := GOOD(cli_temp_hi1_qlt);
+  ceiling.T1_Q  := cli_temp_hi1_qlt;
   ceiling.T2    := cli_temp_hi2;
-  ceiling.T2_OK := GOOD(cli_temp_hi2_qlt);
+  ceiling.T2_Q  := cli_temp_hi2_qlt;
   ceiling.T3    := cli_temp_hi3;
-  ceiling.T3_OK := GOOD(cli_temp_hi3_qlt);
+  ceiling.T3_Q  := cli_temp_hi3_qlt;
   ceiling.H1    := cli_rh_hi1;
-  ceiling.H1_OK := GOOD(cli_rh_hi1_qlt);
+  ceiling.H1_Q  := cli_rh_hi1_qlt;
   ceiling.H2    := cli_rh_hi2;
-  ceiling.H2_OK := GOOD(cli_rh_hi2_qlt);
+  ceiling.H2_Q  := cli_rh_hi2_qlt;
   ceiling.H3    := cli_rh_hi3;
-  ceiling.H3_OK := GOOD(cli_rh_hi3_qlt);
+  ceiling.H3_Q  := cli_rh_hi3_qlt;
   ceiling.TAU_S := tau_s;
   ceiling.NOW   := sys_now_ms;
   ceiling();
@@ -109,17 +109,17 @@ END_VAR
   alarm_sns_ceiling := ceiling.FAULT;
 
   floor.T1    := cli_temp_lo1;
-  floor.T1_OK := GOOD(cli_temp_lo1_qlt);
+  floor.T1_Q  := cli_temp_lo1_qlt;
   floor.T2    := cli_temp_lo2;
-  floor.T2_OK := GOOD(cli_temp_lo2_qlt);
+  floor.T2_Q  := cli_temp_lo2_qlt;
   floor.T3    := cli_temp_lo3;
-  floor.T3_OK := GOOD(cli_temp_lo3_qlt);
+  floor.T3_Q  := cli_temp_lo3_qlt;
   floor.H1    := cli_rh_lo1;
-  floor.H1_OK := GOOD(cli_rh_lo1_qlt);
+  floor.H1_Q  := cli_rh_lo1_qlt;
   floor.H2    := cli_rh_lo2;
-  floor.H2_OK := GOOD(cli_rh_lo2_qlt);
+  floor.H2_Q  := cli_rh_lo2_qlt;
   floor.H3    := cli_rh_lo3;
-  floor.H3_OK := GOOD(cli_rh_lo3_qlt);
+  floor.H3_Q  := cli_rh_lo3_qlt;
   floor.TAU_S := tau_s;
   floor.NOW   := sys_now_ms;
   floor();
@@ -128,17 +128,17 @@ END_VAR
   alarm_sns_floor := floor.FAULT;
 
   crawlspace.T1    := cli_temp_cs1;
-  crawlspace.T1_OK := GOOD(cli_temp_cs1_qlt);
+  crawlspace.T1_Q  := cli_temp_cs1_qlt;
   crawlspace.T2    := cli_temp_cs2;
-  crawlspace.T2_OK := GOOD(cli_temp_cs2_qlt);
+  crawlspace.T2_Q  := cli_temp_cs2_qlt;
   crawlspace.T3    := cli_temp_cs3;
-  crawlspace.T3_OK := GOOD(cli_temp_cs3_qlt);
+  crawlspace.T3_Q  := cli_temp_cs3_qlt;
   crawlspace.H1    := cli_rh_cs1;
-  crawlspace.H1_OK := GOOD(cli_rh_cs1_qlt);
+  crawlspace.H1_Q  := cli_rh_cs1_qlt;
   crawlspace.H2    := cli_rh_cs2;
-  crawlspace.H2_OK := GOOD(cli_rh_cs2_qlt);
+  crawlspace.H2_Q  := cli_rh_cs2_qlt;
   crawlspace.H3    := cli_rh_cs3;
-  crawlspace.H3_OK := GOOD(cli_rh_cs3_qlt);
+  crawlspace.H3_Q  := cli_rh_cs3_qlt;
   crawlspace.TAU_S := tau_s;
   crawlspace.NOW   := sys_now_ms;
   crawlspace();
@@ -147,17 +147,17 @@ END_VAR
   alarm_sns_crawlspace := crawlspace.FAULT;
 
   exterior.T1    := cli_temp_ext1;
-  exterior.T1_OK := GOOD(cli_temp_ext1_qlt);
+  exterior.T1_Q  := cli_temp_ext1_qlt;
   exterior.T2    := cli_temp_ext2;
-  exterior.T2_OK := GOOD(cli_temp_ext2_qlt);
+  exterior.T2_Q  := cli_temp_ext2_qlt;
   exterior.T3    := cli_temp_ext3;
-  exterior.T3_OK := GOOD(cli_temp_ext3_qlt);
+  exterior.T3_Q  := cli_temp_ext3_qlt;
   exterior.H1    := cli_rh_ext1;
-  exterior.H1_OK := GOOD(cli_rh_ext1_qlt);
+  exterior.H1_Q  := cli_rh_ext1_qlt;
   exterior.H2    := cli_rh_ext2;
-  exterior.H2_OK := GOOD(cli_rh_ext2_qlt);
+  exterior.H2_Q  := cli_rh_ext2_qlt;
   exterior.H3    := cli_rh_ext3;
-  exterior.H3_OK := GOOD(cli_rh_ext3_qlt);
+  exterior.H3_Q  := cli_rh_ext3_qlt;
   exterior.TAU_S := tau_s;
   exterior.NOW   := sys_now_ms;
   exterior();
@@ -169,12 +169,12 @@ END_VAR
      law downstream reads the doubt. The two quorums are separate: one dead
      humidity probe must not invalidate a temperature three good probes agree
      on. *)
-  cli_temp_hi_qlt  := QUAL(ceiling.TEMP_OK,    ceiling.TEMP_SEEDED);
-  cli_temp_lo_qlt  := QUAL(floor.TEMP_OK,      floor.TEMP_SEEDED);
-  cli_temp_cs_qlt  := QUAL(crawlspace.TEMP_OK, crawlspace.TEMP_SEEDED);
-  cli_temp_ext_qlt := QUAL(exterior.TEMP_OK,   exterior.TEMP_SEEDED);
-  cli_rh_hi_qlt    := QUAL(ceiling.RH_OK,      ceiling.RH_SEEDED);
-  cli_rh_lo_qlt    := QUAL(floor.RH_OK,        floor.RH_SEEDED);
-  cli_rh_cs_qlt    := QUAL(crawlspace.RH_OK,   crawlspace.RH_SEEDED);
-  cli_rh_ext_qlt   := QUAL(exterior.RH_OK,     exterior.RH_SEEDED);
+  cli_temp_hi_qlt  := ceiling.TEMP_Q;
+  cli_temp_lo_qlt  := floor.TEMP_Q;
+  cli_temp_cs_qlt  := crawlspace.TEMP_Q;
+  cli_temp_ext_qlt := exterior.TEMP_Q;
+  cli_rh_hi_qlt    := ceiling.RH_Q;
+  cli_rh_lo_qlt    := floor.RH_Q;
+  cli_rh_cs_qlt    := crawlspace.RH_Q;
+  cli_rh_ext_qlt   := exterior.RH_Q;
 END_PROGRAM

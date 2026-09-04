@@ -61,7 +61,7 @@ inline float drift(float v, float step, float lo, float hi,
  *  A hook rather than a direct call because this file is SITE code and must
  *  cross-compile for the OPTA: the harness reaches into the site, never the
  *  other way. */
-typedef void (*FieldSink)(void* ctx, const Vars::Descriptor& d, float v);
+typedef void (*FieldSink)(void* ctx, Vars::Var h, float v);
 inline FieldSink& field_sink() { static FieldSink fn = nullptr; return fn; }
 inline void*&     field_ctx()  { static void* ctx = nullptr; return ctx; }
 
@@ -70,28 +70,35 @@ inline void*&     field_ctx()  { static void* ctx = nullptr; return ctx; }
  *  A probe on the field bus cannot be silenced by not writing it: the device
  *  keeps answering with the register it already holds, so the row stays fresh
  *  and perfectly valid. The DEVICE has to stop answering. */
+/** @brief The row @p id names. The simulator is the one place a NAME is still
+ *  the handle: the mock is written in the site's vocabulary, several of its
+ *  names are built per call, and none of it is on a beat that matters. */
+inline Vars::Var at(const Vars::Bank& io, const char* id) {
+    return io.var(io.find(id));
+}
+
 typedef void (*FieldFault)(void* ctx, uint8_t unit, bool absent);
 inline FieldFault& field_fault() { static FieldFault fn = nullptr; return fn; }
 
 /** @brief Silence the device a named row lives on (or restore it). Nothing to
  *  do where the row is not on a bus - there, not publishing IS the dropout. */
 inline void silence(const Vars::Bank& io, const char* id, bool absent) {
-    const Vars::Descriptor& d = *io.var(id).meta();
-    if (d.bind.transport == Vars::XP_MODBUS && field_fault() != nullptr)
+    const Vars::Descriptor& d = at(io, id).meta();
+    if (d.bind.device != 0 && field_fault() != nullptr)
         field_fault()(field_ctx(), d.bind.device, absent);
 }
 
 /** @brief Publish one reading as a driver would: value, timestamp and quality in
  *  one step, through the handle rather than the value array. */
 inline void put(Vars::Bank& io, const char* id, float v, uint32_t now_ms) {
-    Vars::Var h = io.var(id);
-    const Vars::Descriptor& d = *h.meta();
+    Vars::Var h = at(io, id);
+    const Vars::Descriptor& d = h.meta();
 
     // A row on the FIELD BUS is not ours to write: we are the physical quantity,
     // so it goes into the device's register image and the MASTER fills the row
     // when it polls, with its own timestamp and quality.
-    if (d.bind.transport == Vars::XP_MODBUS) {
-        if (field_sink() != nullptr) field_sink()(field_ctx(), d, v);
+    if (d.bind.device != 0) {
+        if (field_sink() != nullptr) field_sink()(field_ctx(), h, v);
         else h.publish(Scalar::F(v), now_ms);   // no bus: nothing else would
         return;
     }
@@ -283,7 +290,7 @@ inline float _windows_open(const Vars::Bank& io) {
     for (uint8_t i = 1; i <= 4; i++) {
         char n[20];
         snprintf(n, sizeof n, "cli_window%u_pos", (unsigned)i);
-        sum += io.var(n).as_f32();
+        sum += at(io, n).as_f32();
     }
     return sum / 4.0f;
 }
@@ -320,14 +327,14 @@ inline void step_plant(const Vars::Bank& io, const Sky& s, float t_ext,
     const float dt = (float)dt_ms / 1000.0f;
     if (dt <= 0.0f) return;
 
-    const bool  screen = io.var("cli_screen").as_bool();
+    const bool  screen = at(io, "cli_screen").as_bool();
     const float vent   = _windows_open(io);
     // The INTAKE fans exchange air with outside; the destratification fans only
     // stir what is already in here, so they move the gap and not the heat.
-    const float intake = 0.5f * (io.var("cli_intr1").as_f32() +
-                                 io.var("cli_intr2").as_f32());
-    const float mix    = (float)io.var("cli_fanSpeed").as_i64() / 3.0f;
-    const float skirt  = io.var("cli_skirtValve").as_bool() ? 1.0f : 0.0f;
+    const float intake = 0.5f * (at(io, "cli_intr1").as_f32() +
+                                 at(io, "cli_intr2").as_f32());
+    const float mix    = (float)at(io, "cli_fanSpeed").as_i64() / 3.0f;
+    const float skirt  = at(io, "cli_skirtValve").as_bool() ? 1.0f : 0.0f;
 
     // Solar gain, shaded by the screen. Conduction through the fabric, which
     // the screen is there to slow at night. Ventilation, the only thing that
@@ -375,7 +382,7 @@ inline void publish_meters(Vars::Bank& io, const Sky& s, uint32_t now_ms) {
     static float load = 0.0f;
     load = drift(load, 0.5f, 0.0f, 1.0f, s.dt_ms, 60000.0f);       // ~1 min
     // The plant draws what it is running: fans and windows are the load.
-    const float duty = 0.25f + 0.55f * ((float)io.var("cli_fanSpeed").as_i64() / 3.0f);
+    const float duty = 0.25f + 0.55f * ((float)at(io, "cli_fanSpeed").as_i64() / 3.0f);
 
     // The power day, in four acts, by the hour.
     float sag = 1.0f;
@@ -442,7 +449,7 @@ inline void publish_analog(Vars::Bank& io, const Sky& s, uint32_t now_ms) {
     // Output flow: what the irrigation cycle is actually drawing, plus a swell.
     // Sized against irr_expDrainFrac: a tray gives back about 0.6 of its dose
     // inside irr_drainWindow_sec, so the verdict has something to judge.
-    const bool draining = io.var("irr_output_ro1").as_bool();
+    const bool draining = at(io, "irr_output_ro1").as_bool();
     put(io, "irr_out_Lpm", draining ? 20.0f + 3.0f * sinf(t / 5.0f) : 0.0f, now_ms);
 }
 
@@ -497,7 +504,7 @@ inline void pulse_inlet(const Vars::Bank& io, uint32_t now_ms) {
 
     const uint32_t dt = (now_ms > last_ms) ? (now_ms - last_ms) : 0;
     last_ms = now_ms;
-    if (!io.var("irr_input_ro1").as_bool()) { owed_ms = 0; return; }
+    if (!at(io, "irr_input_ro1").as_bool()) { owed_ms = 0; return; }
 
     owed_ms += dt;
     const uint32_t pulses = owed_ms / 1000u;
@@ -506,7 +513,7 @@ inline void pulse_inlet(const Vars::Bank& io, uint32_t now_ms) {
     // pulse table beside the table to read it from.
     if (pulses > 0)
         HAL::Pulse::inject(
-            Io::pulse_channel(io.descriptor(io.find("irr_inCount").index)), pulses);
+            Vars::pulse_channel(at(io, "irr_inCount").meta()), pulses);
 }
 
 /**

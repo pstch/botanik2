@@ -12,7 +12,8 @@
 #include "libbotanik/console/terminal.h"
 #include "libbotanik/core/context.h"
 #include "libbotanik/vars/access.h"
-#include "libbotanik/vars/params.h"
+#include "libbotanik/vars/persist.h"
+#include "libbotanik/vars/rows.h"
 
 namespace Botanik {
     // logs command (set_diagnostics)
@@ -343,7 +344,7 @@ namespace Botanik { namespace Shell {
         void _override_reply(Vars::Var h, const char* verb);
         /** @brief Force @p r's `_qlt` companion. False when it has none -
          *  a parameter, or a row no law qualifies. */
-        bool _force_quality(Vars::VarRef r, bool valid);
+        bool _force_quality(uint16_t r, bool valid);
         /** @brief `programs enable|disable <name>|all`. @p on is which. */
         void _programs_gate(const char* nm, uint16_t wn, bool on);
         /** @brief `programs status`: a tally per health, and who is in the ones
@@ -361,7 +362,7 @@ namespace Botanik { namespace Shell {
          *  when it names none. The lookup every table verb starts with, so the
          *  message cannot drift between them.
          *  @return its ref, or one whose index is Vars::VAR_NONE. */
-        Vars::VarRef _resolve(const char* noun, const char* nm, uint16_t wn);
+        uint16_t _resolve(const char* noun, const char* nm, uint16_t wn);
 
         /** @brief List rows matching @p prefix (null = all), @p params_only
          *  restricting the walk to the parameter block. @p noun names the
@@ -419,14 +420,14 @@ namespace Botanik { namespace Shell {
          *  detail. @p h supplies the type and, for a T_STR, the pool text. */
         void _value_field(const char* label, const Vars::Bank& io, Vars::Var h,
                           Vars::Value val, const char* quality, const char* unit);
-        /** @brief What a VarScope abbreviation means, for the detail column. */
-        static const char* _scope_phrase(uint8_t scope);
+        /** @brief What a Kind means, for the detail column. */
+        static const char* _kind_phrase(const Vars::Descriptor& d);
         /** @brief What `def` is FOR on this row - it does three different jobs,
          *  and the number alone does not say which. Takes the descriptor, not
          *  the role: a retained parameter's default is one nothing restores. */
         static const char* _default_phrase(const Vars::Descriptor& d);
         /** @brief Where a value physically comes from, into @p buf. */
-        static const char* _binding_phrase(const Vars::Binding& b,
+        static const char* _binding_phrase(const Vars::Descriptor& d,
                                            char* buf, size_t cap);
         /** @} */
 
@@ -437,6 +438,11 @@ namespace Botanik { namespace Shell {
         /** @brief The variables, from the injected SystemContext (null when the
          *  firmware wired none). One lookup point for the variable commands. */
         Vars::Bank* _bank() const { return _sys != nullptr ? _sys->vars : nullptr; }
+        /** @brief What the durable verbs go through; null in a rig with no
+         *  store, where every one of them is a no-op. */
+        Vars::Persist* _store() const {
+            return _sys != nullptr ? _sys->persist : nullptr;
+        }
         /** @brief Handle an unrecognised command (echoes "Unknown command:
          *  ..."). */
         void _unknown(const char* cmd, uint16_t len);

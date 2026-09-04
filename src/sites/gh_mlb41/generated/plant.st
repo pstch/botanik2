@@ -9,8 +9,8 @@
 
 (* NO PROGRAM IS BOUND TO A TASK. plant.cpp calls each body itself, at
    the period programs.csv states, so a program keeps its own registry
-   entry: its health row, its cost and missed counts, its writer slot,
-   and its own INVALID when a name it binds resolves to nothing.
+   entry: its health row, its cost and missed counts, and its writer
+   roster.
 
    The TASK below is a formality - matiec refuses a RESOURCE without a
    periodic one. Nothing binds to it and nothing reads its interval. *)

@@ -41,7 +41,8 @@
 #include "libbotanik/vars/bindings.h"
 #include "libbotanik/vars/declare.h"
 #include "libbotanik/vars/model.h"
-#include "libbotanik/vars/params.h"
+#include "libbotanik/vars/persist.h"
+#include "libbotanik/vars/rows.h"
 
 // Last on purpose: BotanikFirmware names types from nearly every header above,
 // so it can only be declared once they exist.

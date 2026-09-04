@@ -1,7 +1,0 @@
-param             ,lo_row              ,lo  ,hi_row              ,hi
-cli_targetMin_degC ,                    ,0.0 ,cli_targetMax_degC  ,40.0
-cli_targetMax_degC ,cli_targetMin_degC  ,0.0 ,                    ,40.0
-cli_intakeStartDem ,                    ,0.0 ,cli_intakeFullDem   ,1.0
-cli_intakeFullDem  ,cli_intakeStartDem  ,0.0 ,                    ,1.0
-cli_windowStartDem ,                    ,0.0 ,cli_windowFullDem   ,1.0
-cli_windowFullDem  ,cli_windowStartDem  ,0.0 ,                    ,1.0

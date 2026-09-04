@@ -23,12 +23,6 @@ namespace Botanik { namespace Modbus {
         /** @brief The first of the two registers row @p reg occupies. */
         uint32_t reg_to_addr(uint16_t reg) { return (uint32_t)reg * 2u; }
 
-        /** @brief What a map with no bank hands back: an inert row, so a caller
-         *  that ignores count() reads zeros rather than dereferencing null. The
-         *  bank has its own sink for the same reason. */
-        const Descriptor g_sink_d = {};
-        Slot          g_sink_v = {};
-
         /** @brief 32-bit saturation for the types that do not fit. Truncation
          *  would read as a plausible small number; a rail reads as "at least
          *  this". */
@@ -61,7 +55,7 @@ namespace Botanik { namespace Modbus {
     bool Map::_writable(const Descriptor& d) {
         // Not the same question as whether a VALUE is acceptable - that one is
         // the bank's, and Bank::check() answers it.
-        return var_writable(d) && (d.type != T_STR || is_ipv4(d));
+        return writable(d) && (d.type != T_STR || is_ipv4(d));
     }
 
     uint32_t Map::ipv4_to_wire(const char* text) {
@@ -106,10 +100,10 @@ namespace Botanik { namespace Modbus {
         // refusing every write - which an integrator reading the point list
         // would take for a value.
         if (d.type == T_STR && !is_ipv4(d)) return false;
-        // WHICH KINDS of row carry a register is a rule about the table, so it
-        // lives in vars/access.h. Such a row with no register is a table defect
-        // the site test fails on, and this simply does not serve it.
-        return var_mapped(d) && d.bind.reg != 0;
+        // WHICH rows carry a TCP register is a rule about the table, so it is
+        // one predicate in vars/: a field row's `reg` addresses a device on the
+        // FIELD bus, and a status value with none is simply not published.
+        return mapped(d);
     }
 
     void Map::build() {
@@ -123,14 +117,14 @@ namespace Botanik { namespace Modbus {
         if (_io == nullptr) return;
 
         for (uint16_t i = 0; i < _io->count(); i++) {
-            const Descriptor& d = *_io->var(i).meta();
-            if (!published(d)) continue;
+            const Descriptor& d = _io->var(i).meta();
+            if (!Map::published(d)) continue;
             if (_count >= Config::MODBUS_TCP_MAX_ROWS) { _overflow++; continue; }
             // Insertion sort by register: a couple of hundred rows, once at
             // bring-up. What matters is that the result is ordered, since every
             // lookup binary-searches it.
             uint16_t k = _count;
-            while (k > 0 && _io->var(_rows[k - 1]).meta()->bind.reg > d.bind.reg) {
+            while (k > 0 && _io->var(_rows[k - 1]).meta().bind.reg > d.bind.reg) {
                 _rows[k] = _rows[k - 1];
                 k--;
             }
@@ -138,24 +132,24 @@ namespace Botanik { namespace Modbus {
             _count++;
         }
         if (_count > 0) {
-            _reg_lo = _io->var(_rows[0]).meta()->bind.reg;
-            _reg_hi = _io->var(_rows[_count - 1]).meta()->bind.reg;
+            _reg_lo = _io->var(_rows[0]).meta().bind.reg;
+            _reg_hi = _io->var(_rows[_count - 1]).meta().bind.reg;
         }
     }
 
     Var Map::row(uint16_t i) const {
-        if (_io == nullptr || i >= _count) return Var(&g_sink_d, &g_sink_v);
+        if (_io == nullptr || i >= _count) return Var();
         return _io->var(_rows[i]);
     }
 
     Var Map::row_at(uint16_t reg, bool* found) const {
         const int k = (_io == nullptr) ? -1 : _find(reg);
         if (found != nullptr) *found = (k >= 0);
-        return (k < 0) ? Var(&g_sink_d, &g_sink_v) : _io->var(_rows[k]);
+        return (k < 0) ? Var() : _io->var(_rows[k]);
     }
 
     uint16_t Map::_reg_of(uint16_t i) const {
-        return (i < _count) ? _io->var(_rows[i]).meta()->bind.reg : (uint16_t)0xFFFF;
+        return (i < _count) ? _io->var(_rows[i]).meta().bind.reg : (uint16_t)0xFFFF;
     }
 
     uint16_t Map::_lower_bound(uint16_t reg) const {
@@ -178,11 +172,9 @@ namespace Botanik { namespace Modbus {
     }
 
     uint32_t Map::to_wire(const Var& v) const {
-        const Descriptor* d = v.meta();
-        if (d == nullptr) return 0u;
-        if (is_ipv4(*d))
-            return (_io != nullptr) ? ipv4_to_wire(_io->text(v)) : 0u;
-        return wire_of(d->type, v.value().v);
+        const Descriptor& d = v.meta();
+        if (is_ipv4(d)) return ipv4_to_wire(v.text());
+        return wire_of(d.type, v.value().v);
     }
 
     uint32_t Map::wire_of(VarType type, Scalar s) {
@@ -300,19 +292,19 @@ namespace Botanik { namespace Modbus {
             // Two different refusals, and the difference matters to a master: an
             // address it may not write is a map question, a value out of band is
             // a value question.
-            if (!found || !_writable(*v.meta())) return EX_ILLEGAL_ADDRESS;
+            if (!found || !_writable(v.meta())) return EX_ILLEGAL_ADDRESS;
             const uint32_t w = word_at(data, i);
-            if (is_ipv4(*v.meta())) {
+            if (is_ipv4(v.meta())) {
                 // Assembled, then validated by the same rule the console uses:
                 // param_check() knows what a dotted quad is, and four octets
                 // out of a register pair is only how it arrived.
                 char text[16];
                 ipv4_from_wire(w, text, sizeof text);
-                if (_io->param_check(v, text) != SET_OK) return EX_ILLEGAL_VALUE;
+                if (v.param_check(text) != SET_OK) return EX_ILLEGAL_VALUE;
                 if (w != to_wire(v)) changing++;
                 continue;
             }
-            if (_io->param_check(v, from_wire(v.type(), w)) != SET_OK)
+            if (v.param_check(from_wire(v.type(), w)) != SET_OK)
                 return EX_ILLEGAL_VALUE;
             if (w != wire_of(v.type(), v.live().v)) changing++;
         }
@@ -327,11 +319,11 @@ namespace Botanik { namespace Modbus {
             if (k < 0) continue;                    // ruled out by the pass above
             Var v = _io->var(_rows[k]);
             const uint32_t w = word_at(data, i);
-            if (is_ipv4(*v.meta())) {
+            if (is_ipv4(v.meta())) {
                 if (w == to_wire(v)) continue;                  // no commit, no wear
                 char text[16];
                 ipv4_from_wire(w, text, sizeof text);
-                (void)_io->param_set(v, text);
+                (void)v.param_set(text);
                 (void)_queue_persist(_rows[k]);
                 if (committed != nullptr) (*committed)++;
                 continue;
@@ -343,7 +335,7 @@ namespace Botanik { namespace Modbus {
             // Live immediately, with the durable copy queued for
             // drain_persists(). Cannot fail on validity: the pass above checked
             // every row.
-            (void)_io->param_set_scalar(v, from_wire(v.type(), w));
+            (void)v.param_set(from_wire(v.type(), w));
             (void)_queue_persist(_rows[k]);
             if (committed != nullptr) (*committed)++;
         }
@@ -370,7 +362,7 @@ namespace Botanik { namespace Modbus {
             // A refusal here is the STORE saying no, which is not a rejected
             // edit: the value is already live, and the fault raised its own
             // alarm on the way out.
-            (void)_io->param_save(_io->var(r));
+            if (_persist != nullptr) (void)_persist->save(_io->var(r));
             done++;
         }
         return done;
@@ -383,7 +375,7 @@ namespace Botanik { namespace Modbus {
 
         bool found = false;
         const Var v = row_at((uint16_t)(addr / 2), &found);
-        if (!found || !_writable(*v.meta())) return EX_ILLEGAL_ADDRESS;
+        if (!found || !_writable(v.meta())) return EX_ILLEGAL_ADDRESS;
 
         // Splice into what the row already holds, so the half the master did not
         // address survives. Against live(), not raw(): raw() would be an
@@ -407,13 +399,13 @@ namespace Botanik { namespace Modbus {
 
         bool found = false;
         Var v = row_at(addr, &found);
-        const Descriptor& d = *v.meta();
+        const Descriptor& d = v.meta();
         // A coil is a BOOLEAN parameter. An alarm publishes as a coil too, and is
         // read-only: acknowledging one is a different block entirely.
         if (!found || !_writable(d) || d.type != T_BOOL) return EX_ILLEGAL_ADDRESS;
         if (as_bool(d.type, v.live().v) == on) return EX_NONE;   // no-op, as above
         if (persist_room() == 0) return EX_SLAVE_BUSY;
-        if (_io->param_set_scalar(v, Scalar::B(on)) == SET_INVALID) return EX_ILLEGAL_VALUE;
+        if (v.param_set(Scalar::B(on)) == SET_INVALID) return EX_ILLEGAL_VALUE;
         const int k = _find(addr);
         if (k >= 0) (void)_queue_persist(_rows[k]);
         if (committed != nullptr) (*committed)++;

@@ -10,15 +10,18 @@
 
 namespace Botanik { namespace Plc {
 
-    /** @brief The two things worth saying about a program: is it wired, and is
-     *  it running. Anything finer belongs to the ROWS - a reading that is not
-     *  believable says so in its own quality, and every consumer reads that.
+    /** @brief What is worth saying about a program. Anything finer belongs to
+     *  the ROWS - a reading that is not believable says so in its own quality,
+     *  and every consumer reads that.
+     *
+     *  There was a second code, for a program whose bindings did not resolve.
+     *  A binding is a generated index now, so that cannot happen: a name no
+     *  table declares fails to compile.
      *
      *  @note The codes are published as a T_ENUM row, so the vocabulary may
      *  gain labels and must never renumber them. */
     enum class Health : uint8_t {
-        HEALTHY = 0,   ///< wired, and running
-        INVALID = 2    ///< could not be wired at bring-up; never runs
+        HEALTHY = 0    ///< wired, and running
     };
 
     /** @brief A health CODE as a word: the converter a status row over this
@@ -28,7 +31,6 @@ namespace Botanik { namespace Plc {
     inline const char* health_label(uint64_t code) {
         switch (code) {
             case (uint64_t)Health::HEALTHY: return "HEALTHY";
-            case (uint64_t)Health::INVALID: return "INVALID";
             default:                        return nullptr;
         }
     }

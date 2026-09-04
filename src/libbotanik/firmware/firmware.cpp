@@ -20,8 +20,9 @@ namespace Botanik {
           _setup(_tasks, &_logger),
 #if BOTANIK_FEATURE_VARS
           _io(_setup),
-          // Parameters come from local storage; the bank owns the store.
+          // A row's durable copy comes from local storage; Persist owns it.
           _param_store(),
+          _persist(_setup, _io),
           _binder(_setup, &_io),
 #endif
           // The alarm model scans the variable table for SCOPE_A rows;
@@ -67,13 +68,13 @@ namespace Botanik {
           // Base-owned pages, built from the descriptor + the live bank.
 #if BOTANIK_FEATURE_HOME_PAGE
           , _home_page(_console.terminal(), _site.home_fields,
-                       _site.home_field_count, &_io, _site.home_refs)
+                       _site.home_field_count, &_io)
 #endif
 #if BOTANIK_FEATURE_PARAMS_PAGE
-          , _params_page(_console.terminal(), &_io)
+          , _params_page(_console.terminal(), &_io, &_persist)
 #endif
 #if BOTANIK_FEATURE_MONITOR_PAGE
-          , _monitor_page(_console.terminal(), &_io)
+          , _monitor_page(_console.terminal(), &_io, &_persist)
 #endif
 #if BOTANIK_FEATURE_TASKS_PAGE
           , _tasks_page(_console.terminal(), _tasks)
@@ -132,6 +133,7 @@ namespace Botanik {
 #endif
 #if BOTANIK_FEATURE_VARS
         _sys_ctx.vars      = &_io;
+        _sys_ctx.persist   = &_persist;
 #endif
 #if BOTANIK_FEATURE_NETWORK
         _sys_ctx.network = &_net.network();
@@ -155,25 +157,17 @@ namespace Botanik {
     void BotanikFirmware::setup() {
         // route BOTANIK_ASSERT failures to the log
         set_assert_logger(&_logger);
-        // The rows, before anything else in bring-up: the library's first, so
-        // its parameters sit at the front of the parameter block, then the
-        // site's segments. freeze() lays out the string pool, seeds every slot
-        // from its declared default (so a value read before any driver has
-        // spoken is the default rather than zero), builds the name index and
-        // checks the parameter run.
+        // The rows, before anything else in bring-up. The table is generated
+        // whole - the library's rows merged into the site's, ordered, indexed
+        // and checked - so this lays out the string pool and seeds every slot
+        // from its declared default, and there is nothing here that can fail.
 #if BOTANIK_FEATURE_VARS
-        Vars::register_library_vars(_io);
-        // The site's own table, parameters first - which is the ORDER it is
-        // emitted in, not something this has to arrange. Declaring a table is
-        // pointing at it now; register_vars() is left for a site whose rows
-        // are not one.
-        if (_site.rows != nullptr) _io.register_vars(_site.rows, _site.row_count);
+        _io.init(_site.rows, _site.order, _site.row_count,
+                 _site.param_first, _site.param_count);
         register_vars();
-        _io.freeze();
 #endif
 #if BOTANIK_FEATURE_PLC
-        // Binds every ST program: one resolve per VAR_EXTERNAL, counted per
-        // program so a name one of them missed holds back that one alone.
+        // Points the ST runtime at the bank and runs every generated bind.
         _st.wire();
         _st.set_run_state(&_scheduler.context()->run_state);
         // So the quality log can tell a roster change from an instrument dying.
@@ -186,13 +180,11 @@ namespace Botanik {
         // instrument onto them. After freeze(), like every other resolve.
         _sun.wire(_io);
 #endif
-        // The bank holds the store: it is what reads and writes variables, and
-        // Bank::on_setup() loads the image from it in the setup pass below.
-        _io.set_store(&_param_store, &_logger);
-        // Where a site's names become indices, once, so no renderer pays for
-        // the lookup per frame. A name with no row lands on the sink and is
-        // counted by the bank, which the site test asserts is zero.
-        _resolve_site_refs();
+        // Persist holds the store: the bank is RAM-only, and Persist::on_setup()
+        // loads the image from it in the setup pass below.
+        _persist.set_store(&_param_store);
+        // ...and it is what health writes the record through on the way down.
+        _health.set_persist(&_persist);
 #endif
 
         // What runs on the beat, in which phase, and how often.
@@ -354,14 +346,6 @@ namespace Botanik {
     }
 #endif
 
-#if BOTANIK_FEATURE_VARS
-    void BotanikFirmware::_resolve_site_refs() {
-        if (_site.home_refs != nullptr && _site.home_fields != nullptr)
-            for (uint8_t i = 0; i < _site.home_field_count; i++)
-                _site.home_refs[i] = _io.find(_site.home_fields[i].name);
-    }
-#endif
-
     // The task table
 
     // The task table
@@ -394,6 +378,8 @@ namespace Botanik {
         // row out, and reject one that is fresh and still nonsense. Both before
         // anything reads, so one beat is coherent.
         _io.register_tasks();
+        // ...and the durable half, on its own cadence.
+        _persist.register_tasks();
         // AFTER the expiry sweep: a row that just aged out is invalid only once
         // that has run, and a companion copied before it would be a beat stale
         // on exactly the transition that matters.

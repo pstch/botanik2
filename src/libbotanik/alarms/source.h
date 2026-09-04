@@ -12,7 +12,7 @@
  *
  * Index-based rather than a struct per alarm: a condition then costs a table
  * pointer and an index, which is what it cost when it held a Descriptor and a
- * VarRef. @note An alarm's boolean lives inside a Scalar union when the model is
+ * uint16_t. @note An alarm's boolean lives inside a Scalar union when the model is
  * on, so there is no stable `bool*` to hand out - hence raw(i) rather than a
  * pointer in a POD.
  */

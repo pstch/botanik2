@@ -16,6 +16,8 @@
 
 #include <cstdint>
 #include "libbotanik/vars/alarm_rows.h"
+#include "libbotanik/vars/persist.h"
+#include "libbotanik/vars/rows.h"
 #include <cstdio>
 
 #include "libbotanik/config/alarms.h"
@@ -60,6 +62,10 @@ namespace Botanik { namespace Health {
          *  row it drives, and that is settling rather than news.
          *  @see _quality_sweep */
         void set_plant(const Plc::Runtime::Plant* plant) { _plant = plant; }
+#if BOTANIK_FEATURE_VARS
+        /** @brief What writes the retained rows on the way down. */
+        void set_persist(Vars::Persist* p) { _persist = p; }
+#endif
     public:
         /** @brief How the unit is being taken out of service.
          *
@@ -92,7 +98,7 @@ namespace Botanik { namespace Health {
          *  the DELTA, so a scan that catches up clears it. */
         uint32_t _missed_said = 0;
         /** @brief The row carrying "a program is missing its period". */
-        Vars::VarRef _scan_late = { Vars::VAR_NONE };
+        uint16_t _scan_late = { Vars::VAR_NONE };
 
         /** @name Subsystem alarms
          *
@@ -101,9 +107,9 @@ namespace Botanik { namespace Health {
          *  every beat - the row's own dwell decides what annunciates.
          *  @{ */
 
-        Vars::VarRef _net_fault  = { Vars::VAR_NONE };
-        Vars::VarRef _ntp_late   = { Vars::VAR_NONE };
-        Vars::VarRef _log_flood  = { Vars::VAR_NONE };
+        uint16_t _net_fault  = { Vars::VAR_NONE };
+        uint16_t _ntp_late   = { Vars::VAR_NONE };
+        uint16_t _log_flood  = { Vars::VAR_NONE };
 
         const Network::NetworkHandler* _net = nullptr;
         const Network::NtpClient*      _ntp = nullptr;
@@ -171,6 +177,9 @@ namespace Botanik { namespace Health {
          *  Non-const: an alarm row is forceable from the ALARMS page, and the
          *  force lands on the bank through BankAlarms. */
         Vars::Bank*                        _io;
+        /** @brief What makes a value durable, for the write on the way down.
+         *  Borrowed, and null in a rig with no store. */
+        Vars::Persist*                     _persist = nullptr;
 
         /** last overrun count seen (edge detect) */
         uint32_t _xrun_last        = 0;
@@ -199,9 +208,13 @@ namespace Botanik { namespace Health {
             PA_COUNT
         };
     private:
-        /** @brief The row each one is, by name. A name matching no row is
-         *  counted by the bank, logged, and failed by POST. */
+        /** @brief What each one is called. Only a build with no table needs it:
+         *  with one, PLATFORM_ROWS below is the binding. */
         static const char* const PLATFORM_NAMES[PA_COUNT];
+#if BOTANIK_FEATURE_VARS
+        /** @brief The row each one IS, generated, in the same enum order. */
+        static const uint16_t PLATFORM_ROWS[PA_COUNT];
+#endif
 #if !BOTANIK_FEATURE_VARS
         /** @brief What the variable table carries for these six when there IS
          *  one. Kept beside PLATFORM_NAMES, in the same enum order. */
@@ -211,7 +224,7 @@ namespace Botanik { namespace Health {
 
 #if BOTANIK_FEATURE_VARS
         /** @brief Bound once in on_setup() rather than looked up per beat. */
-        Vars::VarRef _a[PA_COUNT];
+        uint16_t _a[PA_COUNT];
 #else
         /** @brief Where the six live with no table to hold them, and the source
          *  that lets the model read them. Per-instance because the source
@@ -220,9 +233,6 @@ namespace Botanik { namespace Health {
         Alarms::StaticAlarm      _a_rows[PA_COUNT];
         Alarms::StaticAlarmTable _alarm_rows;
 #endif
-        /** @brief Cleared by _bind() when a name resolves to nothing. */
-        bool         _bound_ok = true;
-
         /** @} */
 
         /** @name The thresholds those alarms fire at
@@ -240,9 +250,9 @@ namespace Botanik { namespace Health {
          *  the bank's inert sink, so _pct() falls back to the Config value.
          *  @{ */
 #if BOTANIK_FEATURE_VARS
-        Vars::VarRef _p_load_pct   = { Vars::VAR_NONE };
-        Vars::VarRef _p_jitter_pct = { Vars::VAR_NONE };
-        Vars::VarRef _p_stack_pct  = { Vars::VAR_NONE };
+        uint16_t _p_load_pct   = { Vars::VAR_NONE };
+        uint16_t _p_jitter_pct = { Vars::VAR_NONE };
+        uint16_t _p_stack_pct  = { Vars::VAR_NONE };
 #else
         // No rows to point at; _pct() ignores these and answers the default.
         static const int _p_load_pct = 0, _p_jitter_pct = 0, _p_stack_pct = 0;
@@ -332,7 +342,7 @@ namespace Botanik { namespace Health {
         /** @brief POST runs once on the first step() (sinks now registered). */
         void on_setup(uint64_t now) override {
 #if BOTANIK_FEATURE_VARS
-            _alarm_rows.bind(_io);
+            _alarm_rows.bind(_io, _persist);
 #endif
             // The model's setup takes a slot per alarm the source declares, so
             // it cannot run before the bind above. Driven from here rather than
@@ -361,7 +371,6 @@ namespace Botanik { namespace Health {
             bool ok = true;
             // Every alarm this class raises has to exist in the table, or the
             // raise writes to the inert sink and the fault is never announced.
-            if (!_bound_ok) ok = false;
 #if BOTANIK_FEATURE_LOGGING
             // A logger with no writers silently swallows everything. Only a
             // defect when logging was asked for: a LOGGING=OFF build has no
@@ -382,30 +391,9 @@ namespace Botanik { namespace Health {
                          (unsigned)_model.count());
                 _post_fail("alarm table overruns the model", detail);
             }
-            // Rows that never made it into the bank. A refused registration is
-            // the failure mode registration BUYS: with one static table "too
-            // many variables" could not happen, and now it can. Every name in
-            // the lost segment resolves to the sink, so the subsystem that owns
-            // them looks present and does nothing.
-            if (_io != nullptr && _io->refused_count() != 0) {
-                ok = false;
-                char detail[80];
-                snprintf(detail, sizeof(detail),
-                         "%u rows refused: raise VAR_MAX (or VAR_SEGMENTS)",
-                         (unsigned)_io->refused_count());
-                _post_fail("the variable table did not fit", detail);
-            }
-            // Parameters outside the contiguous block: the segments were
-            // registered in the wrong order, and the PARAMS page addresses the
-            // block 0-based, so what it shows is not what was declared.
-            if (_io != nullptr && _io->param_stray_count() != 0) {
-                ok = false;
-                char detail[80];
-                snprintf(detail, sizeof(detail),
-                         "%u params outside the block: register params first",
-                         (unsigned)_io->param_stray_count());
-                _post_fail("the parameter block is not contiguous", detail);
-            }
+            // Nothing about the TABLE is checked here any more: it is
+            // generated whole, and the generator refuses a table that does not
+            // fit, a duplicate register or a parameter outside the block.
             _post_ok = ok;
             if (_logger) {
                 if (ok) _logger->info(Logs::HEALTH, "POST ok (site %s)",
@@ -423,35 +411,30 @@ namespace Botanik { namespace Health {
         /** @brief Bind every alarm this class raises, once. Nothing else names
          *  them, so this list IS the list: no second copy to drift from. */
         void _bind_alarms() {
-            _bound_ok = true;
 #if BOTANIK_FEATURE_VARS
-            for (uint8_t i = 0; i < PA_COUNT; i++) _a[i] = _bind(PLATFORM_NAMES[i]);
-            // Through find(), not _bind(): these rows are gated on their own
-            // feature, and a build without the network is not a build with a
-            // missing alarm row.
-            if (_io != nullptr) {
-                _net_fault = _io->find("alarm_net_fault");
-                _ntp_late  = _io->find("alarm_ntp_timeout");
-                _log_flood = _io->find("alarm_log_flood");
-            }
-            // The thresholds go through find() directly, not _bind(): a missing
-            // one falls back to its Config default and the monitor still works,
-            // where a missing ALARM row means a fault that can never be raised.
-            // Failing POST for the two together would say the same word about
-            // two different severities.
-            if (_io != nullptr) {
-                _p_load_pct   = _io->find("sys_cpu_load_pct");
-                _p_jitter_pct = _io->find("sys_jitter_pct");
-                _p_stack_pct  = _io->find("sys_stack_pct");
-            }
+            for (uint8_t i = 0; i < PA_COUNT; i++) _a[i] = PLATFORM_ROWS[i];
+            // Each of these is gated on its own feature: a build without the
+            // network declares no network alarm to raise.
+#if BOTANIK_FEATURE_NETWORK
+            _net_fault = Vars::Row::alarm_net_fault;
+#endif
+#if BOTANIK_FEATURE_NTP
+            _ntp_late  = Vars::Row::alarm_ntp_timeout;
+#endif
+#if BOTANIK_FEATURE_LOGGING
+            _log_flood = Vars::Row::alarm_log_flood;
+#endif
+            _p_load_pct   = Vars::Row::sys_cpu_load_pct;
+            _p_jitter_pct = Vars::Row::sys_jitter_pct;
+            _p_stack_pct  = Vars::Row::sys_stack_pct;
 #endif
         }
 
 #if BOTANIK_FEATURE_VARS
         /** @brief A threshold's live percent: the parameter, or @p dflt when the
          *  row is absent or reads invalid. */
-        uint8_t _pct(Vars::VarRef r, uint8_t dflt) const {
-            if (_io == nullptr || r.index == Vars::VAR_NONE) return dflt;
+        uint8_t _pct(uint16_t r, uint8_t dflt) const {
+            if (_io == nullptr || r == Vars::VAR_NONE) return dflt;
             const Vars::Var h = _io->var(r);
             if (!h.valid()) return dflt;
             const float v = h.as_f32();
@@ -461,19 +444,6 @@ namespace Botanik { namespace Health {
         /** @brief No parameter to read: the build-time value IS the threshold. */
         uint8_t _pct(int, uint8_t dflt) const { return dflt; }
 #endif
-
-        /** @brief Resolve @p name, reporting a miss for POST. A site that left
-         *  BOTANIK_PLATFORM_ALARM_VARS out of its table lands here six times,
-         *  by name, which is the whole diagnosis. */
-        Vars::VarRef _bind(const char* name) {
-            Vars::VarRef r = { Vars::VAR_NONE };
-            if (_io != nullptr) r = _io->find(name);
-            if (r.index == Vars::VAR_NONE) {
-                _bound_ok = false;
-                _post_fail("alarm row missing", name);
-            }
-            return r;
-        }
 
         /** @brief Raise or clear @p r. Writing the variable IS raising the
          *  alarm: the model reads the same row on its next step. An unbound one

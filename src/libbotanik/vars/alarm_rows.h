@@ -15,30 +15,33 @@
 #include "libbotanik/alarms/source.h"
 #include "libbotanik/config/alarms.h"
 #include "libbotanik/vars/model.h"
+#include "libbotanik/vars/persist.h"
 
 namespace Botanik { namespace Vars {
 
-    /** @brief The bank's SCOPE_A rows, in table order. */
+    /** @brief The bank's K_ALARM rows, in table order. */
     class BankAlarms : public Alarms::AlarmSourceTable {
         /** @brief Row index per alarm, built by bind(). Sorted, since the scan
          *  runs the table in order. */
-        VarRef      _row[Config::ALARM_SLOTS];
+        uint16_t      _row[Config::ALARM_SLOTS];
         uint16_t    _count = 0;
         /** @brief SCOPE_A rows the table DECLARES, which is @c _count unless it
          *  overran the slots. The pair is what makes a lost tail visible. */
         uint16_t    _declared = 0;
         Bank*       _io = nullptr;
+        /** @brief What makes a force durable; null leaves saving a no-op. */
+        Persist*    _persist = nullptr;
 
     public:
-        /** @brief Scan @p io for SCOPE_A rows. Call once the table is frozen:
-         *  before that there is nothing to scan. Non-const: an alarm row is
-         *  forceable, and the force lands on the bank. */
-        void bind(Bank* io);
+        /** @brief Scan @p io for K_ALARM rows. Non-const: an alarm row is
+         *  forceable, and the force lands on the bank. @p persist is what makes
+         *  such a force durable. */
+        void bind(Bank* io, Persist* persist = nullptr);
 
 
         /** @brief The row alarm @p i reads, for anything that needs the variable
          *  rather than the alarm. */
-        VarRef row(uint16_t i) const { return _row[i]; }
+        uint16_t row(uint16_t i) const { return _row[i]; }
 
         /** @brief Every SCOPE_A row the table declares, slots or not - the
          *  contract AlarmSourceTable states, and what makes a lost tail

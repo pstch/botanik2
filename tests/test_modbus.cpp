@@ -197,8 +197,8 @@ TEST_CASE("modbus: a tuning row forced to zero cannot divide the ranking") {
 
     // What the shell does. An override is type-checked and NOT banded, so it
     // reaches _tune() past a band that starts at 1000.
-    const Vars::VarRef r = bank.find("rtu_rewrite_ms");
-    REQUIRE(r.index != Vars::VAR_NONE);
+    const uint16_t r = bank.find("rtu_rewrite_ms");
+    REQUIRE(r != Vars::VAR_NONE);
     REQUIRE(bank.override_set(bank.var(r), "0") == Vars::SET_OK);
 
     // _pick() divides by the deadline this feeds. It used to be SIGFPE here.

@@ -33,13 +33,13 @@ VAR
   supply : AC_SUPPLY;
 END_VAR
   supply.V     := grid_LN_V;
-  supply.V_OK  := GOOD(grid_LN_V_qlt);
+  supply.V_Q   := grid_LN_V_qlt;
   supply.A     := grid_total_A;
-  supply.A_OK  := GOOD(grid_total_A_qlt);
+  supply.A_Q   := grid_total_A_qlt;
   supply.W     := grid_total_W;
-  supply.W_OK  := GOOD(grid_total_W_qlt);
+  supply.W_Q   := grid_total_W_qlt;
   supply.HZ    := grid_Hz;
-  supply.HZ_OK := GOOD(grid_Hz_qlt);
+  supply.HZ_Q  := grid_Hz_qlt;
   supply.LO_V  := pwr_gridLo_V;
   supply.HI_V  := pwr_gridHi_V;
   supply.LO_HZ := pwr_gridLo_Hz;
@@ -47,13 +47,13 @@ END_VAR
   supply();
 
   sys_grid_V      := supply.OUT_V;
-  sys_grid_V_qlt  := QUAL(supply.OUT_V_OK, supply.OUT_V_SEEDED);
+  sys_grid_V_qlt  := supply.OUT_V_Q;
   sys_grid_A      := supply.OUT_A;
-  sys_grid_A_qlt  := QUAL(supply.OUT_A_OK, supply.OUT_A_SEEDED);
+  sys_grid_A_qlt  := supply.OUT_A_Q;
   sys_grid_W      := supply.OUT_W;
-  sys_grid_W_qlt  := QUAL(supply.OUT_W_OK, supply.OUT_W_SEEDED);
+  sys_grid_W_qlt  := supply.OUT_W_Q;
   sys_grid_Hz     := supply.OUT_HZ;
-  sys_grid_Hz_qlt := QUAL(supply.OUT_HZ_OK, supply.OUT_HZ_SEEDED);
+  sys_grid_Hz_qlt := supply.OUT_HZ_Q;
   sys_grid_ok     := supply.OK;
   sys_grid_ok_qlt := QUAL(supply.ANSWERED, FALSE);
   alarm_ac_grid   := supply.FAULT;

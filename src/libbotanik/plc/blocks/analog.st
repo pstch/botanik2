@@ -84,7 +84,7 @@ FUNCTION_BLOCK DC_RAIL
    the rail is doing, the second says when that is worth a status write. *)
 VAR_INPUT
   V      : REAL;
-  V_OK   : BOOL;
+  V_Q    : QUALITY;
   LO     : REAL;    (* the floor the rail is judged against *)
   AVG_MS : UINT;
   BAND   : REAL;
@@ -92,10 +92,7 @@ VAR_INPUT
 END_VAR
 VAR_OUTPUT
   Y       : REAL;
-  OK      : BOOL;   (* this beat MEASURED it *)
-  (* ...and one HAS been measured, so Y is a held average rather than a
-     divider that has never answered. @see QUAL *)
-  SEEDED  : BOOL;
+  Q       : QUALITY;
   HEALTHY : BOOL;
 END_VAR
 VAR
@@ -103,31 +100,30 @@ VAR
   db  : DEADBAND;
   seen : BOOL := FALSE;
 END_VAR
-  OK := V_OK;
   (* Only a MEASURED sample is folded in: the row reads its declared value
      while the bus is coming up, and folding that seeds the average at zero,
      so the rail reads under its floor until the filter climbs out - a supply
      alarm on every boot. CALLED either way, since the filter reads the clock.
      The band is left open: LO is what HEALTHY is judged against, not a clamp. *)
   avg.X     := V;
-  avg.OK_IN := V_OK;
+  avg.Q_IN  := V_Q;
   avg.TAU_S := UINT_TO_REAL(AVG_MS) / 1000.0;
   avg.NOW   := NOW;
   avg.LO    := 0.0;
   avg.HI    := 0.0;
   avg();
-  IF V_OK THEN
+  IF GOOD(V_Q) THEN
     db(V := avg.Y, BAND := BAND);
     seen := TRUE;
   END_IF;
   (* A rail nobody is measuring has no voltage to publish. Its LAST average
      stays in the filter, so a divider that comes back rejoins where it left. *)
-  Y      := db.Y;
-  SEEDED := seen;
+  Y := db.Y;
+  Q := avg.Q;
 
   (* A divider that has NEVER answered is the bus still coming up. One that has
      answered and then stopped is a rail nobody can see, which is a fault. *)
-  IF V_OK THEN HEALTHY := avg.Y >= LO;
-  ELSE         HEALTHY := NOT seen;
+  IF GOOD(V_Q) THEN HEALTHY := avg.Y >= LO;
+  ELSE              HEALTHY := NOT seen;
   END_IF;
 END_FUNCTION_BLOCK

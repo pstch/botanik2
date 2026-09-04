@@ -51,7 +51,9 @@ inline const char* IrrState_label(uint64_t code) {
     }
 }
 
-// The build this table was cut for. @see BOTANIK_SITE_ASSERT_FEATURES
+// The build this table was cut for. The row indices in rows.gen.h are
+// this profile's, so a build with one of these OFF would address the
+// wrong rows. @see BOTANIK_SITE_ASSERT_FEATURES
 #if !(BOTANIK_SITE_ASSERT_FEATURES)
 #  error "this site assumes every optional feature it declares is enabled"
 #endif
@@ -64,13 +66,15 @@ extern const AnalogCal CAL_irr_out_Lpm;
 extern const AnalogCal CAL_cli_intr1;
 extern const AnalogCal CAL_cli_intr2;
 
-extern const AnalogCal* const g_analog_cals[];
-const uint8_t g_analog_cal_count = 7;
-
-// ONE table, parameters first. Registering it is one call, and the
-// ROLE_PARAM run stays contiguous because the emit order is the rule.
+// The whole table, library rows merged in, and the name order beside it.
 extern const Descriptor rows[];
-const uint16_t ROWS_COUNT = 586;
+extern const uint16_t   row_order[];
+const uint16_t ROWS_COUNT  = 659;
+const uint16_t PARAM_FIRST = 0;
+const uint16_t PARAM_COUNT = 239;
+
+static_assert(ROWS_COUNT == Config::VAR_MAX,
+              "the table and the bank's arrays are generated together");
 
 extern const Modbus::DeviceModel MDL_SDM630;
 extern const Modbus::DeviceModel MDL_MCT1_140;
@@ -89,18 +93,6 @@ const uint8_t g_home_field_count = 22;
 // The home screen silently ignores fields past its columns.
 static_assert(g_home_field_count <= Config::HOME_FIELDS_MAX,
               "too many home fields: the HomePage would drop the tail");
-
-// Where those names resolve to, filled at bring-up. VAR_NONE until
-// then, which reads as the inert sink rather than as row 0.
-extern VarRef home_refs[g_home_field_count];
-
-// Rows the LIBRARY registers ahead of these, from site.toml. One row
-// past VAR_MAX and registration is REFUSED: every name in it resolves
-// to the sink for the life of the run, and only refused_count() sees it.
-const uint16_t LIBRARY_ROWS = 75;
-static_assert(LIBRARY_ROWS + ROWS_COUNT <= Config::VAR_MAX,
-              "site table exceeds VAR_MAX - raise it in site.toml "
-              "(about 36 bytes of RAM per row)");
 
 // The whole handoff to the library: this site, as data.
 extern const Botanik::SiteDescriptor g_site;

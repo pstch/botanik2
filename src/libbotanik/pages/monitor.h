@@ -41,6 +41,7 @@
 #include "libbotanik/pages/page.h"
 #include "libbotanik/pages/scroll_table.h"
 #include "libbotanik/vars/access.h"
+#include "libbotanik/vars/persist.h"
 
 namespace Botanik { namespace Pages {
 
@@ -121,7 +122,7 @@ namespace Botanik { namespace Pages {
          *  A live view selects on readings, so the set can change with no
          *  keypress and a fresh _ref_at(_selected) would name a different
          *  variable from the one on screen. */
-        mutable Vars::VarRef _sel_ref = { Vars::VAR_NONE };
+        mutable uint16_t _sel_ref = { Vars::VAR_NONE };
         /** @brief Which selection index @c _sel_ref was resolved for. A cursor
          *  MOVE is the operator changing their mind and re-resolves; the set
          *  moving under a still cursor must not. */
@@ -130,7 +131,7 @@ namespace Botanik { namespace Pages {
 
         /** @brief The row a key acts on: the pin while the cursor has not
          *  moved, a fresh walk the moment it has. */
-        Vars::VarRef _selected_ref() const;
+        uint16_t _selected_ref() const;
         mutable uint16_t    _total_n   = 0;
         /** @brief Which filter _total_n was counted for; 0 = none yet, and how
          *  _invalidate_rows() drops it.
@@ -141,6 +142,8 @@ namespace Botanik { namespace Pages {
         mutable uint16_t    _total_gen = 0;
         /** @brief Not const: ^O / ^R / ^S write overrides through it. */
         Vars::Bank*           _io;
+        /** @brief What makes a force durable; null leaves ^S a no-op. */
+        Vars::Persist*        _persist = nullptr;
         /** @brief How to turn a Modbus unit id into the plant's own tag for it.
          *  A function pointer rather than an RtuMaster*, so the page depends on
          *  "something can name a device", not on the field bus. */
@@ -161,7 +164,7 @@ namespace Botanik { namespace Pages {
         bool                _editing = false;
         /** @brief The row being forced. Held as a REF, not a display row: the
          *  filter can renumber the table under an open field. */
-        Vars::VarRef        _edit_ref = { Vars::VAR_NONE };
+        uint16_t        _edit_ref = { Vars::VAR_NONE };
         bool                _edit_error = false;   ///< last commit rejected
         /** @brief What the last override key did, and when it stops being said.
          *  The bottom row is otherwise blank, and ^R / ^S change nothing a
@@ -173,9 +176,9 @@ namespace Botanik { namespace Pages {
     public:
         /** @brief @p console owns the content geometry; @p io is the variable
          *  table this shows and forces (null -> empty page). */
-        MonitorPage(Console& console,
-                    Vars::Bank* io)
-            : ScrollTablePage(console), _io(io),
+        MonitorPage(Console& console, Vars::Bank* io,
+                    Vars::Persist* persist = nullptr)
+            : ScrollTablePage(console), _io(io), _persist(persist),
               _editor(&console, _editor_bufs.storage()) {}
 
         /** @brief Teach the page the plant's name for a Modbus unit. Without it
@@ -271,7 +274,7 @@ namespace Botanik { namespace Pages {
 
         /** @brief The reference for variable @p r; @p ok is false when @p r is
          *  past the end. */
-        Vars::VarRef _ref_at(uint16_t r, bool& ok) const;
+        uint16_t _ref_at(uint16_t r, bool& ok) const;
 
         // Rendering
 
@@ -291,7 +294,7 @@ namespace Botanik { namespace Pages {
         void _draw_row(uint16_t r, uint16_t row, bool selected);
 
         /** @brief One line saying where a reading comes from. */
-        void _describe_binding(const Vars::Binding& b, char* out, size_t cap) const;
+        void _describe_binding(const Vars::Descriptor& d, char* out, size_t cap) const;
 
         /** @brief Format a row's LIVE value - what the driver or the program
          *  last put there, with any override ignored. The VALUE column shows

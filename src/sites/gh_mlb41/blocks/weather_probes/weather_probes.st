@@ -13,8 +13,8 @@ FUNCTION_BLOCK WX_WORSE
    calm is the lower of the two and would win every time, and that is the one
    way a dead station could open a roof. *)
 VAR_INPUT
-  A : REAL;  A_OK : BOOL;
-  B : REAL;  B_OK : BOOL;
+  A : REAL;  A_Q : QUALITY;
+  B : REAL;  B_Q : QUALITY;
 END_VAR
 VAR_OUTPUT
   Y    : REAL;
@@ -22,8 +22,8 @@ VAR_OUTPUT
 END_VAR
   USED := 0;
   Y    := 0.0;
-  IF A_OK THEN Y := A; USED := 1; END_IF;
-  IF B_OK THEN
+  IF GOOD(A_Q) THEN Y := A; USED := 1; END_IF;
+  IF GOOD(B_Q) THEN
     IF USED = 0 OR B > Y THEN Y := B; END_IF;
     USED := USED + 1;
   END_IF;
@@ -34,8 +34,8 @@ FUNCTION_BLOCK WX_MEAN
 (* Their mean, for a quantity nothing controls on: the worst case has no
    meaning there and the average is the better estimate. *)
 VAR_INPUT
-  A : REAL;  A_OK : BOOL;
-  B : REAL;  B_OK : BOOL;
+  A : REAL;  A_Q : QUALITY;
+  B : REAL;  B_Q : QUALITY;
 END_VAR
 VAR_OUTPUT
   Y    : REAL;
@@ -43,8 +43,8 @@ VAR_OUTPUT
 END_VAR
   USED := 0;
   Y    := 0.0;
-  IF A_OK AND B_OK THEN Y := AVG2(A := A, B := B); USED := 2;
-  ELSIF A_OK       THEN Y := A;                    USED := 1;
-  ELSIF B_OK       THEN Y := B;                    USED := 1;
+  IF GOOD(A_Q) AND GOOD(B_Q) THEN Y := AVG2(A := A, B := B); USED := 2;
+  ELSIF GOOD(A_Q)            THEN Y := A;                    USED := 1;
+  ELSIF GOOD(B_Q)            THEN Y := B;                    USED := 1;
   END_IF;
 END_FUNCTION_BLOCK

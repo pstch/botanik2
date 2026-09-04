@@ -135,11 +135,12 @@ void Planner::plan(const Vars::Bank& io, uint32_t baud, uint32_t turnaround_ms,
 
 void Planner::_collect(const Vars::Bank& io) {
     for (uint16_t i = 0; i < io.count(); ++i) {
-        const Vars::Descriptor* d = io.var(i).meta();
-        if (d->bind.transport != Vars::XP_MODBUS) continue;
+        const Vars::Descriptor& d = io.var(i).meta();
+        if (d.bind.device == 0) continue;
+        if (d.kind != Vars::K_INPUT && d.kind != Vars::K_OUTPUT) continue;
         // A row whose code we cannot issue is not a row we can plan. Counted
         // with the overflow: to an operator both mean a row that is not scanned.
-        if (block_fc(d->bind.fc, model_of(_devices, d->bind.device)) == 0) {
+        if (block_fc(d.bind.fc, model_of(_devices, d.bind.device)) == 0) {
             _rows_dropped++;
             continue;
         }
@@ -147,8 +148,8 @@ void Planner::_collect(const Vars::Bank& io) {
         // timeout_ms == 0, so a row would hold its last reading at Q_VALID for
         // the life of the firmware once its device went quiet. Refused loudly
         // instead, since _rows_dropped is a bring-up critical.
-        if (d->role == Vars::ROLE_INPUT && is_read(d->bind.fc) &&
-            d->timeout_ms == 0) { _rows_dropped++; continue; }
+        if (d.kind == Vars::K_INPUT && is_read(d.bind.fc) &&
+            d.timeout_ms == 0) { _rows_dropped++; continue; }
         if (_row_count >= Config::MODBUS_MAX_ROWS) { _rows_dropped++; continue; }
         _rows[_row_count++] = i;
     }
@@ -159,9 +160,9 @@ void Planner::_sort(const Vars::Bank& io) {
     // it needs no scratch. The bank's own name index is built the same way.
     for (uint16_t i = 1; i < _row_count; ++i) {
         const uint16_t v = _rows[i];
-        const Key kv = key_of(*io.var(v).meta(), _devices);
+        const Key kv = key_of(io.var(v).meta(), _devices);
         uint16_t j = i;
-        while (j > 0 && before(kv, key_of(*io.var(_rows[j - 1]).meta(), _devices))) {
+        while (j > 0 && before(kv, key_of(io.var(_rows[j - 1]).meta(), _devices))) {
             _rows[j] = _rows[j - 1];
             --j;
         }
@@ -179,7 +180,7 @@ void Planner::_cut(const Vars::Bank& io) {
             return;
         }
 
-        const Vars::Descriptor& first = *io.var(_rows[i]).meta();
+        const Vars::Descriptor& first = io.var(_rows[i]).meta();
         const Key k = key_of(first, _devices);
         const DeviceModel& m = model_of(_devices, k.device);
         const uint16_t cap = span_cap(k.fc, m);
@@ -198,7 +199,7 @@ void Planner::_cut(const Vars::Bank& io) {
         uint16_t end = row_end(first);
         uint16_t j   = i + 1;
         while (j < _row_count) {
-            const Vars::Descriptor& d = *io.var(_rows[j]).meta();
+            const Vars::Descriptor& d = io.var(_rows[j]).meta();
             const Key kj = key_of(d, _devices);
             if (kj.device != k.device || kj.fc != k.fc || kj.rung != k.rung) break;
 

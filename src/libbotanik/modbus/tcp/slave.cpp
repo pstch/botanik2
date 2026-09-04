@@ -14,7 +14,7 @@
 #include "libbotanik/alarms/alarms.h"
 #include "libbotanik/logs/logger.h"
 #include "libbotanik/network/network.h"
-#include "libbotanik/vars/params.h"
+#include "libbotanik/vars/persist.h"
 
 #if BOTANIK_FEATURE_MODBUS_TCP_SERVER
 
@@ -288,7 +288,7 @@ namespace Botanik { namespace Modbus {
             const Var v = _map.row(i);
             // An alarm and nothing else: a parameter's register landing in the
             // block would be arithmetic, not a published address.
-            if (v.meta()->scope != SCOPE_A) continue;
+            if (v.meta().kind != K_ALARM) continue;
             const int k = _alarms->index_of(v.name());
             if (k >= 0) _ack_cond[i] = (int16_t)k;
         }

@@ -225,6 +225,20 @@ namespace Botanik { namespace Utils {
         return (s[len] == 0) ? 0 : 1;
     }
 
+    int compare_bounded_ci(const char* s, const char* key, uint16_t len) {
+        if (s == nullptr)   return (key == nullptr) ? 0 : 1;
+        if (key == nullptr) return -1;
+        uint16_t i = 0;
+        for (;; i++) {
+            // The key ends where its length says, or at its own NUL.
+            const bool key_end = (len != 0 && i >= len) || key[i] == '\0';
+            if (key_end) return (s[i] == '\0') ? 0 : 1;
+            if (s[i] == '\0') return -1;
+            const char a = _fold(s[i]), b = _fold(key[i]);
+            if (a != b) return (a < b) ? -1 : 1;
+        }
+    }
+
     bool contains_ci(const char* hay, const char* needle) {
         if (needle == nullptr || needle[0] == '\0') return true;
         if (hay == nullptr) return false;

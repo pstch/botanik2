@@ -54,28 +54,28 @@ END_VAR
   (* 0.5 V is the same publish deadband the AC supplies use: it is about the
      METER's last digit and not about the plant. *)
   ps1.V      := pwr_dc1_V;
-  ps1.V_OK   := GOOD(pwr_dc1_V_qlt);
+  ps1.V_Q    := pwr_dc1_V_qlt;
   ps1.LO     := pwr_dc1Lo_V;
   ps1.AVG_MS := pwr_dc1_avg_ms;
   ps1.BAND   := 0.5;
   ps1.NOW    := sys_now_ms;
   ps1();
   ps2.V      := pwr_dc2_V;
-  ps2.V_OK   := GOOD(pwr_dc2_V_qlt);
+  ps2.V_Q    := pwr_dc2_V_qlt;
   ps2.LO     := pwr_dc2Lo_V;
   ps2.AVG_MS := pwr_dc2_avg_ms;
   ps2.BAND   := 0.5;
   ps2.NOW    := sys_now_ms;
   ps2();
   ups.V      := pwr_upsBat_V;
-  ups.V_OK   := GOOD(pwr_upsBat_V_qlt);
+  ups.V_Q    := pwr_upsBat_V_qlt;
   ups.LO     := pwr_upsBatLo_V;
   ups.AVG_MS := pwr_upsBat_avg_ms;
   ups.BAND   := 0.5;
   ups.NOW    := sys_now_ms;
   ups();
   gen.V      := pwr_genBat_V;
-  gen.V_OK   := GOOD(pwr_genBat_V_qlt);
+  gen.V_Q    := pwr_genBat_V_qlt;
   gen.LO     := pwr_genBatLo_V;
   gen.AVG_MS := pwr_genBat_avg_ms;
   gen.BAND   := 0.5;
@@ -83,13 +83,13 @@ END_VAR
   gen();
 
   sys_dc1_V        := ps1.Y;
-  sys_dc1_V_qlt    := QUAL(ps1.OK, ps1.SEEDED);
+  sys_dc1_V_qlt    := ps1.Q;
   sys_dc2_V        := ps2.Y;
-  sys_dc2_V_qlt    := QUAL(ps2.OK, ps2.SEEDED);
+  sys_dc2_V_qlt    := ps2.Q;
   sys_upsBat_V     := ups.Y;
-  sys_upsBat_V_qlt := QUAL(ups.OK, ups.SEEDED);
+  sys_upsBat_V_qlt := ups.Q;
   sys_genBat_V     := gen.Y;
-  sys_genBat_V_qlt := QUAL(gen.OK, gen.SEEDED);
+  sys_genBat_V_qlt := gen.Q;
 
   alarm_dc_ps1            := NOT ps1.HEALTHY;
   alarm_dc_ps2            := NOT ps2.HEALTHY;
@@ -110,9 +110,9 @@ END_VAR
      summary carries both: an operator reading one row wants the whole answer. *)
   sys_dc_ok := ps1.HEALTHY AND ps2.HEALTHY AND ups.HEALTHY AND gen.HEALTHY
                AND NOT low;
-  (* A summary of four rails is worth what the four are: one unread rail makes
-     the whole verdict a guess. *)
-  sys_dc_ok_qlt := QUAL(ps1.OK AND ps2.OK AND ups.OK AND gen.OK
-                        AND GOOD(pwr_upsLowBat_qlt),
-                        ps1.SEEDED AND ps2.SEEDED AND ups.SEEDED AND gen.SEEDED);
+  (* A summary of four rails is worth what the weakest of the four is: one
+     unread rail makes the whole verdict a guess. *)
+  sys_dc_ok_qlt := WORST_OF(WORST_OF(ps1.Q, ps2.Q),
+                            WORST_OF(WORST_OF(ups.Q, gen.Q),
+                                     pwr_upsLowBat_qlt));
 END_PROGRAM

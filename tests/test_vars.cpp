@@ -201,7 +201,7 @@ TEST_CASE("vars: a reference with no bank reads nothing and drives nothing") {
     Vars::Ref<uint16_t> u;
 
     CHECK(f.io == nullptr);
-    CHECK(f.r.index == Vars::VAR_NONE);
+    CHECK(f.r == Vars::VAR_NONE);
 
     CHECK(f.get() == doctest::Approx(0.0f));
     CHECK(b.get() == false);

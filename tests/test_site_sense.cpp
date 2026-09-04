@@ -12,7 +12,7 @@ namespace site_programs {
 
 TEST_CASE_FIXTURE(StRig, "zone: the selector keeps the middle reading and discards the extremes") {
     Vars::Ref<float> hi = live.bank.resolve<float>("cli_temp_hi");
-    const VarRef p[3] = { live.ref("cli_temp_hi1"), live.ref("cli_temp_hi2"),
+    const uint16_t p[3] = { live.ref("cli_temp_hi1"), live.ref("cli_temp_hi2"),
                           live.ref("cli_temp_hi3") };
 
 
@@ -32,7 +32,7 @@ TEST_CASE_FIXTURE(StRig, "zone: the selector keeps the middle reading and discar
 
 TEST_CASE_FIXTURE(StRig, "zone: an invalid probe is excluded, and one good probe still reads") {
     Vars::Ref<float> hi = live.bank.resolve<float>("cli_temp_hi");
-    const VarRef p[3] = { live.ref("cli_temp_hi1"), live.ref("cli_temp_hi2"),
+    const uint16_t p[3] = { live.ref("cli_temp_hi1"), live.ref("cli_temp_hi2"),
                           live.ref("cli_temp_hi3") };
 
 
@@ -106,7 +106,7 @@ TEST_CASE("lifecycle: no law runs outside RUN") {
     Scheduler::RunState state = Scheduler::RunState::START;
     st.set_run_state(&state);
 
-    const Vars::VarRef out = f.ref("cli_temp_hi");
+    const uint16_t out = f.ref("cli_temp_hi");
     const float before = f.bank.var(out).as_f32();
     for (uint8_t i = 1; i <= 3; i++) {
         char n[24]; snprintf(n, sizeof n, "cli_temp_hi%u", (unsigned)i);
@@ -142,7 +142,7 @@ TEST_CASE("control: taking one program out of the scan drops what it drives safe
     REQUIRE(skirt != 0xFF);
     REQUIRE(st.running(skirt));
 
-    const Vars::VarRef valve = f.ref("cli_skirtValve");
+    const uint16_t valve = f.ref("cli_skirtValve");
     f.bank.var(valve).set(true);
     for (uint64_t t = 0; t < 500; t += 100) st.scan(skirt, t);
 
@@ -153,7 +153,7 @@ TEST_CASE("control: taking one program out of the scan drops what it drives safe
          "safe state, which is a value somebody chose rather than a code every "
          "reader has to interpret");
     CHECK(f.bank.var(valve).as_bool() ==
-          as_bool(T_BOOL, f.bank.descriptor(valve.index).def));
+          as_bool(T_BOOL, f.bank.descriptor(valve).def));
     CHECK_FALSE(f.bank.var(valve).as_bool());
     INFO("...and it is OWED to the field, or the coil would stay where it was");
     CHECK(f.bank.var(valve).field_dirty());
@@ -176,10 +176,10 @@ TEST_CASE("control: a parking program travels to its safe state before it is dro
         if (strcmp(st.name(i), "windows") == 0) windows = i;
     REQUIRE(windows != 0xFF);
 
-    const Vars::VarRef park   = f.ref("prog_windows_park");
-    const Vars::VarRef parked = f.ref("prog_windows_parked");
-    const Vars::VarRef opn    = f.ref("cli_window1_opn");
-    REQUIRE(park.index != Vars::VAR_NONE);
+    const uint16_t park   = f.ref("prog_windows_park");
+    const uint16_t parked = f.ref("prog_windows_parked");
+    const uint16_t opn    = f.ref("cli_window1_opn");
+    REQUIRE(park != Vars::VAR_NONE);
 
     // Open, so the park has somewhere to travel FROM. The rams datum by
     // running to a stop, so this takes a while whatever it is asked for.
@@ -227,8 +227,8 @@ TEST_CASE_FIXTURE(StRig, "quality: a block that HOLDS says so, rather than 'no d
     // that is what the filter is for - and each used to publish Q_NO_DATA for
     // it, so Ref::get() handed a law the declared value and threw the held
     // reading away. QUAL() asks SEEDED at every site now.
-    const VarRef dc  = live.ref("sys_dc1_V");
-    const VarRef wind = live.ref("cli_wind_mps");
+    const uint16_t dc  = live.ref("sys_dc1_V");
+    const uint16_t wind = live.ref("cli_wind_mps");
 
     INFO("nothing has ever answered: there is no held value to stand behind");
     for (uint32_t i = 0; i < 20; i++) d.step(100u * (i + 1));
@@ -382,7 +382,7 @@ TEST_CASE_FIXTURE(StRig, "zone: a probe that comes back rejoins the average, it 
     // beat - which is the opposite of what every one of these blocks says it
     // does. A dead probe coming back must not move the house four degrees.
     Vars::Ref<float> hi = live.bank.resolve<float>("cli_temp_hi");
-    const VarRef p[3] = { live.ref("cli_temp_hi1"), live.ref("cli_temp_hi2"),
+    const uint16_t p[3] = { live.ref("cli_temp_hi1"), live.ref("cli_temp_hi2"),
                           live.ref("cli_temp_hi3") };
 
     uint64_t t = 0;
@@ -412,7 +412,7 @@ TEST_CASE_FIXTURE(StRig, "zone: a probe that comes back rejoins the average, it 
 
 TEST_CASE_FIXTURE(StRig, "zone: with every probe gone the reading is HELD, not defaulted") {
     Vars::Ref<float> hi = live.bank.resolve<float>("cli_temp_hi");
-    const VarRef p[3] = { live.ref("cli_temp_hi1"), live.ref("cli_temp_hi2"),
+    const uint16_t p[3] = { live.ref("cli_temp_hi1"), live.ref("cli_temp_hi2"),
                           live.ref("cli_temp_hi3") };
 
 
@@ -534,9 +534,9 @@ TEST_CASE_FIXTURE(StRig, "day phase: the banks arm off the published extremes, s
 TEST_CASE_FIXTURE(StRig, "target: a bank phase only shifts the target when yesterday armed it") {
 
     Vars::Ref<float> target = live.bank.resolve<float>("cli_targetTemp_degC");
-    const VarRef phase = live.ref("cli_phase");
-    const VarRef cold  = live.ref("cli_coldBankArm");
-    const VarRef heat  = live.ref("cli_heatBankArm");
+    const uint16_t phase = live.ref("cli_phase");
+    const uint16_t cold  = live.ref("cli_coldBankArm");
+    const uint16_t heat  = live.ref("cli_heatBankArm");
     const float base = live.bank.var(live.ref("cli_coolSet_degC")).as_f32();
 
     // The output filter off, so this case is about the ARMING and reads the
@@ -581,8 +581,8 @@ TEST_CASE_FIXTURE(StRig, "target: a bank phase only shifts the target when yeste
 TEST_CASE_FIXTURE(StRig, "target: an unplaced phase takes the base setpoint, and stays believable") {
 
     Vars::Ref<float> target = live.bank.resolve<float>("cli_targetTemp_degC");
-    const VarRef phase = live.ref("cli_phase");
-    const VarRef cold  = live.ref("cli_coldBankArm");
+    const uint16_t phase = live.ref("cli_phase");
+    const uint16_t cold  = live.ref("cli_coldBankArm");
     const float base = live.bank.var(live.ref("cli_coolSet_degC")).as_f32();
     REQUIRE(base == doctest::Approx(20.0f));      // the site's safe cooling target
     live.bank.param_set(live.bank.var(live.ref("cli_targetTau_s")), 0.0f);
@@ -651,7 +651,7 @@ TEST_CASE_FIXTURE(StRig, "target: an aggressive offset is clamped to the safe ba
 
 TEST_CASE_FIXTURE(StRig, "cooling: a demand it cannot measure is still made, and marked") {
 
-    const VarRef dem = live.ref("cli_coolDem");
+    const uint16_t dem = live.ref("cli_coolDem");
     field(live, "cli_targetTemp_degC", 20.0f);
     interior(live, 30.0f, 30.0f);
     force(live, "cli_temp_cs", 18.0f);
@@ -684,7 +684,7 @@ TEST_CASE_FIXTURE(StRig, "cooling: the floor carries it when the ceiling goes, a
     // temp_rh_zone is on this beat and would put its own answer over a forced
     // one. The setpoint belongs to another law on the same beat, and is forced
     // because this case is not about it.
-    const VarRef dem = live.ref("cli_coolDem");
+    const uint16_t dem = live.ref("cli_coolDem");
     force(live, "cli_targetTemp_degC", 20.0f);
     force(live, "cli_temp_cs", 18.0f);
 
@@ -779,8 +779,8 @@ TEST_CASE_FIXTURE(StRig, "scan: sys_now_ms is the clock, and a block differences
     // the scan publishes a clock instead and each block keeps its own last
     // reading. One row serves every rate, and it is the simulator's virtual
     // clock, so accelerated time works unchanged.
-    const VarRef now = live.ref("sys_now_ms");
-    REQUIRE(now.index != Vars::VAR_NONE);
+    const uint16_t now = live.ref("sys_now_ms");
+    REQUIRE(now != Vars::VAR_NONE);
 
     d.step(100);
     CHECK(live.bank.var(now).value().as<uint32_t>() == 100u);
@@ -790,7 +790,7 @@ TEST_CASE_FIXTURE(StRig, "scan: sys_now_ms is the clock, and a block differences
 
 TEST_CASE_FIXTURE(StRig, "destrat: the ladder is three rungs, and coming down costs the hysteresis") {
 
-    const VarRef dem = live.ref("cli_stratDem");
+    const uint16_t dem = live.ref("cli_stratDem");
     uint64_t t = 0;
 
     settle_gap(*this, t, 8.0f);
@@ -944,9 +944,9 @@ TEST_CASE_FIXTURE(StRig,
     // Every one of these comes out of AC_SUPPLY, which the program drives once
     // per beat. A law that never called it published a supply that was always
     // in spec and never faulted, on any wiring at all.
-    const VarRef ok  = live.ref("sys_grid_ok");
-    const VarRef flt = live.ref("alarm_ac_grid");
-    const VarRef v   = live.ref("sys_grid_V");
+    const uint16_t ok  = live.ref("sys_grid_ok");
+    const uint16_t flt = live.ref("alarm_ac_grid");
+    const uint16_t v   = live.ref("sys_grid_V");
 
     const float lo = live.bank.var(live.ref("pwr_gridLo_V")).as_f32();
     const float hi = live.bank.var(live.ref("pwr_gridHi_V")).as_f32();
@@ -975,8 +975,8 @@ TEST_CASE_FIXTURE(StRig,
     // Nothing controls on irradiance, but the field rows are SCOPE_MI and so
     // have no TCP register: without the voted row a historian on the plant
     // network cannot poll the one reading that says how much sun the glass got.
-    const VarRef raw = live.ref("cli_irrad1_Wpm2");
-    const VarRef pub = live.ref("cli_irrad_Wpm2");
+    const uint16_t raw = live.ref("cli_irrad1_Wpm2");
+    const uint16_t pub = live.ref("cli_irrad_Wpm2");
     REQUIRE(Vars::var_mapped(*live.bank.var(pub).meta()));
     REQUIRE_FALSE(Vars::var_mapped(*live.bank.var(raw).meta()));
 
@@ -1016,8 +1016,8 @@ TEST_CASE_FIXTURE(StRig, "intake: a gate holds while the two temperatures conver
 
 TEST_CASE_FIXTURE(StRig, "zone: a house nobody can see says so, and keeps venting") {
     Vars::Ref<float> in  = live.bank.resolve<float>("cli_temp_in");
-    const VarRef blind   = live.ref("alarm_zone_blind");
-    const VarRef in_qlt  = live.ref("cli_temp_in_qlt");
+    const uint16_t blind   = live.ref("alarm_zone_blind");
+    const uint16_t in_qlt  = live.ref("cli_temp_in_qlt");
     uint64_t t = 0;
 
     // Warm inside, cooler outside: the ordinary way round for a greenhouse.

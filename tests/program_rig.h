@@ -62,8 +62,8 @@ inline void force(Live& f, const char* row, bool v) {
 }
 /** @brief ...and a whole-number row: a state code, a tray number. */
 inline void force(Live& f, const char* row, int64_t v) {
-    const Vars::VarRef r = f.ref(row);
-    f.bank.override_set(f.bank.var(r), from_i64(f.bank.descriptor(r.index).type, v));
+    const uint16_t r = f.ref(row);
+    f.bank.override_set(f.bank.var(r), from_i64(f.bank.descriptor(r).type, v));
 }
 /** @brief Make @p row read like a dead instrument, and the other way.
  *
@@ -141,7 +141,7 @@ inline void slot(Live& f) {
  *  roof sits with nothing driving at all: shut. The two used to be the same
  *  number and reading the wrong one looked right. */
 inline float safe_open(Live& f) {
-    const Vars::Descriptor& d = f.bank.descriptor(f.ref("cli_windowDem").index);
+    const Vars::Descriptor& d = f.bank.descriptor(f.ref("cli_windowDem"));
     return Vars::as_f32(d.type, d.def);
 }
 

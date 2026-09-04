@@ -48,7 +48,7 @@ struct MapFixture {
     template <typename P>
     uint16_t find_reg(P pred) const {
         for (uint16_t i = 0; i < bank.count(); i++) {
-            const Vars::Descriptor& d = *bank.var(i).meta();
+            const Vars::Descriptor& d = bank.var(i).meta();
             if (d.bind.reg == 0) continue;
             bool found = false;
             map.row_at(d.bind.reg, &found);
@@ -70,7 +70,7 @@ struct MapFixture {
     uint16_t lowest() const {
         uint16_t lo = 0xFFFF;
         for (uint16_t i = 0; i < bank.count(); i++) {
-            const Vars::Descriptor& d = *bank.var(i).meta();
+            const Vars::Descriptor& d = bank.var(i).meta();
             if (d.bind.reg == 0) continue;
             bool found = false;
             map.row_at(d.bind.reg, &found);
@@ -101,7 +101,7 @@ TEST_CASE("modbus map: registers come out in ascending order") {
         Vars::Var v = f.map.row_at((uint16_t)r, &found);
         if (!found) continue;
         counted++;
-        const uint16_t reg = v.meta()->bind.reg;
+        const uint16_t reg = v.meta().bind.reg;
         INFO("register " << r << " resolved to a row at " << reg);
         CHECK(reg >= prev);
         prev = reg;
@@ -119,11 +119,11 @@ TEST_CASE("modbus map: an address in a gap is not the neighbouring row") {
         bool found = false;
         Vars::Var v = f.map.row_at((uint16_t)r, &found);
         if (found) {
-            CHECK(v.meta()->bind.reg == (uint16_t)r);
+            CHECK(v.meta().bind.reg == (uint16_t)r);
         } else {
             gaps++;
             INFO("register " << r << " is unmapped");
-            CHECK(v.meta()->name == nullptr);   // the inert row
+            CHECK(v.meta().name == nullptr);   // the inert row
         }
     }
     CHECK(gaps > 0);
@@ -210,7 +210,7 @@ TEST_CASE("modbus map: register 0xFFFF is not in the map") {
     bool found = true;
     Vars::Var v = f.map.row_at(0xFFFF, &found);
     CHECK_FALSE(found);
-    CHECK(v.meta()->name == nullptr);      // the inert row, not row 0
+    CHECK(v.meta().name == nullptr);      // the inert row, not row 0
 
     uint16_t committed = 1;
     CHECK(f.map.write_bit(0xFFFF, true, &committed) == EX_ILLEGAL_ADDRESS);
@@ -233,7 +233,7 @@ TEST_CASE("modbus map: an address row takes a half write like any other") {
     bool found = false;
     Vars::Var v = f.map.row_at(reg, &found);
     REQUIRE(found);
-    INFO("writing one register of " << v.meta()->name);
+    INFO("writing one register of " << v.meta().name);
     const uint32_t w = f.map.to_wire(v);
     uint16_t committed = 0;
     CHECK(f.map.write_register(reg_addr(reg), (uint16_t)(w >> 16), &committed)
@@ -264,7 +264,7 @@ TEST_CASE("modbus map: a write goes through the band check an operator gets") {
     bool found = false;
     Vars::Var v = f.map.row_at(reg, &found);
     REQUIRE(found);
-    const Vars::Descriptor& d = *v.meta();
+    const Vars::Descriptor& d = v.meta();
     INFO("writing " << d.name << " at register " << reg);
 
     // Bank::set() is the one door, so a wire write is range-checked exactly as
@@ -303,7 +303,7 @@ TEST_CASE("modbus map: to_wire round-trips through the registers that carry it")
     uint16_t checked = 0;
     for (uint16_t i = 0; i < f.bank.count() && checked < 32; i++) {
         Vars::Var v = f.bank.var(i);
-        const Vars::Descriptor& d = *v.meta();
+        const Vars::Descriptor& d = v.meta();
         if (d.bind.reg == 0) continue;
         bool found = false;
         f.map.row_at(d.bind.reg, &found);

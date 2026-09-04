@@ -21,8 +21,8 @@ namespace Botanik { namespace Modbus {
 const uint16_t RtuMaster::NO_BLOCK;
 const uint8_t  RtuMaster::NO_PEER;
 
-uint32_t RtuMaster::_tune(Vars::VarRef r, uint32_t dflt) const {
-    if (_io == nullptr || r.index == Vars::VAR_NONE) return dflt;
+uint32_t RtuMaster::_tune(uint16_t r, uint32_t dflt) const {
+    if (_io == nullptr || r == Vars::VAR_NONE) return dflt;
     const Vars::Var h = _io->var(r);
     if (!h.valid()) return dflt;
     const int64_t v = h.as_i64();
@@ -482,7 +482,7 @@ void RtuMaster::on_input(uint64_t now_ms) {
             // Nothing came back, so nothing about these rows is current. Their
             // own timeouts would get here eventually; this is the driver saying
             // it already knows.
-            if (is_read(b.fc)) invalidate_block(*_io, _plan, b, Vars::Q_STALE);
+            if (is_read(b.fc)) invalidate_block(*_io, _plan, b, Vars::Q_NONE);
         }
     }
 
@@ -549,7 +549,7 @@ void RtuMaster::_settle(uint64_t now_ms) {
         //
         // Only the LOG is edge-triggered below; a read block needs no penalty
         // because it already waits for its own poll period.
-        if (is_read(b.fc)) invalidate_block(*_io, _plan, b, Vars::Q_REFUSED);
+        if (is_read(b.fc)) invalidate_block(*_io, _plan, b, Vars::Q_NONE);
 
         // A refused write stays dirty - correctly, since it never reached the
         // field - so nothing else would ever slow it down. Back the BLOCK off,

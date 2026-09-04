@@ -28,9 +28,9 @@ namespace Botanik { namespace Pages {
     // and committing them together is the normal shape of a tuning session, and
     // a per-row save would make "did I save that one?" a question.
     void ParamsPage::_save_all() {
-        if (_params == nullptr) return;
+        if (_persist == nullptr) return;
         uint16_t refused = 0;
-        (void)_params->save_params(&refused);
+        (void)_persist->save_all(&refused);
         _save_failed = (refused != 0);
         _dirty = true;              // the '*' markers clear with the same repaint
         _draw_prompt_row();
@@ -116,7 +116,7 @@ namespace Botanik { namespace Pages {
     void ParamsPage::_draw_row(uint16_t idx, uint16_t row, bool selected) {
         const uint16_t k = _param_at(idx);
         Vars::Var p = _params->param_at(k);
-        const Vars::Descriptor& d = *p.meta();
+        const Vars::Descriptor& d = p.meta();
         char val[VAL_CAP], reg[8], line[LINE_CAP];
         // Use what format() RETURNS, not the buffer: a T_STR's live text is in
         // the pool and a T_ENUM's in flash, so neither writes into val, and
@@ -155,7 +155,7 @@ namespace Botanik { namespace Pages {
 
     const char* ParamsPage::_selected_cell() const {
         if (_params == nullptr || _selected >= _visible_count()) return nullptr;
-        return _params->param_at(_param_at(_selected)).meta()->name;
+        return _params->param_at(_param_at(_selected)).meta().name;
     }
 
     void ParamsPage::_draw_panel() {
@@ -169,14 +169,13 @@ namespace Botanik { namespace Pages {
             return;
         }
         Vars::Var p = _params->param_at(_param_at(_selected));
-        const Vars::Descriptor& d = *p.meta();
+        const Vars::Descriptor& d = p.meta();
         char b[24];
         char b2[24];
-        // Through var_band(), not num_band(): an analog row's band can live in
-        // parameters, and showing the firmware defaults while the operator
-        // edits the real ones is the worst of both.
-        const Vars::NumBand band =
-            Vars::var_band(_params != nullptr ? _params : nullptr, d);
+        // Through Var::band(), not the declared one: an end may name another
+        // row, and showing the fallback while the operator edits the real one
+        // is the worst of both.
+        const Vars::Band band = p.band();
         // Minimum / Maximum / Default share one row: three facts about the row
         // already selected, and every panel row costs a table row.
         //
@@ -186,12 +185,11 @@ namespace Botanik { namespace Pages {
         // exactly the rows with a long default (a hostname, a dotted quad). So
         // Default takes the whole row when the other two have nothing.
         char b3[VAL_CAP];
-        const bool banded = d.type != Vars::T_STR && (d.flags & Vars::F_BOUNDED) != 0;
-        if (banded)
+        if (band.set())
             _panel_field3((uint16_t)(r + 2),
-                          "Minimum", _fmt_bound(b,  sizeof(b),  d, band.min),
+                          "Minimum", _fmt_bound(b,  sizeof(b),  d, band.lo),
                           PANEL_COL2,
-                          "Maximum", _fmt_bound(b2, sizeof(b2), d, band.max),
+                          "Maximum", _fmt_bound(b2, sizeof(b2), d, band.hi),
                           PANEL_COL3,
                           "Default", _fmt_default(b3, sizeof(b3), d));
         else
@@ -294,7 +292,7 @@ namespace Botanik { namespace Pages {
         if (n > (uint16_t)(sizeof(line) - 1)) n = (uint16_t)(sizeof(line) - 1);
         memcpy(line, _editor.buffer(), n);
         line[n] = 0;
-        const Vars::SetResult r = _params->param_set(_params->param_at(_edit_index), line);
+        const Vars::SetResult r = _params->param_at(_edit_index).param_set(line);
         if (r != Vars::SET_OK) {
             _edit_error = true;   // stay in edit, flag it
             _draw_error_marker();

@@ -85,8 +85,8 @@ namespace Botanik { namespace Pages {
 
     bool MonitorPage::_visible(uint16_t i) const {
         Vars::Var h = _io->var(i);
-        if (!Vars::var_published(*h.meta())) return false;
-        if (!_filter_match(h.meta()->name)) return false;
+        if (!Vars::published(h.meta())) return false;
+        if (!_filter_match(h.meta().name)) return false;
         switch (_mode) {
             case MODE_INVALID:  return !h.live().good();
             case MODE_OVERRIDE: return h.override().present();
@@ -116,7 +116,7 @@ namespace Botanik { namespace Pages {
         return 5;
     }
 
-    Vars::VarRef MonitorPage::_ref_at(uint16_t r, bool& ok) const {
+    uint16_t MonitorPage::_ref_at(uint16_t r, bool& ok) const {
         if (_io != nullptr) {
             // Resume from the last answer when the caller is walking
             // forward, which is what drawing a window does. Only ever
@@ -129,32 +129,32 @@ namespace Botanik { namespace Pages {
                 if (n == r) {
                     ok = true;
                     _memo_row = r; _memo_idx = i; _memo_ok = true;
-                    Vars::VarRef v = { i };
+                    uint16_t v = { i };
                     return v;
                 }
                 n++;
             }
         }
         ok = false;
-        Vars::VarRef none = { Vars::VAR_NONE };
+        uint16_t none = { Vars::VAR_NONE };
         return none;
     }
 
     uint16_t MonitorPage::_row_text(uint16_t r, char* out, size_t cap) const {
         bool ok = false;
-        Vars::VarRef ref = _ref_at(r, ok);
+        uint16_t ref = _ref_at(r, ok);
         if (!ok) { if (cap) out[0] = 0; return 0; }
         char val[VAL_CAP]; val[0] = 0;
         char ovr[VAL_CAP]; ovr[0] = '-'; ovr[1] = 0;
         const char* nm = "", *un = "", *sc = "";
         if (_io != nullptr) {
             Vars::Var h = _io->var(ref);
-            const Vars::Descriptor* m = h.meta();
-            if (m->name != nullptr) nm = m->name;
-            if (m->unit != nullptr) un = m->unit;
-            // Scope, not the group: the name already carries the group, in
+            const Vars::Descriptor& m = h.meta();
+            if (m.name != nullptr) nm = m.name;
+            if (m.unit != nullptr) un = m.unit;
+            // The KIND, not the group: the name already carries the group, in
             // the column the filter matches against.
-            sc = Vars::var_scope(*m);
+            sc = Vars::kind_label(m.kind);
             // The LIVE value, not the forced one - the OVERRIDE column shows
             // the force. Printing it in both hides what the operator is
             // deciding on: whether the reading underneath has come back.
@@ -171,7 +171,7 @@ namespace Botanik { namespace Pages {
         return _build_row(out, cap, cells);
     }
 
-    Vars::VarRef MonitorPage::_selected_ref() const {
+    uint16_t MonitorPage::_selected_ref() const {
         // A live view (`invalid`, `override`) selects on READINGS, so the set
         // can change with no keypress: a variable going good between the paint
         // and the keystroke shifts every row under the cursor, and a fresh walk
@@ -180,9 +180,9 @@ namespace Botanik { namespace Pages {
         // operator changing their mind and has to re-resolve.
         if (_sel_ok && _sel_row == _selected) return _sel_ref;
         bool ok = false;
-        const Vars::VarRef v = _ref_at(_selected, ok);
+        const uint16_t v = _ref_at(_selected, ok);
         _sel_ref = v; _sel_row = _selected; _sel_ok = ok;
-        if (!ok) { Vars::VarRef none = { Vars::VAR_NONE }; return none; }
+        if (!ok) { uint16_t none = { Vars::VAR_NONE }; return none; }
         return v;
     }
 
@@ -192,7 +192,7 @@ namespace Botanik { namespace Pages {
             // Pinned as the line goes out: the one moment the screen and the
             // index are known to agree.
             bool ok = false;
-            const Vars::VarRef v = _ref_at(r, ok);
+            const uint16_t v = _ref_at(r, ok);
             _sel_ref = v; _sel_row = r; _sel_ok = ok;
         }
         uint16_t n = _row_text(r, line, sizeof(line));
@@ -209,12 +209,12 @@ namespace Botanik { namespace Pages {
     }
 
     const char* MonitorPage::_live_text(Vars::Var h, char* buf, size_t cap) const {
-        const Vars::Descriptor* d = h.meta();
-        if (d->type == Vars::T_STR) {
-            const char* t = _io->text(h);
+        const Vars::Descriptor& d = h.meta();
+        if (d.type == Vars::T_STR) {
+            const char* t = h.text();
             return (t != nullptr) ? t : "";
         }
-        return Vars::format_scalar(d->type, h.live().v, d->digits, d->str, buf, cap);
+        return Vars::format_scalar(d.type, h.live().v, d.digits, d.labels, buf, cap);
     }
 
     void MonitorPage::_flag_value(Vars::Var h, char* buf, size_t cap) {
@@ -232,34 +232,32 @@ namespace Botanik { namespace Pages {
         _prefix(buf, cap, tag);
     }
 
-    void MonitorPage::_describe_binding(const Vars::Binding& b, char* out,
+    void MonitorPage::_describe_binding(const Vars::Descriptor& d, char* out,
                                         size_t cap) const {
-        switch (b.transport) {
-            case Vars::XP_MODBUS: {
-                // The unit number is what the wire uses; the TAG is what the
-                // plant calls the box, so an operator need not look "dev 34"
-                // up in a spreadsheet.
-                const char* tag = (_device_name != nullptr)
-                                      ? _device_name(_device_ctx, b.device) : nullptr;
-                if (tag != nullptr && tag[0] != '\0')
-                    snprintf(out, cap, "Modbus %s (dev %u) fc %u reg %u",
-                             tag, (unsigned)b.device, (unsigned)b.fc, (unsigned)b.reg);
-                else
-                    snprintf(out, cap, "Modbus dev %u fc %u reg %u",
-                             (unsigned)b.device, (unsigned)b.fc, (unsigned)b.reg);
-                break;
-            }
-            case Vars::XP_LOCAL:
-                // The wire type is what makes a local channel analog or
-                // digital; the transport only says it is not Modbus.
-                snprintf(out, cap, "%s channel %u",
-                         (b.wire == Vars::T_BOOL) ? "digital" : "analog",
-                         (unsigned)b.reg);
-                break;
-            default:
-                snprintf(out, cap, "computed");
-                break;
+        const Vars::Binding& b = d.bind;
+        if (d.kind != Vars::K_INPUT && d.kind != Vars::K_OUTPUT) {
+            snprintf(out, cap, "computed");
+            return;
         }
+        if (Vars::local(d)) {
+            // The wire type is what makes a local channel analog or digital;
+            // the device address only says it is not on the bus.
+            snprintf(out, cap, "%s channel %u",
+                     (b.wire == Vars::T_BOOL) ? "digital" : "analog",
+                     (unsigned)b.reg);
+            return;
+        }
+        // The unit number is what the wire uses; the TAG is what the plant
+        // calls the box, so an operator need not look "dev 34" up in a
+        // spreadsheet.
+        const char* tag = (_device_name != nullptr)
+                              ? _device_name(_device_ctx, b.device) : nullptr;
+        if (tag != nullptr && tag[0] != '\0')
+            snprintf(out, cap, "Modbus %s (dev %u) fc %u reg %u",
+                     tag, (unsigned)b.device, (unsigned)b.fc, (unsigned)b.reg);
+        else
+            snprintf(out, cap, "Modbus dev %u fc %u reg %u",
+                     (unsigned)b.device, (unsigned)b.fc, (unsigned)b.reg);
     }
 
     void MonitorPage::_draw_rules() {
@@ -269,9 +267,9 @@ namespace Botanik { namespace Pages {
     }
 
     const char* MonitorPage::_selected_cell() const {
-        const Vars::VarRef ref = _selected_ref();
-        if (ref.index == Vars::VAR_NONE || _io == nullptr) return nullptr;
-        return _io->var(ref).meta()->name;
+        const uint16_t ref = _selected_ref();
+        if (ref == Vars::VAR_NONE || _io == nullptr) return nullptr;
+        return _io->var(ref).meta().name;
     }
 
     void MonitorPage::_draw_panel() {
@@ -279,38 +277,35 @@ namespace Botanik { namespace Pages {
         _blank_line((uint16_t)(br + 1));    // breathe under the table
         // The same row a key would act on, so the panel cannot describe one
         // variable while ^R releases another.
-        const Vars::VarRef ref = _selected_ref();
-        const bool have = (ref.index != Vars::VAR_NONE) && _io != nullptr;
-        Vars::Var h = have ? _io->var(ref) : Vars::Var(nullptr, nullptr);
+        const uint16_t ref = _selected_ref();
+        const bool have = (ref != Vars::VAR_NONE) && _io != nullptr;
+        Vars::Var h = have ? _io->var(ref) : Vars::Var();
         _panel_field((uint16_t)(br + 2), "Description", have ? h.description() : nullptr);
         _panel_field((uint16_t)(br + 3), "Notes",       have ? h.notes() : nullptr);
         // "Mapping", not "Source": for an OUTPUT nothing comes FROM the row,
         // it goes there. The field names which point on which device the row
         // is mapped to, in either direction.
         char bind[72];
-        if (have) _describe_binding(h.meta()->bind, bind, sizeof(bind));
+        if (have) _describe_binding(h.meta(), bind, sizeof(bind));
         _panel_field((uint16_t)(br + 4), "Mapping", have ? bind : nullptr);
 
         // Quality, plus whichever of the two things qualifies it: for a
-        // READING its age (Q_VALID from four minutes ago is not Q_VALID from
-        // this beat), for a DRIVEN or COMPUTED row the program that wrote it.
+        // READING its age (GOOD from four minutes ago is not GOOD from this
+        // beat), for a DRIVEN or COMPUTED row the program that wrote it.
         char qual[80];
         if (have) {
+            const char* q_label = Vars::quality_label((uint64_t)h.live().q);
             size_t n = (size_t)snprintf(qual, sizeof(qual), "%s",
-                                        Vars::quality_str(h.live().q));
+                                        (q_label != nullptr) ? q_label : "?");
             // A quality is a row of its own, so it can be forced like any
             // other. Say when the reading on show is an operator's rather than
             // the driver's.
-            const Vars::VarRef q = _io->quality_ref(_selected_ref());
-            if (q.index != Vars::VAR_NONE && _io->var(q).override().present() &&
-                n < sizeof(qual))
+            if (h.quality_var().override_on() && n < sizeof(qual))
                 n += (size_t)snprintf(qual + n, sizeof(qual) - n, ", forced");
 
-            const Vars::VarRole role = h.meta()->role;
-            if (role == Vars::ROLE_INPUT && h.stamp() != 0 && n < sizeof(qual)) {
+            if (h.kind() == Vars::K_INPUT && h.written() && n < sizeof(qual)) {
                 char age[16];
-                const uint64_t now = HAL::Clock::uptime_ms();
-                const uint32_t secs = (uint32_t)((now - h.stamp()) / 1000u);
+                const uint32_t secs = h.age_ms(HAL::Clock::uptime_ms()) / 1000u;
                 // format_age already says "ago"; the width is fixed so the
                 // field does not reflow as the reading gets older.
                 n += (size_t)snprintf(qual + n, sizeof(qual) - n, ", %s",
@@ -341,7 +336,7 @@ namespace Botanik { namespace Pages {
     }
 
     uint16_t MonitorPage::_edit_label(char* buf, size_t cap) const {
-        const char* nm = _io->var(_edit_ref).meta()->name;
+        const char* nm = _io->var(_edit_ref).meta().name;
         int n = snprintf(buf, cap, " %s = ", nm != nullptr ? nm : "?");
         return (n < 0) ? 0 : (uint16_t)n;
     }
@@ -381,12 +376,12 @@ namespace Botanik { namespace Pages {
 
     void MonitorPage::_start_edit() {
         if (_io == nullptr) return;
-        const Vars::VarRef ref = _selected_ref();
-        if (ref.index == Vars::VAR_NONE) return;
+        const uint16_t ref = _selected_ref();
+        if (ref == Vars::VAR_NONE) return;
         Vars::Var h = _io->var(ref);
         // A T_STR's value lives in the text pool, which an override cannot
         // hold: say so rather than opening a field whose every commit fails.
-        if (h.meta()->type == Vars::T_STR) { _say("a text row cannot be forced"); return; }
+        if (h.meta().type == Vars::T_STR) { _say("a text row cannot be forced"); return; }
         _edit_ref = ref;
 
         char label[40];
@@ -426,7 +421,7 @@ namespace Botanik { namespace Pages {
         if (n > (uint16_t)(sizeof(line) - 1)) n = (uint16_t)(sizeof(line) - 1);
         std::memcpy(line, _editor.buffer(), n);
         line[n] = 0;
-        if (_io->override_set(_io->var(_edit_ref), line) != Vars::SET_OK) {
+        if (_io->var(_edit_ref).override_set(line) != Vars::SET_OK) {
             _edit_error = true;          // stay in the field, flag it
             _draw_error_marker();
             return;
@@ -448,37 +443,40 @@ namespace Botanik { namespace Pages {
 
     void MonitorPage::_toggle_validity() {
         if (_io == nullptr) return;
-        const Vars::VarRef ref = _selected_ref();
-        if (ref.index == Vars::VAR_NONE) return;
+        const uint16_t ref = _selected_ref();
+        if (ref == Vars::VAR_NONE) return;
         // Making a row read like a dead sensor is forcing its `_qlt` companion:
         // an ordinary override of an ordinary row, saved and released with the
         // same two keys. A row with no companion has no quality to force.
-        const Vars::VarRef q = _io->quality_ref(ref);
-        if (q.index == Vars::VAR_NONE) { _say("this row carries no quality"); return; }
+        const Vars::Var q = _io->var(ref).quality_var();
+        if (q.null()) { _say("this row carries no quality"); return; }
         const bool was_valid = _io->var(ref).valid();
-        _io->override_set(_io->var(q),
-                          Vars::Scalar::U(was_valid ? Vars::Q_NO_DATA : Vars::Q_VALID));
+        q.override_set(Vars::Scalar::U(was_valid ? Vars::Q_NONE : Vars::Q_GOOD));
         _say(was_valid ? "forced to read invalid" : "forced to read valid");
         _dirty = true;
     }
 
     void MonitorPage::_clear_override() {
         if (_io == nullptr) return;
-        const Vars::VarRef ref = _selected_ref();
-        if (ref.index == Vars::VAR_NONE) return;
+        const uint16_t ref = _selected_ref();
+        if (ref == Vars::VAR_NONE) return;
         Vars::Var h = _io->var(ref);
         if (!h.override().present()) { _say("not overridden"); return; }
-        _io->override_clear(h);          // through the bank: it owns the store
+        // Through Persist: releasing forgets the stored copy too, or the
+        // override would come back at the next boot.
+        if (_persist != nullptr) _persist->override_clear(h);
+        else                     h.override_clear();
         _say("override released");
     }
 
     void MonitorPage::_save_override() {
         if (_io == nullptr) return;
-        const Vars::VarRef ref = _selected_ref();
-        if (ref.index == Vars::VAR_NONE) return;
+        const uint16_t ref = _selected_ref();
+        if (ref == Vars::VAR_NONE) return;
         // The row under the cursor, not every unsaved one: what is being
         // committed to flash should be the row the operator is looking at.
-        switch (_io->save_override(_io->var(ref))) {
+        if (_persist == nullptr) { _say("nothing to save to"); return; }
+        switch (_persist->save_override(_io->var(ref))) {
             case Vars::SET_OK:            _say("override saved");                 break;
             case Vars::SET_NOT_PERSISTED: _say("NOT saved - storage refused it"); break;
             default:                      _say("nothing forced on this row");     break;

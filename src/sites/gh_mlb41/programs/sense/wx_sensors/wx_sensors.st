@@ -55,50 +55,50 @@ END_VAR
   (* Three of the four take the worse reading, because three of the four are
      read by an interlock. Irradiance is not. *)
   wind_vote.A    := cli_wind1_mps;
-  wind_vote.A_OK := GOOD(cli_wind1_mps_qlt);
+  wind_vote.A_Q  := cli_wind1_mps_qlt;
   wind_vote.B    := cli_wind2_mps;
-  wind_vote.B_OK := GOOD(cli_wind2_mps_qlt);
+  wind_vote.B_Q  := cli_wind2_mps_qlt;
   wind_vote();
   gust_vote.A    := cli_windGust1_mps;
-  gust_vote.A_OK := GOOD(cli_windGust1_mps_qlt);
+  gust_vote.A_Q  := cli_windGust1_mps_qlt;
   gust_vote.B    := cli_windGust2_mps;
-  gust_vote.B_OK := GOOD(cli_windGust2_mps_qlt);
+  gust_vote.B_Q  := cli_windGust2_mps_qlt;
   gust_vote();
   rain_vote.A    := cli_rain1_mmph;
-  rain_vote.A_OK := GOOD(cli_rain1_mmph_qlt);
+  rain_vote.A_Q  := cli_rain1_mmph_qlt;
   rain_vote.B    := cli_rain2_mmph;
-  rain_vote.B_OK := GOOD(cli_rain2_mmph_qlt);
+  rain_vote.B_Q  := cli_rain2_mmph_qlt;
   rain_vote();
   sun_vote.A    := cli_irrad1_Wpm2;
-  sun_vote.A_OK := GOOD(cli_irrad1_Wpm2_qlt);
+  sun_vote.A_Q  := cli_irrad1_Wpm2_qlt;
   sun_vote.B    := cli_irrad2_Wpm2;
-  sun_vote.B_OK := GOOD(cli_irrad2_Wpm2_qlt);
+  sun_vote.B_Q  := cli_irrad2_Wpm2_qlt;
   sun_vote();
 
   (* The rails are the rows' own declared bands. *)
   wind_pub.X     := wind_vote.Y;
-  wind_pub.OK_IN := wind_vote.USED > 0;
+  wind_pub.Q_IN  := QUAL(wind_vote.USED > 0, FALSE);
   wind_pub.TAU_S := tau;
   wind_pub.NOW   := sys_now_ms;
   wind_pub.LO    := 0.0;
   wind_pub.HI    := 80.0;
   wind_pub();
   gust_pub.X     := gust_vote.Y;
-  gust_pub.OK_IN := gust_vote.USED > 0;
+  gust_pub.Q_IN  := QUAL(gust_vote.USED > 0, FALSE);
   gust_pub.TAU_S := tau;
   gust_pub.NOW   := sys_now_ms;
   gust_pub.LO    := 0.0;
   gust_pub.HI    := 80.0;
   gust_pub();
   rain_pub.X     := rain_vote.Y;
-  rain_pub.OK_IN := rain_vote.USED > 0;
+  rain_pub.Q_IN  := QUAL(rain_vote.USED > 0, FALSE);
   rain_pub.TAU_S := tau;
   rain_pub.NOW   := sys_now_ms;
   rain_pub.LO    := 0.0;
   rain_pub.HI    := 200.0;
   rain_pub();
   sun_pub.X     := sun_vote.Y;
-  sun_pub.OK_IN := sun_vote.USED > 0;
+  sun_pub.Q_IN  := QUAL(sun_vote.USED > 0, FALSE);
   sun_pub.TAU_S := tau;
   sun_pub.NOW   := sys_now_ms;
   sun_pub.LO    := 0.0;
@@ -112,10 +112,10 @@ END_VAR
 
   (* Calm and dry is what a station reads when it has stopped answering, so
      the roof interlock is told which of the two it is looking at. *)
-  cli_wind_mps_qlt     := QUAL(wind_pub.OK, wind_pub.SEEDED);
-  cli_rain_mmph_qlt    := QUAL(rain_pub.OK, rain_pub.SEEDED);
-  cli_windGust_mps_qlt := QUAL(gust_pub.OK, gust_pub.SEEDED);
-  cli_irrad_Wpm2_qlt   := QUAL(sun_pub.OK, sun_pub.SEEDED);
+  cli_wind_mps_qlt     := wind_pub.Q;
+  cli_rain_mmph_qlt    := rain_pub.Q;
+  cli_windGust_mps_qlt := gust_pub.Q;
+  cli_irrad_Wpm2_qlt   := sun_pub.Q;
 
   (* The WORST-served quantity decides, so a station answering three of its
      four registers is still a station short. One is enough to keep the plant

@@ -29,42 +29,34 @@ namespace Botanik { namespace Plc { namespace Runtime {
      */
     class Plant final : public Component {
 
-        /** @brief Per program, in `programs[]` order. */
+        /** @brief Per program, in `programs[]` order. Everything a program is
+         *  DECLARED with - its rows, its period - is in `Program`; this is what
+         *  it acquires while running. */
         struct Slot {
-            Vars::VarRef  health_row;
-            Health        health  = Health::HEALTHY;
-            /** @brief The OPERATOR's gate, beside the system's. Not retained:
-             *  a program left out of the scan by a maintenance session must
-             *  not come back silently disabled after a power cut. */
-            bool          enabled = true;
+            /** @brief One code, so the TASKS page has a pointer to read. */
+            Health   health  = Health::HEALTHY;
+            /** @brief The OPERATOR's gate, beside the system's. Not retained: a
+             *  program left out of the scan by a maintenance session must not
+             *  come back silently disabled after a power cut. */
+            bool     enabled = true;
             /** @brief Whether the body ran last beat, so the drop to safe
              *  happens on the EDGE rather than every beat of an outage. */
-            bool          ran     = false;
+            bool     ran     = false;
             /** @brief This program is TRAVELLING to its parked state: out of
              *  the scan, but still being called, because it asked for the
              *  chance to put its actuators somewhere chosen first. */
-            bool          parking = false;
+            bool     parking = false;
             /** @brief When that stops being allowed to take longer. */
-            uint64_t      park_until_ms = 0;
-            /** @brief The parking pair, resolved once; VAR_NONE for a program
-             *  that does not park. */
-            Vars::VarRef  park_row;
-            Vars::VarRef  parked_row;
+            uint64_t park_until_ms = 0;
         };
 
-        Vars::Bank&  _io;
-        Vars::VarRef _now_ref;   ///< sys_now_ms
-        Vars::VarRef _day_ref;   ///< sys_today
-        Slot                  _slot[32];
-        uint64_t              _now_ms = 0;
+        Vars::Bank& _io;
+        Slot        _slot[32];
+        uint64_t    _now_ms = 0;
         /** @brief The lifecycle, borrowed from the scheduler. Null in a bare
          *  rig, which then runs: a test that constructs a Plant and nothing
          *  else is asking for the laws, not for the unit's life. */
         const Scheduler::RunState* _state = nullptr;
-        /** @brief sys_control: the operator's standing choice, for all of them. */
-        Vars::VarRef          _control_ref;
-        /** @brief plc_parkTimeout_sec: the cap on any one park. */
-        Vars::VarRef          _park_timeout_ref;
 
     public:
         Plant(const SetupContext& ctx, Vars::Bank& io)
@@ -75,9 +67,9 @@ namespace Botanik { namespace Plc { namespace Runtime {
 
         void register_tasks() override;
 
-        /** @brief Bind every program, each in its OWN writer window so a row
-         *  two of them claim is caught, and each counted separately so one
-         *  that missed a name is the only one held back. */
+        /** @brief Point the ST runtime at this bank and run every generated
+         *  bind. A binding is a generated index, so there is nothing here that
+         *  can fail. */
         void wire();
 
         /** @brief Run program @p i, with the clock at @p now_ms. The beat

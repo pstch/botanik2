@@ -128,8 +128,9 @@ namespace Botanik { namespace Sim {
             // would otherwise be counted once per row.
             uint8_t seen[32] = {};
             for (uint16_t i = 0; i < io->count(); i++) {
-                const Vars::Descriptor& d = *io->var(i).meta();
-                if (d.bind.transport != Vars::XP_MODBUS || d.bind.device == 0) continue;
+                const Vars::Descriptor& d = io->var(i).meta();
+                if (d.bind.device == 0) continue;
+                if (d.kind != Vars::K_INPUT && d.kind != Vars::K_OUTPUT) continue;
                 const uint8_t u = d.bind.device;
                 if ((seen[u >> 3] & (uint8_t)(1u << (u & 7))) != 0) continue;
                 seen[u >> 3] |= (uint8_t)(1u << (u & 7));
@@ -160,12 +161,13 @@ namespace Botanik { namespace Sim {
          * by the MASTER and by nothing else, which is what makes the poll
          * interval visible on screen.
          *
-         * @param d the row's descriptor, for its device / fc / reg binding
+         * @param h the row, for its binding and its live calibration
          * @param v the physical quantity, in the row's own engineering units;
          *          a calibrated row's transducer turns it into a count here
          */
-        void set_physical(const Vars::Descriptor& d, float v) {
-            if (d.bind.transport != Vars::XP_MODBUS) return;
+        void set_physical(Vars::Var h, float v) {
+            const Vars::Descriptor& d = h.meta();
+            if (d.bind.device == 0) return;
             Modbus::RtuSlave* dev = _find(d.bind.device);
             if (dev == nullptr) return;
 
@@ -177,9 +179,7 @@ namespace Botanik { namespace Sim {
             // A CALIBRATED row is reported by its transducer as a COUNT, not in
             // engineering units - that is what the device would actually send,
             // and it is what makes the master's scaling the thing under test.
-            const Vars::AnalogCal* cal = Vars::analog_cal(d);
-            if (cal != nullptr)
-                v = Vars::analog_values(_io, cal).to_raw(v);
+            if (Vars::analog(d)) v = h.cal().to_raw(v);
 
             // The wire carries what the row says: a REAL spans two registers,
             // high word first, and anything narrower is one.

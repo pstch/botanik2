@@ -375,7 +375,7 @@ namespace Botanik { namespace Shell {
         };
 
         // --- Link --------------------------------------------------------
-        const char* mode = Vars::get_int(_bank(), "net_dhcp") ? "DHCP" : "static";
+        const char* mode = Vars::get_int(_bank(), Vars::Row::net_dhcp) ? "DHCP" : "static";
         snprintf(val, sizeof(val), "%s  (%s)", net->status_str(), mode);
         _line("Network", val);
 
@@ -409,7 +409,7 @@ namespace Botanik { namespace Shell {
             else
                 snprintf(val, sizeof(val), "%s", ntp->status_str());
             _line("NTP", val);
-            const char* s1 = Vars::get_str(_bank(), "ntp_srv1");
+            const char* s1 = Vars::get_str(_bank(), Vars::Row::ntp_srv1);
             if (s1[0]) {
                 // Configured hostname, then the resolved IP:port once known.
                 Network::ResolvedAddr sa = ntp->server_addr();
@@ -441,9 +441,9 @@ namespace Botanik { namespace Shell {
             // given: an empty row falls back to the gateway, and a report
             // showing nothing while the client talks to the router would be
             // the report lying. Marked, so an operator can tell which it is.
-            const char* set = Vars::get_str(_bank(), "mqtt_host");
+            const char* set = Vars::get_str(_bank(), Vars::Row::mqtt_host);
             const char* brk = (_bank() != nullptr)
-                                  ? Vars::host_or_gateway(*_bank(), "mqtt_host")
+                                  ? Vars::host_or_gateway(*_bank(), Vars::Row::mqtt_host)
                                   : set;
             if (brk != nullptr && brk[0]) {
                 const char* via = set[0] ? "" : " (net_gw)";

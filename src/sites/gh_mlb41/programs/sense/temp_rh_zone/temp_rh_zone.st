@@ -64,13 +64,13 @@ END_VAR
   ELSE
     cli_temp_in := MAX(cli_temp_hi, cli_temp_lo);
   END_IF;
-  (* Q_SUBSTITUTED, not simply bad: the blind arms above still publish a number
+  (* Q_HELD, not simply bad: the blind arms above still publish a number
      somebody can act on, and Ref::get() passes that through where it would
      substitute the declared 14 degC. A law asking whether the house can be SEEN
      still gets no - GOOD() is measured, and that is what cooling resets its
      integral on and what shuts the intake gates. *)
-  IF measured THEN cli_temp_in_qlt := Q_VALID;
-  ELSE cli_temp_in_qlt := Q_SUBSTITUTED; END_IF;
+  IF measured THEN cli_temp_in_qlt := Q_GOOD;
+  ELSE cli_temp_in_qlt := Q_HELD; END_IF;
 
   (* NOT the same event as a probe short of quorum, which is what alarm_sns_*
      already says. This one means the house cannot be seen at all, and every

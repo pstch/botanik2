@@ -33,13 +33,13 @@ namespace Botanik { namespace Plc { namespace Runtime {
          *  place the index is a compile-time constant. */
         void      (*task)(Botanik::Component*, const Botanik::Tasks::Tick&);
         /** @brief The rows this program is the AUTHOR of: its plain
-         *  `VAR_EXTERNAL` names, generated from the ST itself. The bank cannot
+         *  `VAR_EXTERNAL` rows, generated from the ST itself. The bank cannot
          *  answer this - an ST row resolves as VAR_IN_OUT and so claims no
          *  exclusive writer - and these are what a program out of the scan
          *  drops to their declared safe state. */
-        const char* const* writes;
-        uint8_t            write_count;
-        /** @brief The parking pair, or null when this program does not park.
+        const uint16_t* writes;
+        uint8_t         write_count;
+        /** @brief The parking pair, or VAR_NONE when this program does not park.
          *
          *  A program that PARKS is not dropped the moment it leaves the scan:
          *  `park` is set, its body keeps being called while it travels, and it
@@ -47,8 +47,10 @@ namespace Botanik { namespace Plc { namespace Runtime {
          *  somebody chose rather than wherever the last scan left it - a roof
          *  shut, a valve closed - before the rows go to their declared values.
          *  @see Plant::scan() */
-        const char* park;
-        const char* parked;
+        uint16_t park;
+        uint16_t parked;
+        /** @brief `prog_<name>`: where this program's verdict is published. */
+        uint16_t health_row;
     };
 
     extern const Program programs[];

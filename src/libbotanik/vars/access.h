@@ -3,12 +3,12 @@
 
 /**
  * @file access.h
- * @brief Grouping variables for display, and rendering one a consumer only
- *        observes (monitor page, shell, telemetry, home screen).
+ * @brief Grouping variables for display, rendering one, and the by-row reads a
+ *        configurable component's binding is written with.
  *
- * Deliberately thin: grouping and publishing are RULES over the one variable
- * table (a group is a name prefix, what is published is a scope), plus the
- * home-screen row, which is the one thing no rule derives.
+ * Deliberately thin: grouping is a RULE over the one table (a group is a name
+ * prefix), and what is published is the row's Kind. The home-screen row is the
+ * one thing no rule derives.
  */
 
 #include <cstddef>
@@ -16,18 +16,16 @@
 #include <cstring>
 
 #include "libbotanik/config/vars.h"
-
-#include "libbotanik/vars/declare.h"
 #include "libbotanik/vars/model.h"
 
 namespace Botanik { namespace Vars {
 
-    /** @brief A home-screen reading: a display @p label paired with the name of
-     *  the variable whose live value it shows. The label is declared because no
-     *  rule derives "Line V" from "grid_LN_V". */
+    /** @brief A home-screen reading: a display @p label paired with the ROW
+     *  whose live value it shows. The label is declared because no rule derives
+     *  "Line V" from "grid_LN_V"; the row is a generated index. */
     struct HomeVar {
         const char* label;
-        const char* name;
+        uint16_t    row;
     };
 
     /** @name Grouping
@@ -72,57 +70,58 @@ namespace Botanik { namespace Vars {
         return group_intern(g);
     }
 
-    /** @brief Whether @p d belongs on the MONITOR page and in MQTT telemetry.
-     *
-     *  Everything except the two kinds of row that have a page of their own: a
-     *  parameter is the PARAMS page's, an alarm is the ALARMS page's. Tested by
-     *  scope, so a new row is published by default. */
-    inline bool var_published(const Descriptor& d) {
-        return d.scope != SCOPE_P && d.scope != SCOPE_A && d.scope != SCOPE_Q;
-    }
-
-    /** @brief Whether this row carries a Modbus TCP *slave* register: a
-     *  parameter, a status value or an alarm.
-     *
-     *  Deliberately not the same set as var_published(), which excludes exactly
-     *  the two kinds this one includes. The register is the site's to assign; a
-     *  row of one of these scopes with reg 0 is a table defect the site test
-     *  fails on, not a row that quietly does not publish. */
-    inline bool var_mapped(const Descriptor& d) {
-        return d.scope == SCOPE_P || d.scope == SCOPE_SV || d.scope == SCOPE_A ||
-               d.scope == SCOPE_Q;
-    }
-
-    /** @brief Whether anything may WRITE @p d. A row that is not a parameter is
-     *  read-only by construction: nothing writes a reading. */
-    inline bool var_writable(const Descriptor& d) {
-        return d.role == ROLE_PARAM && (d.flags & F_RDONLY) == 0;
-    }
-
     /** @brief @p d's access as a point list writes it. */
     inline const char* access_label(const Descriptor& d) {
-        return var_writable(d) ? "RW" : "RO";
+        return writable(d) ? "RW" : "RO";
     }
 
     /** @} */
-
-    /** @brief What kind of row this is, as a short column label: the declared
-     *  scope, never reconstructed from (transport, role, type). */
-    inline const char* var_scope(const Descriptor& d) { return scope_label(d.scope); }
+    /** @name Rendering
+     *  @{ */
 
     /** @brief Render @p h's current value into @p buf. Returns the text - an
      *  enum's static string, a T_STR's pool text, or @p buf. */
     inline const char* var_format(const Bank& io, Var h, char* buf, size_t cap) {
-        const Descriptor* d = h.meta();
-        if (d->type == T_STR) {
-            const char* t = io.text(h);
+        (void)io;
+        const Descriptor& d = h.meta();
+        if (d.type == T_STR) {
+            const char* t = h.text();
             return (t != nullptr) ? t : "";
         }
-        return format_scalar(d->type, h.value().v, d->digits, d->str, buf, cap);
+        return format_scalar(d.type, h.value().v, d.digits, d.labels, buf, cap);
     }
-    inline const char* var_format(const Bank& io, VarRef r, char* buf, size_t cap) {
-        return var_format(io, io.var(r), buf, cap);
+    inline const char* var_format(const Bank& io, uint16_t row, char* buf, size_t cap) {
+        return var_format(io, io.var(row), buf, cap);
     }
+
+    /** @brief Render @p d's declared default or bound. Not the live value - a
+     *  T_STR keeps that in the pool, so it renders empty here. */
+    inline const char* format_declared(const Descriptor& d, Scalar v,
+                                       char* buf, size_t cap) {
+        if (d.type == T_STR) return "";
+        return format_scalar(d.type, v, d.digits, d.labels, buf, cap);
+    }
+
+    /** @} */
+    /** @name By-row reads
+     *
+     *  What a configurable component's binding is written with. Null-safe, so a
+     *  binding reads the same whether the build has a bank or not.
+     *  @{ */
+
+    inline int32_t get_int(const Bank* io, uint16_t row, int32_t dflt = 0) {
+        if (io == nullptr || row >= io->count()) return dflt;
+        return (int32_t)io->var(row).as_i64();
+    }
+    /** @brief A text row's live text ("" if absent). Valid for the bank's
+     *  lifetime - it points into the string pool. */
+    inline const char* get_str(const Bank* io, uint16_t row) {
+        if (io == nullptr || row >= io->count()) return "";
+        const char* t = io->var(row).text();
+        return (t != nullptr) ? t : "";
+    }
+
+    /** @} */
 
 }}  // namespace Botanik::Vars
 

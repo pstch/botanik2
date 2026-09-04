@@ -116,8 +116,8 @@ int main(int argc, char** argv) {
     // The animator's readings go into the DEVICES from here, not into the bank
     // rows - so a row shows what the bus delivered, at the rate it delivered it.
     Site::field_ctx()  = &fieldbus;
-    Site::field_sink() = [](void* ctx, const Vars::Descriptor& d, float v) {
-        static_cast<Sim::FieldBus*>(ctx)->set_physical(d, v);
+    Site::field_sink() = [](void* ctx, Vars::Var h, float v) {
+        static_cast<Sim::FieldBus*>(ctx)->set_physical(h, v);
     };
     // ...and the same reach for taking a device off the wire, which is the only
     // way to simulate one that has died: a device left holding its last
@@ -145,7 +145,8 @@ int main(int argc, char** argv) {
     // map. Off for the screen tests ($BOTANIK_NO_MBCHECK), since it MUTATES a
     // parameter and its traffic reaches the log tail a golden captures.
     const bool mbcheck_on = HAL::Env::u32("BOTANIK_NO_MBCHECK", 0) == 0;
-    Sim::ModbusCheck modbus_check(greenhouse.setup_context(), &greenhouse.io(), &greenhouse.logger());
+    Sim::ModbusCheck modbus_check(greenhouse.setup_context(), &greenhouse.io(),
+                                  &greenhouse.persist(), &greenhouse.logger());
 #endif
 
 

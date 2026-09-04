@@ -32,6 +32,17 @@ namespace Botanik { namespace Health {
         "alarm_flash_error",
     };
 
+#if BOTANIK_FEATURE_VARS
+    const uint16_t HealthMonitor::PLATFORM_ROWS[HealthMonitor::PA_COUNT] = {
+        Vars::Row::alarm_system_reset,
+        Vars::Row::alarm_cpu_xrun,
+        Vars::Row::alarm_cpu_load,
+        Vars::Row::alarm_stack,
+        Vars::Row::alarm_cpu_jitter,
+        Vars::Row::alarm_flash_error,
+    };
+#endif
+
 #if !BOTANIK_FEATURE_VARS
     /** @brief The same six as the library's own SCOPE_A rows carry, for a build
      *  with no table to read them out of. @see vars/tables/library.csv */
@@ -101,14 +112,13 @@ namespace Botanik { namespace Health {
         if (_stop != Stop::NONE && !_stopped) {
             _stopped = true;
 #if BOTANIK_FEATURE_VARS
-            if (Vars::Bank* store = _io) {
-                (void)store->save_retained();
-                // ...and the parameters a PROGRAM owes, which are the same kind
-                // of fact and reach the store the same way: a watering date
-                // stamped since the last cadence would otherwise be lost by the
-                // one exit that is supposed to lose nothing. NOT the operator's
-                // unsaved edits - those stay theirs to confirm.
-                (void)store->save_owed_params();
+            // The retained rows AND the parameters a PROGRAM owes: the same kind
+            // of fact, reaching the store the same way. A watering date stamped
+            // since the last cadence would otherwise be lost by the one exit
+            // that is supposed to lose nothing. NOT the operator's unsaved
+            // edits - those stay theirs to confirm.
+            if (_persist != nullptr) {
+                (void)_persist->flush(now_ms);
                 if (_logger) _logger->warning(Logs::HEALTH, "%s: retained saved",
                     _stop == Stop::REBOOT ? "reboot" : "halt");
             }

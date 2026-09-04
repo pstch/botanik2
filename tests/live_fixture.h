@@ -23,9 +23,9 @@ struct Live {
         believe_all();
     }
 
-    /** @brief Every DERIVED row's `_qlt` companion at Q_VALID.
+    /** @brief Every DERIVED row's `_qlt` companion at Q_GOOD.
      *
-     *  A companion declares Q_NO_DATA, which is right in the field: nothing is
+     *  A companion declares Q_NONE, which is right in the field: nothing is
      *  believed until something measures it. In a rig it is the wrong start for
      *  a derived row, because whatever the program under test READS comes from
      *  a program the rig is not running. The program's OWN companions are
@@ -38,17 +38,15 @@ struct Live {
     void believe_all() {
         for (uint16_t i = 0; i < bank.count(); i++) {
             const Botanik::Vars::Descriptor& d = bank.descriptor(i);
-            if (d.scope != Botanik::Vars::SCOPE_Q) continue;
-            char base[48];
-            if (!Botanik::Vars::quality_base(d.name, base, sizeof base)) continue;
-            const Botanik::Vars::VarRef r = bank.find(base);
-            if (r.index == Botanik::Vars::VAR_NONE) continue;
-            if (bank.descriptor(r.index).bind.transport != Botanik::Vars::XP_NONE)
-                continue;
-            bank.var(Botanik::Vars::VarRef{ i }).set_i(Botanik::Vars::Q_VALID);
+            // The row a companion speaks for is the one BEFORE it.
+            if (d.kind != Botanik::Vars::K_QUALITY || i == 0) continue;
+            const Botanik::Vars::Descriptor& row = bank.descriptor(i - 1);
+            if (row.kind == Botanik::Vars::K_INPUT ||
+                row.kind == Botanik::Vars::K_OUTPUT) continue;
+            bank.var(i).set_i(Botanik::Vars::Q_GOOD);
         }
     }
-    Botanik::Vars::VarRef ref(const char* name) { return bank.find(name); }
+    uint16_t ref(const char* name) { return bank.find(name); }
 };
 
 /** @brief The terminal a PI row declares, ATTACHED. The channel and the edge
@@ -59,10 +57,11 @@ struct Live {
  *  twice for the same edge costs nothing. Here rather than in one rig's
  *  header, because both of them and the simulated field want it. */
 inline uint8_t pulse_line(Live& f, const char* row) {
-    const Botanik::Vars::Descriptor& d = f.bank.descriptor(f.ref(row).index);
-    (void)Botanik::HAL::Pulse::attach(Botanik::Io::pulse_channel(d),
-                                      Botanik::Io::pulse_edge(d));
-    return Botanik::Io::pulse_channel(d);
+    const Botanik::Vars::Descriptor& d = f.bank.descriptor(f.ref(row));
+    (void)Botanik::HAL::Pulse::attach(
+        Botanik::Vars::pulse_channel(d),
+        (Botanik::HAL::Pulse::Edge)Botanik::Vars::pulse_edge(d));
+    return Botanik::Vars::pulse_channel(d);
 }
 
 }  // namespace TestScan

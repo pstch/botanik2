@@ -48,8 +48,8 @@
 #include "libbotanik/vars/access.h"
 #include "libbotanik/vars/bindings.h"
 #include "libbotanik/vars/model.h"
-#include "libbotanik/vars/params.h"
-#include "libbotanik/vars/vars.h"
+#include "libbotanik/vars/persist.h"
+#include "libbotanik/vars/rows.h"
 
 #if BOTANIK_FEATURE_CONSOLE
 #include "libbotanik/console/console.h"
@@ -83,15 +83,12 @@ namespace Botanik {
         const char*                   name;                ///< == Config::SITE_NAME
         const Shell::ShellCommand*    commands;            ///< site shell commands
         uint8_t                       command_count;
-        /** @brief Home-screen readings, and where their names resolve to -
-         *  filled at bring-up, site-owned, @c home_field_count entries parallel
-         *  to the table so the labels stay in flash.
+        /** @brief Home-screen readings: a label and the ROW it shows, both
+         *  generated, so nothing is resolved at bring-up.
          *  @note NOT gated on VARS, though only a VARS build reads them: a field
-         *  a flag can remove is a field every site's initialiser has to guard.
-         *  Three borrowed pointers of flash is the cheaper side of that trade. */
+         *  a flag can remove is a field every site's initialiser has to guard. */
         const Vars::HomeVar*          home_fields;
         uint8_t                       home_field_count;
-        Vars::VarRef*                 home_refs;
 #if BOTANIK_FEATURE_MODBUS_RTU_CLIENT
         /** @brief What each unit on the field bus will answer: its request
          *  ceiling and address alignment. Null plans every unit as
@@ -99,17 +96,18 @@ namespace Botanik {
          *  aggregate and a field added anywhere else moves the rest. */
         const Modbus::DeviceTable*    devices;
 #endif
-        /** @brief The site's whole variable table, in ONE run - every kind of
-         *  row in it, parameters and edge counters included. The base
-         *  registers it, so a site declares rows by pointing at them rather
-         *  than by overriding a hook.
-         *  ONE rule, and Bank::freeze() names the row that breaks it: the
-         *  PARAMETERS come first, the library's being already at the front of
-         *  a run that has to stay contiguous - which is a property of the
-         *  table's ORDER, and the generator emits it. Null on a site that
-         *  registers its own in register_vars(). LAST, like the rest. */
+        /** @brief The site's whole variable table, in ONE run - the library's
+         *  rows merged in by the generator, every kind of row in it, parameters
+         *  first and contiguous. Null on a site with no variable model.
+         *
+         *  @c order is the same rows in NAME order, so `find()` binary-searches
+         *  a const array; the parameter block's bounds are generated beside
+         *  them. LAST, like the rest. */
         const Vars::Descriptor*       rows;
+        const uint16_t*               order;
         uint16_t                      row_count;
+        uint16_t                      param_first;
+        uint16_t                      param_count;
     };
 
     /** @brief Generic firmware base: owns the generic components + the loop
@@ -147,7 +145,10 @@ namespace Botanik {
         SetupContext                   _setup;
 #if BOTANIK_FEATURE_VARS
         Vars::Bank                       _io;          ///< the site's variables
-        Vars::KvParamStore             _param_store; ///< one storage key per parameter
+        Vars::KvStore                  _param_store; ///< one storage key per row
+        /** @brief What makes an edit durable. AFTER the store it binds, so the
+         *  initialiser order is the dependency order. */
+        Vars::Persist                  _persist;
         /** @brief The one bridge from the table to a component's own config
          *  struct. Bindings are added in the ctor body, once every component
          *  exists. @see vars/bindings.h */
@@ -336,18 +337,25 @@ namespace Botanik {
          *  from the build's own floor where there is not. */
         uint32_t _startup_hold_ms() const {
 #if BOTANIK_FEATURE_VARS
-            return _io.startup_hold_ms();
+            return _hold_ms(Vars::Row::sys_startup_sec);
 #else
             return Config::STARTUP_HOLD_MS;
 #endif
         }
         uint32_t _shutdown_hold_ms() const {
 #if BOTANIK_FEATURE_VARS
-            return _io.shutdown_hold_ms();
+            return _hold_ms(Vars::Row::sys_shutdown_sec);
 #else
             return Config::SHUTDOWN_HOLD_MS;
 #endif
         }
+#if BOTANIK_FEATURE_VARS
+        /** @brief A hold row's seconds, in ms. */
+        uint32_t _hold_ms(uint16_t row) const {
+            const int32_t sec = (int32_t)_io.var(row).as_i64();
+            return sec > 0 ? (uint32_t)sec * 1000u : 0u;
+        }
+#endif
 
         /** @brief Is a control program still travelling to its parked state?
          *  False where there is no plant to ask. */
@@ -388,6 +396,9 @@ namespace Botanik {
 #if BOTANIK_FEATURE_VARS
         const Vars::Bank&                 io() const { return _io; }
         Vars::Bank&                       io()       { return _io; }
+        /** @brief What makes a value durable. Separate from the bank, which is
+         *  RAM-only. */
+        Vars::Persist&                    persist()  { return _persist; }
         /** @brief Where a site binds a component of its OWN to the parameters
          *  that configure it. Bind in on_setup(): apply_all() runs after it. */
         Vars::ConfigBinder&               config_binder() { return _binder; }
@@ -513,12 +524,7 @@ namespace Botanik {
 #endif
 #endif
 
-#if BOTANIK_FEATURE_VARS
-        /** @brief Resolve every name the site's tables declare into the ref
-         *  arrays they carry alongside. The alarm table binds itself when the
-         *  model copies it, so it is not repeated here. */
-        void _resolve_site_refs();
-#else
+#if !BOTANIK_FEATURE_VARS
         /** @brief Hand every component its struct defaults. Only a build with no
          *  variable table needs this: with one, ConfigBinder does it from the
          *  rows, and a component nobody configures keeps what it was

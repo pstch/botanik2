@@ -54,6 +54,10 @@ namespace Botanik { namespace Sim {
 
         Modbus::TcpMaster _master;
         Vars::Bank*       _io;
+        /** @brief What makes the restore durable: the WRITE half went through
+         *  the slave's map, which persists, so a restore touching only RAM
+         *  would leave this check's test value in the store. */
+        Vars::Persist*    _persist;
         Logs::Logger*     _logger;
         Step              _step  = MC_WAIT;
         uint32_t          _was   = 0;   ///< what the row read before the write
@@ -73,8 +77,10 @@ namespace Botanik { namespace Sim {
         /** @} */
 
     public:
-        ModbusCheck(const SetupContext& ctx, Vars::Bank* io, Logs::Logger* logger)
-            : _master(ctx, "MB master"), _io(io), _logger(logger) {}
+        ModbusCheck(const SetupContext& ctx, Vars::Bank* io,
+                    Vars::Persist* persist, Logs::Logger* logger)
+            : _master(ctx, "MB master"), _io(io), _persist(persist),
+              _logger(logger) {}
 
         /** @brief Advance one beat. Safe to call forever. */
         void step(uint64_t now_ms) {
@@ -85,13 +91,13 @@ namespace Botanik { namespace Sim {
             // calls us. No delay for the bring-up log burst either, since
             // _report() writes to stderr rather than through the logger.
             if (_step == MC_WAIT) {
-                const Vars::Var v = _io->var(ROW_NAME);
-                if (v.meta()->name == nullptr || v.meta()->bind.reg == 0) {
+                const Vars::Var v = _io->var(_io->find(ROW_NAME));
+                if (v.meta().name == nullptr || v.meta().bind.reg == 0) {
                     _report("skipped", "'%s' has no register", ROW_NAME);
                     _step = MC_DONE;
                     return;
                 }
-                _row_addr = (uint16_t)(v.meta()->bind.reg * 2);
+                _row_addr = (uint16_t)(v.meta().bind.reg * 2);
                 _master.connect_to(HAL::Network::mock_loopback_ip(),
                                    Modbus::TcpSlaveConfig().port);
                 _step = MC_READ1;
@@ -185,10 +191,10 @@ namespace Botanik { namespace Sim {
          *  the row reading unsaved from every boot onward. */
         void _restore() {
             if (_io == nullptr) return;
-            Vars::Var v = _io->var(ROW_NAME);
-            if (v.meta()->name == nullptr) return;
-            (void)_io->param_set_scalar(v, Vars::Scalar::U((uint64_t)_was));
-            (void)_io->param_save(v);
+            Vars::Var v = _io->var(_io->find(ROW_NAME));
+            if (v.null()) return;
+            (void)v.param_set(Vars::Scalar::U((uint64_t)_was));
+            if (_persist != nullptr) (void)_persist->save(v);
         }
 
         void _fail(const char* why, unsigned detail) {

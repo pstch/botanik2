@@ -22,8 +22,7 @@ namespace Botanik { namespace Io {
 
         for (uint16_t i = 0; i < _io->count(); i++) {
             const Vars::Descriptor& d = _io->descriptor(i);
-            if (d.bind.transport != Vars::XP_LOCAL) continue;
-            if (d.scope != Vars::SCOPE_DO && d.scope != Vars::SCOPE_RO) continue;
+            if (!Vars::local(d) || d.kind != Vars::K_OUTPUT) continue;
 
             // The row's `reg` IS the pin: a local row has no register to
             // address, so the column carries the HAL::Pin label instead.
@@ -54,7 +53,7 @@ namespace Botanik { namespace Io {
         if (_io == nullptr) return;
         for (uint8_t i = 0; i < _count; i++) {
             const Vars::Descriptor& d = _io->descriptor(_row[i]);
-            bool on = _io->var(Vars::VarRef{ _row[i] }).as_bool();
+            bool on = _io->var(uint16_t{ _row[i] }).as_bool();
             // The one place active-low wiring is folded in for a local pin,
             // exactly as the field bus does it for a remote coil.
             if (d.flags & Vars::F_INVERT) on = !on;

@@ -15,15 +15,14 @@ control = 100
 sense   = 10
 
 [limits]
-# Rows the bank can hold, plus headroom. Past it registration is refused and
-# the POST says so. About 36 bytes of RAM each.
-var_max = 704
 # The TCP map holds every parameter, status and alarm row. A site that outgrows
 # it serves a SHORT map, which an integrator reads as a device that does not
 # have those rows. The gate asserts the real count against this.
+#
+# The row count, the string pool and the wire array are NOT here: the generator
+# owns the table, so its size is a fact about it rather than a ceiling somebody
+# has to keep ahead of.
 modbus_tcp_max_rows = 576
-# Names, units and descriptions share one pool, sized once for the whole table.
-str_pool_bytes = 512
 
 [registers]
 # Where the generated `_qlt` companions start. Their own block, above every
@@ -33,6 +32,8 @@ quality_base = 1000
 # ...and where the generated `prog_<name>_park` / `_parked` pair starts. Its own
 # block for the same reason.
 park_base = 1200
+# ...and the per-program health row, one per entry in programs.csv.
+prog_base = 1300
 
 [fieldbus]
 # RS-485. Every device on the segment has to agree.

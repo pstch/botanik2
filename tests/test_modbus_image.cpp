@@ -108,7 +108,7 @@ TEST_CASE("modbus image: a failed read invalidates rather than leaving the last 
     invalidate_block(f.bank, f.p, *b, Vars::Q_STALE);
     for (uint16_t k = 0; k < b->row_count; k++) {
         Vars::Var h = f.bank.var(f.p.row((uint16_t)(b->first_row + k)));
-        INFO(h.meta()->name);
+        INFO(h.meta().name);
         CHECK_FALSE(h.valid());
     }
 }
@@ -145,7 +145,7 @@ TEST_CASE("modbus image: what goes on the wire is what comes back off it") {
     // Set every row of the block to a known state through the bank.
     for (uint16_t k = 0; k < b->row_count; k++) {
         Vars::Var h = f.bank.var(f.p.row((uint16_t)(b->first_row + k)));
-        const Vars::Descriptor& d = *h.meta();
+        const Vars::Descriptor& d = h.meta();
         if (d.type == Vars::T_BOOL) h.publish(Vars::from_bool(d.type, (k % 2) == 0), 500);
         else                        h.publish(Vars::from_i64(d.type, (int64_t)(k + 1)), 500);
     }
@@ -169,8 +169,8 @@ TEST_CASE("modbus image: what goes on the wire is what comes back off it") {
 
     for (uint16_t k = 0; k < b->row_count; k++) {
         Vars::Var h = f.bank.var(f.p.row((uint16_t)(b->first_row + k)));
-        INFO(h.meta()->name << " (row " << k << " of the block)");
-        if (h.meta()->type == Vars::T_BOOL) CHECK(h.as_bool() == before[k]);
+        INFO(h.meta().name << " (row " << k << " of the block)");
+        if (h.meta().type == Vars::T_BOOL) CHECK(h.as_bool() == before[k]);
     }
 }
 
@@ -224,7 +224,7 @@ TEST_CASE("modbus image: a demand that moved mid-transaction stays owed") {
     REQUIRE_MESSAGE(b != nullptr, "the site has no boolean row on a write block");
 
     Vars::Var h = f.bank.var(f.p.row(slot));
-    const Vars::Descriptor& d = *h.meta();
+    const Vars::Descriptor& d = h.meta();
     h.publish(Vars::from_bool(d.type, true), 500);
     h.mark_field_dirty();
     CHECK(block_dirty(f.bank, f.p, *b));
@@ -249,7 +249,7 @@ TEST_CASE("modbus image: an unchanged demand is cleared by its echo") {
     const Block* b = f.a_bool_write(slot);
     REQUIRE_MESSAGE(b != nullptr, "the site has no boolean row on a write block");
     Vars::Var h = f.bank.var(f.p.row(slot));
-    h.publish(Vars::from_bool(h.meta()->type, true), 500);
+    h.publish(Vars::from_bool(h.meta().type, true), 500);
     h.mark_field_dirty();
     uint8_t wire[64] = {};
     const uint16_t n = collect_write(f.bank, f.p, *b, wire, sizeof(wire));
@@ -265,7 +265,7 @@ TEST_CASE("modbus image: reasserting owes the value again without changing it") 
 
     for (uint16_t k = 0; k < b->row_count; k++) {
         Vars::Var h = f.bank.var(f.p.row((uint16_t)(b->first_row + k)));
-        h.publish(Vars::from_bool(h.meta()->type, true), 500);
+        h.publish(Vars::from_bool(h.meta().type, true), 500);
         h.clear_field_dirty();
     }
     CHECK_FALSE(block_dirty(f.bank, f.p, *b));
@@ -276,7 +276,7 @@ TEST_CASE("modbus image: reasserting owes the value again without changing it") 
     CHECK(block_dirty(f.bank, f.p, *b));
     for (uint16_t k = 0; k < b->row_count; k++) {
         Vars::Var h = f.bank.var(f.p.row((uint16_t)(b->first_row + k)));
-        INFO(h.meta()->name);
+        INFO(h.meta().name);
         CHECK(h.as_bool());
         CHECK(h.field_dirty());
     }

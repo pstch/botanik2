@@ -95,10 +95,10 @@ TEST_CASE("site: nothing the site touches fails to resolve") {
     // Bank::set() is the operator's path alone; catches a write at a stale index - zero is a real row.
     for (uint16_t k = 0; k < f.bank.param_count(); k++) {
         const Vars::Var h = f.bank.param_at(k);
-        if (h.meta()->type == Vars::T_STR) continue;   // lives in the pool
-        INFO("parameter '" << h.meta()->name << "' was written by a control "
+        if (h.meta().type == Vars::T_STR) continue;   // lives in the pool
+        INFO("parameter '" << h.meta().name << "' was written by a control "
              "program or the simulated field");
-        CHECK(h.value().v.u == h.meta()->def.u);
+        CHECK(h.value().v.u == h.meta().def.u);
     }
 }
 
@@ -151,11 +151,11 @@ TEST_CASE("site: the parameters are one contiguous block") {
     SiteBank f;
     uint16_t total = 0;
     for (uint16_t i = 0; i < f.bank.count(); i++)
-        if (f.bank.var(i).meta()->role == Vars::ROLE_PARAM) total++;
+        if (f.bank.var(i).meta().role == Vars::ROLE_PARAM) total++;
     CHECK(total == f.bank.param_count());
     CHECK(f.bank.param_count() > 0);
     for (uint16_t k = 0; k < f.bank.param_count(); k++)
-        CHECK(f.bank.param_at(k).meta()->role == Vars::ROLE_PARAM);
+        CHECK(f.bank.param_at(k).meta().role == Vars::ROLE_PARAM);
 }
 
 TEST_CASE("site: no two text parameters share pool bytes") {
@@ -211,11 +211,11 @@ TEST_CASE_FIXTURE(SiteBank, "vars: a row's quality IS its companion's value") {
     // One store, two names. A driver writes the quality through the row it
     // published; ST reads the companion. Nothing copies between them, so they
     // cannot lag or disagree.
-    const Vars::VarRef probe = bank.find("cli_temp_hi1");
-    const Vars::VarRef qlt   = bank.find("cli_temp_hi1_qlt");
-    REQUIRE(probe.index != Vars::VAR_NONE);
-    REQUIRE(qlt.index != Vars::VAR_NONE);
-    CHECK(bank.quality_ref(probe).index == qlt.index);
+    const uint16_t probe = bank.find("cli_temp_hi1");
+    const uint16_t qlt   = bank.find("cli_temp_hi1_qlt");
+    REQUIRE(probe != Vars::VAR_NONE);
+    REQUIRE(qlt != Vars::VAR_NONE);
+    CHECK(bank.quality_ref(probe) == qlt);
 
     bank.var(probe).publish(Vars::from_f32(Vars::T_F32, 21.5f), 1000);
     CHECK(bank.var(probe).valid());
@@ -248,14 +248,14 @@ TEST_CASE_FIXTURE(SiteBank, "vars: a row with no companion is valid, always") {
     // The rule that keeps the table small: a parameter cannot stop being one,
     // and a companion has no quality of its own - which is what stops the
     // regress.
-    const Vars::VarRef param = bank.find("cli_coldBankOfs_degC");
-    REQUIRE(param.index != Vars::VAR_NONE);
-    CHECK(bank.quality_ref(param).index == Vars::VAR_NONE);
+    const uint16_t param = bank.find("cli_coldBankOfs_degC");
+    REQUIRE(param != Vars::VAR_NONE);
+    CHECK(bank.quality_ref(param) == Vars::VAR_NONE);
     CHECK(bank.var(param).valid());
 
-    const Vars::VarRef qlt = bank.find("cli_temp_hi1_qlt");
-    REQUIRE(qlt.index != Vars::VAR_NONE);
-    CHECK(bank.quality_ref(qlt).index == Vars::VAR_NONE);
+    const uint16_t qlt = bank.find("cli_temp_hi1_qlt");
+    REQUIRE(qlt != Vars::VAR_NONE);
+    CHECK(bank.quality_ref(qlt) == Vars::VAR_NONE);
     bank.var(qlt).set_i(Vars::Q_NO_DATA);
     CHECK(bank.var(qlt).valid());
 }
@@ -263,7 +263,7 @@ TEST_CASE_FIXTURE(SiteBank, "vars: a row with no companion is valid, always") {
 TEST_CASE_FIXTURE(SiteBank, "vars: a forced value is believed, a forced quality wins") {
     // Forcing a dead probe's reading so the plant runs on it is what an
     // override is FOR, so the force does not inherit the doubt underneath it.
-    const Vars::VarRef probe = bank.find("cli_temp_hi1");
+    const uint16_t probe = bank.find("cli_temp_hi1");
     bank.var(bank.quality_ref(probe)).set_i(Vars::Q_STALE);
     REQUIRE_FALSE(bank.var(probe).valid());
 
@@ -281,7 +281,7 @@ TEST_CASE_FIXTURE(SiteBank, "vars: a forced value is believed, a forced quality 
 TEST_CASE_FIXTURE(SiteBank, "vars: forcing a companion is how a row reads dead") {
     // The override layer carries no validity of its own any more: "make this
     // sensor read failed" is an ordinary force of an ordinary row.
-    const Vars::VarRef probe = bank.find("cli_temp_hi1");
+    const uint16_t probe = bank.find("cli_temp_hi1");
     bank.var(probe).publish(Vars::from_f32(Vars::T_F32, 21.5f), 1000);
     REQUIRE(bank.var(probe).valid());
 
@@ -335,8 +335,8 @@ TEST_CASE("site: every program publishes its health, off its own name") {
         char row[40];
         snprintf(row, sizeof row, "prog_%s", name);
         INFO("'" << name << "' should drive '" << row << "'");
-        const Vars::VarRef declared = bank.find(row, (uint16_t)strlen(row));
-        REQUIRE(declared.index != Vars::VAR_NONE);   // the site declares one
+        const uint16_t declared = bank.find(row, (uint16_t)strlen(row));
+        REQUIRE(declared != Vars::VAR_NONE);   // the site declares one
         INFO("...and it reads its health rather than the INHIBITED it declares");
         CHECK(bank.var(declared).value().as<uint32_t>()
               == (uint32_t)Plc::Health::HEALTHY);
@@ -459,8 +459,8 @@ TEST_CASE("library: a site row REDECLARES a library one, and the site's wins") {
     // LAST declaration and compacts the earlier row out, so the whole row is
     // the site's - the band and the description included, not just the value.
     SiteBank f;
-    const Vars::VarRef r = f.bank.find("geo_lat_deg");
-    REQUIRE(r.index != Vars::VAR_NONE);
+    const uint16_t r = f.bank.find("geo_lat_deg");
+    REQUIRE(r != Vars::VAR_NONE);
 
     INFO("one row, not two: the earlier declaration is compacted away");
     uint16_t seen = 0;
@@ -469,7 +469,7 @@ TEST_CASE("library: a site row REDECLARES a library one, and the site's wins") {
     CHECK(seen == 1);
 
     INFO("and it is the SITE's row: the library declares no band and no unit");
-    const Vars::Descriptor& d = f.bank.descriptor(r.index);
+    const Vars::Descriptor& d = f.bank.descriptor(r);
     CHECK(f.bank.var(r).as_f32() == doctest::Approx(47.96f));
     CHECK(strcmp(d.unit, "deg") == 0);
     INFO("...keeping the register the library assigned it");
@@ -551,8 +551,8 @@ TEST_CASE("params: restating a value owes the store nothing") {
     CountingStore store;
     bank.set_store(&store);
 
-    const Vars::VarRef r = bank.find("irr_soak_sec");
-    REQUIRE(r.index != Vars::VAR_NONE);
+    const uint16_t r = bank.find("irr_soak_sec");
+    REQUIRE(r != Vars::VAR_NONE);
     REQUIRE(bank.param_set(bank.var(r), "5") == Vars::SET_OK);
     CHECK(bank.var(r).param_unsaved());
     REQUIRE(bank.save_params() == 1);
@@ -580,8 +580,8 @@ TEST_CASE("params: a program's write waits on the cadence, an operator's on the 
     bank.set_store(&store);
 
     // The program's: a watering date, through the parameter path a law uses.
-    const Vars::VarRef date = bank.find("irr_last_tray1");
-    REQUIRE(date.index != Vars::VAR_NONE);
+    const uint16_t date = bank.find("irr_last_tray1");
+    REQUIRE(date != Vars::VAR_NONE);
     Vars::Ref<uint32_t> stamp = bank.resolve<uint32_t>("irr_last_tray1");
     REQUIRE(stamp.edit(20000u));
     INFO("OWED, not unsaved: the params page counts what a PERSON typed, and a "
@@ -596,8 +596,8 @@ TEST_CASE("params: a program's write waits on the cadence, an operator's on the 
     CHECK(store.writes == 0);
 
     // The operator's: an ordinary setting, typed.
-    const Vars::VarRef setting = bank.find("irr_soak_sec");
-    REQUIRE(setting.index != Vars::VAR_NONE);
+    const uint16_t setting = bank.find("irr_soak_sec");
+    REQUIRE(setting != Vars::VAR_NONE);
     REQUIRE(bank.param_set(bank.var(setting), "5") == Vars::SET_OK);
     CHECK(bank.var(setting).param_unsaved());
 

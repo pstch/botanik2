@@ -103,12 +103,12 @@ namespace Botanik { namespace Modbus {
 
         /** @brief The library's field-bus rows, resolved by name once at
          *  bring-up. @see modbus/rtu/alarms.h */
-        Vars::VarRef _alarm_ref;
-        Vars::VarRef _line_ref;
-        Vars::VarRef _drop_ref;
-        Vars::VarRef _dead_ref;
-        Vars::VarRef _crc_ref;
-        Vars::VarRef _stray_ref;
+        uint16_t _alarm_ref;
+        uint16_t _line_ref;
+        uint16_t _drop_ref;
+        uint16_t _dead_ref;
+        uint16_t _crc_ref;
+        uint16_t _stray_ref;
 
         /** @brief The `rtu_` tuning rows, resolved the same way.
          *
@@ -118,12 +118,12 @@ namespace Botanik { namespace Modbus {
          *  lands on the next transaction with nothing to re-initialise - which
          *  is why the group carries no commit serial.
          *  @see modbus/rtu/params.h */
-        Vars::VarRef _p_timeout;
-        Vars::VarRef _p_retries;
-        Vars::VarRef _p_backoff;
-        Vars::VarRef _p_backoff_max;
-        Vars::VarRef _p_write_min;
-        Vars::VarRef _p_rewrite;
+        uint16_t _p_timeout;
+        uint16_t _p_retries;
+        uint16_t _p_backoff;
+        uint16_t _p_backoff_max;
+        uint16_t _p_write_min;
+        uint16_t _p_rewrite;
 
         uint64_t            _since_ms = 0;     ///< when the current state was entered
 
@@ -253,7 +253,7 @@ namespace Botanik { namespace Modbus {
          *  The Config constant is the fallback as well as the row's factory
          *  value, so a build with no rows behaves exactly as it did before they
          *  existed. */
-        uint32_t _tune(Vars::VarRef r, uint32_t dflt) const;
+        uint32_t _tune(uint16_t r, uint32_t dflt) const;
 
         uint32_t _timeout_ms()     const { return _tune(_p_timeout,     Config::MODBUS_TIMEOUT_MS); }
         uint8_t  _retries()        const { return (uint8_t)_tune(_p_retries, Config::MODBUS_RETRIES); }

@@ -101,7 +101,7 @@ struct Plant {
     float num(const char* row)  { return f.bank.var(f.ref(row)).as_f32(); }
     bool  on(const char* row)   { return f.bank.var(f.ref(row)).as_bool(); }
     bool  valid(const char* row){ return f.bank.var(f.ref(row)).valid(); }
-    Vars::VarRef ref(const char* n) { return f.bank.find(n); }
+    uint16_t ref(const char* n) { return f.bank.find(n); }
 };
 
 /** @brief The interior, the space under it, and the sky - the four things a

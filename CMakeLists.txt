@@ -174,6 +174,15 @@ endif()
 target_compile_definitions(botanik PUBLIC
     BOTANIK_SITE_CONFIG=\"${_site_config}\"
     BOTANIK_SITE_HEADER=\"${_site_dir}/site.h\")
+# The row INDICES, the same way. A library consumer names a row through
+# Vars::Row::<name>, so a name no table declares is a compile error rather than
+# a reference that resolves to the sink for the life of the run. A site with no
+# generated table (sites/bare) leaves it unset, and vars/rows.h then declares
+# nothing - which is right: that build has no variable model either.
+if(EXISTS "${_site_dir}/generated/rows.gen.h")
+    target_compile_definitions(botanik PUBLIC
+        BOTANIK_SITE_ROWS=\"${_site_dir}/generated/rows.gen.h\")
+endif()
 message(STATUS "Site: ${_site_dir}")
 
 # Optional-subsystem feature flags; defaults live in libbotanik_features.h.

@@ -40,7 +40,7 @@ END_VAR
      the loop is out, and averaging that is the same number over and over. A
      loop that comes back rejoins the average where it left. *)
   flow_avg.X     := irr_out_Lpm;
-  flow_avg.OK_IN := measured;
+  flow_avg.Q_IN  := irr_out_Lpm_qlt;
   flow_avg.NOW   := sys_now_ms;
   flow_avg.TAU_S := UINT_TO_REAL(irr_out_avg_ms) / 1000.0;
   flow_avg.LO    := 0.0;

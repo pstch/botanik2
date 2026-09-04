@@ -60,7 +60,7 @@ namespace Botanik { namespace Pages {
         const Vars::HomeVar* _fields      = nullptr;
         /** @brief The rows' resolved indices, filled at bring-up (the table
          *  above names its variables rather than indexing them). */
-        const Vars::VarRef*  _refs        = nullptr;
+        const uint16_t*  _refs        = nullptr;
         uint8_t                   _field_count = 0;
         const Vars::Bank*           _io          = nullptr;
 
@@ -158,7 +158,7 @@ namespace Botanik { namespace Pages {
          *  bring-up (all borrowed; may be null/0 for a bare home screen). */
         HomePage(Console& console, const Vars::HomeVar* fields = nullptr,
                  uint8_t count = 0, const Vars::Bank* io = nullptr,
-                 const Vars::VarRef* refs = nullptr)
+                 const uint16_t* refs = nullptr)
             : MetricPage(console),
               Logs::BufferedLogWriter(_slots, (uint8_t)Config::LOG_QUEUE_HOME,
                                       nullptr, "home_log_level"),

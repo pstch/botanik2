@@ -48,7 +48,7 @@ END_VAR
      in one beat. The filter adopts its first reading whole, so an outage does
      not ease up from whatever it held before. *)
   smooth.X     := held;
-  smooth.OK_IN := TRUE;
+  smooth.Q_IN  := Q_GOOD;
   smooth.TAU_S := UINT_TO_REAL(cli_targetTau_s);
   smooth.NOW   := sys_now_ms;
   smooth.LO    := 0.0;

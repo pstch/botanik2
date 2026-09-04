@@ -11,6 +11,7 @@
  *  `bind()`; everything internal to a POU stays a plain member.
  */
 #include "libbotanik/vars/model.h"
+#include "libbotanik/plc/runtime/quality.gen.h"
 #include "iec_std_lib.h"
 
 // Every name below is matiec's, not ours: its generated C calls these exact
@@ -42,25 +43,17 @@
 
 /** @name The ST type QUALITY, which IS Vars::Quality
  *
- *  A `x_qlt` row resolves to Ref<Quality>, so the enumeration ST compares
- *  against has to be the SAME C++ type rather than one with equal values -
- *  matiec initialises a QUALITY-returning function with `QUALITY__Q_NO_DATA`,
- *  and a separate enum would not convert.
+ *  A `x_qlt` row is a Ref<Quality>, so the enumeration ST compares against has
+ *  to be the SAME C++ type rather than one with equal values - matiec
+ *  initialises a QUALITY-returning function with `QUALITY__Q_NONE`, and a
+ *  separate enum would not convert.
  *
- *  So the members are named constants of the real type and matiec's own list
- *  is discarded. A code added to `plc/functions/quality.st` and not to
- *  descriptor.h fails HERE, on the name matiec emits for it, which is the
- *  failure wanted. A second enumerated ST type needs its own block.
+ *  So the members are named constants of the real type and matiec's own list is
+ *  discarded. The block is GENERATED from `descriptor.h`, so the two cannot
+ *  drift. A second enumerated ST type needs its own block.
  *  @{ */
 typedef ::Botanik::Vars::Quality QUALITY;
 #define __DECLARE_ENUMERATED_TYPE(name, ...) BOTANIK_ST_TYPE_##name
-#define BOTANIK_ST_TYPE_QUALITY                                                \
-    static const QUALITY QUALITY__Q_NO_DATA     = ::Botanik::Vars::Q_NO_DATA;  \
-    static const QUALITY QUALITY__Q_VALID       = ::Botanik::Vars::Q_VALID;    \
-    static const QUALITY QUALITY__Q_STALE       = ::Botanik::Vars::Q_STALE;    \
-    static const QUALITY QUALITY__Q_IMPLAUSIBLE = ::Botanik::Vars::Q_IMPLAUSIBLE; \
-    static const QUALITY QUALITY__Q_REFUSED     = ::Botanik::Vars::Q_REFUSED;    \
-    static const QUALITY QUALITY__Q_SUBSTITUTED = ::Botanik::Vars::Q_SUBSTITUTED;
 /** @} */
 
 #define __BOOL_LITERAL(v)   ((BOOL)(v))
@@ -83,18 +76,18 @@ typedef ::Botanik::Vars::Quality QUALITY;
  *  between a value and matiec's own `{value, flags}` struct, which does not
  *  compile against matiec's own runtime either.
  *
- *  `__INIT_EXTERNAL` is the whole of `bind()`: one resolve per row, at setup.
+ *  `__INIT_EXTERNAL` is the whole of `bind()`: one generated INDEX per row.
  *  IEC is case-insensitive and matiec upper-cases every identifier, so the
- *  resolve folds case. All 425 site rows stay unique under folding.
+ *  index is `ROW_<NAME>`, which plant.cpp defines from the table. A name no
+ *  table declares fails to COMPILE.
  *  @{ */
 
 #define __DECLARE_EXTERNAL(type, name) \
     ::Botanik::Vars::Ref< type > name;
 
 /* The row already exists in the site's table, so a VAR_GLOBAL declares
- * nothing. It only has to name itself for __INIT_EXTERNAL to find. */
-#define __DECLARE_GLOBAL(type, domain, name) \
-    static const char* const GLOBAL_NAME__##name = #name;
+ * nothing at all. */
+#define __DECLARE_GLOBAL(type, domain, name)
 #define __INIT_GLOBAL(type, name, initial, retained)  do { } while (0);
 #define __DECLARE_GLOBAL_LOCATION(type, location)
 /* The config header restates every global as a prototype. The row already
@@ -104,11 +97,11 @@ typedef ::Botanik::Vars::Quality QUALITY;
 #define __INIT_RETAIN(name, retained)
 
 #define __INIT_EXTERNAL(type, global, name, retained) \
-    (name) = ::Botanik::Plc::Runtime::resolve_ci< type >(BOTANIK_ST_IO, #global);
+    (name) = ::Botanik::Vars::Ref< type >{ ROW_##global };
 
-/* A Ref carries its store, so only the RESOLVE needs to be told which bank.
- * Reads and writes go through the reference, exactly as a C++ law writes
- * them - which is the point: the generated body is our own spelling. */
+/* A Ref reads the runtime's one bank, so nothing here is told which. Reads and
+ * writes go through the reference, exactly as a C++ law writes them - which is
+ * the point: the generated body is our own spelling. */
 #define __GET_EXTERNAL(name, ...)   (name).get()
 /* drive(), not set(): a PARAMETER an ST program writes is state the plant has
  * to keep - a watering date, a spent one-shot force - and set() would leave the
