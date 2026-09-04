@@ -423,16 +423,22 @@ namespace Botanik { namespace Pages {
             if (_site_fields == nullptr || _io == nullptr || _site_refs == nullptr) return;
             const Band b = band();
             const uint16_t rows = _site_rows();
-            char vb[48], fld[64];
+            char vb[32], buf[48], fld[64];
             for (uint8_t i = 0; i < _site_count && i < Config::SYSTEM_FIELDS_MAX; i++) {
                 const uint16_t row = (uint16_t)(PAYLOAD_ROW + 1 + (i % rows));
                 const bool     left = i < rows;
                 const uint16_t col  = left ? b.l_val : b.r_val;
                 const uint16_t w    = left ? b.l_w   : b.r_w;
                 const Vars::Var h = _io->var(_site_refs[i]);
-                _cell(row, col,
-                      rjust(fld, sizeof(fld), w,
-                            Vars::var_format(*_io, h, vb, sizeof(vb))), w);
+                // Value THEN unit, as the home screen does it: a declared row
+                // carries its unit and a bare 227.0 is not a reading.
+                const char* v = Vars::var_format(*_io, h, vb, sizeof(vb));
+                const char* u = h.meta()->unit;
+                if (u != nullptr && u[0] != '\0')
+                    snprintf(buf, sizeof(buf), "%s %s", v, u);
+                else
+                    snprintf(buf, sizeof(buf), "%s", v);
+                _cell(row, col, rjust(fld, sizeof(fld), w, buf), w);
             }
 #endif
         }
