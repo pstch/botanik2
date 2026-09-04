@@ -315,7 +315,7 @@ namespace Botanik { namespace Shell {
          *
          *  Editing and committing are two commands because they are two
          *  decisions: a value is live the moment it is set, and durable only
-         *  once saved. @see Vars::Bank::set()
+         *  once saved. @see Vars::Var::param_set()
          *  @{ */
         /** @brief `params set <name> <value>`. @p nm / @p wn are the name word;
          *  @p args / @p alen carry the value and are consumed here. */

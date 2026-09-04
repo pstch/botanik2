@@ -267,7 +267,7 @@ TEST_CASE("modbus map: a write goes through the band check an operator gets") {
     const Vars::Descriptor& d = v.meta();
     INFO("writing " << d.name << " at register " << reg);
 
-    // Bank::set() is the one door, so a wire write is range-checked exactly as
+    // Var::param_set() is the one door, so a wire write is range-checked as
     // the shell's `params set` is. A master is not more trusted than an operator.
     const uint32_t w = f.map.to_wire(v);
     uint16_t committed = 0;

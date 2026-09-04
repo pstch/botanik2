@@ -25,7 +25,7 @@ namespace Botanik {
           _persist(_setup, _io),
           _binder(_setup, &_io),
 #endif
-          // The alarm model scans the variable table for SCOPE_A rows;
+          // The alarm model scans the variable table for K_ALARM rows;
           // platform-health alarms are appended and driven locally.
 #if BOTANIK_FEATURE_SUN_TRACKER
           _sun(_setup),
@@ -177,7 +177,7 @@ namespace Botanik {
 #if BOTANIK_FEATURE_SUN_TRACKER
         // The tracker publishes its own rows, so a site gets the sun by turning
         // the feature on rather than by writing a program to copy the
-        // instrument onto them. After freeze(), like every other resolve.
+        // instrument onto them.
         _sun.wire(_io);
 #endif
         // Persist holds the store: the bank is RAM-only, and Persist::on_setup()

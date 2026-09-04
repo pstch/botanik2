@@ -110,7 +110,7 @@ int main(int argc, char** argv) {
 
 #if BOTANIK_FEATURE_MODBUS_RTU_SERVER
     // The field devices, learned from the site's own table: every unit id an
-    // XP_MODBUS row names is a box that has to answer.
+    // field row names is a box that has to answer.
     Sim::FieldBus fieldbus;
     fieldbus.bind(&greenhouse.io());
     // The animator's readings go into the DEVICES from here, not into the bank

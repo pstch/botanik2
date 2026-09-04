@@ -100,7 +100,7 @@ namespace Botanik { namespace Config {
 #endif
     BOTANIK_CFG(uint32_t, MODBUS_TURNAROUND_MS);
 
-    /** @brief Most XP_MODBUS rows the planner will hold. Sized above the
+    /** @brief Most field rows the planner will hold. Sized above the
      *  reference site's 70; rows past it are dropped and counted, never
      *  silently ignored. */
 #ifndef BOTANIK_MODBUS_MAX_ROWS

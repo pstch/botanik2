@@ -5,7 +5,7 @@
  * @file alarms.h
  * @brief Alarm model - per-condition dwell/latch state machine.
  *
- * A condition is a `SCOPE_A` row in the variable table: the boolean that raises
+ * A condition is a `K_ALARM` row in the variable table: the boolean that raises
  * it plus the announce policy it runs on. Per condition the model tracks:
  *  - the raw input
  *  - the active state
@@ -13,7 +13,7 @@
  *  - what this episode already announced, which is what detects a FLAP
  *  - the operator's acknowledgement, cleared on each fresh ON edge.
  *
- * Conditions are built by scanning the variable table for SCOPE_A rows.
+ * Conditions are built by scanning the variable table for K_ALARM rows.
  */
 
 #include <cstdint>
@@ -52,7 +52,7 @@ namespace Botanik { namespace Alarms {
      *  dynamic state.
      *
      *  The row is BORROWED, not copied: its text and announce policy are
-     *  already flash-resident on the `SCOPE_A` descriptor, so the accessors
+     *  already flash-resident on the `K_ALARM` descriptor, so the accessors
      *  below read straight through and there is no second copy to disagree. */
     struct AlarmCondition {
         /** @name The row
@@ -214,7 +214,7 @@ namespace Botanik { namespace Alarms {
         /// model-owned working array, in table order
         AlarmCondition  _conditions[Config::ALARM_SLOTS];
         uint8_t         _count;          // conditions scanned out of the table
-        /** @brief SCOPE_A rows the table DECLARES, which is @c _count unless the
+        /** @brief K_ALARM rows the table DECLARES, which is @c _count unless the
          *  table overran the slots. The pair is what makes a lost tail visible;
          *  @c _count alone saturates and cannot say. */
         uint16_t        _declared;
@@ -376,7 +376,7 @@ namespace Botanik { namespace Alarms {
          *  actually drives. */
         uint8_t  count() const { return _count; }
 
-        /** @brief SCOPE_A rows the variable table declares. Above count() means
+        /** @brief K_ALARM rows the variable table declares. Above count() means
          *  the table overran ALARM_SLOTS and the tail is not being driven. */
         uint16_t declared_count() const { return _declared; }
 

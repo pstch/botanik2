@@ -112,7 +112,7 @@ namespace Botanik { namespace Sim {
         }
 
         /** @brief Learn the devices from the table itself: every distinct unit
-         *  id an XP_MODBUS row names is a box that has to answer. */
+         *  id a field row names is a box that has to answer. */
         void bind(Vars::Bank* io) {
             _io = io;
             _count = 0;

@@ -40,7 +40,7 @@ struct PlanFixture {
 
 TEST_CASE("modbus plan: every declared row on the bus gets scanned") {
     PlanFixture f;
-    // The two ways a row silently stops being read: more XP_MODBUS rows than
+    // The two ways a row silently stops being read: more field rows than
     // the plan holds, and a block that could not be made legal for its device.
     // Both are counted rather than logged once at bring-up, because a row that
     // is never requested looks exactly like a device that never answers.

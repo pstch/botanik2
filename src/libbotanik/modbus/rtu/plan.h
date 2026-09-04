@@ -192,14 +192,14 @@ namespace Botanik { namespace Modbus {
          *  @{ */
 
         Block    _blocks[Config::MODBUS_MAX_BLOCKS];
-        /** @brief Variable-table indices of every XP_MODBUS row, sorted into
+        /** @brief Variable-table indices of every field row, sorted into
          *  the order the blocks are cut from. */
         uint16_t _rows[Config::MODBUS_MAX_ROWS];
         uint16_t _row_count      = 0;
         uint16_t _block_count    = 0;
         /** @brief Borrowed, flash-resident, may be null. @see device.h */
         const DeviceTable* _devices = nullptr;
-        uint16_t _rows_dropped   = 0;   ///< more XP_MODBUS rows than _rows holds
+        uint16_t _rows_dropped   = 0;   ///< more field rows than _rows holds
         /** @brief Rows that will never be scanned: the plan ran out of blocks,
          *  or a block could not be made legal for its device. Counted in ROWS,
          *  which is what an operator can go and look for. */
@@ -278,7 +278,7 @@ namespace Botanik { namespace Modbus {
         /** @} */
 
     private:
-        /** @brief Gather the XP_MODBUS rows out of @p io into _rows. */
+        /** @brief Gather the field rows out of @p io into _rows. */
         void _collect(const Vars::Bank& io);
         /** @brief Sort _rows by (device, function code, rung, register). */
         void _sort(const Vars::Bank& io);

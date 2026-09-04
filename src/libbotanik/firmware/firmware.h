@@ -74,8 +74,8 @@ namespace Botanik {
 
     /**
      * @brief The declarative description of a site: its name plus its tables.
-     * @note Alarms are NOT a table here - each is a SCOPE_A row in @c vars, and
-     *       parameters are the ROLE_PARAM rows within it.
+     * @note Alarms are NOT a table here - each is a K_ALARM row in @c vars, and
+     *       parameters are the K_PARAM rows within it.
      * @note Any table may be null / count 0. Every pointer is borrowed and must
      *       outlive the firmware.
      */

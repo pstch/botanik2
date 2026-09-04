@@ -146,7 +146,7 @@ namespace Botanik { namespace Modbus {
 
         /** @name Writing
          *
-         *  Only ROLE_PARAM rows are writable, and only through Bank::set(), so a
+         *  Only K_PARAM rows are writable, and only through Var::param_set(), so a
          *  write over the wire gets the same band check and persistence an
          *  operator's does. A write whose value equals what the row already holds
          *  commits NOTHING: a master re-asserting its setpoint block every poll is

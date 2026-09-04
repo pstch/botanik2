@@ -6,7 +6,7 @@
  * @brief AlarmSourceTable - where an alarm comes from.
  *
  * AlarmController owns the dwell, the latch and the announce; it does not own
- * where the boolean lives. With a variable table that is a SCOPE_A row; without
+ * where the boolean lives. With a variable table that is a K_ALARM row; without
  * one it is a bool the owner publishes into. Both answer this interface, so the
  * controller and everything drawing it are the same code either way.
  *

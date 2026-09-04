@@ -3,7 +3,7 @@
 
 /**
  * @file vars/alarm_rows.h
- * @brief BankAlarms - the site's SCOPE_A rows, as an alarm source.
+ * @brief BankAlarms - the site's K_ALARM rows, as an alarm source.
  *
  * There is no site alarm table: an alarm IS a row carrying both its boolean and
  * its dwell policy. This projects those rows onto Alarms::AlarmSourceTable, so
@@ -25,7 +25,7 @@ namespace Botanik { namespace Vars {
          *  runs the table in order. */
         uint16_t      _row[Config::ALARM_SLOTS];
         uint16_t    _count = 0;
-        /** @brief SCOPE_A rows the table DECLARES, which is @c _count unless it
+        /** @brief K_ALARM rows the table DECLARES, which is @c _count unless it
          *  overran the slots. The pair is what makes a lost tail visible. */
         uint16_t    _declared = 0;
         Bank*       _io = nullptr;
@@ -43,7 +43,7 @@ namespace Botanik { namespace Vars {
          *  rather than the alarm. */
         uint16_t row(uint16_t i) const { return _row[i]; }
 
-        /** @brief Every SCOPE_A row the table declares, slots or not - the
+        /** @brief Every K_ALARM row the table declares, slots or not - the
          *  contract AlarmSourceTable states, and what makes a lost tail
          *  visible. The controller caps its own loop at ALARM_SLOTS, and the
          *  row accessors below are only reached for what it took. */

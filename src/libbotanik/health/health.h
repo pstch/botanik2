@@ -166,7 +166,7 @@ namespace Botanik { namespace Health {
         Alarms::MqttAlarmNotifier          _notifier; ///< MQTT transition sink
 #endif
 #if BOTANIK_FEATURE_VARS
-        /** @brief The site's SCOPE_A rows as an alarm source. Declared BEFORE
+        /** @brief The site's K_ALARM rows as an alarm source. Declared BEFORE
          *  _model, which is constructed with its address. */
         Vars::BankAlarms                        _alarm_rows;
 #endif
@@ -262,7 +262,7 @@ namespace Botanik { namespace Health {
     public:
         /** @brief Build the notifier + model. Either way the model is handed
          *  `_alarm_rows`: with a variable table that is a BankAlarms over the
-         *  SCOPE_A rows, without one a StaticAlarmTable over the six this
+         *  K_ALARM rows, without one a StaticAlarmTable over the six this
          *  object declares itself. */
         HealthMonitor(const SetupContext& ctx,
                       const Scheduler::SchedulerContext* sched,

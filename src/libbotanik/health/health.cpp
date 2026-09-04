@@ -44,7 +44,7 @@ namespace Botanik { namespace Health {
 #endif
 
 #if !BOTANIK_FEATURE_VARS
-    /** @brief The same six as the library's own SCOPE_A rows carry, for a build
+    /** @brief The same six as the library's own K_ALARM rows carry, for a build
      *  with no table to read them out of. @see vars/tables/library.csv */
     const char* const HealthMonitor::PLATFORM_DESCS[HealthMonitor::PA_COUNT] = {
         "unit reset recently",

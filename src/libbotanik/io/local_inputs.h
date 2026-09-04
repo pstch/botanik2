@@ -18,7 +18,7 @@
 namespace Botanik { namespace Io {
 
     /**
-     * @brief Publishes every XP_LOCAL digital row from the PLC's own terminals.
+     * @brief Publishes every local input row from the PLC's own terminals.
      *
      * What the RTU client is to the field bus, this is to the wiring that lands
      * on the controller: a program reads a contact by NAME, and nothing above
@@ -27,8 +27,8 @@ namespace Botanik { namespace Io {
      * does.
      *
      * The rows are found once, at bring-up, by walking the table for
-     * `XP_LOCAL` + `SCOPE_DI` - local being a Modbus device address of 0, which
-     * is what `Vars::xp_of()` reads it from. There is no channel table to keep in step with
+     * `Vars::local()` - a `K_INPUT` row whose device is 0, which is the whole
+     * of what makes it ours. There is no channel table to keep in step with
      * the variable table, because the variable table IS it. A `B_PULSE` row is
      * not polled as a level - the level of a pulse line is a moment of a train
      * and not a reading of anything. It IS the counter: attached once here,

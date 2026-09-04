@@ -11,7 +11,7 @@
  * sim-only is pointing one at ourselves.
  *
  * Nothing is mocked: a real socket to the real listener, real MBAP frames, the
- * real register map over the real variable table, and `Bank::set()` doing the
+ * real register map over the real variable table, and `Var::param_set()` doing the
  * writing. The round trip is self-checking rather than value-dependent (read a
  * parameter, write it something else, read it back and compare), so it needs no
  * golden and cannot pass by coincidence - and it runs on the shipping code path

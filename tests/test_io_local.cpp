@@ -2,7 +2,7 @@
  * @file test_io_local.cpp
  * @brief The controller's own terminals: LocalInputs and LocalOutputs.
  *
- * The reference site declares NO XP_LOCAL rows - everything it has is on the
+ * The reference site declares NO local rows - everything it has is on the
  * field bus - so nothing in the suite had ever run this code against a real
  * table. These build their own, which is the only way to reach it.
  *

@@ -77,7 +77,7 @@ namespace Botanik { namespace Config {
 #endif
     BOTANIK_CFG(int32_t, ALARM_RECENT_S);
 
-    /** @brief SCOPE_A rows the alarm model has room for - the site's own and the
+    /** @brief K_ALARM rows the alarm model has room for - the site's own and the
      *  library's (alarms/platform.h) together, since they share one table. What
      *  AlarmController sizes itself on; a table with more loses its tail, which
      *  BOTANIK_ASSERT catches. One number, because there is one table.

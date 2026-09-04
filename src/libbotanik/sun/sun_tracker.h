@@ -122,9 +122,8 @@ namespace Botanik { namespace Sun {
          *  and nothing in the beat waits on it. */
         void register_tasks() override;
 
-        /** @brief Resolve the four rows this publishes. After freeze(), like
-         *  every other bring-up resolve; unwired, the tracker still computes
-         *  and simply says nothing. */
+        /** @brief Bind the four rows this publishes. Unwired, the tracker
+         *  still computes and simply says nothing. */
         void wire(Vars::Bank& io);
 
     protected:

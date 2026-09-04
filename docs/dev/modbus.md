@@ -278,7 +278,7 @@ Uniqueness alone would let an alarm take 750 and read as a parameter to
 everyone downstream, so `test_site.cpp` asserts that every row sits in the block
 its scope puts it in - not merely that no two rows collide.
 
-A write reaches `Bank::set()`, which validates against the row's declared band.
+A write reaches `Var::param_set()`, which validates against the row's band.
 Persisting is queued rather than synchronous: a master writing forty parameters
 in one transaction would otherwise be forty flash erases inside one beat. The
 queue drains a few per beat and answers `EX_SLAVE_BUSY` when it is already full,

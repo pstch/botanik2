@@ -16,7 +16,7 @@
 namespace Botanik { namespace Io {
 
     /**
-     * @brief Carries every `XP_LOCAL` output row to the pin it named.
+     * @brief Carries every local output row to the pin it named.
      *
      * The mirror image of LocalInputs, and the same rule: local is a Modbus
      * device address of 0, the row's `reg` is the `HAL::Pin` label its table

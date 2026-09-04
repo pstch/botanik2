@@ -38,8 +38,8 @@ namespace Botanik { namespace Network {
         bool     retain    = true;
     };
 
-    // Vars::var_published / var_group (what goes out, and under what) live in
-    // vars/access.h, so non-network consumers (the MONITOR page) read them
+    // Vars::published() and Vars::var_group() (what goes out, and under what)
+    // live in vars/, so non-network consumers (the MONITOR page) read them
     // without the MqttSender.
 
     /** @brief Periodic MQTT telemetry publisher (see file header). */
@@ -61,7 +61,7 @@ namespace Botanik { namespace Network {
         const SystemContext*  _sys;
         /** @brief The variable table this publishes from; null until a site
          *  registers it. Which rows go out, and under what sub-topic, are
-         *  properties of the rows themselves - see Vars::var_published() and
+         *  properties of the rows themselves - see Vars::published() and
          *  Vars::var_group(). */
         const Vars::Bank*     _io          = nullptr;
         /** @brief The lifecycle, borrowed from the scheduler; null publishes. */

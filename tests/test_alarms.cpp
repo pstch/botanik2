@@ -362,7 +362,7 @@ namespace {
         uint64_t               now = 0;
         Terminal::Console      console;
         Vars::Bank             bank;
-        /** @brief The K_ALARM rows as an alarm source, bound after the freeze
+        /** @brief The K_ALARM rows as an alarm source, bound after the table
          *  below. NOT `rows` - the ctor's screen-height parameter is. */
         Vars::BankAlarms       alarm_rows;
         Alarms::AlarmController     model;
@@ -380,7 +380,7 @@ namespace {
             console.terminal().set_baud(4000000u);
             TestSite::build(bank, TABLE, 4);
             // The scan is on_setup() now, and the source had nothing to offer
-            // before the freeze above - so both run after it, in this order.
+            // before the table above - so both run after it, in this order.
             alarm_rows.bind(&bank);
             model.setup(0);
         }

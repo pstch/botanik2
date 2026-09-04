@@ -65,7 +65,7 @@ A site needing an extra page or a component of its own still derives
  *   SRR/CLI/TH-7..9   temp/RH           addr 47-49  low level
  *   SRR/CLI/TH-10..12 temp/RH           addr 50-52  high level
  *
- * Everything is XP_MODBUS today: the site has no XP_LOCAL variables yet.
+ * Everything is on the bus today: the site has no local terminals yet.
  *
  * @warning Binding::reg is the Modbus REGISTER ADDRESS the master puts on the
  * wire: the coil number on the relay boards, and the protocol START ADDRESS on
@@ -154,9 +154,9 @@ it is published is its scope. Naming a variable files it.
 
 Alarms are not a separate table either: an `A()` row carries the boolean that
 raises the alarm and the policy the `AlarmController` runs it on, and the model finds
-them by scanning for `SCOPE_A`.
+them by scanning for `K_ALARM`.
 
-Parameters are not a separate thing: they are the `ROLE_PARAM` rows of the same
+Parameters are not a separate thing: they are the `K_PARAM` rows of the same
 table, kept contiguous so the parameter pages can address them with a dense
 0-based index.
 

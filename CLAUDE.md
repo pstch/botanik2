@@ -303,7 +303,7 @@ Subsystems under `src/libbotanik/`. Each row's doc is the reference; the header 
   was implausible. Three codes, and the four that went were diagnoses with homes
   of their own. See `quality-companions.md`.
 - **Naming files a variable.** `var_group()` is the prefix of a name up to the first `_`;
-  `var_published()` is true iff a row is neither a parameter, an alarm, nor a quality.
+  `published()` is true iff a row is neither a parameter, an alarm, nor a quality.
   There is no group table to add a variable to and none to forget.
 
 ### Key compile-time defines

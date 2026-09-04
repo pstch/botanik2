@@ -2,7 +2,7 @@
 
 Own sim per test: an edit here commits to the parameter store.
 
-Cursor arithmetic below counts rows in the ROLE_PARAM block, which the library's
+Cursor arithmetic below counts rows in the K_PARAM block, which the library's
 parameters open (its own go last within its block, which places them first):
   0 monitor_baud  1 monitor_log_level
   2 net_serial  3 net_enable  4 net_dhcp  5 net_ip  6 net_mask  7 net_gw
