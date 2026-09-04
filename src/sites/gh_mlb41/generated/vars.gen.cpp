@@ -789,8 +789,8 @@ const HomeVar g_system_fields[] = {
     { "Local V", "sys_local_V" },
     { "Local A", "sys_local_A" },
     { "Local Hz", "sys_local_Hz" },
-    { "DC rails", "sys_dc_ok" },
     { "DC1 V", "sys_dc1_V" },
+    { "DC2 V", "sys_dc2_V" },
     { "UPS batt", "sys_upsBat_V" },
     { "Lockout", "sys_supply_lockout" },
 };
