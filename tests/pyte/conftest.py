@@ -76,6 +76,7 @@ class Term:
         env["BOTANIK_NO_RT"] = "1"            # ...and the pinning itself: ctest runs sims in parallel
         env["BOTANIK_NO_LOAD_ALARMS"] = "1"   # CPU_* fire on host timing, moving the alarm bar
         env["BOTANIK_NO_MBCHECK"] = "1"       # its traffic moves the log tail a golden pins
+        env["BOTANIK_CONSOLE_BAUD"] = "4800"  # the rate the goldens and the waits were cut for
         # Off by default: the clock is manual here, so a case that stops running
         # beats would look wedged and be re-executed under its own PTY. The one
         # case that asserts the watchdog WORKS passes watchdog=True.
