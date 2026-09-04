@@ -105,7 +105,7 @@ namespace Botanik { namespace Pages {
     }
 
     uint8_t MonitorPage::_columns(Col* out) const {
-        out[C_SCOPE] = Col{ "SCOPE",    SCOPE_W    };
+        out[C_KIND]  = Col{ "KIND",     KIND_W     };
         out[C_NAME]  = Col{ "VARIABLE", NAME_W     };
         out[C_VALUE] = Col{ "VALUE",    0          };   // flex: the base fits it
         out[C_UNIT]  = Col{ "UNIT",     UNIT_W     };

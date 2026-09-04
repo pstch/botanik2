@@ -37,8 +37,6 @@ namespace {
         SiteBank() { TestSite::build(bank); }
     };
 
-    const Botanik::SiteDescriptor& site() { return Site::g_site; }
-
 }  // namespace
 
 namespace {

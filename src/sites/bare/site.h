@@ -25,10 +25,11 @@ namespace Site {
 const Botanik::SiteDescriptor g_site = {
     Botanik::Config::SITE_NAME,
     nullptr, 0,                      // site shell commands
-    nullptr, 0, nullptr,             // home-screen readings
+    nullptr, 0,                      // home-screen readings
 #if BOTANIK_FEATURE_MODBUS_RTU_CLIENT
     nullptr,                         // what each unit answers
 #endif
+    nullptr, nullptr, 0, 0, 0,       // the variable table, and there is none
 };
 
 #if defined(TARGET_SIMULATOR) && BOTANIK_FEATURE_VARS

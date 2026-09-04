@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
 """The site, from its tables.
 
-    tables.py generate   library.csv + tables/*.csv -> vars.gen.{h,cpp}, rows.gen.h
-    tables.py config     site.toml + the tables     -> config.gen.h
-    tables.py plant      programs.csv + ST          -> plant.st, plant.cpp, and matiec
-    tables.py points     the lot                    -> docs/reference/points.md
+    tables.py generate [site]   library.csv + tables/*.csv -> vars.gen.{h,cpp}, rows.gen.h
+    tables.py config   [site]   site.toml + the tables     -> config.gen.h
+    tables.py plant    [site]   programs.csv + ST          -> plant.st, plant.cpp, matiec
+    tables.py points   [site]   the lot                    -> docs/reference/points.md
+
+`site` is a name under src/sites/, or a path. BOTANIK_SITE_DIR overrides it.
 
 Offline: the output is COMMITTED and never built. `make check-generated` is
 what holds the two together - it regenerates into a scratch copy and diffs.
@@ -17,10 +19,18 @@ it checks is checked again at runtime.
 
 import csv, os, re, sys
 
-# Overridable so `check-generated` can regenerate into a COPY and diff against
-# what is committed: a check never writes into the tree it is checking. Only
-# `points` writes a FIXED path.
-SITE = os.environ.get('BOTANIK_SITE_DIR', 'src/sites/gh_mlb41')
+DEFAULT_SITE = 'src/sites/gh_mlb41'
+
+
+def site_dir(arg=None):
+    """Which site to generate. The ARGUMENT first, so `check-generated` can
+    regenerate the site the build selected rather than the default; then the
+    environment, which is how that check redirects the whole run into a scratch
+    copy - a check never writes into the tree it is checking."""
+    env = os.environ.get('BOTANIK_SITE_DIR')
+    if env: return env
+    if not arg: return DEFAULT_SITE
+    return arg if os.sep in arg else os.path.join('src', 'sites', arg)
 
 VAR_NONE = 'VAR_NONE'
 
@@ -1184,9 +1194,10 @@ def points(site):
 
 
 if __name__ == '__main__':
-    cmd = sys.argv[1] if len(sys.argv) > 1 else ''
-    if   cmd == 'generate': generate(SITE); quality_block()
-    elif cmd == 'plant':    sys.exit(plant(SITE))
-    elif cmd == 'config':   config(SITE)
-    elif cmd == 'points':   points(SITE)
+    cmd  = sys.argv[1] if len(sys.argv) > 1 else ''
+    site = site_dir(sys.argv[2] if len(sys.argv) > 2 else None)
+    if   cmd == 'generate': generate(site); quality_block()
+    elif cmd == 'plant':    sys.exit(plant(site))
+    elif cmd == 'config':   config(site)
+    elif cmd == 'points':   points(site)
     else:                   sys.exit(__doc__)

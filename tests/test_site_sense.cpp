@@ -1014,7 +1014,6 @@ TEST_CASE_FIXTURE(StRig, "intake: a gate holds while the two temperatures conver
 TEST_CASE_FIXTURE(StRig, "zone: a house nobody can see says so, and keeps venting") {
     Vars::Ref<float> in  = TestScan::ref_of<float>(live, "cli_temp_in");
     const uint16_t blind   = live.ref("alarm_zone_blind");
-    const uint16_t in_qlt  = live.ref("cli_temp_in_qlt");
     uint64_t t = 0;
 
     // Warm inside, cooler outside: the ordinary way round for a greenhouse.

@@ -8,7 +8,7 @@
  *
  * Layout (row 0 is the status bar, the bottom row the alarm bar):
  *   row 1            blank top margin
- *   row 2            header  (| SCOPE | VARIABLE | VALUE | UNIT | OVERRIDE |)
+ *   row 2            header  (| KIND | VARIABLE | VALUE | UNIT | OVERRIDE |)
  *   row 3            top rule (corners cap to '^' when rows are hidden above)
  *   rows 4..N-10      one row per status variable (window into the full set)
  *   row N-9          bottom rule (corners cap to 'v' when hidden below)
@@ -59,7 +59,7 @@ namespace Botanik { namespace Pages {
         static constexpr uint16_t HEADER_ROW = 2;
         static constexpr uint16_t TRULE_ROW  = 3;    // top rule
         static constexpr uint16_t DATA_TOP   = 4;    // first variable row
-        static constexpr uint16_t SCOPE_W    = 8;    // where the value lives
+        static constexpr uint16_t KIND_W     = 8;    // where the value lives
         // Wide enough for the longest site name today (18) plus headroom, since
         // the generated tables keep growing and a clipped name is unusable.
         static constexpr uint16_t NAME_W     = 24;   // variable-name column
@@ -78,7 +78,7 @@ namespace Botanik { namespace Pages {
          *  row is all it ever uses; the spares cost 36 bytes. */
         static constexpr uint16_t OVR_EDIT_ROWS = 4;
         /** @brief Column order, for the derived cell positions below. */
-        enum { C_SCOPE = 0, C_NAME, C_VALUE, C_UNIT, C_OVR };
+        enum { C_KIND = 0, C_NAME, C_VALUE, C_UNIT, C_OVR };
         /** @} */
 
         /** @name Views

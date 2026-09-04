@@ -236,7 +236,6 @@ TEST_CASE_FIXTURE(StRig,
     // the state before: the flush's flow read as a leak the instant the cycle
     // went idle, and idle's zero read as a pressure fault the instant a fill
     // opened. Both fired on every cycle the plant ran.
-    const uint16_t st   = live.ref("irr_state");
     const uint16_t leak = live.ref("alarm_water_leak");
     const uint16_t pres = live.ref("alarm_water_pressure");
     // The law waits two of these: a window straddling the change closes with
