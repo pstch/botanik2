@@ -94,6 +94,12 @@ namespace Botanik { namespace Modbus {
                   const char* name = "ModbusTCPMaster")
             : Component(ctx, name), _name(name) {}
 
+        /** @brief Closes the socket. The firmware's own master outlives the
+         *  run, but a test rig builds one per case, and a leaked descriptor is
+         *  a socket the host keeps for us. @see TcpSlave, which does the same
+         *  for its listener. */
+        ~TcpMaster() override { disconnect(); }
+
         /** @name Connection
          *  @{ */
 

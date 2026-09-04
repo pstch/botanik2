@@ -93,8 +93,14 @@ for the isolation it wants.
 
 On a doctest failure the gate (`tests/gate.cmake`) re-runs the per-case entries itself, so
 each failing case is named - paid only when something is broken. **If that re-run comes
-back all-green the fault is INTERFERENCE between cases, not a flake**: reproduce it with
-`./build/tests/botanik_tests`, the one-process configuration.
+back all-green the fault is usually INTERFERENCE between cases, not a flake**: reproduce it
+with `./build/tests/botanik_tests`, the one-process configuration.
+
+The exception is the socket-backed cases (`test_modbus_server.cpp`,
+`test_modbus_master.cpp`), which bind a PID-derived 127/8 address so that parallel
+processes do not fight over a port - a recycled PID can therefore meet the lingering
+sockets of a run that just exited. **If ONLY those failed and nothing else did, re-run
+before digging.**
 
 **`make check-full`** runs clang-tidy over `src/` first, so a finding stops it before it
 pays for an instrumented rebuild, then the whole `check` gate again in `build/asan/`. It
