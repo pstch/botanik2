@@ -154,10 +154,9 @@ void RtuMaster::_missed(const Block& b, uint64_t now_ms) {
     const uint8_t steps = (uint8_t)(p->misses - _retries() - 1);
     const uint32_t cap = _backoff_max_ms();
     uint32_t wait = _backoff_ms();
-    // Capped BEFORE the doubling, not after: an unbanded override can put the
-    // cap high enough that `wait *= 2` wraps, and a wrapped value is still
-    // below it - so the loop kept doubling and the probe landed back at now,
-    // which is the whole failure the spacing exists to prevent.
+    // Capped BEFORE the doubling: an unbanded override can set a cap high
+    // enough that `wait *= 2` wraps, and a wrapped value still reads as below
+    // it.
     for (uint8_t i = 0; i < steps; ++i) {
         if (wait > cap / 2u) { wait = cap; break; }
         wait *= 2;
@@ -183,8 +182,6 @@ void RtuMaster::_publish_health() {
     for (uint8_t i = 0; i < _plan.device_count(); ++i)
         if (_peer[i].misses > _retries()) _dead++;
     if (_io == nullptr) return;
-    // Written like any other driver writes a variable: the alarm model reads the
-    // boolean, and the status value is published to MQTT and the TCP slave.
     _io->var(_alarm_ref).set(_dead != 0);
     _io->var(_dead_ref).set_i((int64_t)_dead);
 
@@ -199,10 +196,8 @@ void RtuMaster::_publish_health() {
     _io->var(_drop_ref).set(_plan.rows_dropped() != 0 ||
                             _plan.rows_unscanned() != 0);
 
-    // The framer has always kept these apart because they point at different
-    // physical faults; until now nothing read them. Saturating rather than
-    // wrapping: a counter that rolls over to nothing reads as a bus that
-    // recovered.
+    // Saturating, never wrapping: a counter that rolls over to nothing reads
+    // as a bus that recovered.
     const uint32_t crc   = _framer.crc_errors();
     const uint32_t stray = _framer.stray_bytes() + _stale_rx;
     _io->var(_crc_ref).set_i((int64_t)(crc   > 65535u ? 65535u : crc));
@@ -232,12 +227,9 @@ RtuMaster::Slot RtuMaster::_slot_of(const Block& b) const {
     // went out, so a chattering demand still cannot monopolise the bus, and
     // due_ms raises that floor further while a refusal penalty is running.
     const bool dirty = block_dirty(*_io, _plan, b);
-    // last_ms 0 is NEVER WRITTEN, not "written at uptime 0". Adding an interval
-    // to it made the floor an ABSOLUTE uptime, so at bring-up a block that has
-    // never gone out waited the whole rewrite interval before it could: a relay
-    // board that kept its power across a reset held its pre-crash coils for
-    // rtu_rewrite_ms, which the band allows up to ten minutes. seed() has always
-    // said this sentinel means overdue.
+    // last_ms 0 is NEVER WRITTEN, not "written at uptime 0": the floor is
+    // relative to it, so treating it as an uptime would hold a never-written
+    // block for the whole rewrite interval at bring-up. @see seed()
     const uint32_t interval = dirty ? _write_min_ms() : _rewrite_ms();
     // An interval of 0 is the operator saying STOP. Reachable, because an
     // override is unbanded on purpose, and the honest answer is to stop: a

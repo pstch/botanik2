@@ -1,4 +1,3 @@
-// REVIEW_35: TODO
 /**
  * @file firmware.cpp
  * @brief BotanikFirmware: construction, bring-up, and the task table.
@@ -121,8 +120,8 @@ namespace Botanik {
 #endif
         // EVERY bind is inside this guard: the binder is the table's, so with
         // no table there is nothing to bind and each component keeps the
-        // defaults it was constructed with. The network binds used to sit
-        // outside it, and NETWORK=ON with VARS=OFF did not compile.
+        // defaults it was constructed with. Keep the network binds in here
+        // too: NETWORK=ON with VARS=OFF does not compile otherwise.
 #endif  // BOTANIK_FEATURE_VARS
 
         // Wire the status aggregate now every subsystem address is fixed.

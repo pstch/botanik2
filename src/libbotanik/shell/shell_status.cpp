@@ -544,9 +544,8 @@ namespace Botanik { namespace Shell {
                      (unsigned long)rtu->stale_rx());
             _line("  Transactions", val);
 
-            // The framer has always kept these apart because they point at
-            // different physical faults, and until now nothing read them: a bus
-            // failing on CRC is a cable, a terminator or the wrong baud; one
+            // Kept apart because they point at different physical faults: a
+            // bus failing on CRC is a cable, a terminator or the wrong baud; one
             // failing on clean timeouts is power or addressing; and bytes out of
             // turn are a second master or a duplicate address.
             const Modbus::RtuFramer& fr = rtu->framer();

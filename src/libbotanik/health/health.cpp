@@ -215,8 +215,8 @@ namespace Botanik { namespace Health {
         // were accepted, latched, and never happened.
         _tasks->add(*this, &HealthMonitor::_latch_task, "sys_control_latch",
                     Tasks::EVERY_BEAT, Tasks::PHASE_SERVICE);
-        // Then the model, which this used to step inside its own task: same
-        // order, but with a rate and a TASKS row of its own.
+        // Then the model, in its own task: same order, with a rate and a
+        // TASKS row of its own.
         _model.register_tasks();
     }
 

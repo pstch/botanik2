@@ -28,9 +28,8 @@
  *
  * HEALTH is a control program's own verdict on its last activation
  * (Plc::Health), blank on an entry that is not a program - most of the table.
- * It sits where the period used to, which the panel now carries: a rate is a
- * declaration and does not move, while this is the column worth running an eye
- * down beside MISSED.
+ * The panel carries the period instead: a rate is a declaration and does not
+ * move, while this is the column worth running an eye down beside MISSED.
  *
  * MEAN is microseconds measured by the registry around each dispatch, and says
  * whether a task is affordable. MISSED takes the column beside it rather than

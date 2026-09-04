@@ -1,4 +1,3 @@
-// REVIEW_35: DONE
 /**
  * @file text.cpp
  * @brief Text helper implementations - the fixed-point float formatter that
@@ -274,7 +273,7 @@ namespace Botanik { namespace Utils {
     bool glob_bounded(const char* s, const char* pat, uint16_t len) {
         if (s == nullptr) return false;
         if (pat == nullptr || len == 0) return true;
-        // No wildcard, no change: the pattern is the prefix it has always been.
+        // No wildcard: the pattern is a plain prefix.
         if (!_has_wild(pat, len)) {
             uint16_t k = 0;
             while (k < len && s[k] != 0 && s[k] == pat[k]) k++;
@@ -287,7 +286,7 @@ namespace Botanik { namespace Utils {
         if (pat == nullptr || pat[0] == '\0') return true;
         if (s == nullptr) return false;
         const uint16_t len = (uint16_t)strlen(pat);
-        // No wildcard, no change: the substring a table filter has always been.
+        // No wildcard: the pattern is a plain substring.
         if (!_has_wild(pat, len)) return contains_ci(s, pat);
         return _glob_anchored(s, pat, len, true);
     }

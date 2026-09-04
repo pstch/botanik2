@@ -1,4 +1,3 @@
-// REVIEW_35: TODO
 #ifndef LIBBOTANIK_FIRMWARE_FIRMWARE_H
 #define LIBBOTANIK_FIRMWARE_FIRMWARE_H
 
@@ -288,8 +287,8 @@ namespace Botanik {
             // and the LIFECYCLE says when the verdict may be acted on: a
             // withheld kick lets the hardware reset us, and that must not
             // happen until the laws have stopped and sys_shutdown_sec has run
-            // out. Withholding it the moment `reboot` was typed is what used to
-            // race the retained rows on their way to flash.
+            // out: withholding it the moment `reboot` is typed would race the
+            // retained rows on their way to flash.
             const bool ending =
                 _scheduler.context()->run_state == Scheduler::RunState::HALT;
             (void)_scheduler.kick(ending ? _health.watchdog_ok() : true);

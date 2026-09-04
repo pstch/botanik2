@@ -147,7 +147,7 @@ namespace Botanik { namespace Vars {
             }
             // A good DOUBLE is not yet a good float: 1e300 becomes +inf on the
             // narrowing cast, and an overridden infinity reads false against
-            // every downstream compare, the way a NaN used to.
+            // every downstream compare, exactly as a NaN does.
             if (d > 3.4028234663852886e+38 ||
                 d < -3.4028234663852886e+38) return PARSE_RANGE;
             *out = Scalar::F((float)d);

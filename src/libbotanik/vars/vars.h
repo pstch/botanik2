@@ -14,11 +14,7 @@
  * same way. `Bank` runs one index space across every segment in registration
  * order, so nothing outside it knows there is more than one array.
  *
- * It used to be ONE array, spliced together by a macro (`BOTANIK_LIBRARY_VARS`)
- * because C++11 cannot concatenate two constant arrays without a template or a
- * copy into RAM. That macro is why every row in this library had to be written
- * @c ::Botanik::Vars::P() with a backslash on the end of each line - a macro
- * expands into a namespace it cannot see. Registering segments costs one
+ * Registering segments costs one
  * compare in `Bank::desc()` and buys back ordinary C++: these rows are now
  * written with the same unqualified factories a site writes its own with.
  * @note The rationale behind this file is @ref lib_order, @ref lib_regs.

@@ -76,9 +76,9 @@ namespace Botanik { namespace Modbus {
          *  not until MODBUS_PROBE_SPACING_MS of live traffic has been owed since
          *  the last transaction that failed. Together those bound what devices
          *  that are not answering can cost at timeout/(timeout + spacing),
-         *  INDEPENDENT of how many of them there are - which is the whole point,
-         *  since twelve dead sensors used to need 7.2 s of bus to be declared
-         *  dead and simply took it.
+         *  INDEPENDENT of how many of them there are, which is the whole
+         *  point: without the gate, twelve dead sensors take 7.2 s of bus
+         *  between them just to be declared dead.
          *
          *  A gate and a cursor here rather than a state in the transaction FSM:
          *  a probe is an ordinary transaction over the same framer, settle path

@@ -1,4 +1,3 @@
-// REVIEW_35: TODO
 #ifndef LIBBOTANIK_FIRMWARE_STACKS_H
 #define LIBBOTANIK_FIRMWARE_STACKS_H
 
@@ -221,8 +220,7 @@ namespace Botanik {
         Network::MqttLogWriter&  mqtt_log()  { return _mqtt_log; }
 #endif
 
-        /** @brief Hand each enabled service its own registration, in the order
-         *  this used to step them.
+        /** @brief Hand each enabled service its own registration, in beat order.
          *
          *  Not a Component - it owns several - so it has no tasks of its own.
          *  Nothing steps anything now: each child is a registry entry with its

@@ -408,9 +408,9 @@ namespace Botanik { namespace Shell {
          *  then the detail in parentheses.
          *  @{ */
         /** @brief Where the leader ends and " : " begins. 18 fits the longest
-         *  label in the tree ("Costliest task", 14) with three dots to spare;
-         *  the eleven columns that used to be dots go to the detail, which is
-         *  what was being cut to fit an 80-column line. */
+         *  label in the tree ("Costliest task", 14) with three dots to spare.
+         *  Every column past that belongs to the detail, which is what an
+         *  80-column line cuts first. */
         static const size_t LEADER_W = 18;
         /** @brief One "Label ....... : value (detail)" row. @p detail may be
          *  null or empty, which drops the parentheses. */

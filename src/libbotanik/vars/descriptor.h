@@ -197,11 +197,10 @@ namespace Botanik { namespace Vars {
          *  drives - how you take the plant by hand, since an override is then
          *  the only thing left that can move an actuator.
          *
-         *  There used to be a stricter rung below this that MUTED overrides
-         *  too. It differed from this one in nothing else, and an override
-         *  that stops driving without saying so is worse than one that keeps
-         *  driving visibly: use `override clear` to take a force off. What
-         *  ERASES them is the system's own hold, which is a different axis. */
+         *  This rung does NOT mute overrides: one that stops driving without
+         *  saying so is worse than one that keeps driving visibly. `override
+         *  clear` takes a force off; what ERASES them is the system's own
+         *  hold, a different axis. */
         CONTROL_WITHHELD = 0,
         /** @brief Normal operation. */
         CONTROL_ENABLED  = 1

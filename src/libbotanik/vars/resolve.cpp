@@ -155,9 +155,8 @@ namespace Botanik { namespace Vars {
         _resolve_quality();   // needs it too - a companion is paired by name
         // The ROLE_PARAM rows must be ONE run - that is what lets the PARAMS
         // page and the shell address them 0-based. Registration order decides
-        // it, so this is where it can be checked; it used to be a convention
-        // with a test to catch it afterwards. Naming the row is the whole point:
-        // "parameters are not contiguous" sends nobody anywhere.
+        // it, so this is where it can be checked. Naming the row is the whole
+        // point: "parameters are not contiguous" sends nobody anywhere.
         for (uint16_t i = (uint16_t)(_param_first + _param_count); i < _count; i++) {
             if (descriptor(i).role != ROLE_PARAM) continue;
             BOTANIK_ASSERT(!"a parameter outside the parameter block");

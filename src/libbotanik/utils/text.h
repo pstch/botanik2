@@ -1,4 +1,3 @@
-// REVIEW_35: DONE
 #ifndef UTILS_TEXT_H
 #define UTILS_TEXT_H
 
@@ -55,8 +54,8 @@ namespace Botanik { namespace Utils {
     bool glob_bounded(const char* s, const char* pat, uint16_t len);
 
     /** @brief glob_bounded()'s ASCII case-folded form over a NUL-terminated
-     *  pattern, where a wildcard-free pattern matches as a SUBSTRING - the row
-     *  filter a table page has always had, until a `*` or `?` is typed. */
+     *  pattern, where a wildcard-free pattern matches as a SUBSTRING, which
+     *  is what a table page's row filter wants until a `*` or `?` is typed. */
     bool glob_ci(const char* s, const char* pat);
 
     /** @}
