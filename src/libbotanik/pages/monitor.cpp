@@ -396,7 +396,7 @@ namespace Botanik { namespace Pages {
         _editor.set_origin(_prompt_row());
         _editor.set_indent(lw);
         _editor.set_single_line(true);
-        _editor.reset();                 // clears the row, label included
+        _editor.reset();                 // clears the row past the label
         _terminal.move_to({_prompt_row(), 0});
         _terminal.write_chars(label, lw);
 

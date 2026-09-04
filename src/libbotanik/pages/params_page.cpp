@@ -267,7 +267,7 @@ namespace Botanik { namespace Pages {
         _editor.set_origin(row);
         _editor.set_indent(lw);
         _editor.set_single_line(true);
-        _editor.reset();          // clears the row (label included)
+        _editor.reset();          // clears the row past the label
         _draw_label();
 
         char val[80];

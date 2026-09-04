@@ -141,46 +141,43 @@ namespace Botanik { namespace Terminal {
 
     // lifecycle
 
-    void TextEditor::_reset_state() {
-        _len = _pos = 0;
-        _buf[0]    = '\0';
-        // Bottom-anchored, the origin is derived, so re-pin it. Top-anchored it
-        // is the caller's (set_origin()) and must survive a reset.
-        if (_anchor == Anchor::BOTTOM)
-            _origin = (uint16_t)(_console->rows() - 1);
+    bool TextEditor::_load(const char* text, uint16_t len, uint16_t cursor) {
+        bool fitted = true;
+        if (len > load_capacity()) { len = load_capacity(); fitted = false; }
+        // memmove, not memcpy: a caller may hand back a slice of this buffer.
+        if (text != nullptr && text != _buf && len > 0) memmove(_buf, text, len);
+        _len = len;
+        _buf[_len] = '\0';
         _view_top   = 0;
         _goal_valid = false;
-        _mark_set   = false;
-        _layout.rows[0]   = {0, 0, false};
-        _layout.count = 1;
+        _mark_set   = false;        // the offsets it anchors are being replaced
+        _snapshot_pre();
+        if (_rebuild_layout()) {
+            // Past what the row cap can lay out: drop the tail rather than keep
+            // text the operator can neither see nor reach, or that a later
+            // save would write back truncated.
+            const RowView& last = _layout.rows[_layout.count - 1];
+            _len = (uint16_t)(last.buf_start + last.buf_len);
+            _buf[_len] = '\0';
+            _rebuild_layout();
+            fitted = false;
+        }
+        _pos = cursor < _len ? cursor : _len;
+        return fitted;
     }
 
     void TextEditor::reset() {
-        // Clear exactly the band the editor occupies (clear_rows leaves the
-        // alarm bar below it untouched): bottom-anchored the origin re-pins
-        // to the last row, and nothing repaints what stood above it.
-        _terminal->clear_rows(_origin, _view_bottom_hw());
-        uint16_t old_origin = _origin;
-        _reset_state();
+        (void)_load(nullptr, 0, 0);
         _dirty = true;              // reset() discards content; commit() does not
-        uint16_t draw_row = _suppress_sync_redraw ? old_origin : _origin;
-        _terminal->move_to({draw_row, _indent});
-        _write_prompt(0);
-        _terminal->set_cursor_inhibited(false);
-        // On the row the prompt just went to, not the one the layout says: a
-        // suppressed redraw leaves the band still to be moved, and the caller
-        // re-places the cursor after it moves. Skipping the declaration instead
-        // parked the visible cursor where the discarded text ended.
-        CursorPos at = _map_cursor_pos(0);
-        at.row = draw_row;
-        _place_cursor(at);
+        _reconcile(0, 0, /*is_insert=*/true);
     }
 
     void TextEditor::commit() {
-        _reset_state();
-        _terminal->move_to({_origin, _indent});
-        _write_prompt(0);
-        _terminal->set_cursor_inhibited(false);
+        // No reconcile: the caller line-fed past the submitted text, which is
+        // the transcript's now, and the band re-pins to the bottom row below it.
+        (void)_load(nullptr, 0, 0);
+        if (_anchor == Anchor::BOTTOM) _origin = (uint16_t)(_console->rows() - 1);
+        _paint_view();
         _place_cursor(_map_cursor_pos(0));
     }
 
@@ -302,7 +299,6 @@ namespace Botanik { namespace Terminal {
         _goal_valid = false;
         _mark_set   = false;    // transient mark: an edit drops the region
         _reconcile(pos, len, /*is_insert=*/true);
-        _place_cursor(_map_cursor_pos(_pos));
     }
 
     void TextEditor::remove_characters(uint16_t len) {
@@ -322,70 +318,21 @@ namespace Botanik { namespace Terminal {
         _goal_valid = false;
         _mark_set   = false;    // transient mark: an edit drops the region
         _reconcile(pos, len, false);
-        _place_cursor(_map_cursor_pos(_pos));
     }
 
     bool TextEditor::commit_loaded(uint16_t len) {
-        bool fitted = true;
-        if (len > load_capacity()) { len = load_capacity(); fitted = false; }
-        _len = len;
-        _buf[_len] = '\0';
-        _pos = _view_top = 0;
-        _goal_valid = false;
-        // Not through _reset_state(), so the mark has to be dropped by hand:
-        // the offsets it anchors are about text that is being replaced.
-        _mark_set = false;
-        bool overflow = _rebuild_layout();
-
-        // Drop what the row cap could not lay out: an invisible tail that a
-        // later save writes back truncated is the worse failure.
-        if (overflow) {
-            const RowView& last = _layout.rows[_layout.count - 1];
-            _len = (uint16_t)(last.buf_start + last.buf_len);
-            _buf[_len] = '\0';
-            _rebuild_layout();
-            fitted = false;
-        }
-
+        const bool fitted = _load(_buf, len, 0);
         _dirty = false;
-        redraw();
+        _reconcile(0, _len, /*is_insert=*/true);
         return fitted;
     }
 
     void TextEditor::replace_all(const char* text, uint16_t len) {
         if (text == nullptr) len = 0;
-        if (len > load_capacity()) len = load_capacity();
-
-        // memmove, not memcpy: a caller may hand back a slice of this buffer.
-        if (len > 0) memmove(_buf, text, len);
-        _len = len;
-        _buf[_len] = '\0';
-        _pos       = _len;          // a recalled line is ready to be extended
-        _view_top  = 0;
-        _goal_valid = false;
-        _mark_set   = false;        // the offsets it anchors are being replaced
-
-        if (_rebuild_layout()) {
-            // Past what the row cap can lay out: drop the tail rather than keep
-            // text the operator can neither see nor reach.
-            const RowView& last = _layout.rows[_layout.count - 1];
-            _len = (uint16_t)(last.buf_start + last.buf_len);
-            _buf[_len] = '\0';
-            _pos = _len;
-            _rebuild_layout();
-        }
+        (void)_load(text, len, len);    // a recalled line is ready to be extended
         _dirty = true;
-
-        // An edit's sequence less the tail slide: none of the old text is
-        // assumed to be anywhere.
-        _place_rows();
-        const uint16_t new_origin = _grow_editor();
-        _follow_cursor();
-        _paint_view();
-        _shrink_editor(new_origin);
-        _place_cursor(_map_cursor_pos(_pos));
+        _reconcile(0, _len, /*is_insert=*/true);
     }
-
     // grow/shrink helpers
 
     void TextEditor::_place_rows() {
@@ -566,6 +513,7 @@ namespace Botanik { namespace Terminal {
         // paint: under a suppressed redraw the band does not move until the
         // caller moves it, and the paint has to land where the text still is.
         _shrink_editor(new_origin);
+        _place_cursor(_map_cursor_pos(_pos));
     }
 
     // cursor motion

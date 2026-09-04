@@ -423,9 +423,11 @@ namespace Botanik { namespace Terminal {
          *  `_pre` IS the pre-edit layout. */
         void _restore_pre();
 
-        /** @brief Clear the buffer/cursor; reset to one empty row pinned at the
-         *  bottom of the screen. */
-        void _reset_state();
+        /** @brief Make @p len bytes of @p text the whole buffer (a slice of
+         *  the buffer itself, or null for none), cursor at @p cursor, and lay
+         *  it out. Every bulk change starts here; the reconcile is the caller's.
+         *  @return false if a tail was dropped for want of capacity or rows. */
+        bool _load(const char* text, uint16_t len, uint16_t cursor);
 
         /** @brief Owner row for buffer position `pos`: row `i` where
          *  `buf_start <= pos < buf_start + stride`, stride = buf_len +
