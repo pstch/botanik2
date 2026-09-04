@@ -49,7 +49,8 @@ namespace Botanik { namespace Plc { namespace Runtime {
          *  @see Plant::scan() */
         uint16_t park;
         uint16_t parked;
-        /** @brief `prog_<name>`: where this program's verdict is published. */
+        /** @brief `prog_<name>_health`, or VAR_NONE where the program did not
+          *  opt in. The LAW writes it; nothing here does. */
         uint16_t health_row;
     };
 

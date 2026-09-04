@@ -189,7 +189,7 @@ body ourselves is what keeps a program a program:
 
 - its own period, from `programs.csv`
 - its own entry in the TASKS table, with cost and missed counts
-- its own `prog_<name>` health row
+- its own `prog_<name>_health` row (an opt-in now; every program had one then)
 - its own writer slot, which restores the double-claim check
 - its own INVALID when a name it binds resolves to nothing
 

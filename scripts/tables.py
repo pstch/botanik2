@@ -21,7 +21,7 @@ import os, re, sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from points_md import points
-from site_tables import (AUX, H, as_int, build, check, config_defaults,
+from site_tables import (AUX, H, KIND, as_int, build, check, config_defaults,
                          emit_cals, emit_row, read_table, site_dir, site_guard)
 from st_plant import enums, plant, quality_block
 
@@ -194,6 +194,10 @@ def config(site):
     for r in table:
         if r['_fac'] == 'PS': pool += as_int(r['cap'], defs)
     analog = sum(1 for r in table if r['_fac'] in ('AI', 'AO'))
+    # Vars::mapped(): a register, and not one that addresses the FIELD bus.
+    mapped = sum(1 for r in table
+                 if (r.get('reg') or '0').strip() not in ('', '0')
+                 and KIND[r['_fac']] not in ('INPUT', 'OUTPUT'))
 
     val = [('SITE_NAME', '"%s"' % tom['site']['name']),
            ('SITE_CONTROL_MS', tom['rates']['control']),
@@ -203,7 +207,7 @@ def config(site):
            ('VAR_MAX', len(table)),
            ('STR_POOL_BYTES', pool),
            ('ANALOG_ROWS_MAX', analog),
-           ('MODBUS_TCP_MAX_ROWS', tom['limits']['modbus_tcp_max_rows']),
+           ('MODBUS_TCP_MAX_ROWS', mapped),
            ('MODBUS_BAUD', tom['fieldbus']['baud'])]
     if tom.get('build', {}).get('pin_sizes'): val.append(('PIN_SIZES', 1))
 

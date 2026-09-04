@@ -10,7 +10,9 @@
  *  becomes a `Ref` into the bank and `__INIT_EXTERNAL` is the generated
  *  `bind()`; everything internal to a POU stays a plain member.
  */
+#include "libbotanik/plc/health.h"
 #include "libbotanik/vars/model.h"
+#include "libbotanik/plc/runtime/health.gen.h"
 #include "libbotanik/plc/runtime/quality.gen.h"
 #include "iec_std_lib.h"
 
@@ -41,20 +43,44 @@
 
 /** @} */
 
-/** @name The ST type QUALITY, which IS Vars::Quality
+/** @name The enumerated ST types the LIBRARY owns
  *
- *  A `x_qlt` row is a Ref<Quality>, so the enumeration ST compares against has
- *  to be the SAME C++ type rather than one with equal values - matiec
- *  initialises a QUALITY-returning function with `QUALITY__Q_NONE`, and a
- *  separate enum would not convert.
+ *  A `x_qlt` row is a Ref<Quality> and a `prog_x_health` row a Ref<Health>, so
+ *  the enumeration ST compares against has to be the SAME C++ type rather than
+ *  one with equal values - matiec initialises a QUALITY-returning function with
+ *  `QUALITY__Q_NONE`, and a separate enum would not convert.
  *
  *  So the members are named constants of the real type and matiec's own list is
- *  discarded. The block is GENERATED from `descriptor.h`, so the two cannot
- *  drift. A second enumerated ST type needs its own block.
+ *  discarded. Both blocks are GENERATED from the headers that declare the enums,
+ *  so the sides cannot drift. A site's own enumerated type gets its block from
+ *  `enums.gen.h` the same way.
  *  @{ */
 typedef ::Botanik::Vars::Quality QUALITY;
+typedef ::Botanik::Plc::Health   HEALTH;
 #define __DECLARE_ENUMERATED_TYPE(name, ...) BOTANIK_ST_TYPE_##name
 /** @} */
+
+namespace Botanik { namespace Vars {
+    /** @brief A reference to a program's health row. Here rather than in
+     *  model.h: the code is Plc's, and vars/ does not know about plc/. */
+    template <> struct RefIo< ::Botanik::Plc::Health> {
+        static ::Botanik::Plc::Health read(Var h)
+            { return (::Botanik::Plc::Health)h.as<uint8_t>(); }
+        static ::Botanik::Plc::Health of(Value v)
+            { return (::Botanik::Plc::Health)v.as<uint8_t>(); }
+        static void write(Var h, ::Botanik::Plc::Health x)
+            { h.set_i((int64_t)x); }
+    };
+
+    /** @brief A verdict is this scan's answer, so it never takes drive()'s
+     *  parameter path - owing a health code to flash is not a thing a law can
+     *  mean. The same reason Ref<Quality> has one. */
+    template <> inline void Ref< ::Botanik::Plc::Health>::drive(
+            ::Botanik::Plc::Health x) const {
+        if (runtime_bank != nullptr)
+            RefIo< ::Botanik::Plc::Health>::write(runtime_bank->var(i), x);
+    }
+}}  // namespace Botanik::Vars
 
 #define __BOOL_LITERAL(v)   ((BOOL)(v))
 #define __REAL_LITERAL(v)   ((REAL)(v))

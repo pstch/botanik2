@@ -14,15 +14,6 @@ name = "gh_mlb41"
 control = 100
 sense   = 10
 
-[limits]
-# The TCP map holds every parameter, status and alarm row. A site that outgrows
-# it serves a SHORT map, which an integrator reads as a device that does not
-# have those rows. The gate asserts the real count against this.
-#
-# The row count, the string pool and the wire array are NOT here: the generator
-# owns the table, so its size is a fact about it rather than a ceiling somebody
-# has to keep ahead of.
-modbus_tcp_max_rows = 576
 
 [registers]
 # Where the generated `_qlt` companions start. Their own block, above every

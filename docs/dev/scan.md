@@ -130,16 +130,34 @@ are exactly that.
 
 ## Program health
 
-A program answers for itself with a `Plc::Health`, and there is one answer:
+A program may answer for itself, in three words. It is an OPT-IN: `health` in
+`tables/programs.csv` is what makes the row, and a program that did not ask for
+one has no verdict and is blank wherever verdicts are shown.
 
 | | | |
 |---|---|---|
-| `HEALTHY` | 0 | wired, and running |
+| `HEALTHY`  | 0 | it ran, on inputs it trusts, and stands behind what it wrote |
+| `DEGRADED` | 1 | it answered, on evidence it does not fully trust: a reduced quorum, a held reading, a fallback it chose |
+| `FAULTED`  | 2 | it could not answer at all. What it wrote is its declared safe state |
 
-There was a second, `INVALID`, for a program that named a row no table declared.
-It cannot happen now: a binding is a generated index, so such a program does not
-compile. The code is published as a `T_ENUM` row, so the vocabulary may gain
-labels and must never renumber them.
+The LAW writes it, not `Plant`. Opting in obliges the body to write the row on
+every path, which `tables.py plant` checks off matiec's own `__SET_EXTERNAL`
+list, exactly as it checks a quality. `plc/functions/health.st` carries the
+type and `VERDICT(ANSWERED, TRUSTED)`, which is the shape most laws want;
+`WORST_HEALTH` is for one that leans on another's answer.
+
+`FAULTED` is the row's declared value, so it is also where the row goes when the
+program leaves the scan, and what it reads before the first activation. That is
+the honest reading in both cases: a law that has not run has answered nothing.
+
+`Plant` only reads the row back, into the slot the TASKS page holds a pointer to.
+A program with no health row gets a null pointer there rather than an invented
+verdict.
+
+There was a fourth code, `INVALID`, for a program that named a row no table
+declared. It cannot happen now: a binding is a generated index, so such a program
+does not compile. The codes are published as a `T_ENUM` row, so the vocabulary
+may gain labels and must never renumber them.
 
 Anything finer belongs to the ROWS. A reading that is not believable says so in
 its own quality, and every consumer already reads that; a program-level

@@ -28,10 +28,12 @@ VAR_EXTERNAL
   cli_prevDayMax_degC_qlt   : QUALITY;
   cli_prevNightMin_degC : REAL;
   cli_prevNightMin_degC_qlt : QUALITY;
+  prog_day_phase_health : HEALTH;
 END_VAR
 VAR
   phase      : DayPhase := PHASE_NIGHT;
   seeded   : BOOL  := FALSE;
+  placed    : BOOL  := FALSE;
   day_max   : REAL;
   night_min : REAL;
 END_VAR
@@ -59,6 +61,7 @@ END_VAR
      Down the day IN ORDER, so a boundary an operator has trimmed past the one
      after it shortens its own phase rather than swallowing the next. *)
   IF sol_ready THEN
+    placed := TRUE;
     IF sol_fromRise_min < sol_coldBankRise_min THEN
       phase := PHASE_NIGHT;
     ELSIF sol_fromRise_min < sol_breezeRise_min THEN
@@ -113,4 +116,14 @@ END_VAR
   cli_coldBankArm_qlt := cli_prevDayMax_degC_qlt;
   cli_heatBankArm     := cli_prevNightMin_degC < cli_heatBankTrg_degC;
   cli_heatBankArm_qlt := cli_prevNightMin_degC_qlt;
+
+  (* The one law here that can answer NOTHING. Until the tracker has a location
+     and a wall clock the phase has never been placed, and the NIGHT it
+     publishes is its initial value rather than a reading of the day - which is
+     every boot, for as long as NTP takes. Once placed it holds through a
+     tracker that drops out, which is an answer with a stale basis; and the
+     extremes it banks are only as good as the probe they were gathered from. *)
+  prog_day_phase_health :=
+      VERDICT(ANSWERED := placed,
+              TRUSTED  := sol_ready AND GOOD(cli_temp_in_qlt));
 END_PROGRAM

@@ -405,6 +405,10 @@ namespace Botanik { namespace Vars {
          *  companion's too. */
         void override_clear() const;
 
+        /** @brief This retained row has moved since the store last took it. */
+        bool retain_owed() const      { return _flag(S_RETAIN_OWED); }
+        /** @brief The store has it. */
+        void retain_saved() const     { _clear(S_RETAIN_OWED); }
         bool override_on() const      { return _flag(S_OVR_ON); }
         bool override_unsaved() const { return _flag(S_OVR_UNSAVED); }
         /** @brief Mark the force durable; what Persist calls once it lands. */
@@ -444,7 +448,11 @@ namespace Botanik { namespace Vars {
             // Through the reference, not _touch()/_touch_field(): _s() is out of
             // line, and this runs once per ST assignment per scan.
             uint8_t f = (uint8_t)(s.flags | S_WRITTEN);
-            if (moved && meta().kind == K_OUTPUT) f = (uint8_t)(f | S_FIELD_DIRTY);
+            if (moved) {
+                const Descriptor& d = meta();
+                if (d.kind == K_OUTPUT)  f = (uint8_t)(f | S_FIELD_DIRTY);
+                else if (retained(d))    f = (uint8_t)(f | S_RETAIN_OWED);
+            }
             s.flags = f;
         }
         /** @brief Note that the slot has been written. */

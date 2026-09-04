@@ -643,38 +643,12 @@ namespace Botanik { namespace Vars { namespace Row {
     const uint16_t cli_skirtValve            = 624;
     const uint16_t irr_tray7                 = 625;
     const uint16_t irr_tray8                 = 626;
-    const uint16_t prog_ac_grid_watch        = 627;
-    const uint16_t prog_ac_local_watch       = 628;
-    const uint16_t prog_dc_watch             = 629;
-    const uint16_t prog_temp_rh_sensors      = 630;
-    const uint16_t prog_wx_sensors           = 631;
-    const uint16_t prog_strat                = 632;
-    const uint16_t prog_temp_rh_zone         = 633;
-    const uint16_t prog_climate_watch        = 634;
-    const uint16_t prog_weather_watch        = 635;
-    const uint16_t prog_day_phase            = 636;
-    const uint16_t prog_target_temp          = 637;
-    const uint16_t prog_cooling              = 638;
-    const uint16_t prog_humidity             = 639;
-    const uint16_t prog_intake_dry           = 640;
-    const uint16_t prog_intake_gates         = 641;
-    const uint16_t prog_destrat              = 642;
-    const uint16_t prog_roof_lockout         = 643;
-    const uint16_t prog_intractors           = 644;
-    const uint16_t prog_fans                 = 645;
-    const uint16_t prog_skirt                = 646;
-    const uint16_t prog_screen               = 647;
-    const uint16_t prog_windows              = 648;
-    const uint16_t prog_irr_modulation       = 649;
-    const uint16_t prog_irr_mtr_input        = 650;
-    const uint16_t prog_irr_mtr_output       = 651;
-    const uint16_t prog_irr_schedule         = 652;
-    const uint16_t prog_irrigation           = 653;
-    const uint16_t prog_irr_valves           = 654;
-    const uint16_t prog_windows_park         = 655;
-    const uint16_t prog_windows_parked       = 656;
-    const uint16_t prog_irr_valves_park      = 657;
-    const uint16_t prog_irr_valves_parked    = 658;
+    const uint16_t prog_temp_rh_zone_health  = 627;
+    const uint16_t prog_day_phase_health     = 628;
+    const uint16_t prog_windows_park         = 629;
+    const uint16_t prog_windows_parked       = 630;
+    const uint16_t prog_irr_valves_park      = 631;
+    const uint16_t prog_irr_valves_parked    = 632;
 
 }}}  // namespace Botanik::Vars::Row
 

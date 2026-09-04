@@ -28,29 +28,35 @@ TEST_CASE("scan: every ST program is its own task, at the roster's period") {
         REQUIRE(task != nullptr);
         CHECK(task->period_ms == p.period_ms);
         CHECK(task->phase == Tasks::PHASE_CONTROL);
-        INFO("...and it bound every name it asked for");
-        CHECK(st.health(i) == Plc::Health::HEALTHY);
     }
 }
 
-TEST_CASE("scan: an ST program publishes its own health row") {
-    // The prog_<name> rows came back with per-program dispatch. They are what
-    // an operator reads to see that a law is running, and the roster's name is
-    // what ties one to the other.
+TEST_CASE("scan: a health row exists exactly where a program asked for one") {
+    // Opting in is what makes the row, and opting in obliges the law to write
+    // it - which the generator checks off matiec's own write list. So the row
+    // and the roster cannot disagree about which laws have a verdict.
     TestScan::Live live;
     Plc::Runtime::Plant st(Botanik::SetupContext(live.reg), live.bank);
     st.wire();
 
-    char row[40];
+    uint8_t opted = 0;
+    char row[48];
     for (uint8_t i = 0; i < Plc::Runtime::PROGRAM_COUNT; i++) {
-        snprintf(row, sizeof row, "prog_%s", Plc::Runtime::programs[i].name);
+        const Plc::Runtime::Program& p = Plc::Runtime::programs[i];
+        snprintf(row, sizeof row, "prog_%s_health", p.name);
         const uint16_t r = live.ref(row);
         INFO("row ", row);
-        REQUIRE(r != Vars::VAR_NONE);
-        INFO("...and it says HEALTHY rather than the INHIBITED it declares");
+        if (p.health_row == Vars::VAR_NONE) { CHECK(r == Vars::VAR_NONE); continue; }
+        REQUIRE(r == p.health_row);
+        opted++;
+        INFO("...and before the first scan it reads the FAULTED it declares, "
+             "because a law that has not run has answered nothing");
         CHECK(live.bank.var(r).value().as<uint32_t>() ==
-              (uint32_t)Plc::Health::HEALTHY);
+              (uint32_t)Plc::Health::FAULTED);
+        CHECK(st.health(i) == Plc::Health::FAULTED);
     }
+    INFO("and the reference site works at least one of them");
+    CHECK(opted > 0);
 }
 
 TEST_CASE_FIXTURE(StRig, "scan: an ST timer measures VIRTUAL time, whatever the beat size") {

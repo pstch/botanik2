@@ -27,9 +27,13 @@ namespace Botanik { namespace Plc { namespace Runtime {
         Vars::runtime_bank = &_io;
         BOTANIK_ASSERT(PROGRAM_COUNT <=
                        (uint8_t)(sizeof _slot / sizeof _slot[0]));
+        // The health row is the LAW's to write, and its declared FAULTED is
+        // already what a program that has never run should read. Taken into the
+        // cache here so the TASKS page says that too, rather than HEALTHY until
+        // the first control beat.
         for (uint8_t i = 0; i < PROGRAM_COUNT; i++) {
             programs[i].init();
-            _io.var(programs[i].health_row).set_i((int64_t)_slot[i].health);
+            _read_health(i);
         }
     }
 
@@ -38,11 +42,14 @@ namespace Botanik { namespace Plc { namespace Runtime {
             if (!_tasks->add(*this, programs[i].task, programs[i].name,
                              programs[i].period_ms, Tasks::PHASE_CONTROL))
                 continue;
-            // The verdict this entry reports. An ST program is not a
-            // Plc::Program, so the task keeps a POINTER to where its health
-            // lives rather than the object: the TASKS page asks the entry, not
-            // the kind of thing behind it.
-            _tasks->last().health = &_slot[i].health;
+            // The verdict this entry reports, or none where the program did
+            // not opt into health. An ST program is not a Plc::Program, so the
+            // task keeps a POINTER to where its health lives rather than the
+            // object: the TASKS page asks the entry, not the kind of thing
+            // behind it.
+            _tasks->last().health =
+                (programs[i].health_row != Vars::VAR_NONE) ? &_slot[i].health
+                                                           : nullptr;
         }
     }
 
@@ -94,6 +101,17 @@ namespace Botanik { namespace Plc { namespace Runtime {
         _slot[i].ran = true;
 
         programs[i].run();
+        _read_health(i);
+    }
+
+    void Plant::_read_health(uint8_t i) {
+        if (programs[i].health_row == Vars::VAR_NONE) return;
+        // Off the ROW, so an operator forcing it sees the TASKS page agree: the
+        // page and the row are the same fact, and two readings of it that could
+        // differ would be one too many.
+        const uint64_t c = _io.var(programs[i].health_row).as<uint64_t>();
+        _slot[i].health  = (health_label(c) != nullptr) ? (Health)c
+                                                        : Health::FAULTED;
     }
 
     bool Plant::_park_begin(uint8_t i, uint64_t now_ms) {
@@ -144,8 +162,7 @@ namespace Botanik { namespace Plc { namespace Runtime {
     }
 
     Health Plant::health(uint8_t i) const {
-        (void)i;
-        return Health::HEALTHY;
+        return (i < PROGRAM_COUNT) ? _slot[i].health : Health::FAULTED;
     }
 
     /** @brief Drop everything program @p i drives to its declared safe state.

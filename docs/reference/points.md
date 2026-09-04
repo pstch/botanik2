@@ -8,13 +8,13 @@ the generator, and a site OVERRIDES one by redeclaring the name.
 
 One section per KIND, in the order `Vars::Kind` declares them.
 
-659 rows: 586 declared by the site, 73 by the library.
+633 rows: 560 declared by the site, 73 by the library.
 
 | kind | what it is | rows |
 |---|---|---|
 | Alarms | the boolean an AlarmCondition reads | 53 |
 | Parameters | persisted, editable | 239 |
-| Status values | computed by a law; published when it has a register | 128 |
+| Status values | computed by a law; published when it has a register | 102 |
 | Inputs | read from the field; each has a quality companion | 82 |
 | Outputs | driven to the field | 30 |
 | Quality companions | the quality of the row before it | 127 |
@@ -427,34 +427,8 @@ One section per KIND, in the order `Vars::Kind` declares them.
 | sys_dc_ok | T_BOOL | 0 | 0 | - | 568 | every DC rail above its floor, and the UPS off its low-battery contact | - |
 | cli_phase | T_ENUM | PHASE_NIGHT | - | - | 518 | phase of the day in force | NIGHT COLD_BANK DAWN_BREEZE DAY HEAT_BANK DUSK_BREEZE |
 | irr_state | T_ENUM | IRR_IDLE | - | - | 537 | what the irrigation cycle is doing | IDLE FILLING DRAINING FLUSHING |
-| prog_ac_grid_watch | T_ENUM | 3 | - | - | 1300 | health of the ac_grid_watch program | 3 is INHIBITED: nothing has run yet |
-| prog_ac_local_watch | T_ENUM | 3 | - | - | 1301 | health of the ac_local_watch program | 3 is INHIBITED: nothing has run yet |
-| prog_dc_watch | T_ENUM | 3 | - | - | 1302 | health of the dc_watch program | 3 is INHIBITED: nothing has run yet |
-| prog_temp_rh_sensors | T_ENUM | 3 | - | - | 1303 | health of the temp_rh_sensors program | 3 is INHIBITED: nothing has run yet |
-| prog_wx_sensors | T_ENUM | 3 | - | - | 1304 | health of the wx_sensors program | 3 is INHIBITED: nothing has run yet |
-| prog_strat | T_ENUM | 3 | - | - | 1305 | health of the strat program | 3 is INHIBITED: nothing has run yet |
-| prog_temp_rh_zone | T_ENUM | 3 | - | - | 1306 | health of the temp_rh_zone program | 3 is INHIBITED: nothing has run yet |
-| prog_climate_watch | T_ENUM | 3 | - | - | 1307 | health of the climate_watch program | 3 is INHIBITED: nothing has run yet |
-| prog_weather_watch | T_ENUM | 3 | - | - | 1308 | health of the weather_watch program | 3 is INHIBITED: nothing has run yet |
-| prog_day_phase | T_ENUM | 3 | - | - | 1309 | health of the day_phase program | 3 is INHIBITED: nothing has run yet |
-| prog_target_temp | T_ENUM | 3 | - | - | 1310 | health of the target_temp program | 3 is INHIBITED: nothing has run yet |
-| prog_cooling | T_ENUM | 3 | - | - | 1311 | health of the cooling program | 3 is INHIBITED: nothing has run yet |
-| prog_humidity | T_ENUM | 3 | - | - | 1312 | health of the humidity program | 3 is INHIBITED: nothing has run yet |
-| prog_intake_dry | T_ENUM | 3 | - | - | 1313 | health of the intake_dry program | 3 is INHIBITED: nothing has run yet |
-| prog_intake_gates | T_ENUM | 3 | - | - | 1314 | health of the intake_gates program | 3 is INHIBITED: nothing has run yet |
-| prog_destrat | T_ENUM | 3 | - | - | 1315 | health of the destrat program | 3 is INHIBITED: nothing has run yet |
-| prog_roof_lockout | T_ENUM | 3 | - | - | 1316 | health of the roof_lockout program | 3 is INHIBITED: nothing has run yet |
-| prog_intractors | T_ENUM | 3 | - | - | 1317 | health of the intractors program | 3 is INHIBITED: nothing has run yet |
-| prog_fans | T_ENUM | 3 | - | - | 1318 | health of the fans program | 3 is INHIBITED: nothing has run yet |
-| prog_skirt | T_ENUM | 3 | - | - | 1319 | health of the skirt program | 3 is INHIBITED: nothing has run yet |
-| prog_screen | T_ENUM | 3 | - | - | 1320 | health of the screen program | 3 is INHIBITED: nothing has run yet |
-| prog_windows | T_ENUM | 3 | - | - | 1321 | health of the windows program | 3 is INHIBITED: nothing has run yet |
-| prog_irr_modulation | T_ENUM | 3 | - | - | 1322 | health of the irr_modulation program | 3 is INHIBITED: nothing has run yet |
-| prog_irr_mtr_input | T_ENUM | 3 | - | - | 1323 | health of the irr_mtr_input program | 3 is INHIBITED: nothing has run yet |
-| prog_irr_mtr_output | T_ENUM | 3 | - | - | 1324 | health of the irr_mtr_output program | 3 is INHIBITED: nothing has run yet |
-| prog_irr_schedule | T_ENUM | 3 | - | - | 1325 | health of the irr_schedule program | 3 is INHIBITED: nothing has run yet |
-| prog_irrigation | T_ENUM | 3 | - | - | 1326 | health of the irrigation program | 3 is INHIBITED: nothing has run yet |
-| prog_irr_valves | T_ENUM | 3 | - | - | 1327 | health of the irr_valves program | 3 is INHIBITED: nothing has run yet |
+| prog_temp_rh_zone_health | T_ENUM | 2 | - | - | 1300 | what the temp_rh_zone law says about its own answer | FAULTED until it has run: the law writes it, not Plant |
+| prog_day_phase_health | T_ENUM | 2 | - | - | 1301 | what the day_phase law says about its own answer | FAULTED until it has run: the law writes it, not Plant |
 | prog_windows_park | T_BOOL | 0 | 0 | - | 1200 | windows is parking to its safe state | - |
 | prog_windows_parked | T_BOOL | 0 | 0 | - | 1201 | windows has reached its parked state | - |
 | prog_irr_valves_park | T_BOOL | 0 | 0 | - | 1202 | irr_valves is parking to its safe state | - |
@@ -753,10 +727,10 @@ between them.
 | 4 | temp_rh_sensors | sense | 50 | 20 | The four measurement locations, each voted down to one reading and filtered: what the greenhouse IS, before any law is set in it. |
 | 5 | wx_sensors | sense | 18 | 9 | The two weather stations, voted down to one reading per quantity: the worse of them, because two cannot say which is lying. |
 | 6 | strat | sense | 5 | 2 | The stratification gap: how much warmer the ceiling is than the floor, unsigned. |
-| 7 | temp_rh_zone | sense | 9 | 12 | The psychrometrics every other law is set in, off the two interior levels: one temperature for the house, and the worst case per quantity. |
+| 7 | temp_rh_zone | sense | 9 | 13 | The psychrometrics every other law is set in, off the two interior levels: one temperature for the house, and the worst case per quantity. |
 | 8 | climate_watch | control | 14 | 5 | The interior conditions, watched: the alarms that are a READING crossing a line rather than a law failing to hold one. |
 | 9 | weather_watch | control | 6 | 2 | The weather station, watched: whether it is answering, and whether what it says is a storm. |
-| 10 | day_phase | control | 13 | 10 | The day's phase, and the temperature target it puts in force. |
+| 10 | day_phase | control | 13 | 11 | The day's phase, and the temperature target it puts in force. |
 | 11 | target_temp | control | 11 | 1 | The temperature the greenhouse is being held to: the base setting, shifted by whichever bank phase is both IN FORCE and ARMED. |
 | 12 | cooling | sense | 10 | 4 | The cooling ladder: a PID on the interior temperature against the phase's target, published as one signed demand. |
 | 13 | humidity | control | 10 | 3 | The humidity ladder: four bands and a dead zone on the dew-point margin, published as one signed demand - and the rot guard under it. |
@@ -837,7 +811,7 @@ between them.
 | direction | rows |
 |---|---|
 | reads | `cli_temp_hi`, `cli_rh_hi`, `cli_temp_lo`, `cli_rh_lo`, `cli_temp_hi_qlt`, `cli_temp_lo_qlt`, `cli_temp_ext`, `cli_temp_ext_qlt`, `cli_rotMargin_degC` |
-| writes | `cli_temp_in`, `cli_temp_in_qlt`, `cli_dewPoint_degC`, `cli_dewPoint_degC_qlt`, `cli_dpMargin_degC`, `cli_dpMargin_degC_qlt`, `cli_satPress_kPa`, `cli_satPress_kPa_qlt`, `cli_vpd_kPa`, `cli_vpd_kPa_qlt`, `alarm_rot`, `alarm_zone_blind` |
+| writes | `cli_temp_in`, `cli_temp_in_qlt`, `cli_dewPoint_degC`, `cli_dewPoint_degC_qlt`, `cli_dpMargin_degC`, `cli_dpMargin_degC_qlt`, `cli_satPress_kPa`, `cli_satPress_kPa_qlt`, `cli_vpd_kPa`, `cli_vpd_kPa_qlt`, `alarm_rot`, `alarm_zone_blind`, `prog_temp_rh_zone_health` |
 
 ### climate_watch
 
@@ -864,7 +838,7 @@ between them.
 | direction | rows |
 |---|---|
 | reads | `cli_temp_in`, `cli_temp_in_qlt`, `sol_ready`, `sol_fromRise_min`, `sol_fromSet_min`, `cli_coldBankTrg_degC`, `cli_heatBankTrg_degC`, `sol_coldBankRise_min`, `sol_breezeRise_min`, `sol_dayRise_min`, `sol_heatBankSet_min`, `sol_duskSet_min`, `sol_nightSet_min` |
-| writes | `cli_phase`, `cli_phase_qlt`, `cli_coldBankArm`, `cli_coldBankArm_qlt`, `cli_heatBankArm`, `cli_heatBankArm_qlt`, `cli_prevDayMax_degC`, `cli_prevDayMax_degC_qlt`, `cli_prevNightMin_degC`, `cli_prevNightMin_degC_qlt` |
+| writes | `cli_phase`, `cli_phase_qlt`, `cli_coldBankArm`, `cli_coldBankArm_qlt`, `cli_heatBankArm`, `cli_heatBankArm_qlt`, `cli_prevDayMax_degC`, `cli_prevDayMax_degC_qlt`, `cli_prevNightMin_degC`, `cli_prevNightMin_degC_qlt`, `prog_day_phase_health` |
 
 ### target_temp
 

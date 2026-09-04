@@ -104,7 +104,7 @@ AUX = {  # stem -> columns, for the tables that are not rows
     'modbus_models':  'symbol kind model_name regs words',
     'modbus_devices': 'addr model tag',
     'enums':          'enum ctype symbol value label desc',
-    'programs':       'name instance source rate desc quality park',
+    'programs':       'name instance source rate desc quality park health',
     'home':           'label var',
 }
 
@@ -327,15 +327,19 @@ def build(site):
                                   desc='quality of ' + r['name']))
             qreg += 1
 
-    # The program rows, last and in roster order: a health row per program - the
-    # one status value no law writes, since it is Plant's own verdict - then the
-    # parking pair per program that opted in.
+    # The program rows, last and in roster order: a health row per program that
+    # opted in, then the parking pair per program that opted into that.
+    #
+    # FAULTED is the declared value, which is also where the row goes when the
+    # program leaves the scan: a law that has never run has answered nothing,
+    # and saying HEALTHY there would be the firmware speaking for it.
     preg = int(tom['registers']['prog_base'])
     for e in prog:
-        table.append(_gen_row('SVE', name='prog_%s' % e['name'], **{
-            'def': '3', 'label': '&Plc::health_label', 'reg': str(preg),
-            'desc': 'health of the %s program' % e['name'],
-            'notes': '3 is INHIBITED: nothing has run yet'}))
+        if not _opted_in(e, 'health'): continue
+        table.append(_gen_row('SVE', name='prog_%s_health' % e['name'], **{
+            'def': '2', 'label': '&Plc::health_label', 'reg': str(preg),
+            'desc': 'what the %s law says about its own answer' % e['name'],
+            'notes': 'FAULTED until it has run: the law writes it, not Plant'}))
         preg += 1
     kreg = int(tom['registers']['park_base'])
     for e in prog:

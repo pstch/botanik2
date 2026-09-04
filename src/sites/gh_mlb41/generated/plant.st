@@ -394,8 +394,10 @@ CONFIGURATION gh_mlb41
     irr_volume_L              : REAL;
     irr_vpdAvg_kPa            : REAL;
     irr_vpdAvg_kPa_qlt        : QUALITY;
+    prog_day_phase_health     : HEALTH;
     prog_irr_valves_park      : BOOL;
     prog_irr_valves_parked    : BOOL;
+    prog_temp_rh_zone_health  : HEALTH;
     prog_windows_park         : BOOL;
     prog_windows_parked       : BOOL;
     pwr_dc1Lo_V               : REAL;

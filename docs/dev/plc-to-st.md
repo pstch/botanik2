@@ -52,7 +52,7 @@ Using the generated `config_run__(tick)` is what makes task registration free,
 and it is also what removes the per-program bracket. Three things live in that
 bracket today:
 
-- the `prog_<name>` health row
+- the `prog_<name>_health` row, where the program opted in
 - INVALID: a program whose `bind()` missed a row never runs at all
 - the writer window
 

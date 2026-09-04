@@ -182,7 +182,7 @@ namespace Botanik { namespace Vars {
 
     SetResult Persist::reset(Var h) {
         const Descriptor& d = h.meta();
-        if (!writable(d) || param_retained(d)) return SET_INVALID;
+        if (!writable(d) || retained_param(d)) return SET_INVALID;
         uint16_t cap = 0;
         char* txt = h.text(&cap);
         if (txt != nullptr) copy_bounded(txt, cap, d.def.s);
@@ -310,9 +310,11 @@ namespace Botanik { namespace Vars {
         uint16_t n = 0;
         for (uint16_t i = 0; i < _io.count(); i++) {
             const Descriptor& d = _io.descriptor(i);
-            if (!retainable(d)) continue;
+            if (!retained(d)) continue;
             Scalar v;
             if (!_get(d, K_RET, &v)) continue;
+            // The slot directly, so the restore owes the store nothing: this
+            // value IS what the store holds.
             _io.slot(i).v = v;
             // GOOD, because it is: the value a totalizer carried when the unit
             // went down is what to carry on from. Q_NONE would send every reader
@@ -328,9 +330,17 @@ namespace Botanik { namespace Vars {
         uint16_t n = 0;
         for (uint16_t i = 0; i < _io.count(); i++) {
             const Descriptor& d = _io.descriptor(i);
+            if (!retained(d)) continue;
+            // Only what MOVED. A retained row is written by a law that restates
+            // it every scan, so without the mark this is an erase per row per
+            // period for a value the store already holds.
+            const Var h = _io.var(i);
+            if (!h.retain_owed()) continue;
             // The LIVE value, never the override: a totalizer forced to 1000 to
             // test an alarm must not enter the plant's history.
-            if (retainable(d) && _put(d, K_RET, _io.var(i).live().v)) n++;
+            if (!_put(d, K_RET, h.live().v)) continue;
+            h.retain_saved();
+            n++;
         }
         return n;
     }

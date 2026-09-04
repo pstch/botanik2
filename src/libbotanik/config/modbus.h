@@ -19,9 +19,11 @@ namespace Botanik { namespace Config {
     /** @name Modbus
      *  @{ */
 
-    /** @brief How many published rows the map can hold. One `uint16_t` each, so
-     *  the default costs 512 bytes; a site whose table outgrows it is told at
-     *  bring-up (Map::overflow()) rather than quietly serving a short map. */
+    /** @brief How many published rows the map holds. GENERATED: the site's
+     *  config.gen.h states the exact count, because the generator owns the
+     *  table and so its mapped total is a fact about it. The default here is
+     *  for a build with no generated table at all; Map::overflow() still
+     *  guards the array, since an ad-hoc test table is not generated. */
 #ifndef BOTANIK_MODBUS_TCP_MAX_ROWS
 #  define BOTANIK_MODBUS_TCP_MAX_ROWS 256
 #endif

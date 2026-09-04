@@ -200,12 +200,12 @@ TEST_CASE_FIXTURE(SiteBank, "vars: forcing a companion is how a row reads dead")
 }
 
 #if BOTANIK_FEATURE_PLC
-TEST_CASE("site: every program publishes its health, off its own name") {
-    // The base derives "prog_<name>" and stays SILENT when the site declares
-    // none - a harness rig has no such row. Silent is the right behaviour and
-    // the wrong thing to leave untested: a renamed program would quietly stop
-    // publishing, and the row it used to drive would sit at its default
-    // reading HEALTHY for ever.
+TEST_CASE("site: a program that opted into health publishes it, off its own name") {
+    // The row is derived from the roster's name, so a renamed program would
+    // quietly stop publishing and the row it used to drive would sit at its
+    // declared FAULTED for ever. The generator refuses a law that owes a health
+    // and does not write it; what is left for here is that the two agree at
+    // RUN time about which row that is.
     Vars::Bank bank;
     Botanik::Tasks::Registry reg;
     TestSite::build(bank);
@@ -215,15 +215,16 @@ TEST_CASE("site: every program publishes its health, off its own name") {
     reg.setup(0);
 
     for (uint8_t i = 0; i < Plc::Runtime::PROGRAM_COUNT; i++) {
-        const char* name = Plc::Runtime::programs[i].name;
-        char row[40];
-        snprintf(row, sizeof row, "prog_%s", name);
-        INFO("'" << name << "' should drive '" << row << "'");
+        const Plc::Runtime::Program& p = Plc::Runtime::programs[i];
+        if (p.health_row == Vars::VAR_NONE) continue;
+        char row[48];
+        snprintf(row, sizeof row, "prog_%s_health", p.name);
+        INFO("'" << p.name << "' should write '" << row << "'");
         const uint16_t declared = bank.find(row, (uint16_t)strlen(row));
-        REQUIRE(declared != Vars::VAR_NONE);   // the site declares one
-        INFO("...and it reads its health rather than the INHIBITED it declares");
-        CHECK(bank.var(declared).value().as<uint32_t>()
-              == (uint32_t)Plc::Health::HEALTHY);
+        REQUIRE(declared == p.health_row);
+        INFO("...and having run, it says something the vocabulary carries");
+        CHECK(Plc::health_label(bank.var(declared).value().as<uint64_t>())
+              != nullptr);
     }
 }
 #endif
@@ -356,6 +357,41 @@ TEST_CASE("params: restating a value owes the store nothing") {
     CHECK(bank.var(r).param_unsaved());
     CHECK(persist.save_all() == 1);
     CHECK(store.writes == (uint16_t)(after_first + 1));
+}
+
+TEST_CASE("retained: the cadence writes what moved, not what is retained") {
+    Vars::Bank bank;
+    TestSite::build(bank);
+    test_store::RamStore store;
+    Vars::Persist persist(Botanik::SetupContext(), bank, &store);
+    Vars::runtime_bank = &bank;
+
+    const uint16_t total = bank.find("irr_inTotal_L");
+    REQUIRE(total != Vars::VAR_NONE);
+    REQUIRE(Vars::retained(bank.var(total).meta()));
+
+    INFO("nothing has moved, so the cadence owes the store nothing: without "
+         "this it is an erase per retained row per sys_retain_sec, for ever");
+    CHECK(persist.save_retained() == 0);
+    CHECK(store.writes == 0);
+
+    const Vars::Ref<float> meter = { total };
+    meter.drive(202.0f);
+    CHECK(bank.var(total).retain_owed());
+    CHECK(persist.save_retained() == 1);
+    CHECK(store.writes == 1);
+    CHECK_FALSE(bank.var(total).retain_owed());
+    CHECK(store.stored("irr_inTotal_L", "ret."));
+
+    INFO("a law restates its counter every scan, and restating is not moving");
+    for (int i = 0; i < 20; i++) meter.drive(202.0f);
+    CHECK(persist.save_retained() == 0);
+    CHECK(store.writes == 1);
+
+    INFO("...and a litre that really arrived still reaches flash");
+    meter.drive(203.0f);
+    CHECK(persist.save_retained() == 1);
+    CHECK(store.writes == 2);
 }
 
 TEST_CASE("params: a program's write waits on the cadence, an operator's on the operator") {

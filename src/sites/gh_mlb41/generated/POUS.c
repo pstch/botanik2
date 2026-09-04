@@ -81,6 +81,16 @@ static QUALITY ___QUAL(
   BOOL *__ENO, 
   BOOL OK, 
   BOOL SEEDED);
+static HEALTH ___WORST_HEALTH(
+  BOOL EN, 
+  BOOL *__ENO, 
+  HEALTH A, 
+  HEALTH B);
+static HEALTH ___VERDICT(
+  BOOL EN, 
+  BOOL *__ENO, 
+  BOOL ANSWERED, 
+  BOOL TRUSTED);
 static REAL ___LADDER(
   BOOL EN, 
   BOOL *__ENO, 
@@ -872,6 +882,74 @@ __end:
     *__ENO = ENO;
   }
   return QUAL;
+}
+
+
+static HEALTH ___WORST_HEALTH(
+  BOOL EN, 
+  BOOL *__ENO, 
+  HEALTH A, 
+  HEALTH B)
+{
+  BOOL ENO = __BOOL_LITERAL(TRUE);
+  HEALTH WORST_HEALTH = HEALTH__HEALTHY;
+
+  // Control execution
+  if (!EN) {
+    if (__ENO != NULL) {
+      *__ENO = __BOOL_LITERAL(FALSE);
+    }
+    return WORST_HEALTH;
+  }
+  if (((A == HEALTH__FAULTED) || (B == HEALTH__FAULTED))) {
+    WORST_HEALTH = HEALTH__FAULTED;
+  } else if (((A == HEALTH__DEGRADED) || (B == HEALTH__DEGRADED))) {
+    WORST_HEALTH = HEALTH__DEGRADED;
+  } else {
+    WORST_HEALTH = HEALTH__HEALTHY;
+  };
+
+  goto __end;
+
+__end:
+  if (__ENO != NULL) {
+    *__ENO = ENO;
+  }
+  return WORST_HEALTH;
+}
+
+
+static HEALTH ___VERDICT(
+  BOOL EN, 
+  BOOL *__ENO, 
+  BOOL ANSWERED, 
+  BOOL TRUSTED)
+{
+  BOOL ENO = __BOOL_LITERAL(TRUE);
+  HEALTH VERDICT = HEALTH__HEALTHY;
+
+  // Control execution
+  if (!EN) {
+    if (__ENO != NULL) {
+      *__ENO = __BOOL_LITERAL(FALSE);
+    }
+    return VERDICT;
+  }
+  if (!(ANSWERED)) {
+    VERDICT = HEALTH__FAULTED;
+  } else if (!(TRUSTED)) {
+    VERDICT = HEALTH__DEGRADED;
+  } else {
+    VERDICT = HEALTH__HEALTHY;
+  };
+
+  goto __end;
+
+__end:
+  if (__ENO != NULL) {
+    *__ENO = ENO;
+  }
+  return VERDICT;
 }
 
 
@@ -3497,8 +3575,10 @@ static void DAY_PHASE_CONTROLLER_init__(DAY_PHASE_CONTROLLER_data__ *data__, BOO
   __INIT_EXTERNAL(QUALITY,CLI_PREVDAYMAX_DEGC_QLT,data__->CLI_PREVDAYMAX_DEGC_QLT,retain)
   __INIT_EXTERNAL(REAL,CLI_PREVNIGHTMIN_DEGC,data__->CLI_PREVNIGHTMIN_DEGC,retain)
   __INIT_EXTERNAL(QUALITY,CLI_PREVNIGHTMIN_DEGC_QLT,data__->CLI_PREVNIGHTMIN_DEGC_QLT,retain)
+  __INIT_EXTERNAL(HEALTH,PROG_DAY_PHASE_HEALTH,data__->PROG_DAY_PHASE_HEALTH,retain)
   __INIT_VAR(data__->PHASE,DAYPHASE__PHASE_NIGHT,retain)
   __INIT_VAR(data__->SEEDED,__BOOL_LITERAL(FALSE),retain)
+  __INIT_VAR(data__->PLACED,__BOOL_LITERAL(FALSE),retain)
   __INIT_VAR(data__->DAY_MAX,0,retain)
   __INIT_VAR(data__->NIGHT_MIN,0,retain)
 }
@@ -3521,6 +3601,7 @@ static void DAY_PHASE_CONTROLLER_body__(DAY_PHASE_CONTROLLER_data__ *data__) {
   };
   __SET_VAR(data__->,PREV_PHASE,,__GET_VAR(data__->PHASE,));
   if (__GET_EXTERNAL(data__->SOL_READY,)) {
+    __SET_VAR(data__->,PLACED,,__BOOL_LITERAL(TRUE));
     if ((__GET_EXTERNAL(data__->SOL_FROMRISE_MIN,) < __GET_EXTERNAL(data__->SOL_COLDBANKRISE_MIN,))) {
       __SET_VAR(data__->,PHASE,,DAYPHASE__PHASE_NIGHT);
     } else if ((__GET_EXTERNAL(data__->SOL_FROMRISE_MIN,) < __GET_EXTERNAL(data__->SOL_BREEZERISE_MIN,))) {
@@ -3565,6 +3646,14 @@ static void DAY_PHASE_CONTROLLER_body__(DAY_PHASE_CONTROLLER_data__ *data__) {
   __SET_EXTERNAL(data__->,CLI_COLDBANKARM_QLT,,__GET_EXTERNAL(data__->CLI_PREVDAYMAX_DEGC_QLT,));
   __SET_EXTERNAL(data__->,CLI_HEATBANKARM,,(__GET_EXTERNAL(data__->CLI_PREVNIGHTMIN_DEGC,) < __GET_EXTERNAL(data__->CLI_HEATBANKTRG_DEGC,)));
   __SET_EXTERNAL(data__->,CLI_HEATBANKARM_QLT,,__GET_EXTERNAL(data__->CLI_PREVNIGHTMIN_DEGC_QLT,));
+  __SET_EXTERNAL(data__->,PROG_DAY_PHASE_HEALTH,,___VERDICT(
+    (BOOL)__BOOL_LITERAL(TRUE),
+    NULL,
+    (BOOL)__GET_VAR(data__->PLACED,),
+    (BOOL)(__GET_EXTERNAL(data__->SOL_READY,) && ___GOOD(
+      (BOOL)__BOOL_LITERAL(TRUE),
+      NULL,
+      (QUALITY)__GET_EXTERNAL(data__->CLI_TEMP_IN_QLT,)))));
 
   goto __end;
 
@@ -5477,6 +5566,7 @@ static void TEMP_RH_ZONE_init__(TEMP_RH_ZONE_data__ *data__, BOOL retain) {
   __INIT_EXTERNAL(QUALITY,CLI_VPD_KPA_QLT,data__->CLI_VPD_KPA_QLT,retain)
   __INIT_EXTERNAL(BOOL,ALARM_ROT,data__->ALARM_ROT,retain)
   __INIT_EXTERNAL(BOOL,ALARM_ZONE_BLIND,data__->ALARM_ZONE_BLIND,retain)
+  __INIT_EXTERNAL(HEALTH,PROG_TEMP_RH_ZONE_HEALTH,data__->PROG_TEMP_RH_ZONE_HEALTH,retain)
 }
 
 // Code part
@@ -5625,6 +5715,17 @@ static void TEMP_RH_ZONE_body__(TEMP_RH_ZONE_data__ *data__) {
   };
   __SET_EXTERNAL(data__->,CLI_VPD_KPA_QLT,,__GET_EXTERNAL(data__->CLI_TEMP_IN_QLT,));
   __SET_EXTERNAL(data__->,ALARM_ROT,,(__GET_EXTERNAL(data__->CLI_DPMARGIN_DEGC,) < __GET_EXTERNAL(data__->CLI_ROTMARGIN_DEGC,)));
+  __SET_EXTERNAL(data__->,PROG_TEMP_RH_ZONE_HEALTH,,___VERDICT(
+    (BOOL)__BOOL_LITERAL(TRUE),
+    NULL,
+    (BOOL)__BOOL_LITERAL(TRUE),
+    (BOOL)(___GOOD(
+      (BOOL)__BOOL_LITERAL(TRUE),
+      NULL,
+      (QUALITY)__GET_EXTERNAL(data__->CLI_TEMP_HI_QLT,)) && ___GOOD(
+      (BOOL)__BOOL_LITERAL(TRUE),
+      NULL,
+      (QUALITY)__GET_EXTERNAL(data__->CLI_TEMP_LO_QLT,)))));
 
   goto __end;
 

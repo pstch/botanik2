@@ -159,9 +159,9 @@ namespace Botanik { namespace Shell {
         // computed row is written back to the retained store, a PARAMETER is
         // one `params reset` leaves alone. A line here that storage does not
         // keep would be worse than none.
-        if (Vars::Persist::retainable(d))
+        if (Vars::retained(d))
             _field("Retained", "yes", "written back; survives a reboot");
-        else if (Vars::Persist::param_retained(d))
+        else if (Vars::retained_param(d))
             _field("Retained", "yes", "a record; `params reset` leaves it alone");
 
         // The band, live: an end may name another row, and an analog row's
@@ -203,7 +203,7 @@ namespace Botanik { namespace Shell {
     const char* CommandShell::_default_phrase(const Vars::Descriptor& d) {
         // The descriptor, not the role alone: a RETAINED parameter is the one
         // kind whose default nothing puts back, so the phrase would be a lie.
-        if (Vars::Persist::param_retained(d))
+        if (Vars::retained_param(d))
             return "factory value; retained, so nothing puts it back";
         switch (d.kind) {
             case Vars::K_PARAM:  return "factory value; `params reset` restores it";
@@ -316,7 +316,7 @@ namespace Botanik { namespace Shell {
             uint16_t done = 0, refused = 0, kept = 0;
             for (uint16_t k = 0; k < io->param_count(); k++) {
                 Vars::Var p = io->param_at(k);
-                if (Vars::Persist::param_retained(p.meta())) { kept++; continue; }
+                if (Vars::retained_param(p.meta())) { kept++; continue; }
                 switch (st->reset(p)) {
                     case Vars::SET_OK:             done++;    break;
                     case Vars::SET_NOT_PERSISTED:  refused++; break;
@@ -336,7 +336,7 @@ namespace Botanik { namespace Shell {
         const uint16_t r = io->find(nm, wn);
         if (r == Vars::VAR_NONE) { _println("params: unknown parameter"); return; }
         Vars::Var p = io->var(r);
-        if (Vars::Persist::param_retained(p.meta())) {
+        if (Vars::retained_param(p.meta())) {
             _emitf(out, sizeof(out), "%s is retained: `params reset` leaves it alone",
                    p.meta().name);
             _println("  it records what happened; `params set` is how it moves");

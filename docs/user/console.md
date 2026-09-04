@@ -636,14 +636,13 @@ programs come first**, then the library's own tasks, each block by name - and ev
 library task is named `sys_`, so the two halves read apart at a glance. Typing
 narrows the table to one subsystem's rows.
 
-**HEALTH** is a control program's own verdict on its last activation - `HEALTHY`,
-`DEGRADED` (an input went invalid, the outputs are still driven), `INHIBITED`
-(control stopped, actuators parked, still reporting) or `PARKING` (on its way
-there). `INVALID` is the odd one out: it is not a verdict on an activation at all
-but on the WIRING, decided once at bring-up, and such a program never runs. It is
-blank on a row that is not a program, which is most of the table: a driver or a
-service task has no such verdict to give. `INHIBITED` is what a program reports once
-it has actually parked, which is the state @ref user_control is about.
+**HEALTH** is a control program's own verdict on its last activation, in three
+words: `HEALTHY` (it ran on inputs it trusts), `DEGRADED` (it still answered, on
+evidence it does not fully trust - a probe short of quorum, a held reading) or
+`FAULTED` (it could not answer at all, and what it drove is its declared safe
+state, which is also what it reads before its first run and after it leaves the
+scan). It is blank on most of the table: a driver or a service task has no such
+verdict, and neither does a control program that did not opt into a health row.
 
 **MISSED** is the other column to run an eye down. A task that missed activations did
 not run at the rate it declared, and a missed activation is never caught up - so this

@@ -366,9 +366,9 @@ reads as "never watered", so restoring it makes every tray due at once.
 
 It reuses the flag instead of adding one because the question is the same either
 way, "is this value history?"; only the mechanism differs by kind, and
-`Persist::retainable()` / `Persist::param_retained()` are the two halves. A
-retained parameter never enters the retained store - it already has a key of its
-own, and two keys for one row could disagree.
+`Vars::retained()` / `Vars::retained_param()` are the two halves. A retained
+parameter never enters the retained store - it already has a key of its own, and
+two keys for one row could disagree.
 
 On the row it is a trailing `retained` flag rather than a factory of its own:
 retention is orthogonal to the P / PE / PS split, which is about the shape of the
@@ -379,13 +379,22 @@ reboot would give it - the saved copy, or the factory default when nothing was
 ever saved - so it can undo only an edit that is not durable yet, and takes away
 nothing a power cut would not.
 
-### The two marks
+### The three marks
 
 `S_PARAM_UNSAVED` is an OPERATOR's edit and `S_PARAM_OWED` is a PROGRAM's. They
 survive each other on purpose: a law stamping a watering date must not read as an
 unsaved SETTING on the params page, and the retain cadence must not commit a
 setting the operator has not confirmed. `save_all()` writes both; `save_owed()`
 writes only the second, and that is what the cadence calls.
+
+`S_RETAIN_OWED` is the third, and it is what makes the cadence cheap. A retained
+row is written by a law that restates it every scan, so `Var::_drive()` sets the
+mark only where the value MOVED and `save_retained()` skips every row without
+one. Without it the cadence is an erase per retained row per `sys_retain_sec`
+for ever, on a plant that is doing nothing - which is flash wear bought for a
+value the store already holds. `Persist::_load_retained()` writes the slot
+directly at boot and so owes nothing: the value it restored IS what the store
+has.
 
 Config-driven components take their settings through `ConfigBinder`, which reads
 the rows by generated index and re-applies a component's whole group when that
@@ -462,7 +471,8 @@ register (`Binding::reg`), and an external master's map is a contract. The
 library reserves **900-999**: parameters and status values grow upward from 900,
 its alarms take 990-999, and a site's own alarms live in 800-899. The GENERATED
 rows have blocks of their own above all of it - qualities from `quality_base`,
-the parking pairs from `park_base`, the per-program health rows from `prog_base` -
+the parking pairs from `park_base`, the health row of each program that opted
+into one from `prog_base` -
 so adding a reading or a program cannot renumber a hand-assigned register.
 
 The generator refuses a duplicate, a mapped kind with no register, and a

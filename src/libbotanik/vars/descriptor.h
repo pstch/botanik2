@@ -139,7 +139,12 @@ namespace Botanik { namespace Vars {
         S_FIELD_DIRTY   = 1u << 4,
         /** @brief Something has written this slot at least once. What the
          *  stamp's zero cannot say, since 0 ms is a real uptime. */
-        S_WRITTEN       = 1u << 5
+        S_WRITTEN       = 1u << 5,
+        /** @brief This retained row has MOVED since the store last took it, so
+         *  the retain cadence owes it a write. Without the mark the cadence
+         *  writes every retained row every period, and a flash erase for a value
+         *  that did not change is wear bought for nothing. */
+        S_RETAIN_OWED   = 1u << 6
     };
 
     /** @brief How a driver reaches a variable. Eight bytes, and every field is
@@ -344,6 +349,16 @@ namespace Botanik { namespace Vars {
     }
     /** @brief The next row is this one's `_qlt` companion. */
     constexpr bool has_quality(const Descriptor& d) { return (d.flags & F_QLT) != 0; }
+    /** @brief Written back to the retained store: the row's VALUE is the
+     *  history, and the store is where it survives a reboot. */
+    constexpr bool retained(const Descriptor& d) {
+        return (d.flags & F_RETAIN) != 0 && d.kind == K_STATUS;
+    }
+    /** @brief F_RETAIN on a PARAMETER means the other thing: it persists
+     *  already, and the flag says `params reset` leaves it alone. */
+    constexpr bool retained_param(const Descriptor& d) {
+        return (d.flags & F_RETAIN) != 0 && d.kind == K_PARAM;
+    }
 
     /** @} */
 

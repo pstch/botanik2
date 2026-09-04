@@ -126,6 +126,7 @@ IECLIB_DIR = 'src/libbotanik/plc/functions'
 # ORDER MATTERS: matiec needs a block declared before it is instanced, and there
 # is no forward declaration. filters before analog, because DC_RAIL holds an EWMA.
 LIBST = ['src/libbotanik/plc/functions/quality.st',
+         'src/libbotanik/plc/functions/health.st',
          'src/libbotanik/plc/functions/math.st',
          'src/libbotanik/plc/functions/psychro.st',
          'src/libbotanik/plc/functions/time.st',
@@ -228,11 +229,13 @@ def emit_plant_cpp(site, t, prog, writes):
         L.append('static const uint16_t _park_%s   = %s;' % (e['instance'].upper(), pk[0]))
         L.append('static const uint16_t _parked_%s = %s;' % (e['instance'].upper(), pk[1]))
     L += ['',
-          '// The health row per program: Plant\'s own verdict, generated beside',
-          '// the roster so a program cannot exist without one.']
+          '// The health row of a program that opted in, or VAR_NONE. The LAW',
+          '// writes it; Plant only reads it back for the TASKS page.']
     for e in prog:
-        L.append('static const uint16_t _health_%s = Vars::Row::prog_%s;'
-                 % (e['instance'].upper(), e['name']))
+        L.append('static const uint16_t _health_%s = %s;'
+                 % (e['instance'].upper(),
+                    ('Vars::Row::prog_%s_health' % e['name'])
+                    if _opted_in(e, 'health') else 'Vars::VAR_NONE'))
     L += ['',
           'const Program programs[] = {',
           '#define X(name, POU, INST, PERIOD)                                             \\',
@@ -307,10 +310,24 @@ def check_laws(t, prog, writes):
         if not _opted_in(e, 'quality'): continue
         wr = {n.upper() for n in writes.get(e['pou'], ())}
         for n in sorted(wr):
-            if n.endswith('_QLT') or n.lower() in {a.lower() for a in alarms}: continue
+            # An alarm is a verdict, not a reading, and so is anything a program
+            # says about ITSELF - its health, its parked answer. A quality on
+            # one of those would be a verdict on a verdict.
+            if n.endswith('_QLT') or n.startswith('PROG_'): continue
+            if n.lower() in {a.lower() for a in alarms}: continue
             if n + '_QLT' not in wr:
                 bad.append('%s: writes %s and owes %s_qlt'
                            % (e['name'], n.lower(), n.lower()))
+
+    # A program that opts into HEALTH owes a write to its own row, on every
+    # path: the row's declared value is FAULTED, so one nothing writes reads as
+    # a program that could not answer - which is worse than not opting in.
+    for e in prog:
+        if not _opted_in(e, 'health'): continue
+        if ('PROG_%s_HEALTH' % e['name']).upper() not in \
+                {n.upper() for n in writes.get(e['pou'], ())}:
+            bad.append('%s: opts into health and owes prog_%s_health'
+                       % (e['name'], e['name']))
 
     # ...and the same for PARKING: a program told to park that never answers
     # holds the whole shutdown open until plc_parkTimeout_sec runs out.
@@ -413,31 +430,50 @@ def plant(site):
     return 0
 
 
-# ---- the ST quality enumeration --------------------------------------------
+# ---- the ST enumerations the LIBRARY owns -----------------------------------
 
-QUALITY_GEN = 'src/libbotanik/plc/runtime/quality.gen.h'
+# (ST type, header the C++ enum is declared in, the enum's own declaration, how
+#  a member is spelled in C++, the member pattern). Both are types matiec must
+#  be handed rather than allowed to number itself.
+LIB_ENUMS = [
+    ('QUALITY', 'src/libbotanik/vars/descriptor.h',
+     r'enum Quality : uint8_t \{(.*?)\n    \};',
+     '::Botanik::Vars::%s', r'^\s*(Q_[A-Z_]+)'),
+    ('HEALTH', 'src/libbotanik/plc/health.h',
+     r'enum class Health : uint8_t \{(.*?)\n    \};',
+     '::Botanik::Plc::Health::%s',
+     r'^\s*([A-Z][A-Z_]+)\s*(?:=\s*\d+)?\s*,?\s*(?:///.*)?$'),
+]
 
 
-def quality_block():
-    """The accessor's QUALITY enumeration block, off descriptor.h.
+def _lib_enum(st, header, decl, spell, member):
+    """One accessor enumeration block, off the header that declares the enum.
 
     matiec initialises a QUALITY-returning function with `QUALITY__Q_NONE`, so
     the members have to be named constants of the REAL C++ type. Generated so a
     code added to one side and not the other cannot compile."""
-    src = open('src/libbotanik/vars/descriptor.h').read()
-    m = re.search(r'enum Quality : uint8_t \{(.*?)\n    \};', src, re.S)
-    if not m: sys.exit('descriptor.h: no `enum Quality`')
-    codes = re.findall(r'^\s*(Q_[A-Z_]+)', m.group(1), re.M)
+    m = re.search(decl, open(header).read(), re.S)
+    if not m: sys.exit('%s: no `%s`' % (header, decl))
+    codes = re.findall(member, m.group(1), re.M)
+    if not codes: sys.exit('%s: no members for %s' % (header, st))
+    guard = 'BOTANIK_PLC_RUNTIME_%s_GEN_H' % st
     w = max(len(c) for c in codes)
-    L = ['/* GENERATED by scripts/tables.py from vars/descriptor.h. Do not edit. */',
-         '#ifndef BOTANIK_PLC_RUNTIME_QUALITY_GEN_H',
-         '#define BOTANIK_PLC_RUNTIME_QUALITY_GEN_H', '',
+    L = ['/* GENERATED by scripts/tables.py from %s. Do not edit. */' % header,
+         '#ifndef %s' % guard, '#define %s' % guard, '',
          '/* matiec discards its own member list for this type: the ST enumeration',
          ' * and the C++ one must be the SAME type, not two with equal values. */',
-         '#define BOTANIK_ST_TYPE_QUALITY \\']
+         '#define BOTANIK_ST_TYPE_%s \\' % st]
     for i, c in enumerate(codes):
-        L.append('    static const QUALITY QUALITY__%-*s = ::Botanik::Vars::%-*s;%s'
-                 % (w, c, w, c, ' \\' if i + 1 < len(codes) else ''))
+        L.append('    static const %s %s__%-*s = %s;%s'
+                 % (st, st, w, c, spell % c, ' \\' if i + 1 < len(codes) else ''))
     L += ['', '#endif', '']
-    open(QUALITY_GEN, 'w').write('\n'.join(L))
-    print('  quality.gen.h  %d codes' % len(codes))
+    out = 'src/libbotanik/plc/runtime/%s.gen.h' % st.lower()
+    open(out, 'w').write('\n'.join(L))
+    return st.lower(), len(codes)
+
+
+def quality_block():
+    """The accessor blocks for every enumerated type the library owns."""
+    for e in LIB_ENUMS:
+        name, n = _lib_enum(*e)
+        print('  %-14s %d codes' % (name + '.gen.h', n))

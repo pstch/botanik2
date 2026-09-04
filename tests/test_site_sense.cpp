@@ -690,8 +690,9 @@ TEST_CASE_FIXTURE(StRig, "cooling: the floor carries it when the ceiling goes, a
     d.step(t += 100);
     REQUIRE(live.bank.var(dem).valid());
     REQUIRE(live.bank.var(dem).as_f32() > 0.0f);          // hot: cooling
-    for (uint8_t i = 0; i < Plc::Runtime::PROGRAM_COUNT; i++)
-        CHECK(st.health(i) == Plc::Health::HEALTHY);
+    INFO("both levels measured, so the law that reads them says so");
+    CHECK(live.bank.var(live.ref("prog_temp_rh_zone_health")).value()
+              .as<uint64_t>() == (uint64_t)Plc::Health::HEALTHY);
 
     INFO("the ceiling goes: temp_rh_zone still has a house temperature to "
          "give, it is the floor's, and this law is still on a measured one");
@@ -762,10 +763,18 @@ TEST_CASE("cooling: an unknown demand puts every actuator at its own safe state"
     CHECK_FALSE(TestScan::ref_of<bool>(f, "cli_skirtValve").get());  // shut
     CHECK(TestScan::ref_of<bool>(f, "cli_destrat1_speed1").get());   // speed 1
 
-    // The five that READ a missing demand, not the ST behind them: every
-    // program on the resource has every input it wants. Health is its own
-    // again, per program, exactly as it was when these were C++.
+    // ...and the law that cannot see the house SAYS so. temp_rh_zone still
+    // answers - every arm of it publishes a number - so this is DEGRADED and
+    // not FAULTED, which is the whole distinction the vocabulary carries.
+    const uint16_t zone = f.ref("prog_temp_rh_zone_health");
+    REQUIRE(zone != Vars::VAR_NONE);
+    CHECK(f.bank.var(zone).value().as<uint64_t>()
+          == (uint64_t)Plc::Health::DEGRADED);
+
+    INFO("a program that did not opt into health has no verdict to give, and "
+         "nothing invents one for it");
     for (uint8_t i = 0; i < Plc::Runtime::PROGRAM_COUNT; i++) {
+        if (Plc::Runtime::programs[i].health_row != Vars::VAR_NONE) continue;
         INFO("ST program ", (unsigned)i);
         CHECK(st.health(i) == Plc::Health::HEALTHY);
     }

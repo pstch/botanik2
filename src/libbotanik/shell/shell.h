@@ -327,7 +327,7 @@ namespace Botanik { namespace Shell {
         void _params_clear(const char* nm, uint16_t wn);
         /** @brief `params reset`: back to the FACTORY default, stored copy and
          *  all. The destructive sibling of _params_clear(), and it skips a
-         *  RETAINED parameter (@see Vars::Bank::param_retained). */
+         *  RETAINED parameter (@see Vars::retained_param). */
         void _params_reset(const char* nm, uint16_t wn);
         /** @brief `overrides save <name>|all` - the same, for overrides. */
         void _overrides_save(const char* nm, uint16_t wn);

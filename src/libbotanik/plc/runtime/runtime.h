@@ -33,7 +33,11 @@ namespace Botanik { namespace Plc { namespace Runtime {
          *  DECLARED with - its rows, its period - is in `Program`; this is what
          *  it acquires while running. */
         struct Slot {
-            /** @brief One code, so the TASKS page has a pointer to read. */
+            /** @brief The law's last verdict, read back off its row after
+             *  each scan. Cached because the TASKS page holds a POINTER.
+             *  HEALTHY is what a program with no health row keeps: it did not
+             *  opt in, so nothing here has an opinion, and its task entry gets
+             *  a null pointer rather than this. */
             Health   health  = Health::HEALTHY;
             /** @brief The OPERATOR's gate, beside the system's. Not retained: a
              *  program left out of the scan by a maintenance session must not
@@ -94,6 +98,9 @@ namespace Botanik { namespace Plc { namespace Runtime {
         /** @brief Begin, end, and give up on @p i's park. Split out because
          *  the three of them are the whole state machine and scan() should
          *  read as the beat, not as it. */
+        /** @brief Take @p i's verdict off its row into the slot the TASKS page
+         *  points at. No row, no change. */
+        void _read_health(uint8_t i);
         bool _park_begin(uint8_t i, uint64_t now_ms);
         void _park_end(uint8_t i, bool answered);
         /** @brief _safe_outputs() plus the line that says it happened. */

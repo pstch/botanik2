@@ -114,11 +114,12 @@ def test_a_wildcard_filter_narrows_a_table(spawn):
 
 
 def test_tasks_page_reports_program_health(spawn):
-    """HEALTH is a program's verdict, and blank on everything else.
+    """HEALTH is a verdict a program OPTED IN to, and blank on everything else.
 
-    The blank half is the claim worth pinning: `Task::program` is null on a
-    driver or a service task, and a page that read health off it anyway would
-    fault, not misprint.
+    The blank half is the claim worth pinning, and it is wider than it was: a
+    library task has no health, and neither does a control program that did not
+    ask for a health row. A page that read one off the task anyway would fault,
+    not misprint.
     """
     term = boot(spawn)
     goto(term, keys.ALT_7, "TASK")
@@ -126,18 +127,44 @@ def test_tasks_page_reports_program_health(spawn):
     # The site's programs head the table, the library's sys_ tasks follow. By
     # name alone sys_alarms would come first, so this is the ordering, not the
     # alphabet.
-    def names():
+    def cells(col):
         rows = [l for l in term.view() if l.startswith("  | ")]
-        return [n for n in (r.split("|")[1].strip() for r in rows) if n and n != "TASK"]
+        return [r.split("|")[col].strip() for r in rows
+                if r.split("|")[1].strip() not in ("", "TASK")]
+
+    def names():
+        return [n for n in cells(1) if n]
     assert term.until(lambda: len(names()) > 3), "the table never painted"
     assert not any(n.startswith("sys_") for n in names()), \
         "a library task sits above the site's programs: %s" % names()
 
-    term.send(keys.text("cooling"))
-    assert term.wait_screen("[/cooling]"), "the filter did not narrow the table"
-    assert term.wait_screen("HEALTHY"), "a control program reported no health"
+    # temp_rh_zone opts into health in programs.csv, so it has a verdict to
+    # print. Any of the three words will do: what is being tested is that the
+    # column reaches the page, not what the plant happens to be doing.
+    term.send(keys.text("temp_rh_zone"))
+    assert term.wait_screen("[/temp_rh_zone]"), "the filter did not narrow the table"
+    words = ("HEALTHY", "DEGRADED", "FAULTED")
+    # The COLUMN, and waited on: the legend is PRIO_CHROME and goes out a frame
+    # ahead of the band it describes, so the table below it is still the old one.
+    assert term.until(lambda: names() == ["temp_rh_zone"]), \
+        "the table did not narrow: %s" % names()
+    assert term.until(lambda: all(c in words for c in cells(3))), \
+        "a program that opted into health reported none: %s" % cells(3)
     # The period left the table for the panel, beside the share it takes.
     assert term.wait_screen("Every ms"), "the panel is missing the declared period"
+
+    # ...and one that did not opt in prints nothing there. Same page, same
+    # column, so this is the blank half of the claim above.
+    term.send(keys.ESC)
+    # Wait for the clear before typing: ESC plus a letter IS Alt+letter to any
+    # VT parser, so a byte sent inside the command timeout joins the escape.
+    assert term.wait_screen("type to filter"), "ESC did not clear the filter"
+    term.send(keys.text("cooling"))
+    assert term.wait_screen("[/cooling]"), "the filter did not reach the legend"
+    assert term.until(lambda: names() == ["cooling"]), \
+        "the table did not narrow: %s" % names()
+    assert cells(3) == [""], \
+        "a program with no health row printed one: %s" % cells(3)
 
     term.send(keys.ESC)
     # Wait for the clear before typing: ESC plus a letter IS Alt+letter to any

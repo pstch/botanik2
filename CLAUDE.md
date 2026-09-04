@@ -278,6 +278,17 @@ Subsystems under `src/libbotanik/`. Each row's doc is the reference; the header 
   where a phase came from rather than whether it is legal. `docs/dev/blind-spots.md`
   is the list, and the place to add to when the answer to "why is there no check
   for X" is "we chose not to". A review with no such list re-raises every one.
+- **Program health.** A program may opt in with `health` in `programs.csv` and
+  get `prog_<name>_health`, a `T_ENUM` row over `Plc::Health` -
+  `HEALTHY`, `DEGRADED` (it answered, on evidence it does not fully trust),
+  `FAULTED` (it could not answer; what it wrote is its safe state). The LAW
+  writes it, and opting in obliges the body to write it on every path, which
+  `tables.py plant` checks off matiec's write list the same way it checks a
+  quality. `FAULTED` is the declared value, so it is what the row reads before
+  the first scan and where it goes when the program leaves it. `Plant` only
+  reads it back for the TASKS page; a program that did not opt in has no verdict
+  and shows blank. The ST type is `plc/functions/health.st`, generated onto the
+  C++ enum by `health.gen.h` exactly as `QUALITY` is. See `scan.md`.
 - **Parking.** A program may opt in with `park` in `programs.csv` and get
   `prog_<name>_park` (Plant writes, the law reads) and `prog_<name>_parked` (the
   law writes). Such a program is NOT dropped when it leaves the scan: `park` goes

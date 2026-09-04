@@ -26,6 +26,7 @@ VAR_EXTERNAL
   cli_vpd_kPa_qlt       : QUALITY;
   alarm_rot             : BOOL;
   alarm_zone_blind      : BOOL;
+  prog_temp_rh_zone_health : HEALTH;
 END_VAR
 VAR_TEMP
   dp_hi      : REAL;
@@ -129,4 +130,13 @@ END_VAR
   cli_vpd_kPa_qlt := cli_temp_in_qlt;
 
   alarm_rot := cli_dpMargin_degC < cli_rotMargin_degC;
+
+  (* ANSWERED always: every arm above publishes a number, and the blind one
+     publishes evidence the plant is meant to act on. So this law is never
+     FAULTED - what varies is whether it TRUSTED what it answered on, which is
+     both levels measured and nothing less. One probe set gone is a house seen
+     at half its height, and that is worth saying beside the reading. *)
+  prog_temp_rh_zone_health :=
+      VERDICT(ANSWERED := TRUE,
+              TRUSTED  := GOOD(cli_temp_hi_qlt) AND GOOD(cli_temp_lo_qlt));
 END_PROGRAM

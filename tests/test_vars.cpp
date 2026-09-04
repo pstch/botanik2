@@ -77,16 +77,16 @@ TEST_CASE("vars: retention is a flag on the factory, not a factory of its own") 
     const Vars::Descriptor kept =
         Vars::SV("t_kept", Vars::T_F32, 0, 1, "L", 0, "retained", "", true);
 
-    CHECK_FALSE(Vars::Persist::retainable(plain));
-    CHECK(Vars::Persist::retainable(kept));
+    CHECK_FALSE(Vars::retained(plain));
+    CHECK(Vars::retained(kept));
     // ...and not as a parameter, which is the other half of the same flag.
-    CHECK_FALSE(Vars::Persist::param_retained(kept));
+    CHECK_FALSE(Vars::retained_param(kept));
 
     const Vars::Descriptor pk =
         Vars::P("t_pk", Vars::T_U16, 1, 0, 10, Vars::VAR_NONE, Vars::VAR_NONE,
                 0, "", 900, "a retained param", "", true, true);
-    CHECK(Vars::Persist::param_retained(pk));
-    CHECK_FALSE(Vars::Persist::retainable(pk));
+    CHECK(Vars::retained_param(pk));
+    CHECK_FALSE(Vars::retained(pk));
 }
 
 TEST_CASE("text: a listing pattern is a prefix until it has a wildcard") {

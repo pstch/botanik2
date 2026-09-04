@@ -67,24 +67,6 @@ namespace Botanik { namespace Vars {
 
         void register_tasks() override;
 
-        /** @name What goes to the retained store
-         *  Two halves of one flag, told apart by kind. @{ */
-
-        /** @brief F_RETAIN on a status row: its value IS the history. A
-         *  parameter already persists, an input is overwritten by the next scan,
-         *  and restoring an output would energise a contactor before anything
-         *  looked at the plant. */
-        static bool retainable(const Descriptor& d) {
-            return (d.flags & F_RETAIN) != 0 && d.kind == K_STATUS;
-        }
-        /** @brief The flag's other half: F_RETAIN on a parameter, which persists
-         *  through its own key already, so the flag means `params reset` leaves
-         *  it alone. */
-        static bool param_retained(const Descriptor& d) {
-            return (d.flags & F_RETAIN) != 0 && d.kind == K_PARAM;
-        }
-
-        /** @} */
         /** @name Parameters
          *  @{ */
 

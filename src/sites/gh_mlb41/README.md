@@ -30,7 +30,7 @@ same `Vars::Bank` the rest of the firmware reads. `tables/programs.csv` is the
 roster - name, instance, source, rate - and it decides the order they run in.
 `BotanikFirmware` owns the `Plc::Runtime::Plant` that dispatches them, one
 `Tasks::Registry` entry each, so a law keeps its own period, its own
-`prog_<name>` health row and its own writer slot.
+`prog_<name>_health` row where it opted in, and its own writer slot.
 
 A program reads and writes rows by NAME, through `VAR_EXTERNAL`. Nothing is
 passed between them: `docs/dev/st-migration.md` has the migration's own
