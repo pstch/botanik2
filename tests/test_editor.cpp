@@ -17,59 +17,13 @@
 
 #include "libbotanik.h"
 
-#include "page_fixture.h"
+#include "editor_fixture.h"
 
 namespace editor_invariant {
 
 using namespace Botanik;
-
-#define SET_PS(n, lit) do { \
-    static const char s[] = lit; \
-    editor.set_ps##n(s, (uint16_t)(sizeof(s) - 1)); \
-} while (0)
-
-/** @brief A console with one editor on it and nothing else, so a full repaint
- *  of the editor is a full repaint of everything on screen. */
-struct EditorFixture : botanik_test::PageFixture {
-    Terminal::EditorBuffers<2048, 16> store;
-    Terminal::TextEditor              editor;
-
-    explicit EditorFixture(uint16_t rows = 24, uint16_t cols = 80,
-                           bool notes_prompts = false)
-        : PageFixture(rows, cols),
-          editor(&console, store.storage()) {
-        // sizeof - 1 rather than a written-out length, the way the two real
-        // callers do it: a prompt and a length that disagree is a memcpy off
-        // the end of a literal, and it reads as correct.
-        if (notes_prompts) {
-            // NOTES: the three prompts are the same WIDTH, which is what
-            // docs/dev/editor.md requires and what makes a class flip
-            // invisible to a length comparison. @see NotesPage::PROMPT_LINE
-            SET_PS(1, "> "); SET_PS(2, "  "); SET_PS(3, "> ");
-        } else {
-            // @see ShellPage::_setup_editor
-            SET_PS(1, "botanik> "); SET_PS(2, "> "); SET_PS(3, "...> ");
-        }
-        editor.reset();
-        drain();
-    }
-
-    /** @brief What the screen WOULD hold painted from the model, with the
-     *  editor's own state left exactly as it was. Ctrl+L on the real console;
-     *  here the same two calls it makes. */
-    std::vector<std::string> repainted() {
-        console.terminal().establish_screen();
-        editor.redraw();
-        return screen();
-    }
-};
-
-/** @brief The editor's convergence check. Not PageFixture::converged(): a
- *  TextEditor is not a Page and repaints through redraw() of its own. */
-void check_converged(EditorFixture& f, const char* what) {
-    const std::vector<std::string> incremental = f.screen();
-    botanik_test::PageFixture::same(incremental, f.repainted(), what);
-}
+using botanik_test::EditorFixture;
+using botanik_test::check_converged;
 
 TEST_CASE("editor: typing leaves the screen a full repaint would") {
     EditorFixture f;

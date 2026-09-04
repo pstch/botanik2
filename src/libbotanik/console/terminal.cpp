@@ -1,4 +1,3 @@
-// REVIEW_35: TODO
 /**
  * @file terminal.cpp
  * @brief AnsiTerminal implementation - the VT device over a screen back-buffer.
@@ -348,6 +347,11 @@ namespace Botanik { namespace Terminal {
         // of it reached the wire. Shifting after a dropped escape would leave the
         // diff believing those rows were already right, so the band would stay
         // wrong until a full clear.
+        // DL/IL fill the rows they free using the current attributes on
+        // terminals with background-colour erase, and _shift_grid blanks them
+        // PLAIN in both grids - so an inverted pen left by the last frame's
+        // final run paints a band the diff can never see, let alone repair.
+        if (_nscrolls != 0) _set_hw_inverted(false);
         for (uint8_t i = 0; i < _nscrolls; i++) {
             const PendingScroll& s = _scrolls[i];
             bool restore = (s.bottom < (uint16_t)(_rows - 1));

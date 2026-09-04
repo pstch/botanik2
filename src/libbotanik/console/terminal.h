@@ -1,4 +1,3 @@
-// REVIEW_35: TODO
 #ifndef CONSOLE_TERMINAL_H
 #define CONSOLE_TERMINAL_H
 
@@ -282,6 +281,14 @@ namespace Botanik { namespace Terminal {
         /** @brief The whole of FRONT row @p row. @see front_cells */
         uint16_t front_row(uint16_t row, char* out, uint16_t cap) const {
             return front_cells(row, 0, out, cap);
+        }
+
+        /** @brief Whether FRONT holds (@p row, @p col) in reverse video; false
+         *  off-grid. The attribute front_cells() strips, so a caller comparing
+         *  the whole cell can reach it. */
+        bool front_inverted(uint16_t row, uint16_t col) const {
+            if (row >= _rows || col >= _cols) return false;
+            return (_front[_idx(row, col)] & CELL_INV) != 0;
         }
 
         /** @}

@@ -30,6 +30,7 @@
 #include "libbotanik.h"
 
 #include "term_fixture.h"
+#include "vt_model.h"
 
 namespace botanik_test {
 
@@ -43,6 +44,9 @@ namespace botanik_test {
         PipeSerial          wire;
         uint64_t            now = 0;
         Botanik::Terminal::Console console;
+        /** @brief An independent VT fed every byte that left the ring. FRONT
+         *  says what the renderer meant; this says what the operator sees. */
+        VtScreen            vt;
 
         explicit PageFixture(uint16_t rows = 24, uint16_t cols = 80)
             : console(Botanik::SetupContext(), wire.serial, &now) {
@@ -51,11 +55,83 @@ namespace botanik_test {
             // grid holding what the wire has not carried yet, and every
             // assertion here would be about the pacing rather than the page.
             console.terminal().set_baud(4000000u);
+            vt.reshape(console.terminal().rows_total(), console.terminal().cols());
         }
 
         /** @brief Drop whatever is queued, so the next paint() answers for one
-         *  action rather than for the session so far. */
-        void drain() { (void)wire.capture(); }
+         *  action rather than for the session so far. The VT still sees it:
+         *  a model that skipped bytes would diverge from the wire, not from
+         *  the terminal. */
+        void drain() { vt.feed(wire.capture()); vt.reset_counter(); }
+
+        /** @brief Reconcile until the ring stops producing, and hand back the
+         *  bytes. What a renderer that is not a Page (the editor) drives. */
+        std::string pump() {
+            std::string out;
+            for (int i = 0; i < 64; i++) {
+                console.terminal().present();
+                const std::string got = wire.capture();
+                if (got.empty() && i > 0) break;
+                out += got;
+                vt.feed(got);
+            }
+            return out;
+        }
+
+        /** @brief Blank the screen, the grids and the VT together, so what
+         *  follows is measured from nothing.
+         *  @note Twice: a screen's FIRST establish stamps a 4-byte boot banner
+         *  the grids do not carry, and the second one's ED is what wipes it. */
+        void reset_wire() {
+            console.terminal().establish_screen();
+            console.terminal().establish_screen();
+            (void)pump();
+        }
+
+        /** @brief The first cell where the VT and FRONT disagree, described;
+         *  empty when the screen the operator sees is the one FRONT asked for.
+         *  One string rather than a CHECK per cell: this runs per keystroke in
+         *  the fuzz, and 1920 assertions a step is its own denial of service. */
+        std::string wire_diff() const {
+            const Botanik::Terminal::AnsiTerminal& t = console.terminal();
+            char msg[256];
+            for (uint16_t r = 0; r < t.rows_total(); r++)
+                for (uint16_t c = 0; c < t.cols(); c++) {
+                    char       want[2] = { 0, 0 };
+                    const bool want_inv = t.front_inverted(r, c);
+                    t.front_cells(r, c, want, 1);
+                    if (want[0] == vt.glyph[r][c] && want_inv == vt.inv[r][c]) continue;
+                    snprintf(msg, sizeof msg,
+                             "row %u col %u: FRONT '%c'%s, wire '%c'%s"
+                             "\n  FRONT: '%s'\n  wire : '%s'",
+                             (unsigned)r, (unsigned)c,
+                             want[0], want_inv ? " (inv)" : "",
+                             vt.glyph[r][c], vt.inv[r][c] ? " (inv)" : "",
+                             _front_row_text(r).c_str(), vt.row_text(r).c_str());
+                    return std::string(msg);
+                }
+            return std::string();
+        }
+
+        /** @brief Assert the VT's screen is the one FRONT asked for, cell for
+         *  cell, reverse video included. The check that survives moving
+         *  reconciliation OUT of a renderer: FRONT then becomes correct by
+         *  construction and only the wire can still be wrong. */
+        void check_wire(const char* what) {
+            const std::string diff = wire_diff();
+            INFO(std::string(what) << ": the wire does not show what FRONT drew\n  "
+                 << diff);
+            CHECK(diff.empty());
+        }
+
+        /** @brief FRONT row @p r as text, right-trimmed. */
+        std::string _front_row_text(uint16_t r) const {
+            char buf[VtScreen::MAX_COLS + 1];
+            const uint16_t n = console.terminal().front_row(r, buf, sizeof buf);
+            std::string s(buf, n);
+            while (!s.empty() && s.back() == ' ') s.pop_back();
+            return s;
+        }
 
         /** @brief FRONT rows [@p first, @p last), one string each, right-trimmed. */
         std::vector<std::string> rows(uint16_t first, uint16_t last) {
@@ -95,7 +171,9 @@ namespace botanik_test {
             for (int i = 0; i < 64; i++) {
                 page.tick(true);
                 console.terminal().present();
-                out += wire.capture();
+                const std::string got = wire.capture();
+                out += got;
+                vt.feed(got);
             }
             return out;
         }
@@ -126,6 +204,7 @@ namespace botanik_test {
          *  the bottom first, and assert convergence around it.
          */
         void converged(Botanik::Pages::Page& page, const char* what) {
+            check_wire(what);
             const std::vector<std::string> incremental = content();
             // A page that drew nothing converges trivially, so the comparison
             // below would pass on a page that had stopped painting entirely.
