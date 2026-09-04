@@ -524,6 +524,11 @@ void Bank::_find_param_block() {
         }
 
         slot.vflags = (uint8_t)(slot.vflags | VF_PARAM_UNSAVED);
+        // The TEXT form is the channel an operator or a remote master writes
+        // through; a control program goes via the typed overloads and would
+        // otherwise stamp a watering date into the log every scan.
+        if (_logger != nullptr)
+            _logger->notice(Logs::USER, "set '%s'\nto %s", d->name, text);
         return SET_OK;
     }
 

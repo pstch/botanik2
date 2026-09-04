@@ -584,6 +584,10 @@ namespace Botanik { namespace Vars {
         bool _persist_override(Var h);
         /** @brief Mark @p h's override live-but-unsaved. */
         void _mark_override_unsaved(Var h);
+        /** @brief The audit line for a force or a release: @p verb, the row,
+         *  and what it read BEFORE the change. Called before the write, and
+         *  silent for a "released" that released nothing. */
+        void _say_forced(Var h, const char* verb);
         /** @brief Write an edited parameter through to the store, loudly when it
          *  refuses. Shared by both set() overloads. */
         SetResult _persist_param(Var h, const Descriptor& d, Slot& slot);

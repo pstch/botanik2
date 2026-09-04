@@ -13,6 +13,7 @@
 #if BOTANIK_FEATURE_VARS
 
 #include "libbotanik/logs/logger.h"
+#include "libbotanik/vars/access.h"
 #include "libbotanik/vars/edit.h"
 
 namespace Botanik { namespace Vars {
@@ -40,6 +41,10 @@ namespace Botanik { namespace Vars {
     }
 
     void Bank::override_set(Var h, Scalar v) {
+        // Before the write, so the line carries what the row read BEFORE the
+        // force: an override that changes nothing still has to be accountable,
+        // and the value it displaced is the half nothing else records.
+        _say_forced(h, "forced");
         h.override_set(v);
         _mark_override_unsaved(h);
         // A forced value is BELIEVED. Forcing a dead probe's reading so the
@@ -87,13 +92,21 @@ namespace Botanik { namespace Vars {
     }
 
     void Bank::override_clear(Var h) {
+        _say_forced(h, "released");
         h.override_clear();
         const uint16_t row = _row_of(h);
         if (row == VAR_NONE) return;
         // ...and the belief that came with it, or a released reading would go
         // on being believed by whatever put it there.
+        // Through the slot, not through this method: the companion goes with
+        // the row it speaks for, and is not a second thing the operator did.
         const VarRef q = quality_ref(VarRef{ row });
-        if (q.index != VAR_NONE && _slots[q.index].ovr_on) override_clear(var(q));
+        if (q.index != VAR_NONE && _slots[q.index].ovr_on) {
+            var(q).override_clear();
+            _slots[q.index].vflags =
+                (uint8_t)(_slots[q.index].vflags & ~VF_OVR_UNSAVED);
+            if (_store != nullptr) (void)_store->clear_override(descriptor(q.index));
+        }
         _slots[row].vflags = (uint8_t)(_slots[row].vflags & ~VF_OVR_UNSAVED);
         // Forget the stored copy too, or the override comes back at the next
         // boot. Unconditional: an override cleared before it was ever saved may
@@ -145,7 +158,24 @@ namespace Botanik { namespace Vars {
                 _slots[i].vflags |= VF_FIELD_DIRTY;
             n++;
         }
+        // One line for the sweep, not one per row: `overrides clear all` is a
+        // single thing an operator did, and the per-row detail is what the
+        // stored copies just stopped saying.
+        if (n != 0 && _logger != nullptr)
+            _logger->notice(Logs::USER, "%u override(s) released", (unsigned)n);
         return n;
+    }
+
+    void Bank::_say_forced(Var h, const char* verb) {
+        if (_logger == nullptr) return;
+        const uint16_t row = _row_of(h);
+        // Nothing was in force, so nothing was released: only a real change of
+        // the forcing state is an event.
+        if (row == VAR_NONE) return;
+        if (verb[0] == 'r' && !_slots[row].ovr_on) return;
+        char was[48];
+        _logger->notice(Logs::USER, "%s '%s'\nwas %s", verb, h.meta()->name,
+                        var_format(*this, h, was, sizeof(was)));
     }
 }}  // namespace Botanik::Vars
 

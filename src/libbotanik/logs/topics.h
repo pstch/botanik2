@@ -1,4 +1,3 @@
-// REVIEW_35: TODO
 #ifndef LIBBOTANIK_LOGS_TOPICS_H
 #define LIBBOTANIK_LOGS_TOPICS_H
 
@@ -65,7 +64,8 @@ namespace Botanik { namespace Logs {
         ALARM_FLAP = 9,    // cleared without ever logging a START (too fast to dwell)
         HEALTH = 10,       // HealthMonitor (POST verdict, etc.)
         STORAGE = 11,      // persistence; its own topic, not a boot problem
-        USER = 12,         // written by an operator, through the `log` command
+        USER = 12,         // an operator's own doing: the `log` command, and
+                           // the audit line for a parameter edit or a force
         // The two observability topics. DEBUG-level and high-volume by nature,
         // which is exactly why they are their own topics: a sink can carry the
         // control logic's trace without carrying everything else at DEBUG.
