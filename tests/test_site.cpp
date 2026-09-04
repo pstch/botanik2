@@ -292,6 +292,48 @@ TEST_CASE_FIXTURE(SiteBank, "vars: forcing a companion is how a row reads dead")
     CHECK(bank.var(probe).as_f32() == doctest::Approx(21.5f));
 }
 
+TEST_CASE_FIXTURE(SiteBank, "site: the two DC rails share one calibration") {
+    // Both rails hang off the same divider design, so a recalibration is one
+    // edit and not two that can drift apart. Sharing the BLOCK is what shares
+    // the parameters: the six Tunables name rows, and the rows are the same.
+    const Vars::VarRef dc1 = bank.find("pwr_dc1_V");
+    const Vars::VarRef dc2 = bank.find("pwr_dc2_V");
+    REQUIRE(dc1.index != Vars::VAR_NONE);
+    REQUIRE(dc2.index != Vars::VAR_NONE);
+
+    const Vars::AnalogCal* c1 = Vars::analog_cal(bank.descriptor(dc1.index));
+    const Vars::AnalogCal* c2 = Vars::analog_cal(bank.descriptor(dc2.index));
+    REQUIRE(c1 != nullptr);
+    CHECK(c1 == c2);
+
+    // ...and the block resolves to real parameter rows, so the sharing is of
+    // something an operator can actually edit.
+    const Vars::VarRef* refs = bank.analog_refs(c1);
+    REQUIRE(refs != nullptr);
+    for (uint8_t i = 0; i < 6; i++) {
+        INFO("tunable " << (int)i);
+        CHECK(refs[i].index != Vars::VAR_NONE);
+    }
+
+    // One edit, both readings. Moving the engineering top end changes what a
+    // given count means, and it has to move BOTH rails or the merge bought
+    // nothing.
+    const Vars::VarRef top = bank.find("pwr_dc_engMax_V");
+    REQUIRE(top.index != Vars::VAR_NONE);
+    bank.publish_wire(dc1, Vars::Scalar::U(5000), 1000);
+    bank.publish_wire(dc2, Vars::Scalar::U(5000), 1000);
+    const float was1 = bank.var(dc1).as_f32();
+    const float was2 = bank.var(dc2).as_f32();
+
+    REQUIRE(bank.param_set(bank.var(top), 40.0f) == Vars::SET_OK);
+    bank.publish_wire(dc1, Vars::Scalar::U(5000), 2000);
+    bank.publish_wire(dc2, Vars::Scalar::U(5000), 2000);
+    CHECK(bank.var(dc1).as_f32() != doctest::Approx(was1));
+    CHECK(bank.var(dc2).as_f32() != doctest::Approx(was2));
+    INFO("the same count on either rail reads the same volts");
+    CHECK(bank.var(dc1).as_f32() == doctest::Approx(bank.var(dc2).as_f32()));
+}
+
 TEST_CASE("site: no two rows claim the same Modbus register") {
     // Registers are hand-assigned so inserting a row never renumbers the
     // map; nothing else catches a duplicate.

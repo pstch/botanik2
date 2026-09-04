@@ -58,19 +58,18 @@ inline const char* IrrState_label(uint64_t code) {
 
 extern const AnalogCal CAL_pwr_genBat_V;
 extern const AnalogCal CAL_pwr_upsBat_V;
-extern const AnalogCal CAL_pwr_dc1_V;
-extern const AnalogCal CAL_pwr_dc2_V;
+extern const AnalogCal CAL_pwr_dc_V;
 extern const AnalogCal CAL_irr_out_Lpm;
 extern const AnalogCal CAL_cli_intr1;
 extern const AnalogCal CAL_cli_intr2;
 
 extern const AnalogCal* const g_analog_cals[];
-const uint8_t g_analog_cal_count = 7;
+const uint8_t g_analog_cal_count = 6;
 
 // ONE table, parameters first. Registering it is one call, and the
 // ROLE_PARAM run stays contiguous because the emit order is the rule.
 extern const Descriptor rows[];
-const uint16_t ROWS_COUNT = 586;
+const uint16_t ROWS_COUNT = 580;
 
 extern const Modbus::DeviceModel MDL_SDM630;
 extern const Modbus::DeviceModel MDL_MCT1_140;
