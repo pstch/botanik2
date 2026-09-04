@@ -31,6 +31,7 @@ add_executable(botanik_tests
     test_ntp.cpp
     test_pages.cpp
     test_shell.cpp
+    test_shell_vars.cpp
     test_plc.cpp
     test_site.cpp
     test_sun.cpp
