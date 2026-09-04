@@ -166,18 +166,16 @@ def test_region_is_highlighted(term):
 
 
 def test_taller_than_screen(term):
-    """Editor taller than the screen: origin clamps to 0 in _grow_editor, the top
-    rows scroll off, and the visible window stays correct."""
+    """Editor taller than the screen: the origin clamps to the first content
+    row, the viewport follows the cursor, and the band shows the tail with the
+    cursor's row on the bottom. The bars on either side stay untouched."""
     term.send(b"line00")
-    for i in range(1, 30):               # 30 hard-broken rows > 23 visible
+    for i in range(1, 30):               # 30 hard-broken rows > 22 visible
         term.send(keys.SHIFT_ENTER)
         term.send(b"line%02d" % i)
         if i % 10 == 0:                  # keep the RX ring from overrunning
             assert term.wait_screen("line%02d" % i), "the editor fell behind the burst"
-    # Rows 1..22 only: row 23 is where the scrolled-off overflow overprints the
-    # alarm bar, a garbled artifact this test is not about. line00 has gone.
-    assert_editor(term, *["...> line%02d" % i for i in range(1, 23)],
-                  clip=(0, 23), alarm_bar=False)
+    assert_editor(term, *["...> line%02d" % i for i in range(8, 30)])
 
 
 def test_cursor_returns_to_the_prompt_after_clear(term):

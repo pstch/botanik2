@@ -180,6 +180,10 @@ namespace botanik_test {
                 _blank_cells(cr, (uint16_t)(cols - k), cols);
                 break;
             }
+            case 'K':
+                if (_param(0, 0) != 0) FAIL("VtScreen: unmodelled EL mode " << _param(0, 0));
+                _blank_cells(cr, cc, cols);
+                break;
             case 'm': sgr_inv = (_param(0, 0) == 7); break;
             case 'h':
             case 'l': {

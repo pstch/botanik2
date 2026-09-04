@@ -72,6 +72,7 @@ namespace Botanik { namespace Terminal { namespace Ansi {
     static constexpr char MOVE[] = "H"; // Cursor Move
 
     static constexpr char ED[]  = "J";  // Erase in Display
+    static constexpr char EL[]  = "K";  // Erase in Line
     static constexpr char IL[]  = "L";  // Insert Line
     static constexpr char DL[]  = "M";  // Delete Line
     static constexpr char DCH[] = "P";  // Delete Character
@@ -171,6 +172,10 @@ namespace Botanik { namespace Terminal { namespace Ansi {
     /** @brief Delete @p count characters at the cursor (DCH), shifting the rest
      *  of the row left and blanking the freed cells at the right edge. */
     bool delete_chars(ByteSink& _serial, uint16_t count);
+
+    /** @brief Erase from the cursor to the end of the row (EL). The cursor
+     *  does not move. */
+    bool erase_to_eol(ByteSink& _serial);
 
     /** @brief Erase entire display and move cursor to home position */
     bool clear_screen(ByteSink& _serial);

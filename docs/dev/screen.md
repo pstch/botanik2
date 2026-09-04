@@ -63,7 +63,9 @@ the terminal can't answer - it only knows which cells differ, not why.
    position the cursor with the minimal relative/absolute move (`_go`), toggle
    reverse video per run, write the glyphs, copy the run into BACK (`_put_run`).
    The leading move + SGR + glyph byte-minimization is the same tuning the old
-   direct-write path had.
+   direct-write path had. A tail that went blank is one EL rather than a space
+   per stale cell: the run loop stops where FRONT goes blank and the erase goes
+   out last, pen set plain first for the terminals that erase with it.
 3. **Cursor.** Park the real cursor: at the edit point when a renderer asked for
    a visible cursor (the shell editor), otherwise idle in the **bottom-right
    corner**, out of the content. One owner, re-homed each tick, so a value update
@@ -82,12 +84,20 @@ reconciled), `_park_cursor()`.
 
 A cell diff is worst exactly where a renderer slid a row sideways (the editor
 inserting a character, a column widening): every cell past the edit differs, so a
-naive diff rewrites the whole tail. Before the run loop, `_shift_row()` checks
-whether the row is simply BACK shifted by a few columns, and if so sends one
+naive diff rewrites the whole tail. Before the run loop, `_shift_row()` looks for
+the width by which the row's suffix is BACK slid, and if one pays sends one
 escape - SM4/RM4 insert mode to open cells, DCH to close them - which shifts the
-terminal's own cells, attributes and all. It only does so when that beats
-rewriting the changed span, and anything it can't express is left to the run loop
-behind it. A one-column slide of a 61-column row costs ~19 bytes instead of 80.
+terminal's own cells, attributes and all. A one-column slide of a 61-column row
+costs ~19 bytes instead of 80.
+
+The slide need not start at the first changed cell. For every width it takes the
+longest suffix that matches, rewrites whatever changed before it in place, and
+then opens or closes the cells - so a prompt that changed over content that slid
+by some other amount is still the one escape. Each candidate is priced against
+what the run loop and the EL would pay for the same row, so a slide that only
+blanks the edge never looks cheaper than the erase, and the cheapest wins or
+none does. The scan from the right stops at the first mismatch, which for a
+width that is not the slide is usually the first cell.
 
 This is the *only* structural op the diff infers. Vertical slides can't be
 inferred the same way (a renderer's intent is ambiguous across rows), which is
@@ -108,16 +118,15 @@ against *the same row* in BACK, so a row that also moved vertically never matche
 and gets rewritten in full. That makes an announced scroll's **placement**
 load-bearing, not just its existence: putting a DL/IL where content did *not*
 actually move displaces rows out from under the shift detection and costs a full
-rewrite each. Measured on the line editor, a misplaced IL cost 206 bytes per
-keystroke where the right placement costs 47.
+rewrite each. Measured on the line editor, a hard break at the head of three
+shell rows cost 234 bytes with the IL placed by an identical-suffix rule and 89
+with it placed where it keeps the most bytes on their rows.
 
 So a renderer that both reflows and changes its row count has to *compute* where
 the row count actually changed rather than assume it. The line editor is the one
-that does this, in `_find_splice_span()` (`console/editor.cpp`): it diffs the
-pre-edit row layout against the new one for the longest shifted-identical suffix,
-and puts the single IL/DL at that boundary. See @ref dev_editor. A heuristic
-in place of that search handles the clean cases and quietly loses the rest, which
-is why the search stayed.
+that does this, in `_find_splice_span()` (`console/editor.cpp`): it scores every
+boundary by the bytes that stay on the screen row already showing them, less
+what the scroll itself costs, and announces the best. See @ref dev_editor.
 
 ### Priority
 
@@ -230,11 +239,12 @@ No `_sig`, no `_promote`, no `_reconcile_band`, no keyed transactions. The three
 tables (alarms / monitor / config) share the same shape: a scroll band + a
 selection cursor, redrawn immediate-mode, pared by the diff.
 
-The line editor is the deliberate exception: it keeps a real reconcile pass
-(@ref dev_editor), because it is the one renderer that reflows content across
-rows *and* changes its row count in the same edit - the case above. Its per-row
-splicing is byte-neutral against the diff, but the layout diff it does to place
-the IL/DL is not something the back-buffer can infer.
+The line editor has the same shape, with one thing more (@ref dev_editor): it is
+the one renderer that reflows content across rows *and* changes its row count in
+the same edit, so before it repaints its viewport it diffs the pre-edit row
+layout against the new one to decide where the one IL/DL goes. The placement is
+not something the back-buffer can infer; the rest of the editor's paint is what
+any page does.
 
 ## Reading FRONT back
 

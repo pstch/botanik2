@@ -189,16 +189,17 @@ namespace Botanik { namespace Terminal {
         /** @brief Estimated worst-case bytes to emit run [@p a, @p b) of @p row
          *  (leading move + SGR toggles + glyphs), for the budget gate. */
         uint16_t _run_cost(uint16_t row, uint16_t a, uint16_t b) const;
-        /** @brief Reconcile @p row as a horizontal shift (SM4/RM4 insert or
-         *  DCH) when its cells merely slid sideways. @return bytes emitted, 0
-         *  if not applicable or not cheaper than a rewrite.
+        /** @brief Reconcile @p row as changed cells followed by a horizontal
+         *  shift (SM4/RM4 insert or DCH) of everything after them. @return
+         *  bytes emitted, 0 if no slide applies or none beats a rewrite.
          *  @note @p defer set means only the budget stood in the shift's way,
          *  so the row is owed the next tick rather than a full rewrite. */
         uint16_t _shift_row(uint16_t row, uint16_t budget, bool& defer);
-        /** @brief Smallest changed span worth expressing as a shift, and the
-         *  widest slide still plausibly a slide rather than new content. */
+        /** @brief Smallest changed span worth expressing as a shift. */
         static constexpr uint16_t SHIFT_MIN_SPAN   = 12;
-        static constexpr uint16_t SHIFT_CANDIDATES = 8;
+        /** @brief Stale cells in a row's blank tail from which one EL beats
+         *  writing the spaces: the escape is three bytes. */
+        static constexpr uint16_t EL_MIN_CELLS     = 4;
         /** @brief Shift grid @p g for a band scroll (content moves, freed rows
          *  blanked). Called for FRONT by scroll_region and for BACK by present()
          *  once the matching DL/IL has reached the wire. */

@@ -1,9 +1,9 @@
 /**
  * @file editor.cpp
  * @brief TextEditor - byte-efficient multi-row line editor. Each edit mutates
- *        the buffer, rebuilds the row layout (`_layout`), and reconciles it
- *        against the pre-edit layout (`_pre`): one IL/DL for the row-count
- *        change, then a forward per-row splice walk from the edit row.
+ *        the buffer, rebuilds the row layout (`_layout`), announces the one
+ *        IL/DL that slides the rows it only displaced, and repaints the
+ *        viewport; the terminal's diff pays for what actually changed.
  */
 #include "libbotanik/console/editor.h"
 #include "libbotanik_features.h"
@@ -28,8 +28,6 @@ namespace Botanik { namespace Terminal {
         _buf[0] = '\0';
         _layout.rows[0] = {0, 0, false};
         _layout.count = 1;
-        // Auto-wrap is owned by the terminal (asserted on every screen
-        // establish).
     }
 
     // prompt helpers
@@ -72,15 +70,11 @@ namespace Botanik { namespace Terminal {
             if (pos >= _len && !row.hard_break) { done = true; break; }
             if (pos > _len) { done = true; break; }
         }
-        // Ran out of rows before running out of buffer: whatever follows cannot
-        // be laid out, so it cannot be shown or reached.
-        return !done;
+        return !done;       // rows ran out before the buffer did
     }
 
     void TextEditor::_snapshot_pre() {
-        _pre.count       = _layout.count;
-        _pre_view_top    = _view_top;
-        _pre_view_height = _view_height();
+        _pre.count = _layout.count;
         if (_layout.count > 0)
             memcpy(_pre.rows, _layout.rows, (size_t)_layout.count * sizeof(RowView));
     }
@@ -112,22 +106,8 @@ namespace Botanik { namespace Terminal {
         return last < bottom ? last : bottom;
     }
 
-    void TextEditor::_trim_screen() {
-        uint16_t used = _rows_used();
-        if (used < _screen_used) {
-            uint16_t top = (uint16_t)(_origin + used);
-            uint16_t bot = (uint16_t)(_origin + _screen_used - 1);
-            uint16_t max = _view_bottom_hw();
-            if (bot > max) bot = max;
-            if (top <= bot) _terminal->clear_rows(top, bot);
-        }
-        _screen_used = used;
-    }
-
     bool TextEditor::_follow_cursor() {
-        // Bottom-anchored, _grow_editor scrolls the whole content band so the
-        // prompt stays put; scrolling a window over the text too would double up.
-        if (_anchor != Anchor::TOP) return false;
+        // Bottom-anchored, `max_top` is 0 until the text is taller than the band.
         uint16_t h = _view_height();
         if (h == 0) return false;
         uint16_t row = _owner_row(_pos, _layout);
@@ -136,8 +116,7 @@ namespace Botanik { namespace Terminal {
         if (row < _view_top)                       want = row;
         else if (row >= (uint16_t)(_view_top + h)) want = (uint16_t)(row - h + 1);
 
-        // Never scroll past the end: blank rows below the text while more of it
-        // sits above the window is just lost screen.
+        // Never past the end: blank rows below the text would be lost screen.
         uint16_t max_top = _layout.count > h ? (uint16_t)(_layout.count - h) : 0;
         if (want > max_top) want = max_top;
         if (want == _view_top) return false;
@@ -146,67 +125,47 @@ namespace Botanik { namespace Terminal {
         uint16_t n     = (uint16_t)(delta > 0 ? delta : -delta);
         _view_top = want;
 
-        uint16_t bottom = _view_bottom_hw();
-        if (n >= h) {
-            // Nothing on screen survives the jump; a scroll would cost an
-            // escape and still leave every row to repaint.
-            _terminal->clear_rows(_origin, bottom);
-            redraw();
-            return true;
-        }
-
-        // Slide what stays, then paint only what the scroll uncovered.
-        _terminal->scroll_region(_origin, bottom, /*up=*/delta > 0, n);
-        uint16_t first = delta > 0 ? (uint16_t)(_view_top + h - n) : _view_top;
-        uint16_t stop  = (uint16_t)(first + n);
-        if (stop > _layout.count) stop = _layout.count;
-        for (uint16_t i = first; i < stop; i++) _new_row(i);
-        _screen_used = _rows_used();     // the band moved as a unit, text and all
+        // A jump of a whole window keeps no row: the paint alone is cheaper.
+        if (n < h) _terminal->scroll_region(_origin, _view_bottom_hw(), /*up=*/delta > 0, n);
         return true;
     }
 
     // lifecycle
 
-    void TextEditor::_reset_state() {
-        _len = _pos = 0;
-        _buf[0]    = '\0';
-        // Bottom-anchored, the origin is derived, so re-pin it. Top-anchored it
-        // is the caller's (set_origin()) and must survive a reset.
-        if (_anchor == Anchor::BOTTOM)
-            _origin = (uint16_t)(_console->rows() - 1);
+    bool TextEditor::_load(const char* text, uint16_t len, uint16_t cursor) {
+        bool fitted = true;
+        if (len > load_capacity()) { len = load_capacity(); fitted = false; }
+        // memmove, not memcpy: a caller may hand back a slice of this buffer.
+        if (text != nullptr && text != _buf && len > 0) memmove(_buf, text, len);
+        _len = len;
+        _buf[_len] = '\0';
         _view_top   = 0;
         _goal_valid = false;
-        _mark_set   = false;
-        _painted_from = _painted_to = 0;
-        _painted_active = false;
-        _layout.rows[0]   = {0, 0, false};
-        _layout.count = 1;
-        _screen_used  = 1;      // both callers leave one prompt row drawn
+        _mark_set   = false;        // the offsets it anchors are being replaced
+        _snapshot_pre();
+        if (_rebuild_layout()) {
+            // Past the row cap: drop the tail nobody could see or reach.
+            const RowView& last = _layout.rows[_layout.count - 1];
+            _len = (uint16_t)(last.buf_start + last.buf_len);
+            _buf[_len] = '\0';
+            _rebuild_layout();
+            fitted = false;
+        }
+        _pos = cursor < _len ? cursor : _len;
+        return fitted;
     }
 
     void TextEditor::reset() {
-        // Clear exactly the band the editor occupies (clear_rows leaves the
-        // alarm bar below it untouched).
-        _terminal->clear_rows(_origin, _view_bottom_hw());
-        uint16_t old_origin = _origin;
-        _reset_state();
+        (void)_load(nullptr, 0, 0);
         _dirty = true;              // reset() discards content; commit() does not
-        uint16_t draw_row = _suppress_sync_redraw ? old_origin : _origin;
-        _terminal->move_to({draw_row, _indent});
-        _write_prompt(0);
-        // On the row the prompt just went to, not the one the layout says: a
-        // suppressed redraw leaves the band still to be moved, and the caller
-        // re-places the cursor after it moves. Skipping the declaration instead
-        // parked the visible cursor where the discarded text ended.
-        CursorPos at = _map_cursor_pos(0);
-        at.row = draw_row;
-        _place_cursor(at);
+        _reconcile(0, 0, /*is_insert=*/true);
     }
 
     void TextEditor::commit() {
-        _reset_state();
-        _terminal->move_to({_origin, _indent});
-        _write_prompt(0);
+        // No reconcile: the caller line-fed past the text, now the transcript's.
+        (void)_load(nullptr, 0, 0);
+        if (_anchor == Anchor::BOTTOM) _origin = (uint16_t)(_console->rows() - 1);
+        _paint_view();
         _place_cursor(_map_cursor_pos(0));
     }
 
@@ -215,26 +174,61 @@ namespace Botanik { namespace Terminal {
         _origin = row > max_row ? max_row : row;
     }
 
-    // redraw
+    // painting
 
     void TextEditor::redraw() {
         _place_rows();          // a page switch handed the band back; reclaim it
-        // Destination rows assumed already blank; only write prompt + content.
-        uint16_t last = _visible_end();
-        for (uint16_t i = _view_top; i < last; i++) {
-            _terminal->move_to({_hw_row(i), _indent});
-            _write_prompt(i);
-            _write_row_content(i);
-        }
-        // Record the region as painted, or a _sync_region() behind us (the
-        // long-jump branch of _follow_cursor() calls both) repaints the lot.
-        _record_painted();
-        // The caller blanked the band, so what is drawn is what we just wrote:
-        // record it rather than trim it.
-        _screen_used = _rows_used();
+        _paint_view();
         _place_cursor(_map_cursor_pos(_pos));
     }
 
+    void TextEditor::_paint_view() {
+        // Pen plain, or clear_to_eol stamps an inverted bar to the margin.
+        _terminal->set_inverted(false);
+        const uint16_t bottom = _view_bottom_hw();
+        const uint16_t end    = (uint16_t)(_view_top + _view_height());
+        for (uint16_t i = _view_top; i < end; i++) {
+            const uint16_t hw = _hw_row(i);
+            if (hw > bottom) break;
+            _terminal->move_to({hw, _indent});
+            if (i < _layout.count) {
+                _write_prompt(i);
+                const RowView& r = _layout.rows[i];
+                if (r.buf_len > 0) _terminal->write_chars(&_buf[r.buf_start], r.buf_len);
+            }
+            _terminal->clear_to_eol();
+        }
+        _paint_region();
+        // A live region marks the edit point itself; a cursor would hide a cell.
+        _terminal->set_cursor_inhibited(_mark_set);
+    }
+
+    void TextEditor::_paint_region() {
+        uint16_t from = 0, to = 0;
+        if (!region(from, to)) return;
+        _terminal->set_inverted(true);
+        if (from == to) {
+            // One inverted cell at the anchor; past the last character there is
+            // no glyph to invert, so make one.
+            const uint16_t i = _owner_row(from, _layout);
+            const RowView& r = _layout.rows[i];
+            if (_visible(i)) {
+                _terminal->move_to(_map_cursor_pos(from));
+                _terminal->write_chars(from < (uint16_t)(r.buf_start + r.buf_len) ? &_buf[from] : " ", 1);
+            }
+        } else {
+            for (uint16_t i = _view_top, e = _visible_end(); i < e; i++) {
+                const RowView& r = _layout.rows[i];
+                const uint16_t start = r.buf_start, end = (uint16_t)(start + r.buf_len);
+                const uint16_t l  = from > start ? from : start;
+                const uint16_t rr = to   < end   ? to   : end;
+                if (l >= rr) continue;
+                _terminal->move_to({_hw_row(i), (uint16_t)(_indent + _prompt_len(_row_prompt(i)) + (l - start))});
+                _terminal->write_chars(&_buf[l], (uint16_t)(rr - l));
+            }
+        }
+        _terminal->set_inverted(false);
+    }
     // editing
 
     void TextEditor::insert_characters(const char* buf, uint16_t len) {
@@ -244,8 +238,7 @@ namespace Botanik { namespace Terminal {
         if (len == 0) return;
 
         if (_single_line) {
-            // Refuse newlines (stop at the first) and any content past the row
-            // end, so the editor never wraps to a second row.
+            // Stop at the first newline, and at the row end.
             for (uint16_t i = 0; i < len; i++)
                 if (buf[i] == '\n') { len = i; break; }
             uint16_t cap = _row_cap(0);
@@ -265,10 +258,7 @@ namespace Botanik { namespace Terminal {
         _snapshot_pre();
 
         if (_rebuild_layout()) {
-            // More rows than the layout can hold: the tail would be text the
-            // operator can neither see nor reach, so refuse the keystroke.
-            // Nothing has reached the wire yet - the reconcile below is what
-            // emits.
+            // Past the row cap: refuse the keystroke. Nothing has been painted.
             memmove(&_buf[pos], &_buf[pos + len], (size_t)(_len - (pos + len)));
             _len -= len;
             _buf[_len] = '\0';
@@ -281,7 +271,6 @@ namespace Botanik { namespace Terminal {
         _goal_valid = false;
         _mark_set   = false;    // transient mark: an edit drops the region
         _reconcile(pos, len, /*is_insert=*/true);
-        _place_cursor(_map_cursor_pos(_pos));
     }
 
     void TextEditor::remove_characters(uint16_t len) {
@@ -301,100 +290,21 @@ namespace Botanik { namespace Terminal {
         _goal_valid = false;
         _mark_set   = false;    // transient mark: an edit drops the region
         _reconcile(pos, len, false);
-        _place_cursor(_map_cursor_pos(_pos));
     }
 
     bool TextEditor::commit_loaded(uint16_t len) {
-        bool fitted = true;
-        if (len > load_capacity()) { len = load_capacity(); fitted = false; }
-        _len = len;
-        _buf[_len] = '\0';
-        _pos = _view_top = 0;
-        _goal_valid = false;
-        // Not through _reset_state(), so the mark has to be dropped by hand:
-        // the offsets it anchors are about text that is being replaced.
-        _mark_set     = false;
-        _painted_from = _painted_to = 0;
-        _painted_active = false;
-        bool overflow = _rebuild_layout();
-
-        // Drop what the row cap could not lay out: an invisible tail that a
-        // later save writes back truncated is the worse failure.
-        if (overflow) {
-            const RowView& last = _layout.rows[_layout.count - 1];
-            _len = (uint16_t)(last.buf_start + last.buf_len);
-            _buf[_len] = '\0';
-            _rebuild_layout();
-            fitted = false;
-        }
-
+        const bool fitted = _load(_buf, len, 0);
         _dirty = false;
-        _terminal->clear_rows(_origin, _view_bottom_hw());
-        redraw();
+        _reconcile(0, _len, /*is_insert=*/true);
         return fitted;
     }
 
     void TextEditor::replace_all(const char* text, uint16_t len) {
         if (text == nullptr) len = 0;
-        if (len > load_capacity()) len = load_capacity();
-
-        // Blank the band the OLD text occupies, while _origin still points at
-        // it. Everything after this is one layout and one paint.
-        _terminal->clear_rows(_origin, _view_bottom_hw());
-        const uint16_t was_origin = _origin;
-
-        // memmove, not memcpy: a caller may hand back a slice of this buffer.
-        if (len > 0) memmove(_buf, text, len);
-        _len = len;
-        _buf[_len] = '\0';
-        _pos       = _len;          // a recalled line is ready to be extended
-        _view_top  = 0;
-        _goal_valid = false;
-        _mark_set   = false;        // the offsets it anchors are being replaced
-        _painted_from = _painted_to = 0;
-        _painted_active = false;
-
-        if (_rebuild_layout()) {
-            // Past what the row cap can lay out: drop the tail rather than keep
-            // text the operator can neither see nor reach.
-            const RowView& last = _layout.rows[_layout.count - 1];
-            _len = (uint16_t)(last.buf_start + last.buf_len);
-            _buf[_len] = '\0';
-            _pos = _len;
-            _rebuild_layout();
-        }
+        (void)_load(text, len, len);    // a recalled line is ready to be extended
         _dirty = true;
-
-        // ONE origin move, and the same asymmetry the rest of the editor has:
-        // growing scrolls the band itself, shrinking under suppression leaves
-        // it to the caller and so must draw where the text still is.
-        uint16_t base = _origin;
-        if (_anchor != Anchor::TOP) {
-            const uint16_t scr = _console->rows();
-            const uint16_t want = (scr >= _layout.count)
-                                ? (uint16_t)(scr - _layout.count) : 0;
-            if (want < _origin) { _grow_editor(); base = _origin; }
-            else if (want > _origin) {
-                _shrink_editor(want);
-                base = _suppress_sync_redraw ? was_origin : _origin;
-            }
-        }
-        _place_rows();
-
-        const uint16_t last_row = _visible_end();
-        for (uint16_t i = _view_top; i < last_row; i++) {
-            _terminal->move_to({(uint16_t)(base + (i - _view_top)), _indent});
-            _write_prompt(i);
-            _write_row_content(i);
-        }
-        _record_painted();
-        _screen_used = _rows_used();
-
-        CursorPos at = _map_cursor_pos(_pos);
-        at.row = (uint16_t)(base + (at.row - _origin));
-        _place_cursor(at);
+        _reconcile(0, _len, /*is_insert=*/true);
     }
-
     // grow/shrink helpers
 
     void TextEditor::_place_rows() {
@@ -402,17 +312,10 @@ namespace Botanik { namespace Terminal {
         if (rows == 0) return;
 
         if (_anchor == Anchor::TOP) {
-            // The viewport is fixed and the editor owns all of it: claim exactly
-            // that, and no more. Releasing the whole band would demote a row the
-            // page keeps for itself (a status line under the editor) every
-            // keystroke.
+            // Top-anchored: the viewport is STRUCT and the cursor's row INPUT.
+            // The re-declaration releases the row the cursor left.
             uint16_t view_bottom = _view_bottom_hw();
             if (_origin > view_bottom) return;
-            // Only the EDIT POINT is input, not the whole note. Claiming the
-            // viewport meant a full-screen editor outranked PRIO_CHROME, so on
-            // the NOTES page the text went out ahead of the bars framing it -
-            // the one page where the frame arrived last. The re-declaration is
-            // what releases the row the cursor was on, so nothing is tracked.
             _terminal->set_row_priority(_origin, view_bottom, PRIO_STRUCT);
             const uint16_t cur = _map_cursor_pos(_pos).row;
             if (cur >= _origin && cur <= view_bottom)
@@ -420,34 +323,27 @@ namespace Botanik { namespace Terminal {
             return;
         }
 
-        // Bottom-anchored the extent moves as the text grows, so release the
-        // content band and reclaim exactly the rows occupied now. Safe only
-        // while no page keeps a class of its own on a row a bottom-anchored
-        // editor shares a screen with; a page re-declares in focus() anyway.
+        // Bottom-anchored: release the content band, reclaim the rows occupied.
         uint16_t bottom = (uint16_t)(rows - 1);
         _terminal->set_row_priority(1, bottom, PRIO_STRUCT);
-        if (_layout.count == 0 || _origin > bottom) return;
-        uint16_t last = (uint16_t)(_origin + _layout.count - 1);
+        if (_layout.count <= _view_top || _origin > bottom) return;
+        uint16_t last = (uint16_t)(_origin + (_layout.count - _view_top) - 1);
         if (last > bottom) last = bottom;
         _terminal->set_row_priority(_origin, last, PRIO_INPUT);
     }
 
     uint16_t TextEditor::_grow_editor() {
-        // Top-anchored, growing the text never moves the editor: the viewport
-        // scrolls over it instead (_follow_cursor).
         if (_anchor == Anchor::TOP) return _origin;
 
-        // Bottom-pinned origin: pull the top up by the rows the editor grew,
-        // clamped at the screen top.
+        // Clamped at row 1, the status bar's being row 0: text taller than the
+        // band stays put and the viewport follows the cursor over it.
         uint16_t scr_rows = _console->rows();
         uint16_t new_origin;
-        if (scr_rows >= _layout.count) new_origin = (uint16_t)(scr_rows - _layout.count);
-        else                           new_origin = 0;
+        if (scr_rows > _layout.count) new_origin = (uint16_t)(scr_rows - _layout.count);
+        else                          new_origin = 1;
 
         if (new_origin < _origin) {
-            // Scroll the content band (rows 1..bottom) up by the grown row
-            // count so the editor's added rows fit; bounded so the status bar
-            // (row 0) - and any reserved bottom row - stay put.
+            // The content band, rows 1..bottom: the bars on either side stay put.
             _terminal->scroll_region(1, (uint16_t)(scr_rows - 1), /*up=*/true,
                                      (uint16_t)(_origin - new_origin));
             _origin = new_origin;
@@ -458,205 +354,67 @@ namespace Botanik { namespace Terminal {
     void TextEditor::_shrink_editor(uint16_t new_origin) {
         if (_anchor == Anchor::TOP) return;
         if (new_origin <= _origin) return;
-        // Under suppress the caller repaints, so only move the origin.
-        if (!_suppress_sync_redraw && _origin < _console->rows()) {
-            // Open blank rows at the old origin to push the editor back down to
-            // the bottom; bounded to [_origin..content bottom] so it never
-            // spills below.
-            _terminal->scroll_region(_origin, (uint16_t)(_console->rows() - 1),
+        // The mirror of _grow_editor: the whole content band, so whatever stood
+        // above the editor follows it and its owner paints only the rows opened
+        // at the top.
+        if (_origin < _console->rows())
+            _terminal->scroll_region(1, (uint16_t)(_console->rows() - 1),
                                      /*up=*/false, (uint16_t)(new_origin - _origin));
-        }
         _origin = new_origin;
     }
 
-    // reconciliation helpers
+    // reconciliation
 
-    int32_t TextEditor::_edit_row_amount(uint16_t span_start, uint16_t span_len,
-                                         bool is_insert, const RowView& post_row,
-                                         const RowView& pre_row) {
-        const RowView& row = is_insert ? post_row : pre_row;
-        uint16_t row_end = (uint16_t)(row.buf_start + row.buf_len);
-        uint16_t avail   = (uint16_t)(row_end - span_start);
-        uint16_t head    = span_len < avail ? span_len : avail;
-        return is_insert ? (int32_t)head : -(int32_t)head;
+    static int32_t _common(int32_t a0, int32_t a1, int32_t b0, int32_t b1) {
+        const int32_t lo = a0 > b0 ? a0 : b0;
+        const int32_t hi = a1 < b1 ? a1 : b1;
+        return hi > lo ? hi - lo : 0;
     }
 
-    void TextEditor::_splice_row(uint16_t post_idx, uint16_t col, int32_t amount,
-                                 uint16_t shown_len, uint16_t shown_prompt_l,
-                                 RowPrompt shown_class, const RowView& want) {
-        if (!_visible(post_idx)) return;
-        uint16_t hw     = _hw_row(post_idx);
-        uint16_t prompt = _prompt_len(_row_prompt(post_idx));
-        uint16_t cap    = _row_cap(post_idx);
-
-        // Say the pen rather than inherit the last renderer's: delete_chars and
-        // clear_to_eol stamp blanks with the CURRENT pen, so an inherited
-        // inverted one would smear to the margin. A splice never paints a
-        // region (an edit drops the mark; _sync_region() repaints behind us).
-        _terminal->set_inverted(false);
-
-        // Prompt-class flip (PS2<->PS3): rewrite the gutter. On the CLASS, not
-        // on the length: docs/dev/editor.md requires the three prompts to be
-        // the same WIDTH, and NOTES obeys it - so there the length can never
-        // differ and a gutter gated on it never repaints at all, leaving a line
-        // the operator started reading as wrap-over from the one above.
-        // A longer prompt's push drops trailing content off the right edge, so
-        // shrink shown_len accordingly before the length-align below.
-        const RowPrompt p = _row_prompt(post_idx);
-        if (shown_prompt_l != prompt || shown_class != p) {
-            _terminal->move_to({hw, _indent});
-            if (prompt == shown_prompt_l) {
-                // Same width, different class: overwrite in place. No push and
-                // no delete, and the back-buffer diff drops it outright when
-                // the glyphs happen to match.
-                _terminal->write_chars(_prompt_buf(p), prompt);
-            } else if (prompt < shown_prompt_l) {
-                _terminal->write_chars(_prompt_buf(p), prompt);
-                _terminal->delete_chars((uint16_t)(shown_prompt_l - prompt));
-            } else {
-                _terminal->write_chars(_prompt_buf(p), prompt, /*insert=*/true);
-                _terminal->delete_chars(shown_prompt_l);
-                uint32_t total = (uint32_t)shown_prompt_l + prompt + shown_len;
-                uint16_t cols  = _terminal->cols();
-                if (total > cols) shown_len -= (uint16_t)(total - cols);
-            }
-        }
-
-        // Splice `amount` content chars at `col`. Chars pushed off the right
-        // edge reflow into the next row (prepended next iteration). Move only
-        // when there is a splice - an absorbed row (amount 0, no length/prompt
-        // change) emits nothing.
-        if (amount > 0) {
-            _terminal->move_to({hw, (uint16_t)(_indent + col)});
-            _terminal->write_chars(&_buf[want.buf_start + (col - prompt)],
-                                   (uint16_t)amount, /*insert=*/true);
-        } else if (amount < 0) {
-            _terminal->move_to({hw, (uint16_t)(_indent + col)});
-            _terminal->delete_chars((uint16_t)(-amount));
-        }
-
-        // Length-align the tail. `after` is what the row shows post-splice; a
-        // shrink here is what clears a row that just gained a hard break.
-        int32_t  after_i = (int32_t)shown_len + amount;
-        uint16_t after   = after_i < 0 ? 0 : (after_i > (int32_t)cap ? cap : (uint16_t)after_i);
-        if (want.buf_len > after) {
-            _terminal->move_to({hw, (uint16_t)(_indent + prompt + after)});
-            _terminal->write_chars(&_buf[want.buf_start + after],
-                                   (uint16_t)(want.buf_len - after));
-        } else if (want.buf_len < after) {
-            _terminal->move_to({hw, (uint16_t)(_indent + prompt + want.buf_len)});
-            _terminal->clear_to_eol();
-        }
-    }
-
-    void TextEditor::_write_row_content(uint16_t i) {
-        const RowView& r     = _layout.rows[i];
-        const uint16_t start = r.buf_start;
-        const uint16_t end   = (uint16_t)(r.buf_start + r.buf_len);
-
-        // Say the pen, and leave it plain: the caller's clear_to_eol() would
-        // otherwise stamp an inverted bar out to the margin.
-        _terminal->set_inverted(false);
-
-        // The inverted run, clipped to this row. l >= rr means no highlight
-        // here: no mark, region off this row, or the anchor on another row.
-        uint16_t from = 0, to = 0, l = 1, rr = 0;
-        if (region(from, to)) {
-            if (from != to) {
-                l  = from > start ? from : start;
-                rr = to   < end   ? to   : end;
-            } else if (_owner_row(from, _layout) == i) {
-                // Nothing selected yet: one inverted cell at the anchor, or
-                // Ctrl-Space shows nothing. _owner_row settles an offset on a
-                // wrap boundary, which both adjoining rows would else paint.
-                l  = from;
-                rr = (uint16_t)(from + 1);
-            }
-        }
-
-        if (l >= rr) {                              // no highlight on this row
-            if (r.buf_len > 0) _terminal->write_chars(&_buf[start], r.buf_len);
-            return;
-        }
-
-        if (l > start) _terminal->write_chars(&_buf[start], (uint16_t)(l - start));
-        _terminal->set_inverted(true);
-        // Past the last character there is no glyph to invert, so make one. Only
-        // the anchor cell can land there - a non-empty region ends at a byte it
-        // actually contains.
-        if (l < end) _terminal->write_chars(&_buf[l], (uint16_t)((rr < end ? rr : end) - l));
-        else         _terminal->write_chars(" ", 1);
-        _terminal->set_inverted(false);
-        if (rr < end) _terminal->write_chars(&_buf[rr], (uint16_t)(end - rr));
-    }
-
-    void TextEditor::_record_painted() {
-        _painted_active = _mark_set;
-        _painted_from = _painted_to = 0;
-        region(_painted_from, _painted_to);
-        // A region IS the edit point, drawn: a cursor blinking inside the
-        // highlight says nothing the far end of it does not, and hides the cell
-        // it sits on while it blinks.
-        _terminal->set_cursor_inhibited(_mark_set);
-    }
-
-    void TextEditor::_sync_region() {
-        uint16_t f = 0, t = 0;
-        region(f, t);                   // leaves 0,0 when there is no mark
-        // Nothing to do when the screen already shows this region - which is
-        // every call with no mark, so editing without one costs no extra bytes.
-        if (_mark_set == _painted_active && f == _painted_from && t == _painted_to)
-            return;
-        _record_painted();
-        for (uint16_t i = _view_top, e = _visible_end(); i < e; i++) _new_row(i);
-    }
-
-    void TextEditor::_new_row(uint16_t post_idx) {
-        if (!_visible(post_idx)) return;
-        _terminal->move_to({_hw_row(post_idx), _indent});
-        _write_prompt(post_idx);
-        _write_row_content(post_idx);
-        _terminal->clear_to_eol();
+    int32_t TextEditor::_kept(uint16_t i, uint16_t j, uint16_t span_start,
+                              uint16_t span_len, bool is_insert) const {
+        // Bytes of post row i that pre row j showed: what lies before the edit
+        // kept its offset, what lies after moved by the edit's length.
+        const RowView& p = _layout.rows[i];
+        const RowView& q = _pre.rows[j];
+        const int32_t ps = p.buf_start, pe = ps + p.buf_len;
+        const int32_t qs = q.buf_start, qe = qs + q.buf_len;
+        const int32_t after = is_insert ? (int32_t)span_start + span_len : (int32_t)span_start;
+        const int32_t moved = is_insert ? -(int32_t)span_len : (int32_t)span_len;
+        int32_t n = _common(ps, pe < (int32_t)span_start ? pe : (int32_t)span_start, qs, qe);
+        const int32_t from = ps > after ? ps : after;
+        n += _common(from + moved, pe + moved, qs, qe);
+        return n;
     }
 
     TextEditor::SpliceSpan
     TextEditor::_find_splice_span(uint16_t span_start, uint16_t span_len,
-                                  bool is_insert, int32_t l_shift,
-                                  int32_t row_delta) const {
-        // First affected row. Insert: the post owner (where the new bytes land
-        // - a `\n` inserted at a soft-wrap boundary closes the row *above* the
-        // pre owner). Remove: the pre owner (the deleted bytes lived there).
-        uint16_t edit_row;
-        if (is_insert) edit_row = _owner_row(span_start, _layout);
-        else           edit_row = _owner_row(span_start, _pre);
-
-        // Absorption boundary: longest bottom suffix of shifted-identical rows
-        // (same buf_len + hard_break, buf_start displaced by exactly l_shift,
-        // lying strictly past the edit). `absorbed_post` is the post index
-        // where the tail is already correct; `absorbed_pre` the matching pre
-        // index.
-        uint16_t span_end_old;
-        if (is_insert) span_end_old = span_start;
-        else           span_end_old = (uint16_t)(span_start + span_len);
-
-        uint16_t t = 0;
-        while (t < _pre.count && t < _layout.count) {
-            const RowView& pre = _pre.rows[_pre.count - 1 - t];
-            const RowView& po  = _layout.rows[_layout.count - 1 - t];
-            if (po.buf_len != pre.buf_len || po.hard_break != pre.hard_break) break;
-            if ((int32_t)po.buf_start != (int32_t)pre.buf_start + l_shift) break;
-            if (pre.buf_start < span_end_old) break;
-            t++;
+                                  bool is_insert, int32_t row_delta) const {
+        // Post rows from the boundary down take the pre row `row_delta` away,
+        // the ones above keep their own. Score each boundary by the bytes that
+        // stay on the screen row already showing them, over rows on screen,
+        // less what the IL/DL pair costs: two moves and two escapes.
+        constexpr int32_t SCROLL_COST = 24;
+        const int32_t count = _layout.count, pre_count = _pre.count;
+        int32_t  best     = INT32_MIN;
+        uint16_t best_pre = (uint16_t)pre_count;
+        for (int32_t a = 0; a <= pre_count; a++) {              // pre idx of the tail
+            const int32_t b = a + row_delta;                     // post idx of the tail
+            if (b < 0 || b > count) continue;
+            const int32_t head = a < b ? a : b;                  // rows keeping their own
+            int32_t kept = b < count ? -SCROLL_COST : 0;
+            for (int32_t i = 0; i < count; i++) {
+                if (i >= head && i < b) continue;                // opened by the IL
+                const int32_t j = i < b ? i : i - row_delta;
+                if (!_visible((uint16_t)i) || !_visible((uint16_t)j)) continue;
+                kept += _kept((uint16_t)i, (uint16_t)j, span_start, span_len, is_insert);
+            }
+            // Ties go to the lowest boundary: fewest rows announced as moved.
+            if (kept >= best) { best = kept; best_pre = (uint16_t)a; }
         }
-        uint16_t absorbed_post = (uint16_t)(_layout.count - t);
-        uint16_t absorbed_pre  = (uint16_t)((int32_t)absorbed_post - row_delta);
-        return { edit_row, absorbed_post, absorbed_pre };
+        return { (uint16_t)((int32_t)best_pre + row_delta), best_pre };
     }
-
     void TextEditor::_reposition_tail(const SpliceSpan& span, int32_t row_delta) {
-        // A single contiguous edit needs at most one IL/DL: it slides the
-        // absorbed tail (and opens the blank rows inserted content paints
-        // into). Nothing to do when there is no tail or no row-count change.
         if (span.absorbed_post >= _layout.count || row_delta == 0) return;
 
         uint16_t at;
@@ -664,117 +422,32 @@ namespace Botanik { namespace Terminal {
         else               at = span.absorbed_post;
         uint16_t n = (uint16_t)(row_delta > 0 ? row_delta : -row_delta);
 
-        // The tail begins at or below the edit row, and the edit row is the
-        // cursor's, which the viewport always contains - so `at` is normally
-        // inside it. Clamp anyway rather than scroll from a negative row.
+        // Clamped to the viewport rather than scrolled from outside it.
         uint16_t bottom = _view_bottom_hw();
         uint16_t row    = at >= _view_top ? _hw_row(at) : _origin;
         if (row > bottom) return;               // tail lies entirely below the view
-        // Bounded to the viewport, so nothing outside the editor moves. Grow
-        // scrolls the tail down; shrink scrolls it up.
         _terminal->scroll_region(row, bottom, /*up=*/row_delta < 0, n);
     }
 
     void TextEditor::_reconcile(uint16_t span_start, uint16_t span_len, bool is_insert) {
-        // Keystroke echo must feel immediate however busy the screen is, so
-        // re-declare the input rows before touching any of them. The extent
-        // moves with the text; rows grown past would else keep the class.
         _place_rows();
-        int32_t l_shift;
-        if (is_insert) l_shift = (int32_t)span_len;
-        else           l_shift = -(int32_t)span_len;
+        int32_t row_delta = (int32_t)_layout.count - (int32_t)_pre.count;
 
-        int32_t  row_delta = (int32_t)_layout.count - (int32_t)_pre.count;
-
-        // Scroll up if the editor grew, so the added rows fit.
+        // Bottom-anchored, a taller text scrolls the band up to make room.
         uint16_t new_origin = _grow_editor();
 
-        // Find the edit row and the absorbed tail: the bottom run of rows that
-        // the edit only shifted, needing the IL/DL below but no per-row work.
-        SpliceSpan span = _find_splice_span(span_start, span_len, is_insert,
-                                            l_shift, row_delta);
-
-        // One IL/DL slides that tail to its new rows (and, on insert, opens the
-        // blank rows the forward walk paints the new content into).
+        // One IL/DL slides the rows the edit only displaced, so the paint
+        // behind it finds them in place and the diff pays nothing for them.
+        SpliceSpan span = _find_splice_span(span_start, span_len, is_insert, row_delta);
         _reposition_tail(span, row_delta);
 
-        // Edit-row splice geometry, computed once (the walk's first row is the
-        // edit row): the cursor column, and the signed count of content chars
-        // the edit adds/removes on that row.
-        const RowView& edit_post = _layout.rows[span.edit_row];
-        const RowView& edit_pre  = _pre.rows[span.edit_row];
-        uint16_t edit_col    = (uint16_t)(_prompt_len(_row_prompt(span.edit_row))
-                                          + (span_start - edit_post.buf_start));
-        int32_t  edit_amount = _edit_row_amount(span_start, span_len, is_insert,
-                                                edit_post, edit_pre);
-
-        // Forward walk from the edit row, bounded to the viewport. Each row maps
-        // to the pre row now physically present, or is fresh. Rows carry no
-        // state across iterations, so skipping off-screen ones is safe.
-        uint16_t walk_from = span.edit_row > _view_top ? span.edit_row : _view_top;
-        uint16_t walk_to   = _visible_end();
-        for (uint16_t i = walk_from; i < walk_to; i++) {
-            const RowView& want  = _layout.rows[i];
-            uint16_t want_prompt = _prompt_len(_row_prompt(i));
-
-            // Map post row i to the pre row physically present after the IL/DL.
-            // Rows in the IL-opened gap [absorbed_pre, absorbed_post) have no
-            // pre image (has_pre false) and drop through to the repaint below.
-            // The gap is empty unless the edit grew the row count.
-            uint16_t pre_idx = (i < span.absorbed_post)
-                ? i : (uint16_t)((int32_t)i - row_delta);
-            // A pre row that was outside the viewport has no glyphs on screen,
-            // whatever its slice says: after a DL the rows sliding up came from
-            // below the window, so the physical row is blank. Splicing against
-            // what it "shows" would corrupt it; repaint instead.
-            bool has_pre = !(i >= span.absorbed_pre && i < span.absorbed_post)
-                           && _was_visible(pre_idx);
-            const RowView& shown  = _pre.rows[pre_idx];
-            const RowPrompt shown_class = _row_prompt_in(_pre, pre_idx);
-            uint16_t shown_prompt = _prompt_len(shown_class);
-
-            // How far the present pre row's content slid, and whether the
-            // displaced slice still overlaps the wanted one (only meaningful
-            // when has_pre - the conditions below gate on it).
-            int32_t ss = (int32_t)shown.buf_start + l_shift;
-            int32_t sl = (int32_t)shown.buf_len;
-            int32_t ws = (int32_t)want.buf_start;
-            int32_t wl = (int32_t)want.buf_len;
-
-            if (has_pre && i == span.edit_row)
-                // Edit row: splice the inserted/removed run at the cursor.
-                _splice_row(i, edit_col, edit_amount, shown.buf_len, shown_prompt,
-                            shown_class, want);
-            else if (has_pre && sl == 0 && wl == 0)
-                // Both rows empty: nothing to write but a possible prompt flip.
-                _splice_row(i, want_prompt, 0, 0, shown_prompt, shown_class, want);
-            else if (has_pre && (ws < ss + sl) && (ss < ws + wl))
-                // Overlap: cheap left splice by the displacement, cascading the
-                // pushed-off char into the next row (the next iteration
-                // prepends).
-                _splice_row(i, want_prompt, ss - ws, shown.buf_len, shown_prompt,
-                            shown_class, want);
-            else
-                // Fresh blank (no pre image) or content reflowed to unrelated
-                // columns: a full repaint is byte-optimal either way.
-                _new_row(i);
-        }
-
-        _shrink_editor(new_origin);
-
-        // The edit may have pushed the cursor out of the window (a wrap onto a
-        // row below it, or a delete that pulled the text up past the top).
+        // Before the paint, which then covers what the slide revealed.
         _follow_cursor();
+        _paint_view();
 
-        // Rows the text no longer reaches. The IL/DL above only slides an
-        // absorbed tail, and a delete that takes the LAST rows has none, so
-        // without this their glyphs stay on a screen the layout has left.
-        _trim_screen();
-
-        // Last, so the screen matches _layout on return - the invariant the next
-        // _snapshot_pre() assumes. Earlier, and _grow_editor()/_shrink_editor()'s
-        // scroll_region() would carry what we stamped off to another row.
-        _sync_region();
+        // Bottom-anchored, a shorter text slides the band back down.
+        _shrink_editor(new_origin);
+        _place_cursor(_map_cursor_pos(_pos));
     }
 
     // cursor motion
@@ -808,8 +481,7 @@ namespace Botanik { namespace Terminal {
         if (_layout.count == 0 || delta == 0) return;
         uint16_t row = _owner_row(_pos, _layout);
 
-        // Latch the column on the first of a run of vertical moves, so passing
-        // through a short line does not shorten the ones after it.
+        // Latched on the first of a run of vertical moves.
         if (!_goal_valid) {
             _goal_col   = (uint16_t)(_pos - _layout.rows[row].buf_start);
             _goal_valid = true;
@@ -821,8 +493,7 @@ namespace Botanik { namespace Terminal {
         if (target > last) target = last;
 
         if (target == (int32_t)row) {
-            // Already on the edge row: fall to the end of the text, which is
-            // what pressing up on the first line or down on the last means.
+            // Already on the edge row: up on the first line means the start.
             _pos = delta < 0 ? 0 : _len;
             _settle_cursor();
             return;
@@ -894,8 +565,7 @@ namespace Botanik { namespace Terminal {
 
     bool TextEditor::_kill_span(uint16_t from, uint16_t to) {
         if (to <= from) return false;
-        // Take only what the ring can hold, and remove only what it took: the
-        // rest stays in the buffer, so a yank puts back exactly what went.
+        // Remove only what the ring took, so a yank puts back exactly what went.
         uint16_t taken = _console->kill_ring().set(_buf + from, (uint16_t)(to - from));
         if (taken == 0) return false;
         _pos = from;
@@ -905,8 +575,7 @@ namespace Botanik { namespace Terminal {
 
     bool TextEditor::kill_to_line_end() {
         if (_pos >= _len) return false;
-        // On the newline, the newline IS the kill: that is what closes this
-        // line up onto the next.
+        // On the newline, the newline is the kill: the line closes up onto the next.
         if (_buf[_pos] == '\n') return _kill_span(_pos, (uint16_t)(_pos + 1));
 
         uint16_t end = _pos;
@@ -930,13 +599,13 @@ namespace Botanik { namespace Terminal {
     void TextEditor::set_mark() {
         _mark     = _pos;
         _mark_set = true;
-        _sync_region();
+        _paint_view();
     }
 
     void TextEditor::clear_mark() {
         if (!_mark_set) return;
         _mark_set = false;
-        _sync_region();
+        _paint_view();
     }
 
     void TextEditor::toggle_mark() {
@@ -958,8 +627,7 @@ namespace Botanik { namespace Terminal {
     bool TextEditor::kill_region() {
         uint16_t from = 0, to = 0;
         if (!region(from, to)) return false;
-        // _kill_span removes, which drops the mark on its way through
-        // remove_characters(); an empty region has nothing to drop it.
+        // An empty region removes nothing, so nothing drops the mark for it.
         bool cut = _kill_span(from, to);
         clear_mark();
         return cut;

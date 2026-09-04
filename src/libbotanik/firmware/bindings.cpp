@@ -13,6 +13,8 @@
  */
 #include "libbotanik/vars/bindings.h"
 
+#include "libbotanik/hal/platform.h"
+
 #include "libbotanik/vars/model.h"
 #include "libbotanik/vars/params.h"
 #include "libbotanik/tasks/tasks.h"
@@ -133,6 +135,12 @@ namespace Botanik { namespace Vars {
         Terminal::Console& console = *static_cast<Terminal::Console*>(target);
         Terminal::ConsoleConfig cfg;
         cfg.baud = io.var("console_baud").value().as<uint32_t>();
+#ifdef TARGET_SIMULATOR
+        // Dev override: BOTANIK_CONSOLE_BAUD runs the sim's console (and its
+        // write throttle) at another rate than the row says, to watch a
+        // reconcile at a speed the eye can follow.
+        cfg.baud = HAL::Env::u32("BOTANIK_CONSOLE_BAUD", cfg.baud);
+#endif
         cfg.cols = io.var("console_cols").value().as<uint16_t>();
         cfg.rows = io.var("console_rows").value().as<uint16_t>();
         const uint8_t type = io.var("console_type").value().as<uint8_t>();
