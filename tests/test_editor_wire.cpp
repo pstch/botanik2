@@ -142,14 +142,14 @@ static const Scenario SCENARIOS[] = {
 
     { "replace_all onto one row", SHELL,
       [](EditorFixture& f) { fill(f, 100); },
-      [](EditorFixture& f) { f.editor.replace_all("clear", 5); }, 33 },
+      [](EditorFixture& f) { f.editor.replace_all("clear", 5); }, 28 },
 
     { "replace_all onto two rows", SHELL,
       [](EditorFixture& f) { type(f, "hi"); },
       [](EditorFixture& f) {
           const std::string s = varied(100);
           f.editor.replace_all(s.data(), 100);
-      }, 139 },
+      }, 134 },
 
     { "region raised over a word", SHELL,
       [](EditorFixture& f) {

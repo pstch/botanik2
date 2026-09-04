@@ -78,8 +78,9 @@ namespace Botanik { namespace Terminal {
 
     /**
      * @class TextEditor
-     * @brief Multi-row line editor. An edit diffs `_pre` against `_layout`:
-     *        one IL/DL for the row-count change, then a per-row splice walk.
+     * @brief Multi-row line editor. An edit diffs `_pre` against `_layout` to
+     *        place one IL/DL for the row-count change, then repaints the
+     *        viewport; the terminal's diff pays only for what changed.
      * @note An insert that would cross the owner's row cap is refused.
      */
     class TextEditor {
@@ -110,15 +111,6 @@ namespace Botanik { namespace Terminal {
          *  0 means "everything from _origin to the content bottom", which is
          *  what a bottom-anchored editor wants. */
         uint16_t _view_rows = 0;
-        /** @brief The viewport as it was before the current edit. The reconcile
-         *  needs it to know which pre rows are physically on screen: one that
-         *  was not has no glyphs to splice, however well its slice matches. */
-        uint16_t _pre_view_top    = 0;
-        uint16_t _pre_view_height = 0;
-        /** @brief Screen rows the editor has glyphs on, counted from _origin.
-         *  Nothing else tracks what the text SHRANK past: the per-row walk only
-         *  visits rows the new layout has. */
-        uint16_t _screen_used = 0;
         /** @brief Which edge the editor is pinned to. */
         Anchor   _anchor = Anchor::BOTTOM;
 
@@ -133,11 +125,6 @@ namespace Botanik { namespace Terminal {
          *  the Mark and region group). */
         uint16_t _mark     = 0;
         bool     _mark_set = false;
-        /** @brief What the screen currently shows highlighted, so _sync_region()
-         *  returns without touching a cell when it is already right - every call
-         *  with no mark. */
-        uint16_t _painted_from = 0, _painted_to = 0;
-        bool     _painted_active = false;
 
         /** @brief Set by every edit, cleared by the owner once it has saved. */
         bool     _dirty = false;
@@ -192,8 +179,7 @@ namespace Botanik { namespace Terminal {
          *  first, so the cursor sits at column 0 of a blank row. */
         void commit();
 
-        /** @brief Redraw the editor's rows from the buffer. Assumes the
-         *  destination rows are already blank (caller cleared them). */
+        /** @brief Repaint the viewport from the buffer, blank rows included. */
         void redraw();
 
         /** @brief When set, redraws on origin shifts are skipped - caller
@@ -500,36 +486,20 @@ namespace Botanik { namespace Terminal {
             return e > _layout.count ? _layout.count : e;
         }
 
-        /** @brief Screen rows the text occupies right now. */
-        uint16_t _rows_used() const { return (uint16_t)(_visible_end() - _view_top); }
-
-        /** @brief Blank the rows the text has just shrunk past, and record what
-         *  it occupies now. One DL for the lot.
-         *  @note Bottom-anchored the band slides instead (_shrink_editor), so
-         *  the clamp has nothing to do. */
-        void _trim_screen();
-
-        /** @brief Whether layout row @p i of the PRE-edit layout was on screen,
-         *  i.e. whether the physical row still shows its glyphs. */
-        bool _was_visible(uint16_t i) const {
-            return i >= _pre_view_top && (uint16_t)(i - _pre_view_top) < _pre_view_height;
-        }
-
-        /** @brief Scroll the viewport if the cursor left it, painting only the
-         *  rows the scroll revealed. Returns true if the viewport moved.
-         *  @note A jump further than the window height cannot reuse anything, so
-         *  it clears and repaints rather than scrolling by a whole screen. */
+        /** @brief Scroll the viewport if the cursor left it, so the paint that
+         *  follows finds the kept rows in place. Returns true if it moved.
+         *  @note A jump of a whole window or more slides nothing: no row
+         *  survives it, and the paint alone is cheaper than a scroll plus
+         *  the paint. */
         bool _follow_cursor();
 
-        /** @brief Bring the cursor back into view, then home the terminal at it.
-         *  What every motion ends with. Drops the goal column unless @p
-         *  keep_goal - only vertical motion holds on to it. */
+        /** @brief Bring the cursor back into view, repaint, then home the
+         *  terminal at it. What every motion ends with. Drops the goal column
+         *  unless @p keep_goal - only vertical motion holds on to it. */
         void _settle_cursor(bool keep_goal = false) {
             if (!keep_goal) _goal_valid = false;
             _follow_cursor();
-            // A motion with a mark live has moved the region's far end, and
-            // nothing else on this path repaints a thing.
-            _sync_region();
+            _paint_view();
             _place_cursor(_map_cursor_pos(_pos));
         }
 
@@ -557,15 +527,11 @@ namespace Botanik { namespace Terminal {
          *  Ctrl-Space would have nothing to show for itself. */
         void _write_row_content(uint16_t i);
 
-        /** @brief Bring the highlight on screen into line with the region.
-         *  Returns without touching a cell when what is painted is already
-         *  right, which is every call with no mark. */
-        void _sync_region();
-
-        /** @brief Declare the visible rows as painted with the region as it
-         *  stands. For whoever has just drawn them all: _sync_region() itself,
-         *  and redraw(). */
-        void _record_painted();
+        /** @brief Paint every row of the viewport into FRONT: prompt, content
+         *  and a clear to the margin, or just the clear past the text. Immediate
+         *  mode, like every page: the diff drops what did not change, and the
+         *  IL/DL announced before it is what makes a slid row unchanged. */
+        void _paint_view();
 
         /** @} */
 
@@ -589,20 +555,15 @@ namespace Botanik { namespace Terminal {
          *  position. */
         void _write_prompt(uint16_t row_idx);
 
-        /** @brief Where an edit lands in the forward walk. `edit_row` is the
-         *  first affected row. Rows at or below `absorbed_post` are already
-         *  correct (shifted by the IL/DL), so the per-row walk only splices
-         *  `[edit_row, absorbed_post)`. */
+        /** @brief The absorbed tail: rows at or below `absorbed_post` are the
+         *  pre rows from `absorbed_pre` on, only displaced. */
         struct SpliceSpan {
-            uint16_t edit_row;      /**< R: first affected post row */
-            /** A: post idx where the absorbed tail begins */
-            uint16_t absorbed_post;
-            uint16_t absorbed_pre;  /**< P: matching pre idx of that boundary */
+            uint16_t absorbed_post; /**< Post idx where the absorbed tail begins. */
+            uint16_t absorbed_pre;  /**< Matching pre idx of that boundary. */
         };
 
-        /** @brief Locate the edit row and the absorbed-tail boundary by diffing
-         *         `_pre` against `_layout` (longest shifted-identical
-         *         suffix). */
+        /** @brief Locate the absorbed-tail boundary by diffing `_pre` against
+         *  `_layout` (longest shifted-identical suffix). */
         SpliceSpan _find_splice_span(uint16_t span_start, uint16_t span_len,
                                      bool is_insert, int32_t l_shift,
                                      int32_t row_delta) const;
@@ -613,38 +574,18 @@ namespace Botanik { namespace Terminal {
         void _reposition_tail(const SpliceSpan& span, int32_t row_delta);
 
         /** @brief Reconcile the screen to `_layout` after an edit of `span_len`
-         *  bytes at offset `span_start`. See the class-level note for the
-         *  strategy. */
+         *  bytes at offset `span_start`: the band scrolls, the one IL/DL, the
+         *  viewport repaint. */
         void _reconcile(uint16_t span_start, uint16_t span_len, bool is_insert);
 
         /** @brief Bottom-pinned grow: scroll the screen up so the editor's
-         *  added rows fit; return the new origin (for the later shrink). */
+         *  added rows fit; return the new origin (for the later shrink). Never
+         *  above row 1: text taller than the band is a viewport's job. */
         uint16_t _grow_editor();
 
         /** @brief Bottom-pinned shrink: slide the editor down once its rows
          *  collapsed. */
         void _shrink_editor(uint16_t new_origin);
-
-        /** @brief Full-paint row `post_idx` (prompt + content + clear): an
-         *  IL-opened blank, or a row whose old glyphs are unrelated to the
-         *  wanted content. */
-        void _new_row(uint16_t post_idx);
-
-        /** @brief Reconcile one row: splice `amount` chars at column `col`
-         *  (insert if >0, delete if <0), then length-align the tail to `want`.
-         *  The edit row passes `col = cursor`; rows below pass `col = prompt`,
-         *  `amount = displacement`. `shown_len`/`shown_prompt_l` describe what
-         *  the row physically shows now. */
-        void _splice_row(uint16_t post_idx, uint16_t col, int32_t amount,
-                         uint16_t shown_len, uint16_t shown_prompt_l,
-                         RowPrompt shown_class, const RowView& want);
-
-        /** @brief Signed count of content chars the edit splices onto its own
-         *  row: the span clipped to that row's content (0 for a closing `\n`),
-         *  positive for insert, negative for remove. */
-        static int32_t _edit_row_amount(uint16_t span_start, uint16_t span_len,
-                                        bool is_insert, const RowView& post_row,
-                                        const RowView& pre_row);
 
         /** @} */
     };

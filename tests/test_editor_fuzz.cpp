@@ -142,11 +142,7 @@ static void sweep(const Geometry& g, uint32_t seed, uint32_t steps) {
     }
 }
 
-// should_fail: the splice walk loses a region kill at shell seed 3 step 47,
-// leaving ten stale glyphs on a PS3 row. The decorator comes off with the
-// reconciliation that passes it.
-TEST_CASE("editor: a random edit sequence keeps the wire and FRONT in step"
-          * doctest::should_fail(true)) {
+TEST_CASE("editor: a random edit sequence keeps the wire and FRONT in step") {
     for (size_t g = 0; g < sizeof(GEOMETRIES) / sizeof(GEOMETRIES[0]); g++)
         for (uint32_t seed = 1; seed <= 4; seed++)
             sweep(GEOMETRIES[g], seed, 300);
