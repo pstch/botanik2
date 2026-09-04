@@ -1,4 +1,3 @@
-// REVIEW_35: WIP
 #ifndef LIBBOTANIK_CORE_COMPONENT_H
 #define LIBBOTANIK_CORE_COMPONENT_H
 
@@ -20,8 +19,10 @@
 #include "libbotanik/core/setup.h"
 #include "libbotanik/tasks/phase.h"
 
-// Forward-declared, NOT included: keeps Component free of the Logger include so
-// Logger itself can derive it (the body of announce() lives in component.cpp).
+// Forward-declared, NOT included: `logs/` sits below this in the tree (a refused
+// variable write is reported through a Logger), so including it here would make
+// the lowest service depend upward. The body of announce() lives in
+// component.cpp, which may include it.
 namespace Botanik { namespace Logs { class Logger; } }
 // Forward-declared, not included: a component names the registry to hand it
 // its tasks, and must not acquire the whole of tasks/ to do so.
