@@ -237,15 +237,16 @@ namespace Botanik { namespace Terminal {
     }
 
     void AnsiTerminal::establish_screen() {
-        Ansi::clear_screen(_serial);
-        _hw_pos = {0, 0};
-        _hw_at_eol = false;
-        // ED does not touch SGR, so the wire could still be in reverse video if a
-        // prior paced frame's closing CSI 0 m was dropped (tx_discard on Ctrl-L).
-        // Force SGR normal on the wire so it matches the _hw_inverted=false model.
+        // SGR normal BEFORE the ED: the wire may still be in reverse video (a
+        // paced frame's closing CSI 0 m dropped by tx_discard, or a region
+        // highlight the last run ended on), and a terminal with
+        // background-colour erase fills what ED clears with the pen it holds.
         _serial.write(Ansi::CSI, sizeof(Ansi::CSI) - 1);
         _serial.write(Ansi::ATTR_NONE, sizeof(Ansi::ATTR_NONE) - 1);
         _hw_inverted = false;
+        Ansi::clear_screen(_serial);
+        _hw_pos = {0, 0};
+        _hw_at_eol = false;
         if (!_screen_ready) { _serial.write("ACAB", 4); _hw_pos.col = 4; }
         // Auto-wrap off UI-wide; hide the cursor by default; SGR normal, replace mode.
         set_auto_wrap(false);

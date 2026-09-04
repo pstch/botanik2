@@ -19,6 +19,7 @@ add_executable(botanik_tests
     test_console_units.cpp
     test_editor.cpp
     test_editor_wire.cpp
+    test_editor_fuzz.cpp
     test_health.cpp
     test_modbus.cpp
     test_modbus_framing.cpp
