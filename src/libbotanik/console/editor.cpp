@@ -28,8 +28,6 @@ namespace Botanik { namespace Terminal {
         _buf[0] = '\0';
         _layout.rows[0] = {0, 0, false};
         _layout.count = 1;
-        // Auto-wrap is owned by the terminal (asserted on every screen
-        // establish).
     }
 
     // prompt helpers
@@ -72,9 +70,7 @@ namespace Botanik { namespace Terminal {
             if (pos >= _len && !row.hard_break) { done = true; break; }
             if (pos > _len) { done = true; break; }
         }
-        // Ran out of rows before running out of buffer: whatever follows cannot
-        // be laid out, so it cannot be shown or reached.
-        return !done;
+        return !done;       // rows ran out before the buffer did
     }
 
     void TextEditor::_snapshot_pre() {
@@ -111,9 +107,7 @@ namespace Botanik { namespace Terminal {
     }
 
     bool TextEditor::_follow_cursor() {
-        // Bottom-anchored the text fits the band until it is taller than the
-        // screen, and `max_top` below is 0 while it does: this only ever moves
-        // a window over text that _grow_editor could not make room for.
+        // Bottom-anchored, `max_top` is 0 until the text is taller than the band.
         uint16_t h = _view_height();
         if (h == 0) return false;
         uint16_t row = _owner_row(_pos, _layout);
@@ -122,8 +116,7 @@ namespace Botanik { namespace Terminal {
         if (row < _view_top)                       want = row;
         else if (row >= (uint16_t)(_view_top + h)) want = (uint16_t)(row - h + 1);
 
-        // Never scroll past the end: blank rows below the text while more of it
-        // sits above the window is just lost screen.
+        // Never past the end: blank rows below the text would be lost screen.
         uint16_t max_top = _layout.count > h ? (uint16_t)(_layout.count - h) : 0;
         if (want > max_top) want = max_top;
         if (want == _view_top) return false;
@@ -132,9 +125,7 @@ namespace Botanik { namespace Terminal {
         uint16_t n     = (uint16_t)(delta > 0 ? delta : -delta);
         _view_top = want;
 
-        // Slide what stays, so the paint behind us finds it in place and the
-        // diff pays only for the rows the scroll uncovered. A jump of a whole
-        // window or more keeps nothing, and the paint alone is cheaper.
+        // A jump of a whole window keeps no row: the paint alone is cheaper.
         if (n < h) _terminal->scroll_region(_origin, _view_bottom_hw(), /*up=*/delta > 0, n);
         return true;
     }
@@ -153,9 +144,7 @@ namespace Botanik { namespace Terminal {
         _mark_set   = false;        // the offsets it anchors are being replaced
         _snapshot_pre();
         if (_rebuild_layout()) {
-            // Past what the row cap can lay out: drop the tail rather than keep
-            // text the operator can neither see nor reach, or that a later
-            // save would write back truncated.
+            // Past the row cap: drop the tail nobody could see or reach.
             const RowView& last = _layout.rows[_layout.count - 1];
             _len = (uint16_t)(last.buf_start + last.buf_len);
             _buf[_len] = '\0';
@@ -173,8 +162,7 @@ namespace Botanik { namespace Terminal {
     }
 
     void TextEditor::commit() {
-        // No reconcile: the caller line-fed past the submitted text, which is
-        // the transcript's now, and the band re-pins to the bottom row below it.
+        // No reconcile: the caller line-fed past the text, now the transcript's.
         (void)_load(nullptr, 0, 0);
         if (_anchor == Anchor::BOTTOM) _origin = (uint16_t)(_console->rows() - 1);
         _paint_view();
@@ -195,8 +183,7 @@ namespace Botanik { namespace Terminal {
     }
 
     void TextEditor::_paint_view() {
-        // Say the pen, and leave it plain: an inherited inverted one would
-        // stamp a bar out to the margin.
+        // Pen plain, or clear_to_eol stamps an inverted bar to the margin.
         _terminal->set_inverted(false);
         const uint16_t bottom = _view_bottom_hw();
         const uint16_t end    = (uint16_t)(_view_top + _view_height());
@@ -212,9 +199,7 @@ namespace Botanik { namespace Terminal {
             _terminal->clear_to_eol();
         }
         _paint_region();
-        // A region IS the edit point, drawn: a cursor blinking inside the
-        // highlight says nothing the far end of it does not, and hides the cell
-        // it sits on while it blinks.
+        // A live region marks the edit point itself; a cursor would hide a cell.
         _terminal->set_cursor_inhibited(_mark_set);
     }
 
@@ -223,9 +208,8 @@ namespace Botanik { namespace Terminal {
         if (!region(from, to)) return;
         _terminal->set_inverted(true);
         if (from == to) {
-            // Nothing selected yet: one inverted cell at the anchor, or
-            // Ctrl-Space would have nothing to show for itself. Past the last
-            // character there is no glyph to invert, so make one.
+            // One inverted cell at the anchor; past the last character there is
+            // no glyph to invert, so make one.
             const uint16_t i = _owner_row(from, _layout);
             const RowView& r = _layout.rows[i];
             if (_visible(i)) {
@@ -254,8 +238,7 @@ namespace Botanik { namespace Terminal {
         if (len == 0) return;
 
         if (_single_line) {
-            // Refuse newlines (stop at the first) and any content past the row
-            // end, so the editor never wraps to a second row.
+            // Stop at the first newline, and at the row end.
             for (uint16_t i = 0; i < len; i++)
                 if (buf[i] == '\n') { len = i; break; }
             uint16_t cap = _row_cap(0);
@@ -275,10 +258,7 @@ namespace Botanik { namespace Terminal {
         _snapshot_pre();
 
         if (_rebuild_layout()) {
-            // More rows than the layout can hold: the tail would be text the
-            // operator can neither see nor reach, so refuse the keystroke.
-            // Nothing has reached the wire yet - the reconcile below is what
-            // emits.
+            // Past the row cap: refuse the keystroke. Nothing has been painted.
             memmove(&_buf[pos], &_buf[pos + len], (size_t)(_len - (pos + len)));
             _len -= len;
             _buf[_len] = '\0';
@@ -332,17 +312,10 @@ namespace Botanik { namespace Terminal {
         if (rows == 0) return;
 
         if (_anchor == Anchor::TOP) {
-            // The viewport is fixed and the editor owns all of it: claim exactly
-            // that, and no more. Releasing the whole band would demote a row the
-            // page keeps for itself (a status line under the editor) every
-            // keystroke.
+            // Top-anchored: the viewport is STRUCT and the cursor's row INPUT.
+            // The re-declaration releases the row the cursor left.
             uint16_t view_bottom = _view_bottom_hw();
             if (_origin > view_bottom) return;
-            // Only the EDIT POINT is input, not the whole note. Claiming the
-            // viewport meant a full-screen editor outranked PRIO_CHROME, so on
-            // the NOTES page the text went out ahead of the bars framing it -
-            // the one page where the frame arrived last. The re-declaration is
-            // what releases the row the cursor was on, so nothing is tracked.
             _terminal->set_row_priority(_origin, view_bottom, PRIO_STRUCT);
             const uint16_t cur = _map_cursor_pos(_pos).row;
             if (cur >= _origin && cur <= view_bottom)
@@ -350,10 +323,7 @@ namespace Botanik { namespace Terminal {
             return;
         }
 
-        // Bottom-anchored the extent moves as the text grows, so release the
-        // content band and reclaim exactly the rows occupied now. Safe only
-        // while no page keeps a class of its own on a row a bottom-anchored
-        // editor shares a screen with; a page re-declares in focus() anyway.
+        // Bottom-anchored: release the content band, reclaim the rows occupied.
         uint16_t bottom = (uint16_t)(rows - 1);
         _terminal->set_row_priority(1, bottom, PRIO_STRUCT);
         if (_layout.count <= _view_top || _origin > bottom) return;
@@ -363,23 +333,17 @@ namespace Botanik { namespace Terminal {
     }
 
     uint16_t TextEditor::_grow_editor() {
-        // Top-anchored, growing the text never moves the editor: the viewport
-        // scrolls over it instead (_follow_cursor).
         if (_anchor == Anchor::TOP) return _origin;
 
-        // Bottom-pinned origin: pull the top up by the rows the editor grew,
-        // clamped at the first content row (row 0 is the status bar). Text
-        // taller than the band stays put there, and the viewport follows the
-        // cursor over it instead.
+        // Clamped at row 1, the status bar's being row 0: text taller than the
+        // band stays put and the viewport follows the cursor over it.
         uint16_t scr_rows = _console->rows();
         uint16_t new_origin;
         if (scr_rows > _layout.count) new_origin = (uint16_t)(scr_rows - _layout.count);
         else                          new_origin = 1;
 
         if (new_origin < _origin) {
-            // Scroll the content band (rows 1..bottom) up by the grown row
-            // count so the editor's added rows fit; bounded so the status bar
-            // (row 0) - and any reserved bottom row - stay put.
+            // The content band, rows 1..bottom: the bars on either side stay put.
             _terminal->scroll_region(1, (uint16_t)(scr_rows - 1), /*up=*/true,
                                      (uint16_t)(_origin - new_origin));
             _origin = new_origin;
@@ -390,12 +354,9 @@ namespace Botanik { namespace Terminal {
     void TextEditor::_shrink_editor(uint16_t new_origin) {
         if (_anchor == Anchor::TOP) return;
         if (new_origin <= _origin) return;
-        // Slide the content band (rows 1..bottom) down by the rows the editor
-        // gave back, the mirror of _grow_editor: the editor lands on the rows
-        // already showing it, and whatever stood above it follows, so the owner
-        // of those rows only paints the ones opened at the top. Measured
-        // against blanking the vacated rows and repainting at the new origin,
-        // the slide wins by 4 to 48 bytes.
+        // The mirror of _grow_editor: the whole content band, so whatever stood
+        // above the editor follows it and its owner paints only the rows opened
+        // at the top.
         if (_origin < _console->rows())
             _terminal->scroll_region(1, (uint16_t)(_console->rows() - 1),
                                      /*up=*/false, (uint16_t)(new_origin - _origin));
@@ -429,14 +390,10 @@ namespace Botanik { namespace Terminal {
     TextEditor::SpliceSpan
     TextEditor::_find_splice_span(uint16_t span_start, uint16_t span_len,
                                   bool is_insert, int32_t row_delta) const {
-        // Post rows from the boundary down take the pre row `row_delta` away
-        // from them, the ones above keep their own, and the IL/DL at the
-        // boundary is what makes it so. Pick the boundary keeping the most
-        // bytes on the row that already shows them, over rows on screen: a
-        // row the diff can slide is worth its length, one it has to rewrite
-        // is worth nothing however well its slice matched.
-        // What the IL/DL pair itself costs, in bytes: two moves, two escapes.
-        // A tail has to keep more than that to be worth announcing.
+        // Post rows from the boundary down take the pre row `row_delta` away,
+        // the ones above keep their own. Score each boundary by the bytes that
+        // stay on the screen row already showing them, over rows on screen,
+        // less what the IL/DL pair costs: two moves and two escapes.
         constexpr int32_t SCROLL_COST = 24;
         const int32_t count = _layout.count, pre_count = _pre.count;
         int32_t  best     = INT32_MIN;
@@ -458,9 +415,6 @@ namespace Botanik { namespace Terminal {
         return { (uint16_t)((int32_t)best_pre + row_delta), best_pre };
     }
     void TextEditor::_reposition_tail(const SpliceSpan& span, int32_t row_delta) {
-        // A single contiguous edit needs at most one IL/DL: it slides the
-        // absorbed tail (and opens the blank rows inserted content paints
-        // into). Nothing to do when there is no tail or no row-count change.
         if (span.absorbed_post >= _layout.count || row_delta == 0) return;
 
         uint16_t at;
@@ -468,21 +422,14 @@ namespace Botanik { namespace Terminal {
         else               at = span.absorbed_post;
         uint16_t n = (uint16_t)(row_delta > 0 ? row_delta : -row_delta);
 
-        // The tail begins at or below the edit row, and the edit row is the
-        // cursor's, which the viewport always contains - so `at` is normally
-        // inside it. Clamp anyway rather than scroll from a negative row.
+        // Clamped to the viewport rather than scrolled from outside it.
         uint16_t bottom = _view_bottom_hw();
         uint16_t row    = at >= _view_top ? _hw_row(at) : _origin;
         if (row > bottom) return;               // tail lies entirely below the view
-        // Bounded to the viewport, so nothing outside the editor moves. Grow
-        // scrolls the tail down; shrink scrolls it up.
         _terminal->scroll_region(row, bottom, /*up=*/row_delta < 0, n);
     }
 
     void TextEditor::_reconcile(uint16_t span_start, uint16_t span_len, bool is_insert) {
-        // Keystroke echo must feel immediate however busy the screen is, so
-        // re-declare the input rows before touching any of them. The extent
-        // moves with the text; rows grown past would else keep the class.
         _place_rows();
         int32_t row_delta = (int32_t)_layout.count - (int32_t)_pre.count;
 
@@ -494,9 +441,7 @@ namespace Botanik { namespace Terminal {
         SpliceSpan span = _find_splice_span(span_start, span_len, is_insert, row_delta);
         _reposition_tail(span, row_delta);
 
-        // Top-anchored, the viewport follows a cursor the edit pushed out of
-        // it (a wrap onto a row below, a delete pulling the text up past the
-        // top). Before the paint, which then covers what the slide revealed.
+        // Before the paint, which then covers what the slide revealed.
         _follow_cursor();
         _paint_view();
 
@@ -536,8 +481,7 @@ namespace Botanik { namespace Terminal {
         if (_layout.count == 0 || delta == 0) return;
         uint16_t row = _owner_row(_pos, _layout);
 
-        // Latch the column on the first of a run of vertical moves, so passing
-        // through a short line does not shorten the ones after it.
+        // Latched on the first of a run of vertical moves.
         if (!_goal_valid) {
             _goal_col   = (uint16_t)(_pos - _layout.rows[row].buf_start);
             _goal_valid = true;
@@ -549,8 +493,7 @@ namespace Botanik { namespace Terminal {
         if (target > last) target = last;
 
         if (target == (int32_t)row) {
-            // Already on the edge row: fall to the end of the text, which is
-            // what pressing up on the first line or down on the last means.
+            // Already on the edge row: up on the first line means the start.
             _pos = delta < 0 ? 0 : _len;
             _settle_cursor();
             return;
@@ -622,8 +565,7 @@ namespace Botanik { namespace Terminal {
 
     bool TextEditor::_kill_span(uint16_t from, uint16_t to) {
         if (to <= from) return false;
-        // Take only what the ring can hold, and remove only what it took: the
-        // rest stays in the buffer, so a yank puts back exactly what went.
+        // Remove only what the ring took, so a yank puts back exactly what went.
         uint16_t taken = _console->kill_ring().set(_buf + from, (uint16_t)(to - from));
         if (taken == 0) return false;
         _pos = from;
@@ -633,8 +575,7 @@ namespace Botanik { namespace Terminal {
 
     bool TextEditor::kill_to_line_end() {
         if (_pos >= _len) return false;
-        // On the newline, the newline IS the kill: that is what closes this
-        // line up onto the next.
+        // On the newline, the newline is the kill: the line closes up onto the next.
         if (_buf[_pos] == '\n') return _kill_span(_pos, (uint16_t)(_pos + 1));
 
         uint16_t end = _pos;
@@ -686,8 +627,7 @@ namespace Botanik { namespace Terminal {
     bool TextEditor::kill_region() {
         uint16_t from = 0, to = 0;
         if (!region(from, to)) return false;
-        // _kill_span removes, which drops the mark on its way through
-        // remove_characters(); an empty region has nothing to drop it.
+        // An empty region removes nothing, so nothing drops the mark for it.
         bool cut = _kill_span(from, to);
         clear_mark();
         return cut;
