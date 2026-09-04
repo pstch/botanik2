@@ -1,4 +1,3 @@
-// REVIEW_35: DONE
 #ifndef UTILS_ASSERT_H
 #define UTILS_ASSERT_H
 

@@ -1,4 +1,3 @@
-// REVIEW_35: TODO
 /**
  * @file mqtt_log.cpp
  * @brief MqttLogWriter - publish log entries to the MQTT broker.

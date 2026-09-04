@@ -1,4 +1,3 @@
-// REVIEW_35: DONE
 /**
  * @file alarm_bar.cpp
  * @brief AlarmBar implementation - bottom-row unmasked-alarm strip.

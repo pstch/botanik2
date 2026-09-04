@@ -1,4 +1,3 @@
-// REVIEW_35: TODO
 // TODO: AnsiTerminal still reads the concrete SchedulerContext; a future
 // unified Context wrapper could decouple it. See TODO.md.
 /**

@@ -1,4 +1,3 @@
-// REVIEW_35: DONE
 /**
  * @file sun/sun_tracker.cpp
  * @brief SunPositionTracker and the NOAA solar-elevation math.

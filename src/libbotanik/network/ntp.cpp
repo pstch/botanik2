@@ -1,4 +1,3 @@
-// REVIEW_35: TODO
 /**
  * @file ntp.cpp
  * @brief NtpClient implementation - non-blocking SNTP client.

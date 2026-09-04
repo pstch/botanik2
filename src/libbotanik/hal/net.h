@@ -1,4 +1,3 @@
-// REVIEW_35: TODO
 #ifndef HAL_NET_H
 #define HAL_NET_H
 

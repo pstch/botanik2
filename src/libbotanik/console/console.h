@@ -1,4 +1,3 @@
-// REVIEW_35: TODO
 #ifndef CONSOLE_CONSOLE_H
 #define CONSOLE_CONSOLE_H
 

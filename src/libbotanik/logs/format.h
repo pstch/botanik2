@@ -1,4 +1,3 @@
-// REVIEW_35: DONE
 #ifndef LOGS_FORMAT_H
 #define LOGS_FORMAT_H
 

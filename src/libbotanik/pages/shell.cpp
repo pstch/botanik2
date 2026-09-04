@@ -1,4 +1,3 @@
-// REVIEW_35: TODO
 /**
  * @file shell.cpp
  * @brief ShellPage implementation.

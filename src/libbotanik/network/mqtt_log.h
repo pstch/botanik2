@@ -1,4 +1,3 @@
-// REVIEW_35: TODO
 #ifndef NETWORK_MQTT_LOG_H
 #define NETWORK_MQTT_LOG_H
 

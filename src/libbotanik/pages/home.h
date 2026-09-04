@@ -1,4 +1,3 @@
-// REVIEW_35: TODO
 #ifndef PAGES_HOME_H
 #define PAGES_HOME_H
 

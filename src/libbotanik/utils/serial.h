@@ -1,4 +1,3 @@
-// REVIEW_35: DONE
 #ifndef UTILS_SERIAL_H
 #define UTILS_SERIAL_H
 

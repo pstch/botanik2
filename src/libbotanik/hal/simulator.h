@@ -1,4 +1,3 @@
-// REVIEW_35: DONE
 #ifndef HAL_SIMULATOR_H
 #define HAL_SIMULATOR_H
 

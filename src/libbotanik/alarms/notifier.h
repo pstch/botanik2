@@ -1,4 +1,3 @@
-// REVIEW_35: DONE
 #ifndef ALARMS_NOTIFIER_H
 #define ALARMS_NOTIFIER_H
 

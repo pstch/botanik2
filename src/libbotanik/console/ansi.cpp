@@ -1,4 +1,3 @@
-// REVIEW_35: DONE
 /**
  * @file ansi.cpp
  * @brief ANSI helper implementations

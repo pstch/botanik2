@@ -1,4 +1,3 @@
-// REVIEW_35: TODO
 /**
  * @file kill_ring.cpp
  * @brief KillRing - the console's one clipboard.

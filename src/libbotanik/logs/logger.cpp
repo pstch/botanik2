@@ -1,4 +1,3 @@
-// REVIEW_35: TODO
 /**
  * @file logger.cpp
  * @brief Logger implementation - token-bucket refill and dispatch.

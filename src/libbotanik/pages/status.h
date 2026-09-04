@@ -1,4 +1,3 @@
-// REVIEW_35: DONE
 #ifndef PAGES_STATUS_H
 #define PAGES_STATUS_H
 

@@ -1,4 +1,3 @@
-// REVIEW_35: TODO
 /**
  * @file console.cpp
  * @brief Console implementation - page multiplexing, bars, input routing, step().

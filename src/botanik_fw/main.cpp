@@ -1,4 +1,3 @@
-// REVIEW_35: TODO
 /**
  * @file main.cpp
  * @brief OPTA firmware entry point (standalone build).

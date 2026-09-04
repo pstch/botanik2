@@ -1,4 +1,3 @@
-// REVIEW_35: TODO
 /**
  * @file network.cpp
  * @brief NetworkHandler implementation. (The NTP client lives in ntp.cpp.)

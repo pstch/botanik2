@@ -1,4 +1,3 @@
-// REVIEW_35: DONE
 /**
  * @file serial.cpp
  * @brief BufferedSerial implementation - pumps the RX/TX rings to and from

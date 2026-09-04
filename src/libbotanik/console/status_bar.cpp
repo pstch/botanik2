@@ -1,4 +1,3 @@
-// REVIEW_35: TODO
 /**
  * @file status_bar.cpp
  * @brief StatusBar implementation - row-0 tabs, clock, and metrics field.

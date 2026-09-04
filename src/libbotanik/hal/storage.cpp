@@ -1,4 +1,3 @@
-// REVIEW_35: TODO
 /**
  * @file storage.cpp
  * @brief HAL::Storage backends: Mbed KVStore on OPTA, a single external file (one

@@ -1,4 +1,3 @@
-// REVIEW_35: DONE
 /**
  * @file env.cpp
  * @brief HAL::Env - process-environment reads.

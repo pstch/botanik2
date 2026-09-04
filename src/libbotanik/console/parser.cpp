@@ -1,4 +1,3 @@
-// REVIEW_35: DONE
 /**
  * @file parser.cpp
  * @brief InputParser implementation - the byte-stream decode state machine that

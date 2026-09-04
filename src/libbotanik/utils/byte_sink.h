@@ -1,4 +1,3 @@
-// REVIEW_35: TODO
 #ifndef UTILS_BYTE_SINK_H
 #define UTILS_BYTE_SINK_H
 

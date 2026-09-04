@@ -1,4 +1,3 @@
-// REVIEW_35: TODO
 #ifndef HAL_STORAGE_H
 #define HAL_STORAGE_H
 

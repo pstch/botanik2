@@ -1,4 +1,3 @@
-// REVIEW_35: TODO
 #ifndef NETWORK_NTP_H
 #define NETWORK_NTP_H
 

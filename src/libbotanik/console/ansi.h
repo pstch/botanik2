@@ -1,4 +1,3 @@
-// REVIEW_35: DONE
 #ifndef CONSOLE_ANSI_H
 #define CONSOLE_ANSI_H
 

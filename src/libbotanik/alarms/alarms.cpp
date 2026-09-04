@@ -1,4 +1,3 @@
-// REVIEW_35: DONE
 /**
  * @file alarms.cpp
  * @brief Out-of-line AlarmCondition::step (the per-condition model loop body).

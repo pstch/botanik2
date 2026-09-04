@@ -1,4 +1,3 @@
-// REVIEW_35: TODO
 #ifndef PAGES_MONITOR_H
 #define PAGES_MONITOR_H
 

@@ -1,4 +1,3 @@
-// REVIEW_35: TODO
 /**
  * @file logs.cpp
  * @brief LogsPage implementation.

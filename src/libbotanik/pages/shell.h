@@ -1,4 +1,3 @@
-// REVIEW_35: TODO
 #ifndef PAGES_SHELL_H
 #define PAGES_SHELL_H
 

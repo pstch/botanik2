@@ -1,4 +1,3 @@
-// REVIEW_35: TODO
 #ifndef HAL_PLATFORM_H
 #define HAL_PLATFORM_H
 

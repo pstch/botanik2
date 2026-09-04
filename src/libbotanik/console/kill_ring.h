@@ -1,4 +1,3 @@
-// REVIEW_35: TODO
 #ifndef CONSOLE_KILL_RING_H
 #define CONSOLE_KILL_RING_H
 

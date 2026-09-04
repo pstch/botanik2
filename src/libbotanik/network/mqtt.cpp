@@ -1,4 +1,3 @@
-// REVIEW_35: TODO
 /**
  * @file mqtt.cpp
  * @brief MqttClient - non-blocking MQTT 3.1.1 publish over HAL::Net TCP.

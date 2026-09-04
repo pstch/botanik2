@@ -1,4 +1,3 @@
-// REVIEW_35: TODO
 #ifndef CONSOLE_FIELD_H
 #define CONSOLE_FIELD_H
 

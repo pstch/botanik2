@@ -1,4 +1,3 @@
-// REVIEW_35: TODO
 /**
  * @file shell.cpp
  * @brief CommandShell: the built-in table, dispatch, output helpers and command
