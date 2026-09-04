@@ -20,6 +20,19 @@
 #include "libbotanik/alarms/alarms.h"
 #include "libbotanik/plc/runtime/runtime.h"
 #include "libbotanik/vars/alarm_rows.h"
+#if BOTANIK_FEATURE_NETWORK
+#include "libbotanik/network/network.h"
+#include "libbotanik/network/resolver.h"
+#endif
+#if BOTANIK_FEATURE_NTP
+#include "libbotanik/network/ntp.h"
+#endif
+#if BOTANIK_FEATURE_MQTT
+#include "libbotanik/network/mqtt.h"
+#endif
+#if BOTANIK_FEATURE_MODBUS_RTU_CLIENT
+#include "libbotanik/modbus/rtu/master.h"
+#endif
 
 #include "site_bank.h"
 #include "term_fixture.h"
@@ -56,6 +69,23 @@ struct Rig {
 #if BOTANIK_FEATURE_PLC
     Plc::Runtime::Plant               plant;
 #endif
+#if BOTANIK_FEATURE_NETWORK
+    Network::NameResolver             dns;
+    Network::NetworkHandler           net;
+#endif
+#if BOTANIK_FEATURE_NTP
+    Network::NtpClient                ntp;
+#endif
+#if BOTANIK_FEATURE_MQTT
+    Network::MqttClient               mqtt;
+#endif
+#if BOTANIK_FEATURE_MODBUS_RTU_CLIENT
+    Modbus::RtuMaster                 rtu;
+#endif
+    /** @brief What `stats` reports on. A bare struct rather than a
+     *  LoopScheduler: a case wants to STATE the metrics it is asserting about,
+     *  and a real scheduler would only ever hold whatever the host did. */
+    Scheduler::SchedulerContext       sched;
     SystemContext                     sys;
     Terminal::Console                 console;
     Terminal::EditorBuffers<2048, 16> store;
@@ -69,9 +99,26 @@ struct Rig {
 #if BOTANIK_FEATURE_PLC
           plant(SetupContext(reg, &log), bank),
 #endif
+#if BOTANIK_FEATURE_NETWORK
+          net(SetupContext(reg, &log), &dns),
+#endif
+#if BOTANIK_FEATURE_NTP
+          ntp(SetupContext(reg, &log), &dns, &net),
+#endif
+#if BOTANIK_FEATURE_MQTT
+          mqtt(SetupContext(reg, &log), &dns, &net),
+#endif
+#if BOTANIK_FEATURE_MODBUS_RTU_CLIENT
+          rtu(SetupContext(reg, &log), &bank, Site::g_site.devices),
+#endif
           console(SetupContext(), wire.serial, &now),
           editor(&console, store.storage()),
           shell(console.terminal(), editor, out, &sys) {
+        // 80x24, the console's own default. Without this the terminal is one
+        // usable cell until PHASE_CONFIG runs, and _field() drops every detail
+        // column as not fitting - so the reports would be asserted in a shape
+        // no operator ever sees.
+        console.terminal().reconfigure(Terminal::Ansi::TerminalType::VT102, 80, 24);
         TestSite::build(bank);
         alarm_rows.bind(&bank);
         alarms.setup(0);            // the SCOPE_A scan is on_setup()
@@ -79,11 +126,38 @@ struct Rig {
         plant.wire();
         sys.plant = &plant;
 #endif
-        sys.vars  = &bank;
-        sys.tasks = &reg;
+        sys.vars      = &bank;
+        sys.tasks     = &reg;
+        sys.scheduler = &sched;
+#if BOTANIK_FEATURE_NETWORK
+        sys.network = &net;
+#endif
+#if BOTANIK_FEATURE_NTP
+        sys.ntp = &ntp;
+#endif
+#if BOTANIK_FEATURE_MQTT
+        sys.mqtt = &mqtt;
+#endif
+#if BOTANIK_FEATURE_MODBUS_RTU_CLIENT
+        sys.modbus_rtu = &rtu;
+#endif
         // `alarms ack` and the log verbs reach their targets this way, not
         // through the context: they MUTATE, and the context is the read side.
         shell.set_diagnostics(&log, &alarms);
+    }
+
+    /** @brief Put the components' work in the task table, so the reporting
+     *  verbs have rows to report on. Opt-in: a case about the variable verbs
+     *  wants an empty beat, and registering also runs each on_setup(). */
+    void register_all() {
+        bank.register_tasks();
+        alarms.register_tasks();
+#if BOTANIK_FEATURE_PLC
+        plant.register_tasks();
+#endif
+#if BOTANIK_FEATURE_NTP
+        shell.set_ntp(&ntp);
+#endif
     }
 
     /** @brief Run one command line and hand back everything it printed. */
