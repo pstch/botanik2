@@ -279,6 +279,46 @@ TEST_CASE("library: a site row REDECLARES a library one, and the site's wins") {
     CHECK(d.bind.reg == 941);
 }
 
+TEST_CASE("site: the two DC rails share one calibration") {
+    // Both rails hang off the same divider design, so a recalibration is one
+    // edit and not two that can drift apart. Sharing the BLOCK is what shares
+    // the parameters: the six tunables name rows, and the rows are the same.
+    SiteBank f;
+    const uint16_t dc1 = f.bank.find("pwr_dc1_V");
+    const uint16_t dc2 = f.bank.find("pwr_dc2_V");
+    REQUIRE(dc1 != Vars::VAR_NONE);
+    REQUIRE(dc2 != Vars::VAR_NONE);
+
+    const Vars::AnalogCal* c1 = Vars::analog_cal(f.bank.descriptor(dc1));
+    const Vars::AnalogCal* c2 = Vars::analog_cal(f.bank.descriptor(dc2));
+    REQUIRE(c1 != nullptr);
+    CHECK(c1 == c2);
+
+    INFO("and every tunable is a row, so the sharing is of something editable");
+    for (uint8_t i = 0; i < 6; i++) {
+        INFO("tunable " << (int)i);
+        CHECK(c1->row[i] != Vars::VAR_NONE);
+    }
+
+    // One edit, both readings. Moving the engineering top end changes what a
+    // given count means, and it has to move BOTH rails or the merge bought
+    // nothing.
+    const uint16_t top = f.bank.find("pwr_dc_engMax_V");
+    REQUIRE(top != Vars::VAR_NONE);
+    f.bank.var(dc1).publish_wire(Vars::Scalar::U(5000), 1000);
+    f.bank.var(dc2).publish_wire(Vars::Scalar::U(5000), 1000);
+    const float was1 = f.bank.var(dc1).as_f32();
+    const float was2 = f.bank.var(dc2).as_f32();
+
+    REQUIRE(f.bank.var(top).param_set(40.0f) == Vars::SET_OK);
+    f.bank.var(dc1).publish_wire(Vars::Scalar::U(5000), 2000);
+    f.bank.var(dc2).publish_wire(Vars::Scalar::U(5000), 2000);
+    CHECK(f.bank.var(dc1).as_f32() != doctest::Approx(was1));
+    CHECK(f.bank.var(dc2).as_f32() != doctest::Approx(was2));
+    INFO("the same count on either rail reads the same volts");
+    CHECK(f.bank.var(dc1).as_f32() == doctest::Approx(f.bank.var(dc2).as_f32()));
+}
+
 TEST_CASE("site: a pair that must stay ordered cannot be edited out of order") {
     // Each of these is legal on its own and only the PAIR is wrong, which a
     // fixed band cannot see: a target floor above its own ceiling holds the

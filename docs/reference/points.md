@@ -8,12 +8,12 @@ the generator, and a site OVERRIDES one by redeclaring the name.
 
 One section per KIND, in the order `Vars::Kind` declares them.
 
-633 rows: 560 declared by the site, 73 by the library.
+627 rows: 554 declared by the site, 73 by the library.
 
 | kind | what it is | rows |
 |---|---|---|
 | Alarms | the boolean an AlarmCondition reads | 53 |
-| Parameters | persisted, editable | 239 |
+| Parameters | persisted, editable | 233 |
 | Status values | computed by a law; published when it has a register | 102 |
 | Inputs | read from the field; each has a quality companion | 82 |
 | Outputs | driven to the field | 30 |
@@ -270,19 +270,13 @@ One section per KIND, in the order `Vars::Kind` declares them.
 | irr_out_avg_ms | T_U16 | 200 | 0 .. 10000 | ms | RW | 311 | rolling average for this flow meter | per output-meter datasheet |
 | irr_leak_Lpm | T_F32 | 0.5 | 0.1 .. 10.0 | Lpm | RW | 312 | inlet flow with the cycle idle is a leak | every valve is shut: whatever is moving is moving through something broken |
 | irr_minFill_Lpm | T_F32 | 5.0 | 0.5 .. 50.0 | Lpm | RW | 313 | a fill under this rate is a pressure fault | the inlet is open and the water is not arriving: supply pressure, or a part-shut valve |
-| pwr_dc1_rawMin_mV | T_U16 | 4000 | 0 .. 10000 | mV | RW | 400 | DC PS1 raw value at the low end | per divider setup |
-| pwr_dc1_rawMax_mV | T_U16 | 6000 | 0 .. 10000 | mV | RW | 401 | DC PS1 raw value at the high end | per divider setup |
-| pwr_dc1_engMin_V | T_F32 | 20.0 | 0.0 .. 48.0 | V | RW | 402 | DC PS1 volts at the low end | per divider setup |
-| pwr_dc1_engMax_V | T_F32 | 30.0 | 0.0 .. 48.0 | V | RW | 403 | DC PS1 volts at the high end | per divider setup |
-| pwr_dc1_min | T_F32 | 20.0 | 0.0 .. 48.0 | V | RW | 404 | lowest believable dc ps1 volts | under this: a dead sensor |
-| pwr_dc1_max | T_F32 | 30.0 | 0.0 .. 48.0 | V | RW | 405 | highest believable dc ps1 volts | over this: a dead sensor |
+| pwr_dc_rawMin_mV | T_U16 | 4000 | 0 .. 10000 | mV | RW | 400 | DC raw value at the low end | one divider for both rails |
+| pwr_dc_rawMax_mV | T_U16 | 6000 | 0 .. 10000 | mV | RW | 401 | DC raw value at the high end | one divider for both rails |
+| pwr_dc_engMin_V | T_F32 | 20.0 | 0.0 .. 48.0 | V | RW | 402 | DC volts at the low end | one divider for both rails |
+| pwr_dc_engMax_V | T_F32 | 30.0 | 0.0 .. 48.0 | V | RW | 403 | DC volts at the high end | one divider for both rails |
+| pwr_dc_min | T_F32 | 20.0 | 0.0 .. 48.0 | V | RW | 404 | lowest believable dc volts | under this: a dead sensor |
+| pwr_dc_max | T_F32 | 30.0 | 0.0 .. 48.0 | V | RW | 405 | highest believable dc volts | over this: a dead sensor |
 | pwr_dc1_avg_ms | T_U16 | 1000 | 10 .. 10000 | ms | RW | 406 | rolling average for DC PS1 | per divider setup |
-| pwr_dc2_rawMin_mV | T_U16 | 4000 | 0 .. 10000 | mV | RW | 407 | DC PS2 raw value at the low end | per divider setup |
-| pwr_dc2_rawMax_mV | T_U16 | 6000 | 0 .. 10000 | mV | RW | 408 | DC PS2 raw value at the high end | per divider setup |
-| pwr_dc2_engMin_V | T_F32 | 20.0 | 0.0 .. 48.0 | V | RW | 409 | DC PS2 volts at the low end | per divider setup |
-| pwr_dc2_engMax_V | T_F32 | 30.0 | 0.0 .. 48.0 | V | RW | 410 | DC PS2 volts at the high end | per divider setup |
-| pwr_dc2_min | T_F32 | 20.0 | 0.0 .. 48.0 | V | RW | 411 | lowest believable dc ps2 volts | under this: a dead sensor |
-| pwr_dc2_max | T_F32 | 30.0 | 0.0 .. 48.0 | V | RW | 412 | highest believable dc ps2 volts | over this: a dead sensor |
 | pwr_dc2_avg_ms | T_U16 | 1000 | 10 .. 10000 | ms | RW | 413 | rolling average for DC PS2 | per divider setup |
 | pwr_upsBat_rawMin_mV | T_U16 | 4000 | 0 .. 10000 | mV | RW | 414 | UPS battery raw value at the low end | per divider setup |
 | pwr_upsBat_rawMax_mV | T_U16 | 6000 | 0 .. 10000 | mV | RW | 415 | UPS battery raw value at the high end | per divider setup |
@@ -306,8 +300,8 @@ One section per KIND, in the order `Vars::Kind` declares them.
 | pwr_localHi_V | T_F32 | 260.0 | 0.0 .. 500.0 | V | RW | 433 | local AC volts: high alarm | - |
 | pwr_localLo_Hz | T_F32 | 45.0 | 0.0 .. 100.0 | Hz | RW | 434 | local AC frequency: low alarm | wider than the grid: a generator wanders |
 | pwr_localHi_Hz | T_F32 | 55.0 | 0.0 .. 100.0 | Hz | RW | 435 | local AC frequency: high alarm | wider than the grid: a generator wanders |
-| pwr_dc1Lo_V | T_F32 | 22.0 | 0.0 .. 48.0 | V | RW | 436 | DC PS1 volts: low alarm | above pwr_dc1_min; that one says the sensor is dead |
-| pwr_dc2Lo_V | T_F32 | 22.0 | 0.0 .. 48.0 | V | RW | 437 | DC PS2 volts: low alarm | above pwr_dc2_min; that one says the sensor is dead |
+| pwr_dc1Lo_V | T_F32 | 22.0 | 0.0 .. 48.0 | V | RW | 436 | DC PS1 volts: low alarm | above pwr_dc_min; that one says the sensor is dead |
+| pwr_dc2Lo_V | T_F32 | 22.0 | 0.0 .. 48.0 | V | RW | 437 | DC PS2 volts: low alarm | above pwr_dc_min; that one says the sensor is dead |
 | pwr_upsBatLo_V | T_F32 | 23.0 | 0.0 .. 48.0 | V | RW | 438 | UPS battery volts: low alarm | the contact is what holds the plant; this only warns |
 | pwr_genBatLo_V | T_F32 | 23.0 | 0.0 .. 48.0 | V | RW | 439 | gen. battery volts: low alarm | too low to crank the generator |
 | pwr_genStart_sec | T_U16 | 30 | 5 .. 300 | sec | RW | 440 | the generator has this long to take over | grid gone and the ATS still dead past it: the set did not start |
@@ -705,8 +699,7 @@ parameter commits.
 |---|---|---|---|---|---|---|---|---|
 | CAL_pwr_genBat_V | pwr_genBat_rawMin_mV | 5000.0f | pwr_genBat_rawMax_mV | 7500.0f | pwr_genBat_engMin_V | 20.0f | pwr_genBat_engMax_V | 30.0f |
 | CAL_pwr_upsBat_V | pwr_upsBat_rawMin_mV | 4000.0f | pwr_upsBat_rawMax_mV | 6000.0f | pwr_upsBat_engMin_V | 20.0f | pwr_upsBat_engMax_V | 30.0f |
-| CAL_pwr_dc1_V | pwr_dc1_rawMin_mV | 4000.0f | pwr_dc1_rawMax_mV | 6000.0f | pwr_dc1_engMin_V | 20.0f | pwr_dc1_engMax_V | 30.0f |
-| CAL_pwr_dc2_V | pwr_dc2_rawMin_mV | 4000.0f | pwr_dc2_rawMax_mV | 6000.0f | pwr_dc2_engMin_V | 20.0f | pwr_dc2_engMax_V | 30.0f |
+| CAL_pwr_dc_V | pwr_dc_rawMin_mV | 4000.0f | pwr_dc_rawMax_mV | 6000.0f | pwr_dc_engMin_V | 20.0f | pwr_dc_engMax_V | 30.0f |
 | CAL_irr_out_Lpm | irr_out_rawMin_uA | 4000.0f | irr_out_rawMax_uA | 20000.0f | irr_out_engMin_Lpm | 0.0f | irr_out_engMax_Lpm | 50.0f |
 | CAL_cli_intr1 | cli_intr_rawMin_mV | 0.0f | cli_intr_rawMax_mV | 10000.0f | cli_intr_engMin | 0.0f | cli_intr_engMax | 1.0f |
 | CAL_cli_intr2 | cli_intr_rawMin_mV | 0.0f | cli_intr_rawMax_mV | 10000.0f | cli_intr_engMin | 0.0f | cli_intr_engMax | 1.0f |

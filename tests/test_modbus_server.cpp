@@ -25,6 +25,7 @@
 #include "libbotanik/hal/net.h"
 #include "libbotanik/modbus/tcp/master.h"
 #include "libbotanik/modbus/tcp/slave.h"
+#include "libbotanik/network/network.h"
 
 #include "site_bank.h"
 
@@ -273,6 +274,37 @@ TEST_CASE("modbus server: two clients are served independently") {
     // match an answer to the wrong question.
     CHECK(((ra[0] << 8) | ra[1]) == 0x1111);
     CHECK(((rb[0] << 8) | rb[1]) == 0x2222);
+}
+
+TEST_CASE("modbus server: a link that has not come up yet is not a link that fell") {
+    // BotanikFirmware::setup() opens the listener and calls set_network()
+    // BEFORE the first beat, so the first on_input() reads the link with
+    // nothing observed yet. Reading that as a FALL closes the listener the
+    // log just announced, and the port stays shut for a whole
+    // MODBUS_TCP_BIND_RETRY_MS - 30 s of a server that is not there.
+    Vars::Bank      bank;
+    Logs::Logger    log;
+    Tasks::Registry reg;
+    TcpSlave        slave(SetupContext(reg, &log), &bank, nullptr);
+    Network::NetworkHandler net(SetupContext(reg, &log));
+    TestSite::build(bank);
+
+    slave.setup(0);
+    TcpSlaveConfig cfg;
+    cfg.enabled = true; cfg.writable = true; cfg.port = 15599;
+    slave.set_config(cfg);
+    REQUIRE(slave.listening());
+
+    // The firmware's order: wired during setup, before anything beats.
+    REQUIRE_FALSE(net.is_up());
+    slave.set_network(&net);
+
+    slave.register_tasks();
+    reg.setup(0);
+    for (int i = 0; i < 4; i++) reg.run_phase(Tasks::PHASE_INPUT, (uint64_t)(i * 10));
+
+    CHECK(slave.listening());
+    CHECK(slave.context().listening);
 }
 
 TEST_CASE("modbus server: disabling it gives the port back") {

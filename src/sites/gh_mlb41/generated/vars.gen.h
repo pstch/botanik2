@@ -19,8 +19,7 @@
 
 extern const AnalogCal CAL_pwr_genBat_V;
 extern const AnalogCal CAL_pwr_upsBat_V;
-extern const AnalogCal CAL_pwr_dc1_V;
-extern const AnalogCal CAL_pwr_dc2_V;
+extern const AnalogCal CAL_pwr_dc_V;
 extern const AnalogCal CAL_irr_out_Lpm;
 extern const AnalogCal CAL_cli_intr1;
 extern const AnalogCal CAL_cli_intr2;
@@ -28,9 +27,9 @@ extern const AnalogCal CAL_cli_intr2;
 // The whole table, library rows merged in, and the name order beside it.
 extern const Descriptor rows[];
 extern const uint16_t   row_order[];
-const uint16_t ROWS_COUNT  = 633;
+const uint16_t ROWS_COUNT  = 627;
 const uint16_t PARAM_FIRST = 0;
-const uint16_t PARAM_COUNT = 239;
+const uint16_t PARAM_COUNT = 233;
 
 static_assert(ROWS_COUNT == Config::VAR_MAX,
               "the table and the bank's arrays are generated together");
@@ -52,6 +51,13 @@ const uint8_t g_home_field_count = 22;
 // The home screen silently ignores fields past its columns.
 static_assert(g_home_field_count <= Config::HOME_FIELDS_MAX,
               "too many home fields: the HomePage would drop the tail");
+
+// The SYSTEM band's site half, the same shape. 0 for a site that
+// adds nothing to the library's own rows.
+extern const HomeVar g_system_fields[];
+const uint8_t g_system_field_count = 12;
+static_assert(g_system_field_count <= Config::SYSTEM_FIELDS_MAX,
+              "too many system fields: the SYSTEM page would drop the tail");
 
 // The whole handoff to the library: this site, as data.
 extern const Botanik::SiteDescriptor g_site;

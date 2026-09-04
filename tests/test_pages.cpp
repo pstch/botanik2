@@ -141,6 +141,43 @@ TEST_CASE("pages: SYSTEM renders with no SystemContext at all") {
     CHECK(saw_label);
 }
 
+TEST_CASE("pages: the SYSTEM band's site half carries labels, values AND units") {
+    // The site half is a declared table, so nothing about it is derivable from
+    // the page: a caption comes from the CSV and the unit from the row. A bare
+    // "227.0" is a number, not a reading, which is why the home screen appends
+    // the unit and why this one has to as well.
+    Vars::Bank bank;
+    TestSite::build(bank);
+    Scheduler::SchedulerContext sched;
+    Tasks::Registry reg;
+    SystemContext sys;
+    sys.scheduler = &sched;
+    sys.tasks     = &reg;
+
+    static const Vars::HomeVar FIELDS[] = {
+        { "Grid V",  Vars::Row::sys_grid_V  },
+        { "Grid Hz", Vars::Row::sys_grid_Hz },
+    };
+    bank.var(FIELDS[0].row).set(231.5f);
+    bank.var(FIELDS[1].row).set(50.0f);
+
+    botanik_test::PageFixture f;
+    Pages::StatusPage page(f.console, &sys, FIELDS, 2, &bank);
+    page.focus();
+    f.paint(page);
+    f.converged(page, "SYSTEM with a site band");
+
+    bool saw_label = false, saw_value = false;
+    for (const std::string& row : f.content()) {
+        if (row.find("Grid V") != std::string::npos) saw_label = true;
+        // The unit is the half that went missing: the value alone rendered
+        // fine and read as unitless.
+        if (row.find("231.5 V") != std::string::npos) saw_value = true;
+    }
+    CHECK(saw_label);
+    CHECK(saw_value);
+}
+
 TEST_CASE("pages: SYSTEM says what the task table costs") {
     Scheduler::SchedulerContext sched;
     Tasks::Registry reg;

@@ -83,7 +83,14 @@ namespace Botanik {
           // _sys_ctx is filled in this constructor's BODY, below; the page only
           // reads through the pointer at draw time, so taking its address here
           // is fine.
+#if BOTANIK_FEATURE_VARS
+          // The site's own half of the band. Only a VARS build has a table to
+          // resolve its names in; without one the page is the library rows.
+          , _system_page(_console.terminal(), &_sys_ctx,
+                         site.system_fields, site.system_field_count, &_io)
+#else
           , _system_page(_console.terminal(), &_sys_ctx)
+#endif
 #endif
 #endif
     {

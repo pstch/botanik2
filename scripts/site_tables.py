@@ -106,6 +106,7 @@ AUX = {  # stem -> columns, for the tables that are not rows
     'enums':          'enum ctype symbol value label desc',
     'programs':       'name instance source rate desc quality park health',
     'home':           'label var',
+    'system':         'label var',
 }
 
 LIB_CSV = 'src/libbotanik/vars/tables/library.csv'
@@ -359,7 +360,13 @@ def build(site):
             'cal': read_table(os.path.join(site, 'tables', 'analog_cal.csv'),
                               AUX['analog_cal'].split()),
             'home': read_table(os.path.join(site, 'tables', 'home.csv'),
-                               AUX['home'].split())}
+                               AUX['home'].split()),
+            # Optional: a site with nothing to add to the SYSTEM band declares
+            # none, and gets the library's own rows alone.
+            'system': (read_table(os.path.join(site, 'tables', 'system.csv'),
+                                  AUX['system'].split())
+                       if os.path.exists(os.path.join(site, 'tables', 'system.csv'))
+                       else [])}
 
 
 # ---- checks ----------------------------------------------------------------
@@ -480,6 +487,10 @@ def check(t):
     for h in t['home']:
         if h['var'] not in index:
             bad.append('home field %r names no row %s' % (h['label'], h['var']))
+
+    for h in t['system']:
+        if h['var'] not in index:
+            bad.append('system field %r names no row %s' % (h['label'], h['var']))
 
     # An alarm's code is a column on the ALARMS page, and a longer one is
     # truncated where an operator reads it.

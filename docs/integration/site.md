@@ -65,11 +65,13 @@ library; everything else the base owns.
 ```cpp
 const Botanik::SiteDescriptor g_site = {
     Botanik::Config::SITE_NAME,
-    g_commands,     g_command_count,                  // site shell commands
-    g_home_fields,  g_home_field_count,  home_refs,   // home-screen readings
+    g_commands,      g_command_count,        // site shell commands
+    g_home_fields,   g_home_field_count,     // home-screen readings
+    g_system_fields, g_system_field_count,   // SYSTEM-page readings
 #if BOTANIK_FEATURE_MODBUS_RTU_CLIENT
-    &g_device_table,                                  // what each unit answers
+    &g_device_table,                         // what each unit answers
 #endif
+    rows, row_order, ROWS_COUNT, PARAM_FIRST, PARAM_COUNT,
 };
 ```
 

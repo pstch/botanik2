@@ -19,10 +19,10 @@ exactly once per period, when the work for that beat should run.
  }
 ```
 
-Between grid points `tick()` sleeps until ~1 ms before the next one, then
-busy-waits the last millisecond to release the beat with low jitter (a
-class-scope `static_assert(TASK_PERIOD_MS >= 2)` keeps that sleep/spin split
-valid against a future retune). Nothing in the work path blocks, so a stalled
+Between grid points `tick()` sleeps the whole way to the next one and returns
+false, so every pass that is not a beat gives the CPU back. What that costs is
+jitter: the beat is released no earlier than the platform's sleep resolves, and
+on the OPTA that is the RTOS tick. Nothing in the work path blocks, so a stalled
 subsystem can't wedge the loop (and on the OPTA, trip the hardware watchdog).
 
 ## Overrun handling
@@ -45,9 +45,10 @@ peak, plus a plain **ticks-per-second** rate.
 @image html metrics.drawio.svg "Where each family is sampled. Two come off the release, two off the next tick - so a full set costs one beat."
 
 - **CPU load** - the *duty cycle*: the active fraction of each period,
-  `(period − slept)/period`. It counts the work, the loop/scheduler overhead, and
-  the ~1 ms busy-wait (everything but the real sleep), so it reflects total CPU
-  per beat, not just the explicit work.
+  `(period − slept)/period`. It counts the work and the loop/scheduler overhead,
+  so it reflects total CPU per beat rather than just the explicit work. Slept
+  time is the MEASURED sleep, not the requested one, so a sleep that overshoots
+  reads as jitter and not as load.
 - **Loop time** - the work-window duration (release → next tick), i.e. the
   worst-case single-beat work time.
 - **Jitter** - how late a tick was released against the time grid. The sample is

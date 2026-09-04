@@ -139,8 +139,12 @@ namespace Botanik { namespace Modbus {
         /** @brief The link, borrowed and possibly null. @see set_network */
         const Network::NetworkHandler* _net = nullptr;
         /** @brief Whether the link was up on the previous beat, so the fall is
-         *  an edge rather than a repeated close. */
-        bool         _link_up  = true;
+         *  an edge rather than a repeated close.
+         *  @note Starts FALSE, which is what an edge detector with nothing
+         *  observed yet has to say. True would make the first beat of a link
+         *  that has not come up yet read as a FALL, and close the listener
+         *  on_setup() opened - for a whole MODBUS_TCP_BIND_RETRY_MS. */
+        bool         _link_up  = false;
         HAL::Network::TcpSocket _listener = -1;
         Conn     _conn[Config::MODBUS_TCP_MAX_CONN];
         uint16_t _port     = 0;            ///< the port currently bound

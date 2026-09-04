@@ -82,6 +82,13 @@ def generate(site):
           'const HomeVar g_home_fields[] = {']
     L += ['    { "%s", Row::%s },' % (h['label'], h['var']) for h in t['home']]
     L += ['};', '',
+          '// The SYSTEM band\'s site half: rows about the UNIT rather than the',
+          '// plant - its supplies, its rails - which no rule tells from a',
+          '// greenhouse reading either.',
+          'const HomeVar g_system_fields[] = {']
+    L += (['    { "%s", Row::%s },' % (h['label'], h['var']) for h in t['system']]
+          or ['    { nullptr, 0 },'])
+    L += ['};', '',
           '/** @brief The site\'s shell commands: none. A site table is matched',
           ' *  BEFORE the library built-ins, so a name reused there shadows one. */',
           'const Botanik::Shell::ShellCommand* const g_commands = nullptr;',
@@ -91,6 +98,7 @@ def generate(site):
           '    Botanik::Config::SITE_NAME,',
           '    g_commands,    g_command_count,',
           '    g_home_fields, g_home_field_count,',
+          '    g_system_fields, g_system_field_count,',
           '    &g_device_table,',
           '    rows,          row_order, ROWS_COUNT, PARAM_FIRST, PARAM_COUNT,',
           '};', '',
@@ -131,6 +139,12 @@ def generate(site):
           '// The home screen silently ignores fields past its columns.',
           'static_assert(g_home_field_count <= Config::HOME_FIELDS_MAX,',
           '              "too many home fields: the HomePage would drop the tail");', '',
+          '// The SYSTEM band\'s site half, the same shape. 0 for a site that',
+          '// adds nothing to the library\'s own rows.',
+          'extern const HomeVar g_system_fields[];',
+          'const uint8_t g_system_field_count = %d;' % len(t['system']),
+          'static_assert(g_system_field_count <= Config::SYSTEM_FIELDS_MAX,',
+          '              "too many system fields: the SYSTEM page would drop the tail");', '',
           '// The whole handoff to the library: this site, as data.',
           'extern const Botanik::SiteDescriptor g_site;', '',
           '/** @brief The firmware, bound to this site. A FUNCTION-LOCAL static,',

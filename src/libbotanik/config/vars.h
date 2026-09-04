@@ -25,6 +25,13 @@ namespace Botanik { namespace Config {
 #endif
     BOTANIK_CFG(uint8_t, HOME_FIELDS_MAX);
 
+    /** @brief System-page readings the site declares, on top of the library's
+     *  own band; extras are ignored at render. Two columns of six. */
+#ifndef BOTANIK_SYSTEM_FIELDS_MAX
+#  define BOTANIK_SYSTEM_FIELDS_MAX 12
+#endif
+    BOTANIK_CFG(uint8_t, SYSTEM_FIELDS_MAX);
+
     /** @brief Components ConfigBinder can carry bindings for. One entry per
      *  configurable component, library and site together; past it a binding is
      *  dropped and that component keeps its constructed defaults. */

@@ -204,6 +204,7 @@ unit is nuisance-alarming on. The macros are their factory values.
 | Macro | Default | |
 |---|---|---|
 | `HOME_FIELDS_MAX` | 22 | home fields (3 columns x 8, minus the uptime cells) |
+| `SYSTEM_FIELDS_MAX` | 12 | SYSTEM-page fields a site adds under the library band (2 columns x 6) |
 | `VAR_GROUPS_MAX` | 24 | distinct variable groups a site may have. A group is a name prefix, so this bounds how many domains one table spans; past it `var_group()` answers `?`. The pool covers the WHOLE table, so the library's eight config groups (`serial`, `net`, `ntp`, `mqtt`, `geo`, `mb`, `term`, `sys`) count against it - `gh_mlb41` reaches 15 |
 | `VAR_GROUP_NAME_LEN` | 16 | bytes one interned group name may take, NUL included |
 | `RETAIN_SAVE_MS` | 300000 | factory default for `sys_retain_sec` (in SECONDS there): how often the `F_RETAIN` rows are written to flash. A wear-versus-loss dial. 0 leaves only the save on the way down and the `save` command |

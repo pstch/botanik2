@@ -1,0 +1,13 @@
+label,var
+Grid       ,sys_grid_ok
+Grid V     ,sys_grid_V
+Grid A     ,sys_grid_A
+Grid Hz    ,sys_grid_Hz
+Local      ,sys_local_ok
+Local V    ,sys_local_V
+Local A    ,sys_local_A
+Local Hz   ,sys_local_Hz
+DC1 V      ,sys_dc1_V
+DC2 V      ,sys_dc2_V
+UPS batt   ,sys_upsBat_V
+Lockout    ,sys_supply_lockout

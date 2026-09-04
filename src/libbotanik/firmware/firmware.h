@@ -89,6 +89,14 @@ namespace Botanik {
          *  a flag can remove is a field every site's initialiser has to guard. */
         const Vars::HomeVar*          home_fields;
         uint8_t                       home_field_count;
+
+        /** @brief The SYSTEM band's site half: rows about the UNIT rather than
+         *  the plant - its supplies, its rails, its enclosure. Same shape and
+         *  the same reasoning as the home table, since no rule tells a
+         *  greenhouse reading from a panel one either. Null / 0 for a site
+         *  that adds nothing to the library's own rows. */
+        const Vars::HomeVar*          system_fields;
+        uint8_t                       system_field_count;
 #if BOTANIK_FEATURE_MODBUS_RTU_CLIENT
         /** @brief What each unit on the field bus will answer: its request
          *  ceiling and address alignment. Null plans every unit as
@@ -259,12 +267,14 @@ namespace Botanik {
          *  @note Non-virtual, and inline: this is the whole of the main loop's
          *  body, and tick() folds into it.
          *  @return whether a beat actually ran. A harness interleaving its own
-         *  work must key off this: tick() busy-waits the tail of every period. */
+         *  work must key off this: tick() returns false for every pass that is
+         *  waiting out the period. */
         bool loop() {
             if (!_scheduler.tick()) return false;   // driver: gates the beat, produces the clock
 
-            // One 64-bit "now" for every Component stepped this beat.
-            uint64_t now_ms = HAL::Clock::uptime_ms();
+            // One 64-bit "now" for every Component stepped this beat - the
+            // scheduler's, not a fresh reading, which would drift off the grid.
+            const uint64_t now_ms = _scheduler.context()->timestamp_ms;
 
             _advance_run_state(now_ms);
 
