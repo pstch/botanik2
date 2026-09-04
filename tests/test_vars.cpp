@@ -19,18 +19,19 @@ using namespace Botanik;
 
 namespace {
 
-// Two rows to read through. G() is the computed-value factory; a Value carries
-// its descriptor so the conversions know the arm the union is holding.
+// Three rows to read through. A status value with register 0 is the computed
+// row that is not published; a Value carries its descriptor, so the conversions
+// know which arm of the union it is holding.
 const Vars::Descriptor D_I32 =
-    Vars::G("t_i32", Vars::T_I32, Vars::SI(0), 0, "", "an i32 row", "");
+    Vars::SV("t_i32", Vars::T_I32, 0, 0, "", 0, "an i32 row", "");
 const Vars::Descriptor D_U32 =
-    Vars::G("t_u32", Vars::T_U32, Vars::SU(0), 0, "", "a u32 row", "");
+    Vars::SV("t_u32", Vars::T_U32, 0, 0, "", 0, "a u32 row", "");
 const Vars::Descriptor D_F32 =
-    Vars::G("t_f32", Vars::T_F32, Vars::SF(0.0f), 2, "", "an f32 row", "");
+    Vars::SV("t_f32", Vars::T_F32, 0, 2, "", 0, "an f32 row", "");
 
-Vars::Value of_i(int64_t x)  { return Vars::Value{ Vars::Scalar::I(x), &D_I32, Vars::T_I32, Vars::Q_VALID }; }
-Vars::Value of_u(uint64_t x) { return Vars::Value{ Vars::Scalar::U(x), &D_U32, Vars::T_U32, Vars::Q_VALID }; }
-Vars::Value of_f(float x)    { return Vars::Value{ Vars::Scalar::F(x), &D_F32, Vars::T_F32, Vars::Q_VALID }; }
+Vars::Value of_i(int64_t x)  { return Vars::Value{ Vars::Scalar::I(x), &D_I32, Vars::T_I32, Vars::Q_GOOD }; }
+Vars::Value of_u(uint64_t x) { return Vars::Value{ Vars::Scalar::U(x), &D_U32, Vars::T_U32, Vars::Q_GOOD }; }
+Vars::Value of_f(float x)    { return Vars::Value{ Vars::Scalar::F(x), &D_F32, Vars::T_F32, Vars::Q_GOOD }; }
 
 }  // namespace
 
@@ -68,29 +69,24 @@ TEST_CASE("vars: a float row narrows through its own saturation first") {
 }
 
 TEST_CASE("vars: retention is a flag on the factory, not a factory of its own") {
-    // G/SV take `retained` the way P does. What the flag means is split by
-    // ROLE: a computed row goes to the retained store, a parameter already
-    // persists through its own key and only becomes reset-proof.
+    // SV takes `retained` the way P does. What the flag means is split by KIND:
+    // a status row goes to the retained store, a parameter already persists
+    // through its own key and only becomes reset-proof.
     const Vars::Descriptor plain =
-        Vars::G("t_plain", Vars::T_F32, Vars::SF(0.0f), 1, "L", "not retained", "");
+        Vars::SV("t_plain", Vars::T_F32, 0, 1, "L", 0, "not retained", "");
     const Vars::Descriptor kept =
-        Vars::G("t_kept", Vars::T_F32, Vars::SF(0.0f), 1, "L", "retained", "", true);
+        Vars::SV("t_kept", Vars::T_F32, 0, 1, "L", 0, "retained", "", true);
 
-    CHECK_FALSE(Vars::Bank::retainable(plain));
-    CHECK(Vars::Bank::retainable(kept));
+    CHECK_FALSE(Vars::Persist::retainable(plain));
+    CHECK(Vars::Persist::retainable(kept));
     // ...and not as a parameter, which is the other half of the same flag.
-    CHECK_FALSE(Vars::Bank::param_retained(kept));
+    CHECK_FALSE(Vars::Persist::param_retained(kept));
 
     const Vars::Descriptor pk =
-        Vars::P("t_pk", Vars::T_U16, 1, 0, 10, 0, "", 900, "a retained param", "",
-                true, true);
-    CHECK(Vars::Bank::param_retained(pk));
-    CHECK_FALSE(Vars::Bank::retainable(pk));
-
-    // The published factory carries it too - that is what SVR used to be.
-    const Vars::Descriptor sv =
-        Vars::SV("t_sv", Vars::T_F32, 0, 1, "L", 901, "a totalizer", "", true);
-    CHECK(Vars::Bank::retainable(sv));
+        Vars::P("t_pk", Vars::T_U16, 1, 0, 10, Vars::VAR_NONE, Vars::VAR_NONE,
+                0, "", 900, "a retained param", "", true, true);
+    CHECK(Vars::Persist::param_retained(pk));
+    CHECK_FALSE(Vars::Persist::retainable(pk));
 }
 
 TEST_CASE("text: a listing pattern is a prefix until it has a wildcard") {
@@ -160,7 +156,7 @@ TEST_CASE("text: a table filter is a substring until it has a wildcard") {
 TEST_CASE("vars: a calibration with no span reads as implausible, not as a number") {
     // raw_min == raw_max leaves to_eng() with no slope, so every count the ADC
     // reads collapses to eng_min - which is inside the row's own band, so it
-    // would sit at Q_VALID for ever and the under-range alarm would never fire.
+    // would sit at Q_GOOD for ever and the under-range alarm would never fire.
     Vars::AnalogValues a = {};
     a.raw_min = 4000.0f; a.raw_max = 4000.0f;
     a.eng_min = 20.0f;   a.eng_max = 30.0f;
@@ -186,34 +182,53 @@ TEST_CASE("vars: an index that is not a row reads the sink descriptor") {
     TestSite::build(bank);
     REQUIRE(bank.count() > 0);
 
-    INFO("VAR_NONE is what an unresolved reference carries, and 0xFFFF into "
-         "the redeclaration map is 128 KB past the end of it");
+    INFO("VAR_NONE is what an unbound reference carries, and 0xFFFF into the "
+         "table is 46 KB past the end of it");
     CHECK(std::string(bank.descriptor(Vars::VAR_NONE).name) == "<none>");
     CHECK(std::string(bank.descriptor(bank.count()).name) == "<none>");
     CHECK(std::string(bank.descriptor(0).name) != "<none>");
+
+    INFO("...and the sink is never good: a law reading one gets the declared "
+         "substitute rather than a zero it cannot tell from a reading");
+    CHECK(bank.var(Vars::VAR_NONE).quality() == Vars::Q_NONE);
+    CHECK_FALSE(bank.var(Vars::VAR_NONE).usable());
 }
 
-TEST_CASE("vars: a reference with no bank reads nothing and drives nothing") {
-    // What every generated POU holds between construction and bind(), and what
-    // a binding that failed used to leave behind.
-    Vars::Ref<float>    f;
-    Vars::Ref<bool>     b;
-    Vars::Ref<uint16_t> u;
+TEST_CASE("vars: a handle with no bank reads nothing and drives nothing") {
+    // What a default-built Var is, and what Map::row() hands back with no table
+    // behind it.
+    Vars::Var h;
+    CHECK(h.null());
+    CHECK(h.row() == Vars::VAR_NONE);
+    CHECK(h.as_f32() == doctest::Approx(0.0f));
+    CHECK_FALSE(h.valid());
+    CHECK(h.text() == nullptr);
+    CHECK(h.param_set("1") == Vars::SET_INVALID);
 
-    CHECK(f.io == nullptr);
-    CHECK(f.r == Vars::VAR_NONE);
+    h.set(1.0f);          // drives the sink, which forgets it
+    h.override_set(Vars::Scalar::F(2.0f));
+    CHECK(h.as_f32() == doctest::Approx(0.0f));
+}
+
+TEST_CASE("vars: a reference with no bank behind it reads nothing") {
+    // Every generated POU holds these as members; a build with no table has
+    // no bank for them to read.
+    Vars::Bank* was = Vars::runtime_bank;
+    Vars::runtime_bank = nullptr;
+
+    const Vars::Ref<float>    f = { Vars::VAR_NONE };
+    const Vars::Ref<bool>     b = { Vars::VAR_NONE };
+    const Vars::Ref<uint16_t> u = { Vars::VAR_NONE };
 
     CHECK(f.get() == doctest::Approx(0.0f));
     CHECK(b.get() == false);
     CHECK(u.get() == 0u);
-    CHECK(f.held() == doctest::Approx(0.0f));
     CHECK_FALSE(f.valid());
-    CHECK_FALSE(f.edit(1.0f));
-
     f.drive(1.0f);
     b.drive(true);
     u.drive(7u);
-    f.invalidate();
+
+    Vars::runtime_bank = was;
 }
 
 namespace {

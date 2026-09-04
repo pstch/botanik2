@@ -224,11 +224,13 @@ namespace Botanik { namespace Vars {
                             Scalar lo, Scalar hi, uint16_t lo_row, uint16_t hi_row,
                             Scalar def, uint32_t timeout_ms, uint8_t digits,
                             const char* unit, const char* desc, const char* notes,
-                            uint16_t poll_ms = 0, bool word_swap = false) {
+                            uint16_t poll_ms = 0, bool word_swap = false,
+                            bool qlt = true) {
         return Descriptor{ def, Payload(lo, hi, lo_row, hi_row),
                            name, unit, desc, notes,
                            { reg, device, fc, regs, type, swap_bits(word_swap), 0 },
-                           timeout_ms, poll_ms, K_INPUT, type, nullptr, digits, F_QLT };
+                           timeout_ms, poll_ms, K_INPUT, type, nullptr, digits,
+                           qlt_bits(qlt) };
     }
 
     /** @brief An **analog input**: a raw count on the wire, converted to the
@@ -242,11 +244,13 @@ namespace Botanik { namespace Vars {
                             uint8_t fc, uint16_t reg, uint8_t regs, VarType wire,
                             Scalar def, uint32_t timeout_ms, uint8_t digits,
                             const char* unit, const char* desc, const char* notes,
-                            uint16_t poll_ms = 0, bool word_swap = false) {
+                            uint16_t poll_ms = 0, bool word_swap = false,
+                            bool qlt = true) {
         return Descriptor{ def, Payload(cal), name, unit, desc, notes,
                            { reg, device, fc, regs, wire,
                              (uint8_t)(B_ANALOG | swap_bits(word_swap)), 0 },
-                           timeout_ms, poll_ms, K_INPUT, T_F32, nullptr, digits, F_QLT };
+                           timeout_ms, poll_ms, K_INPUT, T_F32, nullptr, digits,
+                           qlt_bits(qlt) };
     }
 
     /** @brief A **digital input**: one bit, POLLED as a level. @p invert folds
@@ -257,11 +261,11 @@ namespace Botanik { namespace Vars {
     constexpr Descriptor DI(const char* name, uint8_t device, uint8_t fc,
                             uint16_t reg, bool def, uint32_t timeout_ms,
                             bool invert, const char* desc, const char* notes,
-                            uint16_t poll_ms = 0) {
+                            uint16_t poll_ms = 0, bool qlt = true) {
         return Descriptor{ Scalar::B(def), Payload(), name, "", desc, notes,
                            { reg, device, fc, 1, T_BOOL, 0, 0 },
                            timeout_ms, poll_ms, K_INPUT, T_BOOL, nullptr, 0,
-                           (uint8_t)(F_QLT | (invert ? F_INVERT : 0)) };
+                           (uint8_t)(qlt_bits(qlt) | (invert ? F_INVERT : 0)) };
     }
 
     /** @brief A **pulse-counted local terminal**: the running EDGE COUNT, as a
@@ -275,10 +279,11 @@ namespace Botanik { namespace Vars {
      *         local row has no other use for.
      *  @param edge which edge advances the count (HAL::Pulse::Edge), in @c fc. */
     constexpr Descriptor PI(const char* name, uint8_t channel, uint8_t edge,
-                            const char* desc, const char* notes) {
+                            const char* desc, const char* notes,
+                            bool qlt = true) {
         return Descriptor{ Scalar::U(0), Payload(), name, "", desc, notes,
                            { channel, 0, edge, 1, T_U32, B_PULSE, 0 },
-                           0, 0, K_INPUT, T_U32, nullptr, 0, F_QLT };
+                           0, 0, K_INPUT, T_U32, nullptr, 0, qlt_bits(qlt) };
     }
 
     /** @brief A **direct output**: written 1:1 to the register. @p safe is where

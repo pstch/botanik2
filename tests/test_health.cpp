@@ -102,13 +102,13 @@ TEST_CASE("health: the thresholds are parameters, live, not compile-time constan
     REQUIRE_FALSE(f.alarm("alarm_cpu_load"));
 
     SUBCASE("tightening it raises the alarm on an unchanged load") {
-        REQUIRE(f.bank.param_set(f.bank.var(f.bank.find("sys_cpu_load_pct")), "10")
+        REQUIRE(f.bank.var(f.bank.find("sys_cpu_load_pct")).param_set("10")
                 != Vars::SET_INVALID);
         h.step(SETTLED);
         CHECK(f.alarm("alarm_cpu_load"));
 
         INFO("...and relaxing it again clears it, with nothing to re-initialise");
-        REQUIRE(f.bank.param_set(f.bank.var(f.bank.find("sys_cpu_load_pct")), "99")
+        REQUIRE(f.bank.var(f.bank.find("sys_cpu_load_pct")).param_set("99")
                 != Vars::SET_INVALID);
         h.step(SETTLED);
         CHECK_FALSE(f.alarm("alarm_cpu_load"));
@@ -119,7 +119,7 @@ TEST_CASE("health: the thresholds are parameters, live, not compile-time constan
         // quantities, so moving one must not move the other.
         f.sched.cpu_jitter_us_recent =
             (uint32_t)((uint64_t)PERIOD_US * Config::ALARM_CPU_JITTER_PCT / 100u);
-        REQUIRE(f.bank.param_set(f.bank.var(f.bank.find("sys_cpu_load_pct")), "10")
+        REQUIRE(f.bank.var(f.bank.find("sys_cpu_load_pct")).param_set("10")
                 != Vars::SET_INVALID);
         h.step(SETTLED);
         CHECK(f.alarm("alarm_cpu_load"));
@@ -130,15 +130,14 @@ TEST_CASE("health: the thresholds are parameters, live, not compile-time constan
         f.sched.stack_usage = 0.5f;
         h.step(SETTLED);
         REQUIRE_FALSE(f.alarm("alarm_stack"));    // under the factory 80%
-        REQUIRE(f.bank.param_set(f.bank.var(f.bank.find("sys_stack_pct")), "40")
+        REQUIRE(f.bank.var(f.bank.find("sys_stack_pct")).param_set("40")
                 != Vars::SET_INVALID);
         h.step(SETTLED);
         CHECK(f.alarm("alarm_stack"));
     }
 
     SUBCASE("an override on the threshold row reaches it like any other reader") {
-        f.bank.override_set(f.bank.var(f.bank.find("sys_cpu_load_pct")),
-                            Vars::Scalar::U(10));
+        f.bank.var(f.bank.find("sys_cpu_load_pct")).override_set(Vars::Scalar::U(10));
         h.step(SETTLED);
         CHECK(f.alarm("alarm_cpu_load"));
     }
@@ -237,7 +236,7 @@ TEST_CASE("health: POST fails when the alarm table declares more than the model 
     Health::HealthMonitor h(Botanik::SetupContext(nullptr, &f.log), &f.sched, &f.bank);
     h.setup(0);                                     // runs POST
     CHECK(h.healthy());
-    CHECK(f.bank.var(f.bank.find("alarm_system_reset")).meta() != nullptr);
+    CHECK(!f.bank.var(f.bank.find("alarm_system_reset")).null());
     CHECK(h.alarm_model().declared_count() == h.alarm_model().count());
 }
 
@@ -303,7 +302,7 @@ TEST_CASE("quality: a row losing its validity is announced once, not per beat") 
     for (uint16_t i = 0; i < 40; i++) reg.run_phase(Botanik::Tasks::PHASE_SERVICE, t += 100);
     f.writer.all_msgs.clear();
 
-    f.bank.var(r).set_quality(Vars::Q_NO_DATA);
+    f.bank.var(r).set_quality(Vars::Q_NONE);
     for (uint16_t i = 0; i < 40; i++) reg.run_phase(Botanik::Tasks::PHASE_SERVICE, t += 100);
 
     int said = 0;
@@ -351,7 +350,7 @@ TEST_CASE("quality: bring-up is adopted in silence, not announced row by row") {
     // ...and the row was ADOPTED rather than merely skipped, so the next change
     // is the one that speaks.
     t = (uint64_t)Config::HEALTH_QUIET_MS + 1000;
-    f.bank.var(r).set_quality(Vars::Q_NO_DATA);
+    f.bank.var(r).set_quality(Vars::Q_NONE);
     for (uint16_t i = 0; i < 40; i++) reg.run_phase(Botanik::Tasks::PHASE_SERVICE, t += 100);
     CHECK(f.writer.saw("cli_temp_hi1: invalid"));
 }

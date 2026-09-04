@@ -360,8 +360,16 @@ namespace Botanik { namespace Vars {
         /** @brief Apply @p text to this parameter, live but unsaved. A
          *  non-parameter is SET_INVALID - use override_set() for those. */
         SetResult param_set(const char* text) const;
-        /** @brief Apply an already-typed value, coerced into the row's type. */
+        /** @brief Apply an ALREADY-TYPED value.
+         *  @warning @p v must have been built for this row's type - a Scalar
+         *  carries no tag saying which arm is live, so one built for another
+         *  reads back as a bit pattern. The two overloads below cannot get it
+         *  wrong; an integer literal is ambiguous between them, so use
+         *  param_set_i(). */
         SetResult param_set(Scalar v) const;
+        SetResult param_set(bool v) const  { return param_set(from_bool(type(), v)); }
+        SetResult param_set(float v) const { return param_set(from_f32(type(), v)); }
+        SetResult param_set_i(int64_t v) const { return param_set(from_i64(type(), v)); }
         /** @brief Whether @p v WOULD be accepted, writing nothing. For a caller
          *  committing several rows as one unit (a multi-register write). */
         SetResult param_check(Scalar v) const;

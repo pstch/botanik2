@@ -92,7 +92,7 @@ TEST_CASE("modbus plan: a block's rows are its own and all of them are on the bu
             REQUIRE(vi < f.bank.count());
             // Every row the planner claims must actually live on the field bus,
             // or the client would write a local terminal from a bus answer.
-            CHECK(f.bank.descriptor(vi).bind.transport == Vars::XP_MODBUS);
+            CHECK(f.bank.descriptor(vi).bind.device != 0);
         }
     }
     // Each row belongs to exactly one block: two blocks sharing a row means one

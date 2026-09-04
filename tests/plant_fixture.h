@@ -153,10 +153,8 @@ inline void hold_weather(Plant& p) {
     // FORCED, because day_phase is in this plant now and rewrites the row on
     // every scan from a sun the scenario is not simulating. An override
     // shadows the live value, which is what a forced phase means anyway.
-    p.f.bank.override_set(p.f.bank.var(p.ref("cli_phase")),
-                          Vars::from_i64(Vars::T_U8, (int64_t)g_phase()));
-    p.f.bank.override_set(p.f.bank.var(p.ref("cli_phase_qlt")),
-                          Vars::from_bool(Vars::T_BOOL, true));
+    p.f.bank.var(p.ref("cli_phase")).override_set(Vars::from_i64(Vars::T_U8, (int64_t)g_phase()));
+    p.f.bank.var(p.ref("cli_phase_qlt")).override_set(Vars::from_bool(Vars::T_BOOL, true));
     // sun_watch is not in this plant, and the morning watering slot is measured
     // from sunrise: the case states where in the day it is, the same way it
     // states the phase.
@@ -257,10 +255,8 @@ inline void force_rise(Plant& p, int16_t minutes) {
  *  Forced here, because a scenario is about the weather and not about NTP. */
 inline void force_phase(Plant& p, Site::DayPhase phase) {
     g_phase() = phase;
-    p.f.bank.override_set(p.f.bank.var(p.ref("cli_phase")),
-                          Vars::from_i64(Vars::T_U8, (int64_t)phase));
-    p.f.bank.override_set(p.f.bank.var(p.ref("cli_phase_qlt")),
-                          Vars::from_bool(Vars::T_BOOL, true));
+    p.f.bank.var(p.ref("cli_phase")).override_set(Vars::from_i64(Vars::T_U8, (int64_t)phase));
+    p.f.bank.var(p.ref("cli_phase_qlt")).override_set(Vars::from_bool(Vars::T_BOOL, true));
 }
 
 /** @brief The plant, as the report shows it: the rows an operator would look at

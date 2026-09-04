@@ -41,7 +41,7 @@ namespace {
         m.step(now);
     }
 
-    // A SCOPE_A row: A(name, code, on_s, off_s, recent_s, hold_s, reg,
+    // A K_ALARM row: A(name, code, on_s, off_s, recent_s, hold_s, reg,
     // desc, notes).
 
     // Two unmasked, unlatched conditions (announce disabled) at bits 0 and 1.
@@ -65,7 +65,7 @@ namespace {
     /** @brief A bank over one of the tables above - what the model scans. */
     struct AlarmBank {
         Vars::Bank       bank;
-        /** @brief The SCOPE_A rows as an alarm source - what the controller
+        /** @brief The K_ALARM rows as an alarm source - what the controller
          *  reads now, in place of the bank itself. */
         Vars::BankAlarms rows;
         AlarmBank(const Vars::Descriptor* v, uint16_t n) {
@@ -362,7 +362,7 @@ namespace {
         uint64_t               now = 0;
         Terminal::Console      console;
         Vars::Bank             bank;
-        /** @brief The SCOPE_A rows as an alarm source, bound after the freeze
+        /** @brief The K_ALARM rows as an alarm source, bound after the freeze
          *  below. NOT `rows` - the ctor's screen-height parameter is. */
         Vars::BankAlarms       alarm_rows;
         Alarms::AlarmController     model;

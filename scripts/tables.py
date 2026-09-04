@@ -48,6 +48,8 @@ ROWS = {
 FAC_COLS = dict((f, c.split()) for f, (_s, c) in ROWS.items())
 FAC_COLS['SV']  = ROWS['SV'][1].split()  + ['qlt']
 FAC_COLS['SVE'] = ROWS['SVE'][1].split() + ['retained', 'qlt']
+for _f in ('MI', 'AI', 'DI', 'PI'):
+    FAC_COLS[_f] = ROWS[_f][1].split() + ['qlt']
 FAC_COLS['Q']   = ['name', 'reg', 'desc']
 
 # The six Kinds, and which factories build each.
@@ -88,11 +90,15 @@ TAIL = {'P': {'writable': 'true', 'retained': 'false'},
         'PS': {'writable': 'true', 'retained': 'false'},
         'SV': {'retained': 'false', 'qlt': 'false'},
         'SVE': {'retained': 'false', 'qlt': 'false'},
-        'MI': {'poll_ms': '0', 'word_swap': 'false'},
-        'AI': {'poll_ms': '0', 'word_swap': 'false'},
+        # An INPUT always gets a companion, so `qlt` is the default there and
+        # the emitted row says nothing. A hand-written table (a unit case's) is
+        # where it has to be said, since nothing generates the companion.
+        'MI': {'poll_ms': '0', 'word_swap': 'false', 'qlt': 'true'},
+        'AI': {'poll_ms': '0', 'word_swap': 'false', 'qlt': 'true'},
         'MO': {'word_swap': 'false'},
         'AO': {'word_swap': 'false'},
-        'DI': {'poll_ms': '0'}}
+        'DI': {'poll_ms': '0', 'qlt': 'true'},
+        'PI': {'qlt': 'true'}}
 
 AUX = {  # stem -> columns, for the tables that are not rows
     'analog_cal':     'cal raw_min_row raw_min raw_max_row raw_max eng_min_row eng_min '

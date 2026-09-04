@@ -38,7 +38,6 @@ add_executable(botanik_tests
     test_shell.cpp
     test_shell_vars.cpp
     test_shell_report.cpp
-    test_plc.cpp
     test_site.cpp
     test_sun.cpp
     test_vars.cpp

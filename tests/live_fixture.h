@@ -20,6 +20,9 @@ struct Live {
     Botanik::Vars::Bank      bank;
     Live() {
         TestSite::build(bank);
+        // The bank every Ref reads, which is what Plant::wire() points at the
+        // firmware's. A rig that never builds a Plant still holds references.
+        Botanik::Vars::runtime_bank = &bank;
         believe_all();
     }
 
@@ -62,6 +65,14 @@ inline uint8_t pulse_line(Live& f, const char* row) {
         Botanik::Vars::pulse_channel(d),
         (Botanik::HAL::Pulse::Edge)Botanik::Vars::pulse_edge(d));
     return Botanik::Vars::pulse_channel(d);
+}
+
+/** @brief A typed reference to @p name. The generator hands a law an INDEX;
+ *  a case has a string, so it resolves here. */
+template <typename T>
+inline Botanik::Vars::Ref<T> ref_of(Live& f, const char* name) {
+    Botanik::Vars::Ref<T> r = { f.bank.find(name) };
+    return r;
 }
 
 }  // namespace TestScan

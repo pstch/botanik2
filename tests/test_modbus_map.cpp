@@ -58,12 +58,12 @@ struct MapFixture {
     }
     uint16_t a_param() const {
         return find_reg([](const Vars::Descriptor& d) {
-            return d.role == Vars::ROLE_PARAM && d.type != Vars::T_BOOL;
+            return d.kind == Vars::K_PARAM && d.type != Vars::T_BOOL;
         });
     }
     uint16_t a_readonly() const {
         return find_reg([](const Vars::Descriptor& d) {
-            return d.role != Vars::ROLE_PARAM;
+            return d.kind != Vars::K_PARAM;
         });
     }
     /** @brief The lowest register the map publishes. */
@@ -123,7 +123,7 @@ TEST_CASE("modbus map: an address in a gap is not the neighbouring row") {
         } else {
             gaps++;
             INFO("register " << r << " is unmapped");
-            CHECK(v.meta().name == nullptr);   // the inert row
+            CHECK(v.null());   // the inert row
         }
     }
     CHECK(gaps > 0);
@@ -210,7 +210,7 @@ TEST_CASE("modbus map: register 0xFFFF is not in the map") {
     bool found = true;
     Vars::Var v = f.map.row_at(0xFFFF, &found);
     CHECK_FALSE(found);
-    CHECK(v.meta().name == nullptr);      // the inert row, not row 0
+    CHECK(v.null());   // the inert row, not row 0
 
     uint16_t committed = 1;
     CHECK(f.map.write_bit(0xFFFF, true, &committed) == EX_ILLEGAL_ADDRESS);
@@ -223,7 +223,7 @@ TEST_CASE("modbus map: register 0xFFFF is not in the map") {
 TEST_CASE("modbus map: an address row takes a half write like any other") {
     MapFixture f;
     const uint16_t reg = f.find_reg([](const Vars::Descriptor& d) {
-        return d.role == Vars::ROLE_PARAM && d.type == Vars::T_STR;
+        return d.kind == Vars::K_PARAM && d.type == Vars::T_STR;
     });
     if (reg == 0) return;                  // no address row published
 

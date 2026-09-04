@@ -43,7 +43,7 @@ inline void summer(Live& f) {
  *  A case about the fill or the drain states its own configuration; the soak
  *  has a case of its own and the scenarios run at the site's real figure. */
 inline void no_soak(Live& f) {
-    f.bank.param_set(f.bank.var(f.ref("irr_soak_sec")), "0");
+    f.bank.var(f.ref("irr_soak_sec")).param_set("0");
 }
 
 /** @brief Force a row, and mean it.
@@ -55,27 +55,25 @@ inline void no_soak(Live& f) {
  *  a case about how the input is PRODUCED drives the chain instead.
  *  @{ */
 inline void force(Live& f, const char* row, float v) {
-    f.bank.override_set(f.bank.var(f.ref(row)), from_f32(T_F32, v));
+    f.bank.var(f.ref(row)).override_set(from_f32(T_F32, v));
 }
 inline void force(Live& f, const char* row, bool v) {
-    f.bank.override_set(f.bank.var(f.ref(row)), from_bool(T_BOOL, v));
+    f.bank.var(f.ref(row)).override_set(from_bool(T_BOOL, v));
 }
 /** @brief ...and a whole-number row: a state code, a tray number. */
 inline void force(Live& f, const char* row, int64_t v) {
     const uint16_t r = f.ref(row);
-    f.bank.override_set(f.bank.var(r), from_i64(f.bank.descriptor(r).type, v));
+    f.bank.var(r).override_set(from_i64(f.bank.descriptor(r).type, v));
 }
 /** @brief Make @p row read like a dead instrument, and the other way.
  *
  *  A quality is a row, so this is an ordinary force of an ordinary row - which
  *  is exactly what an operator does from the monitor page. */
 inline void distrust(Live& f, const char* row) {
-    f.bank.override_set(f.bank.var(f.bank.quality_ref(f.ref(row))),
-                        Scalar::U(Q_NO_DATA));
+    f.bank.var(f.ref(row)).quality_var().override_set(Scalar::U(Q_NONE));
 }
 inline void believe(Live& f, const char* row) {
-    f.bank.override_set(f.bank.var(f.bank.quality_ref(f.ref(row))),
-                        Scalar::U(Q_VALID));
+    f.bank.var(f.ref(row)).quality_var().override_set(Scalar::U(Q_GOOD));
 }
 /** @} */
 
@@ -118,7 +116,7 @@ inline void put_phase(Live& f, Site::DayPhase p) {
     // overwrite anything set here, and one that does not, where this is the
     // only thing that puts the plant in a phase at all.
     f.bank.var(f.ref("cli_phase")).set_i((int64_t)p);
-    f.bank.var(f.ref("cli_phase")).set_quality(Q_VALID);
+    f.bank.var(f.ref("cli_phase")).set_quality(Q_GOOD);
 }
 
 /** @brief Put the plant in the end-of-night watering slot. A cycle may only

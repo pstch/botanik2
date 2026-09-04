@@ -55,12 +55,9 @@ namespace Botanik { namespace Pages {
         /** @brief Mirrors tick(active); gates band repaints in write(). */
         bool _log_active = false;
 
-        /** @brief Site home-field table (label + status variable) + the payload
-         *  they read. Up to COLS * COL_MAX shown; extras ignored. */
+        /** @brief Site home-field table: a label and the ROW it shows, both
+         *  generated. Up to COLS * COL_MAX shown; extras ignored. */
         const Vars::HomeVar* _fields      = nullptr;
-        /** @brief The rows' resolved indices, filled at bring-up (the table
-         *  above names its variables rather than indexing them). */
-        const uint16_t*  _refs        = nullptr;
         uint8_t                   _field_count = 0;
         const Vars::Bank*           _io          = nullptr;
 
@@ -153,16 +150,15 @@ namespace Botanik { namespace Pages {
         /** @} */
 
     public:
-        /** @brief @p fields (+ @p count) is the site home-field table, @p io
-         *  what resolves them and @p refs where their names were resolved at
-         *  bring-up (all borrowed; may be null/0 for a bare home screen). */
+        /** @brief @p fields (+ @p count) is the site home-field table and
+         *  @p io the bank its rows live in (borrowed; may be null/0 for a bare
+         *  home screen). */
         HomePage(Console& console, const Vars::HomeVar* fields = nullptr,
-                 uint8_t count = 0, const Vars::Bank* io = nullptr,
-                 const uint16_t* refs = nullptr)
+                 uint8_t count = 0, const Vars::Bank* io = nullptr)
             : MetricPage(console),
               Logs::BufferedLogWriter(_slots, (uint8_t)Config::LOG_QUEUE_HOME,
                                       nullptr, "home_log_level"),
-              _fields(fields), _refs(refs), _field_count(count), _io(io) {
+              _fields(fields), _field_count(count), _io(io) {
             // cold-field redraw cadence is MetricPage's default (PAGE_COLD_MS)
             // uptime ticks every second
             _hot_ms     = Config::PAGE_HOT_MS;

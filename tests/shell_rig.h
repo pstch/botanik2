@@ -64,6 +64,9 @@ struct Rig {
     Tasks::Registry                   reg;
     Logs::Logger                      log;
     Vars::Bank                        bank;
+    /** @brief The durable half, over a store a case binds if it wants one: the
+     *  save verbs go through this, and with no store they refuse. */
+    Vars::Persist                     persist;
     Vars::BankAlarms                  alarm_rows;
     Alarms::AlarmController           alarms;
 #if BOTANIK_FEATURE_PLC
@@ -95,6 +98,7 @@ struct Rig {
 
     Rig()
         : bank(SetupContext(reg, &log)),
+          persist(SetupContext(reg, &log), bank),
           alarms(SetupContext(reg, &log), &alarm_rows),
 #if BOTANIK_FEATURE_PLC
           plant(SetupContext(reg, &log), bank),
@@ -120,13 +124,14 @@ struct Rig {
         // no operator ever sees.
         console.terminal().reconfigure(Terminal::Ansi::TerminalType::VT102, 80, 24);
         TestSite::build(bank);
-        alarm_rows.bind(&bank);
-        alarms.setup(0);            // the SCOPE_A scan is on_setup()
+        alarm_rows.bind(&bank, &persist);
+        alarms.setup(0);            // the K_ALARM scan is on_setup()
 #if BOTANIK_FEATURE_PLC
         plant.wire();
         sys.plant = &plant;
 #endif
         sys.vars      = &bank;
+        sys.persist   = &persist;
         sys.tasks     = &reg;
         sys.scheduler = &sched;
 #if BOTANIK_FEATURE_NETWORK
@@ -151,6 +156,7 @@ struct Rig {
      *  wants an empty beat, and registering also runs each on_setup(). */
     void register_all() {
         bank.register_tasks();
+        persist.register_tasks();
         alarms.register_tasks();
 #if BOTANIK_FEATURE_PLC
         plant.register_tasks();

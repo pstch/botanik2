@@ -149,14 +149,12 @@ namespace Botanik { namespace Pages {
 
     void HomePage::draw_dynamic() {
         // Cold fields only: the uptime counter is hot (see draw_hot()).
-        // No refs means bring-up has not resolved the names, so there is
-        // nothing to read: leave the labels bare rather than have every row
-        // show the first variable.
-        if (_io == nullptr || _refs == nullptr) return;
+        // No table means nothing to read: leave the labels bare.
+        if (_io == nullptr || _fields == nullptr) return;
         for (uint8_t i = 0; i < _field_count; i++) {
             uint16_t row, lbl, val, w;
             if (!_field_place(i, row, lbl, val, w)) break;
-            Vars::Var h = _io->var(_refs[i]);
+            Vars::Var h = _io->var(_fields[i].row);
             char vb[32], buf[40];
             const char* s = Vars::var_format(*_io, h, vb, sizeof(vb));
             const char* u = h.meta().unit;

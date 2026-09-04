@@ -19,6 +19,7 @@
 #include "libbotanik/io/local_inputs.h"
 #include "libbotanik/io/local_outputs.h"
 #include "libbotanik/vars/declare.h"
+#include "site_bank.h"
 
 namespace io_local {
 
@@ -33,18 +34,25 @@ namespace {
  *  value IS the converter count and the assertion is about the path, not the
  *  arithmetic. */
 const AnalogCal CAL = {
-    K(0.0f), K((float)HAL::AnalogIn::FULL_SCALE),   // raw_min, raw_max
-    K(0.0f), K((float)HAL::AnalogIn::FULL_SCALE),   // eng_min, eng_max
-    K(0.0f), K((float)HAL::AnalogIn::FULL_SCALE),   // plausibility band
+    SF(0.0f), SF((float)HAL::AnalogIn::FULL_SCALE),   // raw_min, raw_max
+    SF(0.0f), SF((float)HAL::AnalogIn::FULL_SCALE),   // eng_min, eng_max
+    SF(0.0f), SF((float)HAL::AnalogIn::FULL_SCALE),   // plausibility band
+    { VAR_NONE, VAR_NONE, VAR_NONE, VAR_NONE, VAR_NONE, VAR_NONE },
 };
 
-/** @brief Device 0 is what makes a row LOCAL (xp_of), and `reg` is the pin. */
+/** @brief Device 0 is what makes a row LOCAL, and `reg` is the pin.
+ *  @note Every input says `qlt=false`: a companion is the GENERATOR's to emit,
+ *  directly after the row it speaks for, and a hand-written table claiming one
+ *  would read the next row here as a quality. */
 const Descriptor ROWS[] = {
-    DI("in_plain",  0, 2, HAL::Pin::IN1, false, 0, /*invert=*/false, "plain contact", ""),
-    DI("in_inv",    0, 2, HAL::Pin::IN2, false, 0, /*invert=*/true,  "active-low contact", ""),
+    DI("in_plain",  0, 2, HAL::Pin::IN1, false, 0, /*invert=*/false, "plain contact", "",
+       0, /*qlt=*/false),
+    DI("in_inv",    0, 2, HAL::Pin::IN2, false, 0, /*invert=*/true,  "active-low contact", "",
+       0, /*qlt=*/false),
     AI("in_volts",  &CAL, 0, 4, HAL::Pin::IN3, 1, T_U16, Scalar::F(0.0f), 0, 1, "V",
-       "a sensor on a terminal", ""),
-    PI("in_pulses", /*channel=*/HAL::Pin::IN5, HAL::Pulse::EDGE_RISING, "a meter", ""),
+       "a sensor on a terminal", "", 0, false, /*qlt=*/false),
+    PI("in_pulses", /*channel=*/HAL::Pin::IN5, HAL::Pulse::EDGE_RISING, "a meter", "",
+       /*qlt=*/false),
     RO("out_relay", 0, HAL::Pin::RELAY_1, /*safe=*/false, /*invert=*/false, "a coil", ""),
     RO("out_inv",   0, HAL::Pin::RELAY_2, /*safe=*/false, /*invert=*/true,  "active-low coil", ""),
     DO("out_lamp",  0, 5, HAL::Pin::LED_1, /*safe=*/true, /*invert=*/false, "a lamp", ""),
@@ -52,9 +60,9 @@ const Descriptor ROWS[] = {
 
 /** @brief Rows naming terminals that belong to nobody: the refusal path. */
 const Descriptor BAD_ROWS[] = {
-    DI("in_nowhere",  0, 2, 200, false, 0, false, "not a terminal", ""),
+    DI("in_nowhere",  0, 2, 200, false, 0, false, "not a terminal", "", 0, false),
     AI("volt_nowhere", &CAL, 0, 4, 201, 1, T_U16, Scalar::F(0.0f), 0, 1, "V",
-       "not a terminal", ""),
+       "not a terminal", "", 0, false, false),
     RO("out_nowhere", 0, 202, false, false, "not a pin", ""),
 };
 
@@ -70,9 +78,7 @@ struct Rig {
         : bank(SetupContext(reg, &log)),
           in(SetupContext(reg, &log), bank),
           out(SetupContext(reg, &log), bank) {
-        bank.register_vars(rows, n);
-        bank.freeze();
-        bank.init();
+        TestSite::build(bank, rows, n);
         in.setup(0);
         out.setup(0);
     }
@@ -108,7 +114,7 @@ TEST_CASE("io in: a terminal with no _qlt companion is valid, always") {
     // before the first scan and after it. Asserted because the OPPOSITE would
     // be the surprising thing to inherit from the Modbus side.
     CHECK(f.var("in_plain").valid());
-    CHECK(f.bank.quality_ref(f.bank.find("in_plain")) == VAR_NONE);
+    CHECK(f.var("in_plain").quality_row() == VAR_NONE);
 
     HAL::DigitalIn::inject(HAL::Pin::IN1, true);
     f.in.step(1000, Tasks::PHASE_INPUT);
@@ -125,7 +131,7 @@ TEST_CASE("io in: an analog terminal goes through the row's calibration") {
     // that it arrived through publish_wire() and not through set().
     CHECK(f.var("in_volts").as_f32() == doctest::Approx(2048.0f));
     INFO("wire() keeps the raw count beside the scaled value");
-    CHECK(f.bank.wire(f.bank.find("in_volts")).as_f32() == doctest::Approx(2048.0f));
+    CHECK(f.var("in_volts").wire().as_f32() == doctest::Approx(2048.0f));
 }
 
 TEST_CASE("io in: a pulse line is counted, not levelled") {

@@ -57,7 +57,7 @@ def test_monitor_forces_a_row_and_releases_it(spawn):
     assert term.wait_screen("[/cli_temp_hi]"), "the filter did not narrow the table"
     # The zone is unbelievable until the simulated field has answered its three
     # probes. ^V below is about taking a BELIEVED row away, so wait for one.
-    assert term.wait_screen("Quality      : valid"), "the ceiling never came up"
+    assert term.wait_screen("Quality      : GOOD"), "the ceiling never came up"
 
     term.send(keys.CTRL_O)
     assert term.wait_screen("cli_temp_hi ="), "^O did not open the override field"
@@ -204,7 +204,7 @@ def test_a_named_task_answers_for_itself(spawn):
     not only by the count above.
     """
     term = shell(spawn, quiet_logs=True)
-    for name, phase in (("sys_console_rx", "input"), ("sys_params", "config"),
+    for name, phase in (("sys_console_rx", "input"), ("sys_persist", "config"),
                         ("sys_health", "service"), ("dc_watch", "control"),
                         ("sys_mbrtu_tx", "output"), ("sys_console_tx", "present")):
         term.send(b"tasks get " + name.encode() + keys.ENTER)

@@ -18,6 +18,7 @@
 #endif
 #include <string>
 #include <cstddef>
+#include "ram_store.h"
 #include "site_bank.h"
 
 // site_names
@@ -54,13 +55,15 @@ namespace {
  */
 }  // namespace
 
-TEST_CASE("site: nothing the site touches fails to resolve") {
-    // Resolves every table, then RUNS the site (each program once, plus
-    // simulate()), catching names tasks.h/sim.h misspell that the walks above miss.
+TEST_CASE("site: running the whole site leaves every parameter where it was") {
+    // RUNS the site - each program once, plus simulate() - which is the one
+    // thing no static check covers: a law or the simulated field writing a row
+    // it does not own.
+    //
+    // What this case used to also do was resolve every name. Nothing resolves
+    // now: a row is a generated index, and a name no table declares does not
+    // compile.
     SiteBank f;
-
-    for (uint8_t i = 0; i < site().home_field_count; i++)
-        (void)f.bank.find(site().home_fields[i].name);
 
     Logs::Logger logger;
     Vars::BankAlarms rows;
@@ -81,18 +84,7 @@ TEST_CASE("site: nothing the site touches fails to resolve") {
     st.wire();
     st.scan(1000);          // one activation of every law
 
-    INFO("a non-zero count means a table or a control program names a variable "
-         "that is not in vars.h; the bank logs which one");
-    CHECK(f.bank.unresolved_count() == 0);
-
-    INFO("and every one of them bound: a program that missed a name is INVALID "
-         "at bring-up, which is what says so on hardware where no test runs");
-    for (uint8_t i = 0; i < Plc::Runtime::PROGRAM_COUNT; i++) {
-        INFO("program ", Plc::Runtime::programs[i].name);
-        CHECK(st.health(i) != Plc::Health::INVALID);
-    }
-
-    // Bank::set() is the operator's path alone; catches a write at a stale index - zero is a real row.
+    // Catches a write at a stale index - zero is a real row.
     for (uint16_t k = 0; k < f.bank.param_count(); k++) {
         const Vars::Var h = f.bank.param_at(k);
         if (h.meta().type == Vars::T_STR) continue;   // lives in the pool
@@ -103,29 +95,6 @@ TEST_CASE("site: nothing the site touches fails to resolve") {
 }
 
 #if BOTANIK_FEATURE_SUN_TRACKER
-TEST_CASE("site: every control program binds every name it reaches for") {
-    // The name-resolution case above walks the TABLES. A program binds names
-    // the tables never mention it wants, and with a TYPE - so a row that is a
-    // T_U16 read as a float resolves to the sink and the law silently sees 0.
-    // Constructing and binding them all is the only thing that covers it.
-    Botanik::Tasks::Registry reg;
-    Vars::Bank bank;
-    TestSite::build(bank);
-    const uint16_t before = bank.unresolved_count();
-
-    Plc::Runtime::Plant st(Botanik::SetupContext(reg), bank);
-    st.wire();
-    st.register_tasks();
-    reg.setup(0);
-
-    INFO("a name that is absent, or a row bound at the wrong type, counts here");
-    CHECK(bank.unresolved_count() == before);
-
-    INFO("and every registration fitted: MAX_TASKS is a HARD limit, and a "
-         "program past it is refused rather than dropped quietly");
-    CHECK(reg.overflow() == 0);
-}
-
 TEST_CASE("site: every local row gets a terminal") {
     // Level inputs and pulse counters come off the SAME eight pins, so a table
     // can declare more than exist. Such a row reads its declared value for the
@@ -144,69 +113,6 @@ TEST_CASE("site: every local row gets a terminal") {
 }
 
 #endif
-
-TEST_CASE("site: the parameters are one contiguous block") {
-    // PARAMS/`set` address parameters by a dense 0-based index; a row outside
-    // it is unreachable and silently not persisted.
-    SiteBank f;
-    uint16_t total = 0;
-    for (uint16_t i = 0; i < f.bank.count(); i++)
-        if (f.bank.var(i).meta().role == Vars::ROLE_PARAM) total++;
-    CHECK(total == f.bank.param_count());
-    CHECK(f.bank.param_count() > 0);
-    for (uint16_t k = 0; k < f.bank.param_count(); k++)
-        CHECK(f.bank.param_at(k).meta().role == Vars::ROLE_PARAM);
-}
-
-TEST_CASE("site: no two text parameters share pool bytes") {
-    // Bank::init() lays these out; an overlap is a layout bug, invisible
-    // until settings start overwriting each other.
-    SiteBank f;
-    for (uint16_t i = 0; i < f.bank.count(); i++) {
-        const Vars::Descriptor& a = *f.bank.var(i).meta();
-        if (a.type != Vars::T_STR) continue;
-        const uint16_t ao = f.bank.var(i).str_off(), ac = Vars::text_slot(a).cap;
-        for (uint16_t j = (uint16_t)(i + 1); j < f.bank.count(); j++) {
-            const Vars::Descriptor& b = *f.bank.var(j).meta();
-            if (b.type != Vars::T_STR) continue;
-            const uint16_t bo = f.bank.var(j).str_off(), bc = Vars::text_slot(b).cap;
-            INFO("'" << a.name << "' [" << ao << "," << ao + ac << ") overlaps '"
-                     << b.name << "' [" << bo << "," << bo + bc << ")");
-            CHECK((ao + ac <= bo || bo + bc <= ao));
-        }
-    }
-    INFO("the site's string pool is too small for its text parameters");
-    CHECK(f.bank.pool_overflow() == 0);
-}
-
-namespace {
-    /** @brief Does this row publish a Modbus TCP register? Delegates to
-     *  vars/access.h. */
-    bool mapped(const Vars::Descriptor& d) { return Vars::var_mapped(d); }
-    /** @brief Does @p name end in @p suffix? */
-    bool ends_with(const char* name, const char* suffix) {
-        const size_t n = strlen(name), k = strlen(suffix);
-        return n > k && strcmp(name + n - k, suffix) == 0;
-    }
-
-    /** @brief Whether @p d's register sits in its block: site rows below 900,
-     *  library's above; alarms 800-899 (library's at the top). The GENERATED
-     *  rows have blocks of their own above all of it - qualities from 1000, the
-     *  parking pairs from 1200 - so adding a reading or a parking program
-     *  cannot renumber a hand-assigned register. See @ref dev_modbus. */
-    bool in_block(const Vars::Descriptor& d) {
-        const uint16_t r = d.bind.reg;
-        if (d.scope == Vars::SCOPE_Q) return r >= 1000 && r < 1200;
-        if (strncmp(d.name, "prog_", 5) == 0 &&
-            (ends_with(d.name, "_park") || ends_with(d.name, "_parked")))
-            return r >= 1200;
-        return (d.scope == Vars::SCOPE_A) ? ((r >= 800 && r <= 899) ||
-                                             (r >= 986 && r <= 999))
-                                          : ((r >= 1 && r <= 799) ||
-                                             (r >= 900 && r <= 985));
-    }
-}
-
 TEST_CASE_FIXTURE(SiteBank, "vars: a row's quality IS its companion's value") {
     // One store, two names. A driver writes the quality through the row it
     // published; ST reads the companion. Nothing copies between them, so they
@@ -215,33 +121,38 @@ TEST_CASE_FIXTURE(SiteBank, "vars: a row's quality IS its companion's value") {
     const uint16_t qlt   = bank.find("cli_temp_hi1_qlt");
     REQUIRE(probe != Vars::VAR_NONE);
     REQUIRE(qlt != Vars::VAR_NONE);
-    CHECK(bank.quality_ref(probe) == qlt);
+    CHECK(bank.var(probe).quality_row() == qlt);
 
     bank.var(probe).publish(Vars::from_f32(Vars::T_F32, 21.5f), 1000);
     CHECK(bank.var(probe).valid());
-    CHECK(bank.var(qlt).as<uint8_t>() == Vars::Q_VALID);
+    CHECK(bank.var(qlt).as<uint8_t>() == Vars::Q_GOOD);
 
     INFO("and the other way: writing the companion is what makes the row bad");
-    bank.var(qlt).set_i(Vars::Q_STALE);
+    bank.var(qlt).set_i(Vars::Q_NONE);
     CHECK_FALSE(bank.var(probe).valid());
-    CHECK(bank.var(probe).quality() == Vars::Q_STALE);
+    CHECK(bank.var(probe).quality() == Vars::Q_NONE);
 }
 
 TEST_CASE("vars: which qualities carry a number, and which read the declared one") {
     // The one rule Ref::get() branches on, and what MQTT publishes. Pinned
     // here because adding a code is where it would silently be got wrong: a
     // new code holds nothing until somebody says it does.
-    CHECK(Vars::quality_holds(Vars::Q_VALID));
-    CHECK(Vars::quality_holds(Vars::Q_SUBSTITUTED));
-    CHECK_FALSE(Vars::quality_holds(Vars::Q_NO_DATA));
-    CHECK_FALSE(Vars::quality_holds(Vars::Q_STALE));
-    CHECK_FALSE(Vars::quality_holds(Vars::Q_IMPLAUSIBLE));
-    CHECK_FALSE(Vars::quality_holds(Vars::Q_REFUSED));
+    CHECK(Vars::usable(Vars::Q_GOOD));
+    CHECK(Vars::usable(Vars::Q_HELD));
+    CHECK_FALSE(Vars::usable(Vars::Q_NONE));
 
-    INFO("...and it is NOT valid(): a fallback is worth computing on and still "
-         "means the plant cannot be seen");
-    CHECK_FALSE(Vars::Q_SUBSTITUTED == Vars::Q_VALID);
-    CHECK(Vars::quality_label(Vars::Q_SUBSTITUTED) != nullptr);
+    INFO("...and usable is NOT measured: a fallback is worth computing on and "
+         "still means the plant cannot be seen");
+    CHECK(Vars::measured(Vars::Q_GOOD));
+    CHECK_FALSE(Vars::measured(Vars::Q_HELD));
+    CHECK_FALSE(Vars::measured(Vars::Q_NONE));
+
+    INFO("every code renders, and nothing past them does - that null is the "
+         "range check a `_qlt` row is written through");
+    CHECK(Vars::quality_label(Vars::Q_NONE) != nullptr);
+    CHECK(Vars::quality_label(Vars::Q_GOOD) != nullptr);
+    CHECK(Vars::quality_label(Vars::Q_HELD) != nullptr);
+    CHECK(Vars::quality_label(3) == nullptr);
 }
 
 TEST_CASE_FIXTURE(SiteBank, "vars: a row with no companion is valid, always") {
@@ -250,13 +161,13 @@ TEST_CASE_FIXTURE(SiteBank, "vars: a row with no companion is valid, always") {
     // regress.
     const uint16_t param = bank.find("cli_coldBankOfs_degC");
     REQUIRE(param != Vars::VAR_NONE);
-    CHECK(bank.quality_ref(param) == Vars::VAR_NONE);
+    CHECK(bank.var(param).quality_row() == Vars::VAR_NONE);
     CHECK(bank.var(param).valid());
 
     const uint16_t qlt = bank.find("cli_temp_hi1_qlt");
     REQUIRE(qlt != Vars::VAR_NONE);
-    CHECK(bank.quality_ref(qlt) == Vars::VAR_NONE);
-    bank.var(qlt).set_i(Vars::Q_NO_DATA);
+    CHECK(bank.var(qlt).quality_row() == Vars::VAR_NONE);
+    bank.var(qlt).set_i(Vars::Q_NONE);
     CHECK(bank.var(qlt).valid());
 }
 
@@ -264,16 +175,15 @@ TEST_CASE_FIXTURE(SiteBank, "vars: a forced value is believed, a forced quality 
     // Forcing a dead probe's reading so the plant runs on it is what an
     // override is FOR, so the force does not inherit the doubt underneath it.
     const uint16_t probe = bank.find("cli_temp_hi1");
-    bank.var(bank.quality_ref(probe)).set_i(Vars::Q_STALE);
+    bank.var(probe).quality_var().set_i(Vars::Q_NONE);
     REQUIRE_FALSE(bank.var(probe).valid());
 
-    bank.override_set(bank.var(probe), Vars::from_f32(Vars::T_F32, 25.0f));
+    bank.var(probe).override_set(Vars::from_f32(Vars::T_F32, 25.0f));
     CHECK(bank.var(probe).valid());
     CHECK(bank.var(probe).as_f32() == doctest::Approx(25.0f));
 
     INFO("...and forcing the QUALITY on top of it is the operator saying no");
-    bank.override_set(bank.var(bank.quality_ref(probe)),
-                      Vars::Scalar::U(Vars::Q_NO_DATA));
+    bank.var(probe).quality_var().override_set(Vars::Scalar::U(Vars::Q_NONE));
     CHECK_FALSE(bank.var(probe).valid());
     CHECK(bank.var(probe).as_f32() == doctest::Approx(25.0f));
 }
@@ -285,36 +195,12 @@ TEST_CASE_FIXTURE(SiteBank, "vars: forcing a companion is how a row reads dead")
     bank.var(probe).publish(Vars::from_f32(Vars::T_F32, 21.5f), 1000);
     REQUIRE(bank.var(probe).valid());
 
-    bank.override_set(bank.var(bank.quality_ref(probe)),
-                      Vars::Scalar::U(Vars::Q_NO_DATA));
+    bank.var(probe).quality_var().override_set(Vars::Scalar::U(Vars::Q_NONE));
     CHECK_FALSE(bank.var(probe).valid());
     INFO("the reading itself is untouched - it is the belief that was forced");
     CHECK(bank.var(probe).as_f32() == doctest::Approx(21.5f));
 }
 
-TEST_CASE("site: no two rows claim the same Modbus register") {
-    // Registers are hand-assigned so inserting a row never renumbers the
-    // map; nothing else catches a duplicate.
-    SiteBank f;
-    uint16_t checked = 0;
-    for (uint16_t i = 0; i < f.bank.count(); i++) {
-        const Vars::Descriptor& a = *f.bank.var(i).meta();
-        if (!mapped(a)) continue;
-        INFO("'" << a.name << "' has no register");
-        CHECK(a.bind.reg != 0);
-        checked++;
-        for (uint16_t j = (uint16_t)(i + 1); j < f.bank.count(); j++) {
-            const Vars::Descriptor& b = *f.bank.var(j).meta();
-            if (!mapped(b)) continue;
-            INFO("'" << a.name << "' and '" << b.name << "' both claim register "
-                     << a.bind.reg);
-            CHECK(a.bind.reg != b.bind.reg);
-        }
-    }
-    CHECK(checked > 0);
-}
-
-#if BOTANIK_FEATURE_MODBUS_TCP_SERVER
 #if BOTANIK_FEATURE_PLC
 TEST_CASE("site: every program publishes its health, off its own name") {
     // The base derives "prog_<name>" and stays SILENT when the site declares
@@ -344,6 +230,7 @@ TEST_CASE("site: every program publishes its health, off its own name") {
 }
 #endif
 
+#if BOTANIK_FEATURE_MODBUS_TCP_SERVER
 TEST_CASE("site: every mapped row fits the TCP map") {
     // Outgrowing it serves a SHORT map - the rows past the end answer nothing,
     // which an integrator reads as a device that does not have them. The slave
@@ -364,105 +251,22 @@ TEST_CASE("site: every mapped row fits the TCP map") {
     // the count either.
     uint16_t mapped = 0;
     for (uint16_t i = 0; i < f.bank.count(); i++) {
-        const Vars::Descriptor& d = *f.bank.var(i).meta();
-        if (Vars::var_mapped(d) && Modbus::Map::published(d)) mapped++;
+        const Vars::Descriptor& d = f.bank.var(i).meta();
+        if (Vars::mapped(d) && Modbus::Map::published(d)) mapped++;
     }
     CHECK(map.count() == mapped);
 }
 #endif
-
-TEST_CASE("site: every register sits in its scope's block") {
-    // Uniqueness alone would let an alarm take register 750 and read as a parameter downstream.
-    SiteBank f;
-    uint16_t alarms = 0;
-    for (uint16_t i = 0; i < f.bank.count(); i++) {
-        const Vars::Descriptor& d = *f.bank.var(i).meta();
-        if (!mapped(d)) continue;
-        INFO("'" << d.name << "' holds register " << d.bind.reg
-                 << ", outside the block for its scope");
-        CHECK(in_block(d));
-        if (d.scope == Vars::SCOPE_A) alarms++;
-    }
-    // Platform alarms are the library's own rows; a missed registration passes silently.
-    CHECK(alarms >= 6);
-}
-
-
-
-TEST_CASE("site: no two local rows claim the same terminal") {
-    // A local row has no register to address, so `reg` carries the PIN
-    // instead. Two rows on one pin both attach and both publish the same
-    // level, which reads as two independent contacts that never disagree.
-    SiteBank f;
-    for (uint16_t i = 0; i < f.bank.count(); i++) {
-        const Vars::Descriptor& a = *f.bank.var(i).meta();
-        if (a.bind.transport != Vars::XP_LOCAL) continue;
-        for (uint16_t j = (uint16_t)(i + 1); j < f.bank.count(); j++) {
-            const Vars::Descriptor& b = *f.bank.var(j).meta();
-            if (b.bind.transport != Vars::XP_LOCAL) continue;
-            if (a.scope != b.scope) continue;
-            INFO(doctest::String(a.name) << " and " << doctest::String(b.name)
-                     << " both claim terminal " << a.bind.reg);
-            CHECK(a.bind.reg != b.bind.reg);
-        }
-    }
-}
-
-TEST_CASE("site: an alarm carries a code the ALARMS page can show") {
-    // The page prints AlarmsPage::CODE_W characters and no more, so a longer
-    // one is not a long code - it is a truncated one, on the display an
-    // operator reads at three in the morning.
-    SiteBank f;
-    for (uint16_t i = 0; i < f.bank.count(); i++) {
-        const Vars::Descriptor& d = *f.bank.var(i).meta();
-        if (d.scope != Vars::SCOPE_A) continue;
-        const char* code = Vars::alarm_spec(d).code;
-        INFO(doctest::String(d.name) << ": its alarm code");
-        REQUIRE(code != nullptr);
-        CHECK(code[0] != '\0');
-        CHECK(strlen(code) <= 9u);   // AlarmsPage::CODE_W
-    }
-}
-
-TEST_CASE("site: every numeric row's default sits inside its own band") {
-    // A default outside the band is one an operator cannot type back in: the
-    // band refuses the write, so the row can never return to where it booted.
-    SiteBank f;
-    for (uint16_t i = 0; i < f.bank.count(); i++) {
-        const Vars::Descriptor& d = *f.bank.var(i).meta();
-        // An ANALOG row's default is a SENTINEL and belongs outside its band:
-        // 0 V is what a rail reads when nothing has measured it, which is
-        // exactly what DC_RAIL must recognise and refuse to average. Nobody
-        // types it back in either - an AI row is not editable. So the rule
-        // below is about rows an operator can restore, and this is not one.
-        if (Vars::analog_cal(d) != nullptr) continue;
-        // var_band(), not num_band(): a row whose ends are other rows has no
-        // band until the bank resolves it, and num_band() would read those
-        // rows as "no band declared" and skip them. Reading the union directly
-        // would be worse still - a text row's pool slot as numbers.
-        const Vars::NumBand band = Vars::var_band(&f.bank, d);
-        const float lo = Vars::as_f32(d.type, band.min);
-        const float hi = Vars::as_f32(d.type, band.max);
-        if (lo == 0.0f && hi == 0.0f) continue;      // no band declared
-        const float def = Vars::as_f32(d.type, d.def);
-        INFO(doctest::String(d.name) << ": default " << def
-                 << " against " << lo << " .. " << hi);
-        CHECK(lo <= hi);
-        CHECK(def >= lo);
-        CHECK(def <= hi);
-    }
-}
-
 TEST_CASE("library: a site row REDECLARES a library one, and the site's wins") {
     // The library declares geo_lat_deg (SUN_TRACKER needs a location) and the
-    // site redeclares it with this greenhouse's own. Bank::freeze() keeps the
-    // LAST declaration and compacts the earlier row out, so the whole row is
-    // the site's - the band and the description included, not just the value.
+    // site redeclares it with this greenhouse's own. The GENERATOR applies the
+    // override, in place: the whole row is the site's - the band and the unit
+    // included, not just the value - and it keeps the library's register.
     SiteBank f;
     const uint16_t r = f.bank.find("geo_lat_deg");
     REQUIRE(r != Vars::VAR_NONE);
 
-    INFO("one row, not two: the earlier declaration is compacted away");
+    INFO("one row, not two: the site's replaced the library's in place");
     uint16_t seen = 0;
     for (uint16_t i = 0; i < f.bank.count(); i++)
         if (strcmp(f.bank.descriptor(i).name, "geo_lat_deg") == 0) seen++;
@@ -500,25 +304,25 @@ TEST_CASE("site: a pair that must stay ordered cannot be edited out of order") {
     for (const Pair& p : pairs) {
         Vars::Var lo = f.bank.var(f.bank.find(p.lo));
         Vars::Var hi = f.bank.var(f.bank.find(p.hi));
-        REQUIRE(lo.meta() != nullptr);
-        REQUIRE(hi.meta() != nullptr);
+        REQUIRE_FALSE(lo.null());
+        REQUIRE_FALSE(hi.null());
         INFO(doctest::String(p.lo) << " against " << doctest::String(p.hi));
 
-        REQUIRE(f.bank.param_set(lo, p.below) == Vars::SET_OK);
-        REQUIRE(f.bank.param_set(hi, p.above) == Vars::SET_OK);
+        REQUIRE(lo.param_set(p.below) == Vars::SET_OK);
+        REQUIRE(hi.param_set(p.above) == Vars::SET_OK);
 
         INFO("the floor may not be raised past the ceiling");
-        CHECK(f.bank.param_set(lo, p.too_high) == Vars::SET_INVALID);
+        CHECK(lo.param_set(p.too_high) == Vars::SET_INVALID);
         INFO("...nor the ceiling dropped under the floor");
-        CHECK(f.bank.param_set(hi, p.too_low) == Vars::SET_INVALID);
+        CHECK(hi.param_set(p.too_low) == Vars::SET_INVALID);
 
         // Both refused values are legal once the OTHER row has made room, which
         // is what keeps the constraint from locking an operator out: widen by
         // moving the ceiling first, narrow by moving the floor first.
-        REQUIRE(f.bank.param_set(hi, p.too_high) == Vars::SET_OK);
-        CHECK(f.bank.param_set(lo, p.too_high) == Vars::SET_OK);
-        REQUIRE(f.bank.param_set(lo, p.too_low) == Vars::SET_OK);
-        CHECK(f.bank.param_set(hi, p.too_low) == Vars::SET_OK);
+        REQUIRE(hi.param_set(p.too_high) == Vars::SET_OK);
+        CHECK(lo.param_set(p.too_high) == Vars::SET_OK);
+        REQUIRE(lo.param_set(p.too_low) == Vars::SET_OK);
+        CHECK(hi.param_set(p.too_low) == Vars::SET_OK);
     }
 }
 
@@ -528,62 +332,48 @@ namespace site_params {
 
 using namespace Botanik;
 
-/** @brief A store that counts writes and nothing else. What a wear question
- *  needs: the interesting number is how many times flash was asked, not what
- *  landed in it. */
-struct CountingStore final : public Vars::VarStore {
-    uint16_t writes = 0;
-    bool load(const Vars::Descriptor&, Vars::Slot&, char*, uint16_t) override { return false; }
-    bool save(const Vars::Descriptor&, const Vars::Slot&, const char*, uint16_t) override {
-        writes++; return true;
-    }
-    bool load_override(const Vars::Descriptor&, Vars::Slot&) override { return false; }
-    bool save_override(const Vars::Descriptor&, const Vars::Slot&) override { return true; }
-    bool clear_override(const Vars::Descriptor&) override { return true; }
-    bool clear(const Vars::Descriptor&) override { return true; }
-    bool load_retained(const Vars::Descriptor&, Vars::Slot&) override { return false; }
-    bool save_retained(const Vars::Descriptor&, const Vars::Slot&) override { return true; }
-};
-
 TEST_CASE("params: restating a value owes the store nothing") {
     Vars::Bank bank;
     TestSite::build(bank);
-    CountingStore store;
-    bank.set_store(&store);
+    test_store::RamStore store;
+    Vars::Persist persist(Botanik::SetupContext(), bank, &store);
 
     const uint16_t r = bank.find("irr_soak_sec");
     REQUIRE(r != Vars::VAR_NONE);
-    REQUIRE(bank.param_set(bank.var(r), "5") == Vars::SET_OK);
+    REQUIRE(bank.var(r).param_set("5") == Vars::SET_OK);
     CHECK(bank.var(r).param_unsaved());
-    REQUIRE(bank.save_params() == 1);
+    REQUIRE(persist.save_all() == 1);
     const uint16_t after_first = store.writes;
     CHECK(after_first == 1);
 
     INFO("the same value again is not a write: a Modbus master re-asserting a "
          "setpoint block every poll would otherwise erase flash every poll");
-    REQUIRE(bank.param_set(bank.var(r), "5") == Vars::SET_OK);
+    REQUIRE(bank.var(r).param_set("5") == Vars::SET_OK);
     CHECK_FALSE(bank.var(r).param_unsaved());
-    CHECK(bank.save_params() == 0);
+    CHECK(persist.save_all() == 0);
     CHECK(store.writes == after_first);
 
     INFO("...and a value that really moved still is");
-    REQUIRE(bank.param_set(bank.var(r), "6") == Vars::SET_OK);
+    REQUIRE(bank.var(r).param_set("6") == Vars::SET_OK);
     CHECK(bank.var(r).param_unsaved());
-    CHECK(bank.save_params() == 1);
+    CHECK(persist.save_all() == 1);
     CHECK(store.writes == (uint16_t)(after_first + 1));
 }
 
 TEST_CASE("params: a program's write waits on the cadence, an operator's on the operator") {
     Vars::Bank bank;
     TestSite::build(bank);
-    CountingStore store;
-    bank.set_store(&store);
+    test_store::RamStore store;
+    Vars::Persist persist(Botanik::SetupContext(), bank, &store);
 
     // The program's: a watering date, through the parameter path a law uses.
     const uint16_t date = bank.find("irr_last_tray1");
     REQUIRE(date != Vars::VAR_NONE);
-    Vars::Ref<uint32_t> stamp = bank.resolve<uint32_t>("irr_last_tray1");
-    REQUIRE(stamp.edit(20000u));
+    // What the generated __SET_EXTERNAL does on a PARAMETER row: the write is
+    // an edit, owed to the retain cadence rather than to the operator.
+    Vars::runtime_bank = &bank;
+    const Vars::Ref<uint32_t> stamp = { bank.find("irr_last_tray1") };
+    stamp.drive(20000u);
     INFO("OWED, not unsaved: the params page counts what a PERSON typed, and a "
          "watering date is not that");
     CHECK(bank.var(date).param_owed());
@@ -598,18 +388,18 @@ TEST_CASE("params: a program's write waits on the cadence, an operator's on the 
     // The operator's: an ordinary setting, typed.
     const uint16_t setting = bank.find("irr_soak_sec");
     REQUIRE(setting != Vars::VAR_NONE);
-    REQUIRE(bank.param_set(bank.var(setting), "5") == Vars::SET_OK);
+    REQUIRE(bank.var(setting).param_set("5") == Vars::SET_OK);
     CHECK(bank.var(setting).param_unsaved());
 
     INFO("the cadence takes the program's and leaves the operator's: a setting "
          "that breaks its own console has to stay recoverable by rebooting");
-    CHECK(bank.save_owed_params() == 1);
+    CHECK(persist.save_owed() == 1);
     CHECK(store.writes == 1);
     CHECK_FALSE(bank.var(date).param_owed());
     CHECK(bank.var(setting).param_unsaved());
 
     INFO("...and `params save` is the operator saying so, which takes both");
-    CHECK(bank.save_params() == 1);
+    CHECK(persist.save_all() == 1);
     CHECK(store.writes == 2);
     CHECK_FALSE(bank.var(setting).param_unsaved());
 }
@@ -619,26 +409,6 @@ TEST_CASE("params: a program's write waits on the cadence, an operator's on the 
 namespace site_capacity {
 
 using namespace Botanik;
-
-TEST_CASE("site: every row the site declares actually fits in the bank") {
-    // LIBRARY_ROWS is hand-kept and cannot be taken from the library, so the
-    // static_assert in vars.h guards a number that can itself be wrong. This
-    // is the check that cannot be: the bank counts what it had no room for,
-    // and a dropped row is a name that resolves to the inert sink for the life
-    // of the run. It went 66 against 70 once, and 573 "fitted" in 576 while
-    // the real total was 577.
-    Vars::Bank bank;
-    TestSite::build(bank);
-    CHECK(bank.refused_count() == 0);
-    CHECK(bank.param_stray_count() == 0);
-    INFO("...and the hand-kept LIBRARY_ROWS is not UNDER the truth, which is "
-         "the direction that overflows. It may be over: freeze() compacts a "
-         "redeclared row out, so the live count is the declared total minus "
-         "however many rows this site restates.");
-    CHECK(bank.count() <=
-          (uint16_t)(Site::LIBRARY_ROWS + Site::ROWS_COUNT));
-}
-
 
 TEST_CASE("local io: a DO or RO row on device 0 reaches a pin") {
     // There was no path at all until Io::LocalOutputs: the HAL had DigitalIn

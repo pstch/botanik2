@@ -105,7 +105,7 @@ TEST_CASE("modbus image: a failed read invalidates rather than leaving the last 
 
     // Left alone, a row keeps its last value and its validity, and one with no
     // timeout is never aged out - so it would read good for ever off a dead bus.
-    invalidate_block(f.bank, f.p, *b, Vars::Q_STALE);
+    invalidate_block(f.bank, f.p, *b, Vars::Q_NONE);
     for (uint16_t k = 0; k < b->row_count; k++) {
         Vars::Var h = f.bank.var(f.p.row((uint16_t)(b->first_row + k)));
         INFO(h.meta().name);
@@ -113,26 +113,26 @@ TEST_CASE("modbus image: a failed read invalidates rather than leaving the last 
     }
 }
 
-TEST_CASE("modbus image: a refusal and a silence are different diagnoses") {
+TEST_CASE("modbus image: a block nobody answered reads nothing usable") {
+    // A refusal and a silence used to be different codes. They are one now:
+    // what a READER does about either is identical, and the difference an
+    // operator needs is one log line from the master naming the device.
     ImageFixture f;
     const Block* b = f.a_read_block(false);
     REQUIRE_MESSAGE(b != nullptr, "the site has no such block");
 
-    invalidate_block(f.bank, f.p, *b, Vars::Q_REFUSED);
-    Vars::Var h = f.bank.var(f.p.row(b->first_row));
-    const Vars::Quality refused = h.quality();
+    for (uint16_t k = 0; k < b->row_count; ++k)
+        f.bank.var(f.p.row((uint16_t)(b->first_row + k)))
+            .publish(Vars::from_f32(Vars::T_F32, 1.0f), 1000);
 
-    invalidate_block(f.bank, f.p, *b, Vars::Q_STALE);
-    const Vars::Quality stale = f.bank.var(f.p.row(b->first_row)).quality();
-
-    // A device that answered and declined is a configuration fault; one that
-    // said nothing is a wiring fault. Collapsing them costs the operator the
-    // difference.
-    CHECK(refused != stale);
-    CHECK(refused == Vars::Q_REFUSED);
-    CHECK(stale == Vars::Q_STALE);
+    invalidate_block(f.bank, f.p, *b, Vars::Q_NONE);
+    for (uint16_t k = 0; k < b->row_count; ++k) {
+        const Vars::Var h = f.bank.var(f.p.row((uint16_t)(b->first_row + k)));
+        INFO(h.meta().name);
+        CHECK_FALSE(h.usable());
+        CHECK(h.quality() == Vars::Q_NONE);
+    }
 }
-
 TEST_CASE("modbus image: what goes on the wire is what comes back off it") {
     // The whole point of the file. A write block's demands are laid into a
     // payload, then read back as though a slave had echoed them, and every row

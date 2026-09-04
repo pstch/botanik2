@@ -103,7 +103,7 @@ TEST_CASE("shell tasks: list names the registered work and filters on a glob") {
     Rig f;
     f.register_all();
     const std::string all = f.run("tasks list");
-    CHECK(all.find("sys_params") != std::string::npos);
+    CHECK(all.find("sys_persist") != std::string::npos);
     CHECK(all.find("task(s)") != std::string::npos);
     INFO("the phase is shown: it is a correctness property, unlike the rate");
     CHECK(all.find("control") != std::string::npos);
@@ -111,7 +111,7 @@ TEST_CASE("shell tasks: list names the registered work and filters on a glob") {
     // The whole table over a 4800-baud console is an index, not an answer,
     // which is why the filter exists.
     const std::string some = f.run("tasks list sys_*");
-    CHECK(some.find("sys_params") != std::string::npos);
+    CHECK(some.find("sys_persist") != std::string::npos);
     INFO("and it must actually filter");
     CHECK(some.find("irrigation") == std::string::npos);
     CHECK(f.run("tasks list zzz*").find("nothing matches") != std::string::npos);
@@ -121,7 +121,7 @@ TEST_CASE("shell tasks: get is one task's schedule and its cost samples") {
     Rig f;
     f.register_all();
     REQUIRE(f.reg.count() > 0);
-    const std::string said = f.run("tasks get sys_params");
+    const std::string said = f.run("tasks get sys_persist");
     // The three things about one task an operator can act on: where in the beat
     // it sits, whether it has ever run, and what it costs when it does.
     CHECK(said.find("Runs in") != std::string::npos);

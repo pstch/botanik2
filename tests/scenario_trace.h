@@ -58,11 +58,11 @@ inline void note(const char* what) {
 inline void row(Botanik::Vars::Bank& io, const char* name) {
     if (!on()) return;
     const Botanik::Vars::Var h = io.var(io.find(name));
-    if (h.meta() == nullptr) return;
+    if (h.null()) return;
 
     char val[64];
     const Botanik::Vars::Value v = h.value();
-    if (h.meta().str != nullptr) {
+    if (h.meta().labels != nullptr) {
         std::snprintf(val, sizeof val, "%s", v.label());
     } else if (h.meta().type == Botanik::Vars::T_BOOL) {
         std::snprintf(val, sizeof val, "%s", h.as_bool() ? "yes" : "no");
@@ -72,7 +72,8 @@ inline void row(Botanik::Vars::Bank& io, const char* name) {
                       (unit != nullptr && unit[0] != '\0') ? " " : "",
                       (unit != nullptr) ? unit : "");
     }
-    const char* q = h.valid() ? "" : Botanik::Vars::quality_str(v.q);
+    const char* q = h.valid() ? ""
+                             : Botanik::Vars::quality_label((uint64_t)v.q);
     std::fprintf(out(), "V|%s|%s|%s\n", name, val, q);
 }
 

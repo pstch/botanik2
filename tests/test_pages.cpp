@@ -174,8 +174,7 @@ TEST_CASE("pages: HOME converges at every supported geometry") {
         Vars::Bank bank;
         TestSite::build(bank);
         Pages::HomePage page(f.console, Site::g_site.home_fields,
-                             Site::g_site.home_field_count, &bank,
-                             Site::g_site.home_refs);
+                             Site::g_site.home_field_count, &bank);
 
         page.focus();
         f.paint(page);

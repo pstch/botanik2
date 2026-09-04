@@ -199,7 +199,7 @@ TEST_CASE("modbus: a tuning row forced to zero cannot divide the ranking") {
     // reaches _tune() past a band that starts at 1000.
     const uint16_t r = bank.find("rtu_rewrite_ms");
     REQUIRE(r != Vars::VAR_NONE);
-    REQUIRE(bank.override_set(bank.var(r), "0") == Vars::SET_OK);
+    REQUIRE(bank.var(r).override_set("0") == Vars::SET_OK);
 
     // _pick() divides by the deadline this feeds. It used to be SIGFPE here.
     for (uint64_t t = 0; t <= 30000; t += 100) {

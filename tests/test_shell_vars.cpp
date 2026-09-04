@@ -17,6 +17,7 @@
 
 #include "doctest.h"
 
+#include "ram_store.h"
 #include "shell_rig.h"
 
 namespace shell_vars {
@@ -27,68 +28,7 @@ using namespace Botanik;
 
 using shell_rig::Rig;
 
-/** @brief A store that keeps everything in RAM, so the save verbs have a
- *  storage side that ACCEPTS. Without one they can only be tested refusing. */
-struct RamStore final : Vars::VarStore {
-    struct Row { std::string key; Vars::Slot v; std::string text; bool ovr; };
-    std::vector<Row> rows;
-    bool             refuse = false;
-
-    Row* find(const char* key, bool ovr) {
-        for (Row& r : rows) if (r.ovr == ovr && r.key == key) return &r;
-        return nullptr;
-    }
-    bool load(const Vars::Descriptor& d, Vars::Slot& v, char* text, uint16_t cap) override {
-        Row* r = find(d.name, false);
-        if (r == nullptr) return false;
-        v = r->v;
-        if (text != nullptr && cap > 0) {
-            const uint16_t n = (uint16_t)std::min((size_t)(cap - 1), r->text.size());
-            memcpy(text, r->text.data(), n); text[n] = '\0';
-        }
-        return true;
-    }
-    bool save(const Vars::Descriptor& d, const Vars::Slot& v,
-              const char* text, uint16_t) override {
-        if (refuse) return false;
-        Row* r = find(d.name, false);
-        if (r == nullptr) { rows.push_back(Row{d.name, v, "", false}); r = &rows.back(); }
-        r->v = v; r->text = (text != nullptr) ? text : "";
-        return true;
-    }
-    bool load_override(const Vars::Descriptor& d, Vars::Slot& v) override {
-        Row* r = find(d.name, true);
-        if (r == nullptr) return false;
-        v = r->v; return true;
-    }
-    bool save_override(const Vars::Descriptor& d, const Vars::Slot& v) override {
-        if (refuse) return false;
-        Row* r = find(d.name, true);
-        if (r == nullptr) { rows.push_back(Row{d.name, v, "", true}); r = &rows.back(); }
-        r->v = v; return true;
-    }
-    bool clear_override(const Vars::Descriptor& d) override {
-        for (size_t i = 0; i < rows.size(); i++)
-            if (rows[i].ovr && rows[i].key == d.name) { rows.erase(rows.begin() + i); return true; }
-        return true;
-    }
-    bool clear(const Vars::Descriptor& d) override {
-        for (size_t i = 0; i < rows.size(); i++)
-            if (!rows[i].ovr && rows[i].key == d.name) { rows.erase(rows.begin() + i); return true; }
-        return true;
-    }
-    // Retained rows share the value keyspace here: nothing in this file writes
-    // one, and a second map would only be a place for them to disagree.
-    bool load_retained(const Vars::Descriptor& d, Vars::Slot& v) override {
-        Row* r = find(d.name, false);
-        if (r == nullptr) return false;
-        v = r->v; return true;
-    }
-    bool save_retained(const Vars::Descriptor& d, const Vars::Slot& v) override {
-        return save(d, v, nullptr, 0);
-    }
-    bool stored(const char* key, bool ovr) { return find(key, ovr) != nullptr; }
-};
+using test_store::RamStore;
 
 // params
 
@@ -135,19 +75,16 @@ TEST_CASE("shell params: an unknown name is a typo, not a defect") {
     Rig f;
     f.run("params set nosuchrow 1");
     CHECK(f.said("unknown parameter"));
-    // A miss from the command line must NOT count against the wiring diagnostic
-    // the POST reads - it is operator input, not a table error.
-    CHECK(f.bank.unresolved_count() == 0);
 }
 
 TEST_CASE("shell params: save commits, and says so only when storage took it") {
     Rig f;
     RamStore store;
-    f.bank.set_store(&store, &f.log);
+    f.persist.set_store(&store);
 
     f.run("params set cli_windowRedatum 7.5");
     f.run("params save cli_windowRedatum");
-    CHECK(store.stored("cli_windowRedatum", false));
+    CHECK(store.stored("cli_windowRedatum"));
     CHECK(f.bank.unsaved_count() == 0);
 
     // ...and a storage that refuses must not report success.
@@ -159,7 +96,7 @@ TEST_CASE("shell params: save commits, and says so only when storage took it") {
 }
 
 TEST_CASE("shell params: with no store at all, save refuses rather than pretending") {
-    Rig f;                                  // no set_store()
+    Rig f;                                  // no store bound
     f.run("params set cli_windowRedatum 7.5");
     f.run("params save cli_windowRedatum");
     CHECK(f.said("NOT saved"));
@@ -169,7 +106,7 @@ TEST_CASE("shell params: with no store at all, save refuses rather than pretendi
 TEST_CASE("shell params: clear drops the unsaved edit, reset drops the stored copy") {
     Rig f;
     RamStore store;
-    f.bank.set_store(&store, &f.log);
+    f.persist.set_store(&store);
     const float factory = f.var("cli_windowRedatum").as_f32();
 
     f.run("params set cli_windowRedatum 7.5");
@@ -180,11 +117,11 @@ TEST_CASE("shell params: clear drops the unsaved edit, reset drops the stored co
 
     f.run("params set cli_windowRedatum 9.0");
     f.run("params save cli_windowRedatum");
-    REQUIRE(store.stored("cli_windowRedatum", false));
+    REQUIRE(store.stored("cli_windowRedatum"));
     f.run("params reset cli_windowRedatum");
     INFO("reset is the destructive sibling: the stored copy goes too");
     CHECK(f.var("cli_windowRedatum").as_f32() == doctest::Approx(factory));
-    CHECK_FALSE(store.stored("cli_windowRedatum", false));
+    CHECK_FALSE(store.stored("cli_windowRedatum"));
 }
 
 TEST_CASE("shell params: reset refuses a RETAINED row and says why") {
@@ -284,20 +221,20 @@ TEST_CASE("shell overrides: an unknown name is refused by the noun that was aske
 TEST_CASE("shell overrides: save persists the force, and survives a reload") {
     Rig f;
     RamStore store;
-    f.bank.set_store(&store, &f.log);
+    f.persist.set_store(&store);
     f.run("overrides set cli_temp_in 21.5");
     f.run("overrides save cli_temp_in");
     // The companion goes with it: saving the reading and not its quality would
     // restore a forced value at the next boot that nothing believes.
-    CHECK(store.stored("cli_temp_in", true));
-    CHECK(store.stored("cli_temp_in_qlt", true));
+    CHECK(store.stored("cli_temp_in", "ovr."));
+    CHECK(store.stored("cli_temp_in_qlt", "ovr."));
     CHECK(f.bank.unsaved_override_count() == 0);
 
     // A release must forget the stored copy, or the override comes back at the
     // next boot after an operator deliberately dropped it.
     f.run("overrides clear cli_temp_in");
-    CHECK_FALSE(store.stored("cli_temp_in", true));
-    CHECK_FALSE(store.stored("cli_temp_in_qlt", true));
+    CHECK_FALSE(store.stored("cli_temp_in", "ovr."));
+    CHECK_FALSE(store.stored("cli_temp_in_qlt", "ovr."));
 }
 
 TEST_CASE("shell overrides: an output can be forced whatever control authority says") {
@@ -319,7 +256,7 @@ TEST_CASE("shell vars: get is the value alone, info is the whole row") {
     CHECK(got.find("Description") == std::string::npos);
 
     const std::string info = f.run("vars info cli_temp_in");
-    for (const char* field : { "Scope", "Access", "Raw value", "Default",
+    for (const char* field : { "Kind", "Access", "Raw value", "Default",
                                "Source", "Description" }) {
         INFO(field);
         CHECK(info.find(field) != std::string::npos);
@@ -408,7 +345,7 @@ TEST_CASE("shell programs: enabling under an inhibited sys_control says it chang
     Rig f;
     // The operator's gate is one of two and the stricter wins; an enabled
     // program that still will not run is exactly the confusing case.
-    f.bank.override_set(f.var("sys_control"), Vars::Scalar::B(false));
+    f.var("sys_control").override_set(Vars::Scalar::B(false));
     REQUIRE_FALSE(f.plant.control_allowed());
     f.run("programs enable irrigation");
     CHECK(f.said("sys_control is off"));

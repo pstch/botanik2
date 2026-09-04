@@ -134,7 +134,7 @@ TEST_CASE("scenario: the two forces an operator has, and what spends them") {
     // settle is already a cycle looking for a tray.
     SAY("tray 5 is forced on. Every tray is owed water and the schedule would "
         "have taken the first, so the tray that goes is the one asked for");
-    REQUIRE(p.f.bank.param_set(p.f.bank.var(p.ref("irr_forceOn_tray5")), true)
+    REQUIRE(p.f.bank.var(p.ref("irr_forceOn_tray5")).param_set(true)
             == Vars::SET_OK);
     settle(p, MILD_DAWN, 300);
     trace_weather(MILD_DAWN, Site::PHASE_DAWN_BREEZE);
@@ -167,7 +167,7 @@ TEST_CASE("scenario: the two forces an operator has, and what spends them") {
     force_rise(q, -30);
     SAY("the other force, on a fresh plant: tray 1 is due and held back by "
         "hand, so the cycle passes over it and takes the next one owed");
-    REQUIRE(q.f.bank.param_set(q.f.bank.var(q.ref("irr_forceOff_tray1")), true)
+    REQUIRE(q.f.bank.var(q.ref("irr_forceOff_tray1")).param_set(true)
             == Vars::SET_OK);
     settle(q, MILD_DAWN, 300);
     REQUIRE(run_until(q, cycle_filling, 1200) != 0);

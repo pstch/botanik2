@@ -174,7 +174,7 @@ TEST_CASE("scenario: a zone dying leaves the plant safe, not confident") {
          "law: the hottest level is what cooling controls on");
     for (uint8_t i = 1; i <= 3; i++) {
         char n[24]; snprintf(n, sizeof n, "cli_temp_hi%u", (unsigned)i);
-        p.f.bank.var(p.ref(n)).set_quality(Q_NO_DATA);
+        p.f.bank.var(p.ref(n)).set_quality(Q_NONE);
     }
     // ...and the case stops refreshing them, so nothing publishes them again.
     for (uint32_t i = 0; i < 300; i++) {
@@ -207,7 +207,7 @@ TEST_CASE("scenario: a zone dying leaves the plant safe, not confident") {
          "keeps the number it last had and says it is not current");
     for (uint8_t i = 1; i <= 3; i++) {
         char n[24]; snprintf(n, sizeof n, "cli_temp_lo%u", (unsigned)i);
-        p.f.bank.var(p.ref(n)).set_quality(Q_NO_DATA);
+        p.f.bank.var(p.ref(n)).set_quality(Q_NONE);
     }
     for (uint32_t i = 0; i < 300; i++) {
         p.probe("cli_temp_cs%u", 3, g_wx().crawlspace);
