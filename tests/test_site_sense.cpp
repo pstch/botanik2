@@ -775,10 +775,10 @@ TEST_CASE("cooling: an unknown demand puts every actuator at its own safe state"
 }
 
 TEST_CASE_FIXTURE(StRig, "scan: sys_now_ms is the clock, and a block differences it itself") {
-    // A C++ law is HANDED dt through ProgramContext; ST has no argument to be
-    // handed anything, so the scan publishes a clock and each block keeps its
-    // own last reading. One row serves every rate, and it is the simulator's
-    // virtual clock, so accelerated time works unchanged.
+    // An ST program takes no argument, so nothing can hand it an elapsed time:
+    // the scan publishes a clock instead and each block keeps its own last
+    // reading. One row serves every rate, and it is the simulator's virtual
+    // clock, so accelerated time works unchanged.
     const VarRef now = live.ref("sys_now_ms");
     REQUIRE(now.index != Vars::VAR_NONE);
 

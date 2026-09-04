@@ -1,4 +1,3 @@
-// REVIEW_35: DONE
 #ifndef ALARMS_ALARMS_H
 #define ALARMS_ALARMS_H
 
@@ -250,10 +249,6 @@ namespace Botanik { namespace Alarms {
             std::memset(_conditions, 0, sizeof(_conditions));
         }
 
-        /** @brief Point this controller at @p src. Before on_setup(), which is
-         *  what reads it: an owner with no variable table declares a
-         *  StaticAlarmTable and hands it over here. */
-        void set_source(AlarmSourceTable* src) { _src = src; }
 
         /** @brief Take one slot per alarm the source declares, in its order, so
          *  condition *i* reads source entry *i*. */

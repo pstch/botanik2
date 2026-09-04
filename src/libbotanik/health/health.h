@@ -1,4 +1,3 @@
-// REVIEW_35: TODO
 #ifndef LIBBOTANIK_HEALTH_HEALTH_H
 #define LIBBOTANIK_HEALTH_HEALTH_H
 
@@ -47,8 +46,6 @@ namespace Botanik { namespace Health {
          *  registry entries, so both are attributable and both have a rate. */
         void register_tasks() override;
 
-        /** @brief Bind the variable bank this drives its alarms into. */
-        void set_bank(Vars::Bank* io) { _io = io; }
 
         /** @brief The two network components whose faults are platform alarms.
          *  Borrowed, optional, and set by the composition root: this class

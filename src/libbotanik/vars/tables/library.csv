@@ -15,9 +15,9 @@ A,MODBUS_RTU_CLIENT,,alarm_io_drop,IO_DROP,0,-1,30*24*3600,0,999,a field row is 
 SV,MODBUS_RTU_CLIENT,,sys_fieldbus_dead,,,,,,902,field devices not answering,0 when every planned device is talking,T_U16,0,,,0,,,,,,
 SV,MODBUS_RTU_CLIENT,,sys_fieldbus_crc,,,,,,903,frames that failed their checksum,"rising means the line: termination, stub length, or the wrong baud",T_U16,0,,,0,,,,,,
 SV,MODBUS_RTU_CLIENT,,sys_fieldbus_stray,,,,,,904,bytes that arrived out of turn,"rising means a second master, a duplicate address, or a device answering after its turn had passed",T_U16,0,,,0,,,,,,
-SV,PLC,"/* The scan CLOCK, not an elapsed time. A C++ law is handed dt through
-* ProgramContext; ST has no argument to be handed anything, so a block
-* reads this and keeps its own last value. That makes it rate-independent
+SV,PLC,"/* The scan CLOCK, not an elapsed time. An ST program takes no argument,
+* so nothing can hand it an elapsed time; a block reads this instead and
+* keeps its own last value. That makes it rate-independent
 * - the same block works on any task - and it is the simulator's VIRTUAL
 * clock, so accelerated time works unchanged.
 * Wraps at 2^32 ms, about 49 days: unsigned subtraction carries it, and

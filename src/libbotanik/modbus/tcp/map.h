@@ -87,8 +87,6 @@ namespace Botanik { namespace Modbus {
          *  @return how many were written. */
         uint16_t drain_persists(uint16_t n);
 
-        /** @brief How many rows are still owed a flash write. */
-        uint16_t pending_persists() const { return _pending_count; }
 
         /** @brief Room left in the queue. A request needing more than this is
          *  refused whole with EX_SLAVE_BUSY rather than half applied. */

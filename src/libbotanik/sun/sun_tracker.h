@@ -1,4 +1,3 @@
-// REVIEW_35: DONE
 #ifndef SUN_SUN_TRACKER_H
 #define SUN_SUN_TRACKER_H
 
@@ -98,9 +97,6 @@ namespace Botanik { namespace Sun {
          *  @note Zero until the first computation (see ready()). */
         double peak_elevation() const { return _pos.peak_elevation; }
 
-        /** @brief Current elevation as a fraction of the day's peak (1.0 at solar
-         *  noon, <= 0 below the horizon). @see SolarPosition::ratio(). */
-        double elevation_ratio() const { return _pos.ratio(); }
 
         /** @brief True while the sun is climbing toward solar noon, false while
          *  it descends toward sunset. */

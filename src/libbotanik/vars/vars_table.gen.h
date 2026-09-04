@@ -50,9 +50,9 @@ const Descriptor library_vars[] = {
     SV("sys_fieldbus_stray", T_U16, 0, 0, "", 904, "bytes that arrived out of turn", "rising means a second master, a duplicate address, or a device answering after its turn had passed"),
 #endif
 #if BOTANIK_FEATURE_PLC
-    /* The scan CLOCK, not an elapsed time. A C++ law is handed dt through
-    * ProgramContext; ST has no argument to be handed anything, so a block
-    * reads this and keeps its own last value. That makes it rate-independent
+    /* The scan CLOCK, not an elapsed time. An ST program takes no argument,
+    * so nothing can hand it an elapsed time; a block reads this instead and
+    * keeps its own last value. That makes it rate-independent
     * - the same block works on any task - and it is the simulator's VIRTUAL
     * clock, so accelerated time works unchanged.
     * Wraps at 2^32 ms, about 49 days: unsigned subtraction carries it, and

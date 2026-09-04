@@ -1,4 +1,3 @@
-// REVIEW_35: TODO
 /**
  * @file shell.h
  * @brief Command shell - dispatch, built-in commands, and extensibility hooks.
@@ -438,8 +437,6 @@ namespace Botanik { namespace Shell {
         /** @brief The variables, from the injected SystemContext (null when the
          *  firmware wired none). One lookup point for the variable commands. */
         Vars::Bank* _bank() const { return _sys != nullptr ? _sys->vars : nullptr; }
-        /** @brief The task table, or null. Non-const: `programs` writes to it. */
-        Tasks::Registry* _registry() const { return _sys != nullptr ? _sys->tasks : nullptr; }
         /** @brief Handle an unrecognised command (echoes "Unknown command:
          *  ..."). */
         void _unknown(const char* cmd, uint16_t len);

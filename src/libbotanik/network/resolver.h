@@ -1,4 +1,3 @@
-// REVIEW_35: TODO
 #ifndef NETWORK_RESOLVER_H
 #define NETWORK_RESOLVER_H
 
@@ -104,9 +103,6 @@ namespace Botanik { namespace Network {
         /** @brief Drop the whole cache, and cancel pending lookups. */
         void clear();
 
-        /** @brief Override the cache max-age (ms) for this resolver; 0 disables
-         *  expiry. Defaults from Config::DNS_CACHE_TTL_MS. */
-        void set_cache_ttl_ms(uint32_t ms) { _cache_ttl_ms = ms; }
 
         /** @} */
 

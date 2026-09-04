@@ -117,20 +117,6 @@ namespace Botanik { namespace Tasks {
             if (_runs >= 2) _offset_ms = 0;
         }
 
-        /** @brief Move the reference point to @p now_ms WITHOUT counting a
-         *  run, so the next activation is a full period away.
-         *
-         *  For a gap the caller deliberately did not step across (the scan cycle
-         *  while control authority is withheld), where handing the task the
-         *  whole outage as dt would be worse than dropping it. A task that has
-         *  never run is left alone: its first activation is due immediately by
-         *  design, and spending it here would delay bring-up by a period.
-         *
-         *  Distinct from ran() because nothing ran: counting it would inflate
-         *  runs() and make the rate readings lie. */
-        void reseed(uint64_t now_ms) {
-            if (_runs > 0) _last_run_ms = now_ms;
-        }
 
         /** @brief Put this task out of step with others of the same period, by
          *  delaying its first interval by @p offset_ms. Set it before the first
