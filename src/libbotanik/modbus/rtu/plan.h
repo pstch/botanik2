@@ -166,8 +166,9 @@ namespace Botanik { namespace Modbus {
          *
          *  Per block and not per device, because an exception says the device is
          *  alive and its register map is wrong: its other blocks must keep their
-         *  rates, and only the one that cannot be delivered backs off. Writes
-         *  only - a refused read already waits for its own poll period. */
+         *  rates, and only the one that cannot be delivered backs off. The
+         *  BACKOFF is writes only; a refused read already waits for its own poll
+         *  period, and counts here just to make its log line an edge. */
         uint8_t  refusals;
     };
 

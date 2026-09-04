@@ -204,8 +204,8 @@ logged as a critical if it ever happens anyway.
 rows it covered to `Q_NONE` rather than leaving the last good value in place and
 believed - a row declared with no timeout would otherwise never be caught up with
 at all. A refusal and a silence are one code: what a READER does about either is
-identical, and the difference an operator needs is the master's own log line
-naming the device.
+identical, and the difference an operator needs is the master's own log line,
+at the transition, naming the device and the block's first row.
 
 The scan never touches the wire. A sweep of this plant is hundreds of
 milliseconds - tens of beats - so cycle-boundary I/O is out of reach: the bus

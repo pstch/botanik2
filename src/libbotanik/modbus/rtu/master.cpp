@@ -543,13 +543,18 @@ void RtuMaster::_settle(uint64_t now_ms) {
         // send an engineer to different places: this one is a register map that
         // does not match the device.
         _refusals++;
-        // And the rows say so too. Without this they keep their last value at
-        // Q_VALID until expire_stale() catches up - and a row declared with no
-        // timeout is never caught up with at all.
+        // And the rows say so too: nothing usable is behind them. Without this
+        // they keep their last value, believed, until expire_stale() catches up
+        // - and a row declared with no timeout is never caught up with at all.
         //
-        // Only the LOG is edge-triggered below; a read block needs no penalty
-        // because it already waits for its own poll period.
-        if (is_read(b.fc)) invalidate_block(*_io, _plan, b, Vars::Q_NONE);
+        // A read block takes no BACKOFF - it already waits for its own poll
+        // period - but it counts, because the count is what makes the log line
+        // below an edge. A refusal is the one diagnosis a row's quality no
+        // longer carries, so the line is where the difference now lives.
+        if (is_read(b.fc)) {
+            invalidate_block(*_io, _plan, b, Vars::Q_NONE);
+            if (b.refusals < 255) b.refusals++;
+        }
 
         // A refused write stays dirty - correctly, since it never reached the
         // field - so nothing else would ever slow it down. Back the BLOCK off,
@@ -567,13 +572,17 @@ void RtuMaster::_settle(uint64_t now_ms) {
         // Once, on the way in, like _missed(): a map that does not match the
         // device is refused on every attempt, and at five a second that is the
         // rate limiter's whole budget spent on one wrong register.
-        const bool first = is_read(b.fc) || b.refusals == 1;
-        if (_logger != nullptr && first) {
+        //
+        // The ROW is named as well as the register, because that is the word an
+        // operator has: they are looking at a reading that has stopped, and the
+        // quality beside it says only that nothing is behind it.
+        if (_logger != nullptr && b.refusals == 1) {
             char who[40];
             _logger->warning(Logs::MODBUS,
-                          "dev %s refused\n"
+                          "dev %s refused '%s'\n"
                           "fc %u reg %u, exception %u",
                           device_label(_devices, b.device, who, sizeof who),
+                          _io->var(_plan.row(b.first_row)).name(),
                           (unsigned)b.fc, (unsigned)b.reg,
                           (unsigned)_framer.response().ex);
         }
@@ -583,6 +592,8 @@ void RtuMaster::_settle(uint64_t now_ms) {
     _txns++;
     if (is_read(b.fc)) {
         commit_read(*_io, _plan, b, _framer.response(), now_ms);
+        // Answered, so the next refusal is an edge again.
+        b.refusals = 0;
     } else {
         // Only now, with the slave's echo in hand. Clearing on send would lose a
         // demand to a frame that never arrived.

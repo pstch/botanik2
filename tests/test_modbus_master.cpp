@@ -26,6 +26,7 @@
 #include "libbotanik/modbus/rtu/master.h"
 #include "libbotanik/modbus/rtu/slave.h"
 
+#include "recording_writer.h"
 #include "site_bank.h"
 
 namespace modbus_master {
@@ -41,6 +42,7 @@ struct BusFixture {
     int              sv[2];
     Vars::Bank       bank;
     Logs::Logger     log;
+    RecordingWriter  writer;
     Tasks::Registry  reg;
     RtuMaster        master;
     /** @brief One slave per unit the plan addresses, answering as itself. */
@@ -50,6 +52,7 @@ struct BusFixture {
     BusFixture()
         : master(SetupContext(reg, &log), &bank, Site::g_site.devices) {
         REQUIRE(::socketpair(AF_UNIX, SOCK_STREAM, 0, sv) == 0);
+        log.add_writer(&writer);
         // Our end too: set_fds() only makes the MASTER's end non-blocking, and
         // a read here with nothing on the wire is the normal case.
         ::fcntl(sv[1], F_SETFL, O_NONBLOCK);
@@ -94,6 +97,19 @@ struct BusFixture {
             if (m > 0) { ssize_t w = ::write(sv[1], rsp, m); (void)w; }
             return;
         }
+    }
+
+    /** @brief Answer whatever the master sent with exception @p ex: a device
+     *  that is alive and declining, which is a register map that is wrong. */
+    void refuse(uint8_t ex = 0x02) {
+        uint8_t req[512];
+        const ssize_t n = ::read(sv[1], req, sizeof(req));
+        if (n < 2) return;
+        uint8_t rsp[5] = { req[0], (uint8_t)(req[1] | 0x80), ex, 0, 0 };
+        const uint16_t crc = Modbus::crc16(rsp, 3);
+        rsp[3] = (uint8_t)(crc & 0xFF);
+        rsp[4] = (uint8_t)(crc >> 8);
+        ssize_t w = ::write(sv[1], rsp, sizeof(rsp)); (void)w;
     }
 
     /** @brief One beat: the master issues, the bus carries, the master reads. */
@@ -195,6 +211,37 @@ TEST_CASE("modbus master: the counters separate a refusal from a silence") {
     CHECK(f.master.refusals() == 0);
     CHECK(f.master.framer().crc_errors() == 0);
     CHECK(f.master.framer().timeouts() > 0);
+}
+
+TEST_CASE("modbus master: a refused read is logged at the transition, not per poll") {
+    BusFixture f;
+    // A slave that is alive and declining every read: the one fault a row's
+    // quality cannot carry, since Q_NONE is also what a silence gives. The log
+    // line is the whole difference, so it has to name the row and be an EDGE -
+    // at five polls a second, one wrong register would otherwise be the rate
+    // limiter's entire budget.
+    for (int i = 0; i < 200; i++) {
+        f.reg.run_phase(Tasks::PHASE_OUTPUT, f.now);
+        f.refuse();
+        f.now += 20;
+        f.reg.run_phase(Tasks::PHASE_INPUT, f.now);
+    }
+    INFO(f.writer.all_msgs);
+    REQUIRE(f.master.refusals() > 0);
+    CHECK(f.writer.saw("refused"));
+
+    size_t said = 0;
+    for (size_t at = f.writer.all_msgs.find("refused");
+         at != std::string::npos;
+         at = f.writer.all_msgs.find("refused", at + 1)) said++;
+    // One per block in the plan, at most: each has its own register map and its
+    // own transition, and none of them says it twice.
+    CHECK(said <= f.master.plan().block_count());
+
+    // And the row is named, so an operator has the word they are looking at
+    // rather than a register number.
+    const uint16_t row = f.master.plan().row(f.master.plan().block(0).first_row);
+    CHECK(f.writer.saw(f.bank.var(row).name()));
 }
 
 TEST_CASE("modbus master: garbage on the wire is a CRC fault, not a reading") {
