@@ -68,7 +68,6 @@ namespace Botanik { namespace Pages {
         // Every other key returns to the live bottom first.
         _follow_tail();
         uint16_t occ_before = _editor.occupied_rows();
-        _editor.suppress_redraw(true);
         switch (cmd) {
             // Submit leaves the screen correct; return past the shrink check.
             case Command::ENTER:
@@ -121,13 +120,14 @@ namespace Botanik { namespace Pages {
 
             default: break;
         }
-        _editor.suppress_redraw(false);
         uint16_t occ_after = _editor.occupied_rows();
         if (occ_after != occ_before && _scrollback.redraw_pending()) {
             // Staged replay now has stale geometry; re-arm it on the new area.
             _scrollback.begin_redraw(1, _log_rows());
         } else if (occ_after < occ_before) {
-            _reveal_log_rows(occ_before - occ_after);
+            // The editor slid the content band down by the rows it gave back;
+            // the rows that opened at the top are the transcript's to fill.
+            _fill_revealed_rows(occ_before - occ_after);
         }
     }
 
@@ -270,7 +270,6 @@ namespace Botanik { namespace Pages {
         _record_command(line, n);
         _terminal.move_to(_editor.end_pos());
         _console.line_feed(true);
-        _editor.suppress_redraw(false);
         _editor.commit();
         return n;
     }
@@ -307,20 +306,13 @@ namespace Botanik { namespace Pages {
         }
     }
 
-    void ShellPage::_reveal_log_rows(uint16_t delta) {
+    void ShellPage::_fill_revealed_rows(uint16_t delta) {
         if (delta == 0) return;
-        uint16_t rows     = (uint16_t)_console.rows();
-        uint16_t occupied = _editor.occupied_rows();
-        uint16_t log_rows = rows - 1 - occupied;  // new (larger) log area
+        uint16_t log_rows = _log_rows();          // new (larger) log area
         if (log_rows == 0) return;
 
-        // Scroll the content band down by delta: opens delta rows at the top
-        // for older scrollback, the editor rows fall off the bottom (redrawn
-        // after). Bounded at row 1 so row 0 stays put.
-        _terminal.scroll_region(1, (uint16_t)(rows - 1), /*up=*/false, delta);
-
-        // Fill newly blank rows 1..delta with older scrollback entries (the log
-        // area had log_rows - delta rows visible before the shrink).
+        // Rows 1..delta are blank, opened by the editor's band slide; the log
+        // area had log_rows - delta rows visible before the shrink.
         uint16_t prev_log     = log_rows - delta;
         uint16_t prev_visible =
             (uint16_t)std::min((size_t)prev_log, (size_t)_scrollback.count());
@@ -336,10 +328,6 @@ namespace Botanik { namespace Pages {
             _terminal.write_chars(line, wlen);
             _terminal.clear_to_eol();
         }
-
-        // After the scroll the editor content has shifted into its new
-        // position - just reposition the cursor.
-        _editor.place_cursor();
     }
 
 }}

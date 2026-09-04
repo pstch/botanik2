@@ -138,10 +138,6 @@ namespace Botanik { namespace Terminal {
         char     _ps_buf[3][Config::EDITOR_PROMPT_MAX];
         uint16_t _ps_len[3] = {0, 0, 0};
 
-        /** @brief When set, automatic redraws on origin shifts are
-         *  suppressed. */
-        bool     _suppress_sync_redraw = false;
-
         /** @} */
 
     public:
@@ -181,10 +177,6 @@ namespace Botanik { namespace Terminal {
 
         /** @brief Repaint the viewport from the buffer, blank rows included. */
         void redraw();
-
-        /** @brief When set, redraws on origin shifts are skipped - caller
-         *  becomes responsible for one explicit redraw. */
-        void suppress_redraw(bool v) { _suppress_sync_redraw = v; }
 
         /** @} */
 

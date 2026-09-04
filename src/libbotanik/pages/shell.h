@@ -157,10 +157,9 @@ namespace Botanik { namespace Pages {
          *  scrollback (screen content is already visible). */
         void _record_command(const char* cmd, uint16_t len);
 
-        /** @brief Scroll the log area down by delta rows via IL and fill the
-         *  revealed top rows from the scrollback (when the editor shrinks;
-         *  avoids a full redraw). */
-        void _reveal_log_rows(uint16_t delta);
+        /** @brief Fill the @p delta rows the editor's shrink opened at the top
+         *  of the log area from the scrollback. */
+        void _fill_revealed_rows(uint16_t delta);
 
         /** @} */
     };

@@ -56,6 +56,8 @@ namespace botanik_test {
                 editor.set_anchor(Botanik::Terminal::Anchor::TOP);
                 editor.set_origin(1);
                 editor.set_view_rows((uint16_t)(rows - 2));
+            } else {
+                editor.set_origin((uint16_t)(rows - 1));   // @see ShellPage::_setup_editor
             }
             // Blank BEFORE the first paint: reset() stamps the prompt into
             // FRONT, and a blank that lands after it leaves the editor

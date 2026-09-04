@@ -122,11 +122,11 @@ static const Scenario SCENARIOS[] = {
           f.editor.move_to_start();
           f.editor.move_down();
       },
-      [](EditorFixture& f) { f.editor.backspace(1); }, 53 },
+      [](EditorFixture& f) { f.editor.backspace(1); }, 52 },
 
     { "kill_to_line_end mid a 3-row wrap", SHELL,
       [](EditorFixture& f) { fill(f, 180); seek(f, 40); },
-      [](EditorFixture& f) { (void)f.editor.kill_to_line_end(); }, 16 },
+      [](EditorFixture& f) { (void)f.editor.kill_to_line_end(); }, 21 },
 
     { "kill_word_back mid-line", SHELL,
       [](EditorFixture& f) { type(f, "the quick brown fox jumps"); },
@@ -142,7 +142,7 @@ static const Scenario SCENARIOS[] = {
 
     { "replace_all onto one row", SHELL,
       [](EditorFixture& f) { fill(f, 100); },
-      [](EditorFixture& f) { f.editor.replace_all("clear", 5); }, 28 },
+      [](EditorFixture& f) { f.editor.replace_all("clear", 5); }, 27 },
 
     { "replace_all onto two rows", SHELL,
       [](EditorFixture& f) { type(f, "hi"); },
@@ -221,13 +221,24 @@ static EditorFixture* make(const Scenario& s) {
 }
 
 /** @brief Run @p s up to its measured action and return that action's bytes,
- *  leaving @p f on the screen the action produced. */
+ *  leaving @p f on the screen the action produced. `BOTANIK_LEDGER_DUMP=1`
+ *  prints them, escapes spelled out, for reading where a count came from. */
 static size_t run(EditorFixture& f, const Scenario& s) {
     s.reach(f);
     (void)f.repaint_from_scratch();
     f.drain();
     s.act(f);
-    return f.pump().size();
+    const std::string bytes = f.pump();
+    if (getenv("BOTANIK_LEDGER_DUMP") != nullptr) {
+        std::string shown;
+        for (char c : bytes) {
+            if (c == 0x1B)              shown += "\\e";
+            else if (c >= 0x20 && c < 0x7F) shown += c;
+            else { char h[8]; snprintf(h, sizeof h, "\\x%02x", (unsigned char)c); shown += h; }
+        }
+        MESSAGE(std::string(s.name) << " (" << bytes.size() << " bytes):\n  " << shown);
+    }
+    return bytes.size();
 }
 
 TEST_CASE("editor: the wire puts the screen where FRONT asked for it") {

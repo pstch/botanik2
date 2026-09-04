@@ -398,16 +398,15 @@ namespace Botanik { namespace Terminal {
     void TextEditor::_shrink_editor(uint16_t new_origin) {
         if (_anchor == Anchor::TOP) return;
         if (new_origin <= _origin) return;
-        // Under suppress the caller repaints, so only move the origin.
-        if (!_suppress_sync_redraw && _origin < _console->rows()) {
-            // Open blank rows at the old origin to push the editor back down to
-            // the bottom; bounded to [_origin..content bottom] so it never
-            // spills below. Measured against blanking the vacated rows and
-            // repainting at the new origin: the slide lands every row of the
-            // editor on the row already showing it, and wins by 4 to 48 bytes.
-            _terminal->scroll_region(_origin, (uint16_t)(_console->rows() - 1),
+        // Slide the content band (rows 1..bottom) down by the rows the editor
+        // gave back, the mirror of _grow_editor: the editor lands on the rows
+        // already showing it, and whatever stood above it follows, so the owner
+        // of those rows only paints the ones opened at the top. Measured
+        // against blanking the vacated rows and repainting at the new origin,
+        // the slide wins by 4 to 48 bytes.
+        if (_origin < _console->rows())
+            _terminal->scroll_region(1, (uint16_t)(_console->rows() - 1),
                                      /*up=*/false, (uint16_t)(new_origin - _origin));
-        }
         _origin = new_origin;
     }
 
@@ -509,9 +508,7 @@ namespace Botanik { namespace Terminal {
         _follow_cursor();
         _paint_view();
 
-        // Bottom-anchored, a shorter text slides the band back down. After the
-        // paint: under a suppressed redraw the band does not move until the
-        // caller moves it, and the paint has to land where the text still is.
+        // Bottom-anchored, a shorter text slides the band back down.
         _shrink_editor(new_origin);
         _place_cursor(_map_cursor_pos(_pos));
     }
