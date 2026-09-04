@@ -206,53 +206,45 @@ namespace Botanik { namespace Terminal {
             _terminal->move_to({hw, _indent});
             if (i < _layout.count) {
                 _write_prompt(i);
-                _write_row_content(i);
+                const RowView& r = _layout.rows[i];
+                if (r.buf_len > 0) _terminal->write_chars(&_buf[r.buf_start], r.buf_len);
             }
             _terminal->clear_to_eol();
         }
+        _paint_region();
         // A region IS the edit point, drawn: a cursor blinking inside the
         // highlight says nothing the far end of it does not, and hides the cell
         // it sits on while it blinks.
         _terminal->set_cursor_inhibited(_mark_set);
     }
 
-    void TextEditor::_write_row_content(uint16_t i) {
-        const RowView& r     = _layout.rows[i];
-        const uint16_t start = r.buf_start;
-        const uint16_t end   = (uint16_t)(r.buf_start + r.buf_len);
-
-        // The inverted run, clipped to this row. l >= rr means no highlight
-        // here: no mark, region off this row, or the anchor on another row.
-        uint16_t from = 0, to = 0, l = 1, rr = 0;
-        if (region(from, to)) {
-            if (from != to) {
-                l  = from > start ? from : start;
-                rr = to   < end   ? to   : end;
-            } else if (_owner_row(from, _layout) == i) {
-                // Nothing selected yet: one inverted cell at the anchor, or
-                // Ctrl-Space shows nothing. _owner_row settles an offset on a
-                // wrap boundary, which both adjoining rows would else paint.
-                l  = from;
-                rr = (uint16_t)(from + 1);
+    void TextEditor::_paint_region() {
+        uint16_t from = 0, to = 0;
+        if (!region(from, to)) return;
+        _terminal->set_inverted(true);
+        if (from == to) {
+            // Nothing selected yet: one inverted cell at the anchor, or
+            // Ctrl-Space would have nothing to show for itself. Past the last
+            // character there is no glyph to invert, so make one.
+            const uint16_t i = _owner_row(from, _layout);
+            const RowView& r = _layout.rows[i];
+            if (_visible(i)) {
+                _terminal->move_to(_map_cursor_pos(from));
+                _terminal->write_chars(from < (uint16_t)(r.buf_start + r.buf_len) ? &_buf[from] : " ", 1);
+            }
+        } else {
+            for (uint16_t i = _view_top, e = _visible_end(); i < e; i++) {
+                const RowView& r = _layout.rows[i];
+                const uint16_t start = r.buf_start, end = (uint16_t)(start + r.buf_len);
+                const uint16_t l  = from > start ? from : start;
+                const uint16_t rr = to   < end   ? to   : end;
+                if (l >= rr) continue;
+                _terminal->move_to({_hw_row(i), (uint16_t)(_indent + _prompt_len(_row_prompt(i)) + (l - start))});
+                _terminal->write_chars(&_buf[l], (uint16_t)(rr - l));
             }
         }
-
-        if (l >= rr) {                              // no highlight on this row
-            if (r.buf_len > 0) _terminal->write_chars(&_buf[start], r.buf_len);
-            return;
-        }
-
-        if (l > start) _terminal->write_chars(&_buf[start], (uint16_t)(l - start));
-        _terminal->set_inverted(true);
-        // Past the last character there is no glyph to invert, so make one. Only
-        // the anchor cell can land there - a non-empty region ends at a byte it
-        // actually contains.
-        if (l < end) _terminal->write_chars(&_buf[l], (uint16_t)((rr < end ? rr : end) - l));
-        else         _terminal->write_chars(" ", 1);
         _terminal->set_inverted(false);
-        if (rr < end) _terminal->write_chars(&_buf[rr], (uint16_t)(end - rr));
     }
-
     // editing
 
     void TextEditor::insert_characters(const char* buf, uint16_t len) {

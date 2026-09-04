@@ -513,13 +513,10 @@ namespace Botanik { namespace Terminal {
          *  @return false if the span was empty or nothing fit. */
         bool _kill_span(uint16_t from, uint16_t to);
 
-        /** @brief Write layout row @p i's content at the cursor, as up to three
-         *  pen runs so the region comes out reverse-video. Always leaves the pen
-         *  plain, so the caller's clear_to_eol() does not stamp an inverted bar
-         *  to the margin.
-         *  @note An EMPTY region paints one inverted cell at the mark, or
+        /** @brief Invert the region's cells over the plain rows _paint_view()
+         *  just wrote. An EMPTY region inverts one cell at the mark, or
          *  Ctrl-Space would have nothing to show for itself. */
-        void _write_row_content(uint16_t i);
+        void _paint_region();
 
         /** @brief Paint every row of the viewport into FRONT: prompt, content
          *  and a clear to the margin, or just the clear past the text. Immediate
