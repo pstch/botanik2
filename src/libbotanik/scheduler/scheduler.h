@@ -245,9 +245,12 @@ namespace Botanik { namespace Scheduler {
                 _slept_us += HAL::Clock::uptime_us() - sleep_start_us;
                 return false;   // the caller comes straight back round
             }
-            // publish the loop "now" so consumers share one timestamp per tick
-            _context.timestamp_ms = now_ms;
             _skip_beats(now_ms);   // no log; surfaced via CPU_XRUN + stats
+            // Publish the GRID point, not the wall reading: the beat is what the
+            // period says it is, and a release is up to a millisecond late. A
+            // timestamp carrying that lateness steps 9, 10 or 11 ms between
+            // beats, and a task whose period IS the beat then drops the 9 ms one.
+            _context.timestamp_ms = _next_tick_ms;
             // Clamp grid-relative lateness at 0: _skip_beats keeps now >= grid
             // so it shouldn't underflow, but one wrapped sample would poison
             // the all-time max.

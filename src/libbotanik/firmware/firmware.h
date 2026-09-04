@@ -272,8 +272,9 @@ namespace Botanik {
         bool loop() {
             if (!_scheduler.tick()) return false;   // driver: gates the beat, produces the clock
 
-            // One 64-bit "now" for every Component stepped this beat.
-            uint64_t now_ms = HAL::Clock::uptime_ms();
+            // One 64-bit "now" for every Component stepped this beat - the
+            // scheduler's, not a fresh reading, which would drift off the grid.
+            const uint64_t now_ms = _scheduler.context()->timestamp_ms;
 
             _advance_run_state(now_ms);
 
