@@ -66,3 +66,46 @@ default would cause a WRONG ACTION, not where it causes NO action.**
 The two that do not gate are safe in NIGHT by construction, and that is the
 reason - not an oversight. A fifth consumer has to answer the same question
 before it is written.
+
+## Nothing on this unit authenticates anybody
+
+**The panel is behind a locked door on a segment that carries no traffic from
+outside the holding. Physical and network isolation ARE the access control, and
+no second one is implemented anywhere.** That is a deliberate call, not an
+omission, and it is why there is no password, no PIN, no role and no session.
+
+Three surfaces follow from it, and all three are open by design:
+
+- **The console.** Anyone who can reach the RS-232 socket gets the whole shell:
+  `params set`, `overrides set` (which will drive an output whatever control
+  authority says - see `Bank::override_set`), `programs disable`, `reboot` and
+  `halt`. The only guard is `_confirmed()`, which asks the four lifecycle verbs
+  to be typed with `confirm` - a defence against a slip, not against a person.
+- **The Modbus TCP server.** It answers any peer that connects, with no source
+  allowlist and no unit-id check beyond the map's own. Its single gate is
+  `mb_write_enable`, which is global: writes are on for everyone or off for
+  everyone. `TcpSlave` bounds what a stranger can do (only mapped registers,
+  only through `param_check()`), and that bound is the real protection.
+- **MQTT.** Plaintext, no credentials, no TLS. Publish-only, so the broker
+  cannot command anything - the worst a hostile broker gets is the plant's
+  readings, and the worst a hostile network does is drop them.
+
+**What would end the decision:** a routable plant network, a second tenant on
+the segment, remote access of any kind, or a site where the panel is not behind
+a lock. Any one of those and this entry stops being true, which is why the
+consequences are spelled out above rather than left as "it is fine".
+
+Two things exist BECAUSE there is no login, and should not be removed on the
+grounds that nobody is authenticated:
+
+- **The audit line.** `Bank::param_set()` (text form) and `Bank::override_set()`
+  / `override_clear()` each write one `USER` notice saying what changed and what
+  it read before. With no identity to record, WHAT happened and WHEN is the
+  whole of the account, and an override restored at boot is logged `CRITICAL`
+  for the same reason: it explains behaviour nothing else does.
+- **`mb_write_enable` is the one switch worth knowing about.** It decides
+  whether the plant network is a readable surface or a writable one, and it
+  **defaults to 1** (`vars/tables/library.csv`, reg 953) - which only follows
+  from the isolation above. On a site where that stops holding, this is the
+  first row to change, and it is a parameter rather than a build flag precisely
+  so it can be changed without a reflash.
