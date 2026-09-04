@@ -15,6 +15,16 @@
 
 namespace Botanik { namespace Pages {
 
+    /** @brief Which edge a pulse row counts, as a word. */
+    inline const char* edge_word(uint8_t edge) {
+        switch ((HAL::Pulse::Edge)edge) {
+            case HAL::Pulse::EDGE_FALLING: return "falling";
+            case HAL::Pulse::EDGE_BOTH:    return "either";
+            default:                       return "rising";
+        }
+    }
+
+
     void MonitorPage::focus() {
         _editing = false;
         // The footer carries the filter badge, which acknowledges a keypress,
@@ -237,6 +247,12 @@ namespace Botanik { namespace Pages {
         const Vars::Binding& b = d.bind;
         if (d.kind != Vars::K_INPUT && d.kind != Vars::K_OUTPUT) {
             snprintf(out, cap, "computed");
+            return;
+        }
+        if (Vars::pulse(d)) {
+            // A counter, not a level: the row IS the running edge total.
+            snprintf(out, cap, "pulse counter on channel %u, %s edges",
+                     (unsigned)Vars::pulse_channel(d), edge_word(Vars::pulse_edge(d)));
             return;
         }
         if (Vars::local(d)) {

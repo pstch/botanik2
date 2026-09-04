@@ -25,6 +25,16 @@
 
 namespace Botanik { namespace Shell {
 
+    /** @brief Which edge a pulse row counts, as a word. */
+    inline const char* edge_word(uint8_t edge) {
+        switch ((HAL::Pulse::Edge)edge) {
+            case HAL::Pulse::EDGE_FALLING: return "falling";
+            case HAL::Pulse::EDGE_BOTH:    return "either";
+            default:                       return "rising";
+        }
+    }
+
+
     void CommandShell::_emit_var(const Vars::Bank& io, Vars::Var h) {
         char out[128], val[48];
         const char* s = Vars::var_format(io, h, val, sizeof(val));
@@ -243,6 +253,10 @@ namespace Botanik { namespace Shell {
         const Vars::Binding& b = d.bind;
         if (d.kind != Vars::K_INPUT && d.kind != Vars::K_OUTPUT)
             snprintf(buf, cap, "computed (nothing drives it)");
+        else if (Vars::pulse(d))
+            // A counter, not a level: the row IS the running edge total.
+            snprintf(buf, cap, "pulse counter on channel %u, %s edges",
+                     (unsigned)Vars::pulse_channel(d), edge_word(Vars::pulse_edge(d)));
         else if (Vars::local(d))
             // The wire type is what makes a local channel analog or digital;
             // the device address only says it is not on the bus.
