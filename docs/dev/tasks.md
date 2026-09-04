@@ -180,9 +180,11 @@ things.
    all-time max never decays, so one outlier - a debugger pause, a preempted
    sim - pins it for the life of the boot. Use `max` as the separate "has this
    ever gone catastrophically long" check.
-3. **The sleep/spin split has to go to microseconds.** `tick()` busy-waits the
-   last ~1 ms, so a 2 ms beat would spend 50 % of the CPU spinning against 10 %
-   today - which is what `static_assert(TASK_PERIOD_MS >= 2)` is there to flag.
+3. **The sleep has to resolve the period.** `tick()` sleeps the whole way to
+   the grid point, so the beat is released no earlier than the platform's sleep
+   granularity allows - a millisecond on the OPTA's RTOS tick. A period near
+   that resolution is mostly jitter, which is what
+   `static_assert(TASK_PERIOD_MS >= 1)` marks the floor of.
 
 The only sub-beat consumer identified so far is a Modbus link at 115200 wanting
 5 ms; at 19200 the RX ring gives 146 ms of slack and needs nothing. Greenhouse

@@ -112,9 +112,9 @@ namespace Botanik { namespace Scheduler {
         /** @name State
          *  @{ */
 
-        // tick() sleeps until 1 ms before the grid point and busy-waits the
-        // last ms, so a period under 2 ms would be all spin.
-        static_assert(Config::TASK_PERIOD_MS >= 2, "TASK_PERIOD_MS must be >= 2 (sleep/spin split)");
+        // tick() sleeps the whole way to the grid point, so the period only
+        // has to be something the platform's sleep can resolve.
+        static_assert(Config::TASK_PERIOD_MS >= 1, "TASK_PERIOD_MS must be at least 1 ms");
 
         /** @brief The table this paces, BORROWED - owned by the composition
          *  root, because a Component is constructed with the registry it will
@@ -147,9 +147,10 @@ namespace Botanik { namespace Scheduler {
 
         /** @name CPU-load (duty cycle) metrics
          *  @brief Load is a beat's active (non-slept) time over the nominal
-         *  period, so it counts work plus loop overhead plus the busy-wait, and
-         *  an overrunning beat reads past 100%. Both terms come from actual
-         *  uptime deltas, not the requested sleep.
+         *  period, so it counts the work plus the loop's own overhead, and an
+         *  overrunning beat reads past 100%. Both terms come from actual uptime
+         *  deltas, not from the requested sleep - which is what makes a sleep
+         *  that overshoots show up as jitter rather than as load.
          *  @{ */
 
         Utils::ExpMovingAverage _cpu_load;   ///< EMA of CPU duty cycle
@@ -219,9 +220,9 @@ namespace Botanik { namespace Scheduler {
          *        the previous beat's work window and accumulates slept time; a
          *        release republishes "now", records jitter and duty cycle, and
          *        paints the free stack.
-         * @warning always_inline: this runs on every pass of the main loop,
-         *          the busy-wait included, so it folds into the caller and the
-         *          cold helpers stay out of line.
+         * @warning always_inline: this runs on every pass of the main loop, so
+         *          it folds into the caller and the cold helpers stay out of
+         *          line.
          * @return true exactly ONCE per period when it is time to execute.
          */
         inline __attribute__((always_inline)) bool tick() {
@@ -235,15 +236,14 @@ namespace Botanik { namespace Scheduler {
             if (_measuring) { _measuring = false; _sample_work(); }
             int64_t remaining_ms = (int64_t)_next_tick_ms - (int64_t)now_ms;
             if (remaining_ms > 0) {
-                // Sleep to the grid minus 1 ms (the last ~1 ms is busy-waited =
-                // active CPU). Count the ACTUAL slept time, not the requested
-                // one, or the duty cycle lies on overrun.
-                if (remaining_ms > 1) {
-                    uint64_t sleep_start_us = HAL::Clock::uptime_us();
-                    HAL::Clock::sleep_ms((uint32_t)(remaining_ms - 1));
-                    _slept_us += HAL::Clock::uptime_us() - sleep_start_us;
-                }
-                return false;   // busy-wait the last ms; defer work
+                // Sleep the whole way to the grid point. Count the ACTUAL slept
+                // time, not the requested one: a sleep that overshoots is the
+                // platform's, and charging the difference to the duty cycle
+                // would report idle time as work.
+                uint64_t sleep_start_us = HAL::Clock::uptime_us();
+                HAL::Clock::sleep_ms((uint32_t)remaining_ms);
+                _slept_us += HAL::Clock::uptime_us() - sleep_start_us;
+                return false;   // the caller comes straight back round
             }
             // publish the loop "now" so consumers share one timestamp per tick
             _context.timestamp_ms = now_ms;

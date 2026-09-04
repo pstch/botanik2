@@ -258,7 +258,8 @@ namespace Botanik {
          *  @note Non-virtual, and inline: this is the whole of the main loop's
          *  body, and tick() folds into it.
          *  @return whether a beat actually ran. A harness interleaving its own
-         *  work must key off this: tick() busy-waits the tail of every period. */
+         *  work must key off this: tick() returns false for every pass that is
+         *  waiting out the period. */
         bool loop() {
             if (!_scheduler.tick()) return false;   // driver: gates the beat, produces the clock
 
