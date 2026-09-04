@@ -136,6 +136,10 @@ namespace Botanik { namespace Terminal { namespace Ansi {
 
     // Content clearing
 
+    bool erase_to_eol(ByteSink& _serial) {
+        return _csi_count(_serial, EL, 1);
+    }
+
     bool clear_screen(ByteSink& _serial) {
         if (!can_emit(_serial)) return false;
         _serial.write(CSI, sizeof(CSI) - 1);

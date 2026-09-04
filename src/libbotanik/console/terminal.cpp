@@ -501,11 +501,23 @@ namespace Botanik { namespace Terminal {
         if (defer) return false;      // owed the next tick, not a full rewrite
         budget = (moved < budget) ? (uint16_t)(budget - moved) : 0;
         if (moved != 0 && budget == 0) return false;
+        // Where FRONT's plain blank tail begins, and how many stale cells the
+        // wire still shows there. Past a few, one EL erases them for three
+        // bytes where the run loop would write a space per cell; the loop is
+        // then bounded to what precedes the tail, and the EL goes out last so
+        // the cursor is already near it.
+        uint16_t e = _cols;
+        while (e > 0 && _front[_idx(row, (uint16_t)(e - 1))] == CELL_BLANK) e--;
+        uint16_t stale = 0;
+        for (uint16_t c = e; c < _cols; c++)
+            if (_back[_idx(row, c)] != CELL_BLANK) stale++;
+        const bool     erase = stale >= EL_MIN_CELLS;
+        const uint16_t until = erase ? e : _cols;
         uint16_t col = 0;
-        while (col < _cols) {
+        while (col < until) {
             if (_front[_idx(row, col)] == _back[_idx(row, col)]) { col++; continue; }
             uint16_t a = col, b = col;
-            while (b < _cols && _front[_idx(row, b)] != _back[_idx(row, b)]) b++;
+            while (b < until && _front[_idx(row, b)] != _back[_idx(row, b)]) b++;
             uint16_t cost = _run_cost(row, a, b);
             if (_serial.availableForWrite() < cost) return false;  // ring full
             // A run that needs the whole budget or more can never fit inside one,
@@ -522,6 +534,20 @@ namespace Botanik { namespace Terminal {
             if (oversized || budget == 0) return false;
             col = b;
         }
+        if (!erase) return true;
+        // Move + EL + a possible SGR: EL fills with the current attributes on
+        // a terminal with background-colour erase, so the pen goes plain first.
+        const uint16_t cost = (uint16_t)(8 + 3 + (_hw_inverted ? 5 : 0));
+        if (_serial.availableForWrite() < cost) return false;
+        const bool oversized = cost >= _tx_cold_depth;
+        if (oversized ? (budget == 0) : (cost > budget)) return false;
+        const uint16_t before = tx_used();
+        if (!_go({row, e})) return false;
+        _set_hw_inverted(false);
+        if (!Ansi::erase_to_eol(_serial)) return false;
+        for (uint16_t c = e; c < _cols; c++) _back[_idx(row, c)] = CELL_BLANK;
+        const uint16_t sent = (uint16_t)(tx_used() - before);
+        budget = (sent < budget) ? (uint16_t)(budget - sent) : 0;
         return true;
     }
 

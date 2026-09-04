@@ -199,6 +199,9 @@ namespace Botanik { namespace Terminal {
          *  widest slide still plausibly a slide rather than new content. */
         static constexpr uint16_t SHIFT_MIN_SPAN   = 12;
         static constexpr uint16_t SHIFT_CANDIDATES = 8;
+        /** @brief Stale cells in a row's blank tail from which one EL beats
+         *  writing the spaces: the escape is three bytes. */
+        static constexpr uint16_t EL_MIN_CELLS     = 4;
         /** @brief Shift grid @p g for a band scroll (content moves, freed rows
          *  blanked). Called for FRONT by scroll_region and for BACK by present()
          *  once the matching DL/IL has reached the wire. */

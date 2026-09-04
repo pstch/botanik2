@@ -110,11 +110,11 @@ static const Scenario SCENARIOS[] = {
 
     { "hard break at the head of a 3-row input", SHELL,
       [](EditorFixture& f) { fill(f, 180); f.editor.move_to_line_start(); },
-      [](EditorFixture& f) { type(f, "\n"); }, 303 },
+      [](EditorFixture& f) { type(f, "\n"); }, 234 },
 
     { "hard break mid a 3-row input", SHELL,
       [](EditorFixture& f) { fill(f, 180); seek(f, 40); },
-      [](EditorFixture& f) { type(f, "\n"); }, 174 },
+      [](EditorFixture& f) { type(f, "\n"); }, 141 },
 
     { "join of two lines", SHELL,
       [](EditorFixture& f) {
@@ -126,11 +126,11 @@ static const Scenario SCENARIOS[] = {
 
     { "kill_to_line_end mid a 3-row wrap", SHELL,
       [](EditorFixture& f) { fill(f, 180); seek(f, 40); },
-      [](EditorFixture& f) { (void)f.editor.kill_to_line_end(); }, 52 },
+      [](EditorFixture& f) { (void)f.editor.kill_to_line_end(); }, 16 },
 
     { "kill_word_back mid-line", SHELL,
       [](EditorFixture& f) { type(f, "the quick brown fox jumps"); },
-      [](EditorFixture& f) { (void)f.editor.kill_word_back(); }, 13 },
+      [](EditorFixture& f) { (void)f.editor.kill_word_back(); }, 10 },
 
     { "yank a word mid-line", SHELL,
       [](EditorFixture& f) {
@@ -179,7 +179,7 @@ static const Scenario SCENARIOS[] = {
 
     { "NOTES hard break mid a 3-row line", NOTES,
       [](EditorFixture& f) { fill(f, 180); seek(f, 40); },
-      [](EditorFixture& f) { type(f, "\n"); }, 187 },
+      [](EditorFixture& f) { type(f, "\n"); }, 152 },
 
     { "NOTES split at a wrap boundary", NOTES,
       [](EditorFixture& f) {
