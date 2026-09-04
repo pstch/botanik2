@@ -15,6 +15,7 @@ The reference Botanik **site**: everything specific to one physical greenhouse.
 | `generated/plant.{st,cpp}` | generated | the CONFIGURATION matiec compiles, and the roster `Plc::Runtime::Plant` runs |
 | `generated/POUS.*`, `plc.c`, `gh_mlb41.*` | generated | matiec's own output |
 | `tables/home.csv` | **declared** | the home-screen captions - the one table no rule derives |
+| `tables/system.csv` | **declared** | the SYSTEM page's site half: rows about the UNIT, not the plant |
 | `tables/pulse_in.csv` | **declared** | the edge-counted terminals, as ordinary rows |
 | `site.h` | hand-written | includes the generated tables and `sim.h`. No class, no hook, no override |
 | `sim.h` | hand-written | the simulated field: it writes the variable tables the way a Modbus driver will. Its whole body is `#ifdef TARGET_SIMULATOR`, so it drops out of the hardware build |
@@ -148,7 +149,7 @@ precision and - the load-bearing one - a **default**, which does three jobs: an
 input's substitute when a read is invalid, an output's safe state on a fault, and
 a parameter's factory value.
 
-The home-screen readings live in `tables/home.csv` - a caption is a person's choice. Grouping for the MONITOR page and
+The home-screen readings live in `tables/home.csv` - a caption is a person's choice. `tables/system.csv` is the same table for the SYSTEM page's lower band, and the rule for what belongs there is the UNIT rather than the plant: supplies, rails, the enclosure - anything that is not the greenhouse's own business. Grouping for the MONITOR page and
 telemetry is derived: a variable's group is the prefix of its name, and whether
 it is published is its scope. Naming a variable files it.
 

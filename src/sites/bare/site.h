@@ -26,6 +26,7 @@ const Botanik::SiteDescriptor g_site = {
     Botanik::Config::SITE_NAME,
     nullptr, 0,                      // site shell commands
     nullptr, 0, nullptr,             // home-screen readings
+    nullptr, 0, nullptr,             // SYSTEM-page readings
 #if BOTANIK_FEATURE_MODBUS_RTU_CLIENT
     nullptr,                         // what each unit answers
 #endif

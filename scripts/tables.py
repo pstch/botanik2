@@ -66,6 +66,7 @@ AUX = {  # stem -> columns, for the tables that are not rows
     'enums':          'enum ctype symbol value label desc',
     'programs':       'name instance source rate desc quality park',
     'home':           'label var',
+    'system':         'label var',
 }
 
 
@@ -756,6 +757,9 @@ def generate(site):
     cal  = t('analog_cal', AUX['analog_cal'])
     band = t('param_band', AUX['param_band'])
     home = t('home', AUX['home'])
+    # Optional: a site with nothing to add to the SYSTEM band declares none.
+    sysf = t('system', AUX['system']) \
+        if os.path.exists(os.path.join(site, 'tables', 'system.csv')) else []
     tom  = toml(os.path.join(site, 'site.toml'))
     mdl, dev = t('modbus_models', AUX['modbus_models']), t('modbus_devices', AUX['modbus_devices'])
     per = {f: t(stem, cols) for f, (stem, cols) in ROWS.items()}
@@ -825,7 +829,14 @@ def generate(site):
     L += ['};', '',
           '// Filled at bring-up; extern in the header, or every TU including it',
           '// would carry a definition.',
-          'VarRef home_refs[g_home_field_count] = {};', '',
+          'VarRef home_refs[g_home_field_count] = {};', '']
+    L += ['// The SYSTEM band\'s site half: rows about the UNIT rather than the',
+          '// plant - its supplies, its rails - which no rule tells from a',
+          '// greenhouse reading either.',
+          'const HomeVar g_system_fields[] = {']
+    L += ['    { "%s", "%s" },' % (h['label'], h['var']) for h in sysf] or ['    { nullptr, nullptr },']
+    L += ['};', '',
+          'VarRef system_refs[g_system_field_count] = {};', '',
           '/** @brief The site\'s shell commands: none. A site table is matched',
           ' *  BEFORE the library built-ins, so a name reused there shadows one. */',
           'const Botanik::Shell::ShellCommand* const g_commands = nullptr;',
@@ -837,6 +848,7 @@ def generate(site):
           '    Botanik::Config::SITE_NAME,',
           '    g_commands,    g_command_count,',
           '    g_home_fields, g_home_field_count, home_refs,',
+          '    g_system_fields, g_system_field_count, system_refs,',
           '    &g_device_table,',
           '    rows,          ROWS_COUNT,',
           '};', '',
@@ -886,6 +898,13 @@ def generate(site):
           '// Where those names resolve to, filled at bring-up. VAR_NONE until',
           '// then, which reads as the inert sink rather than as row 0.',
           'extern VarRef home_refs[g_home_field_count];', '',
+          '// The SYSTEM band\'s site half, the same shape. 0 for a site that',
+          '// adds nothing to the library\'s own rows.',
+          'extern const HomeVar g_system_fields[];',
+          'const uint8_t g_system_field_count = %d;' % len(sysf),
+          'static_assert(g_system_field_count <= Config::SYSTEM_FIELDS_MAX,',
+          '              "too many system fields: the SYSTEM page would drop the tail");',
+          'extern VarRef system_refs[g_system_field_count];', '',
           '// Rows the LIBRARY registers ahead of these, from site.toml. One row',
           '// past VAR_MAX and registration is REFUSED: every name in it resolves',
           '// to the sink for the life of the run, and only refused_count() sees it.',

@@ -92,6 +92,15 @@ namespace Botanik {
         const Vars::HomeVar*          home_fields;
         uint8_t                       home_field_count;
         Vars::VarRef*                 home_refs;
+
+        /** @brief The SYSTEM band's site half: rows about the UNIT rather than
+         *  the plant - its supplies, its rails, its enclosure. Same shape and
+         *  the same reasoning as the home table, since no rule tells a
+         *  greenhouse reading from a panel one either. Null / 0 for a site
+         *  that adds nothing to the library's own rows. */
+        const Vars::HomeVar*          system_fields;
+        uint8_t                       system_field_count;
+        Vars::VarRef*                 system_refs;
 #if BOTANIK_FEATURE_MODBUS_RTU_CLIENT
         /** @brief What each unit on the field bus will answer: its request
          *  ceiling and address alignment. Null plans every unit as

@@ -82,7 +82,15 @@ namespace Botanik {
           // _sys_ctx is filled in this constructor's BODY, below; the page only
           // reads through the pointer at draw time, so taking its address here
           // is fine.
+#if BOTANIK_FEATURE_VARS
+          // The site's own half of the band. Only a VARS build has a table to
+          // resolve its names in; without one the page is the library rows.
+          , _system_page(_console.terminal(), &_sys_ctx,
+                         site.system_fields, site.system_field_count,
+                         &_io, site.system_refs)
+#else
           , _system_page(_console.terminal(), &_sys_ctx)
+#endif
 #endif
 #endif
     {
@@ -356,6 +364,9 @@ namespace Botanik {
 
 #if BOTANIK_FEATURE_VARS
     void BotanikFirmware::_resolve_site_refs() {
+        if (_site.system_refs != nullptr && _site.system_fields != nullptr)
+            for (uint8_t i = 0; i < _site.system_field_count; i++)
+                _site.system_refs[i] = _io.find(_site.system_fields[i].name);
         if (_site.home_refs != nullptr && _site.home_fields != nullptr)
             for (uint8_t i = 0; i < _site.home_field_count; i++)
                 _site.home_refs[i] = _io.find(_site.home_fields[i].name);

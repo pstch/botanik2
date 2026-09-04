@@ -33,6 +33,10 @@
 #include "libbotanik/pages/metric_page.h"
 #include "libbotanik/scheduler/scheduler.h"
 #include "libbotanik/tasks/tasks.h"
+#if BOTANIK_FEATURE_VARS
+#include "libbotanik/config/vars.h"
+#include "libbotanik/vars/access.h"
+#endif
 #include "libbotanik/utils/text.h"
 
 #if BOTANIK_FEATURE_MODBUS_RTU_CLIENT
@@ -63,6 +67,17 @@ namespace Botanik { namespace Pages {
         /** @brief The subsystem handles the system band renders from. Injected,
          *  not read back off the console. */
         const SystemContext* _sys;
+
+#if BOTANIK_FEATURE_VARS
+        /** @name The site's own half of the band
+         *  Borrowed and flash-resident, like the home table: labels here,
+         *  resolved rows in @c _site_refs, filled at bring-up. @{ */
+        const Vars::HomeVar* _site_fields = nullptr;
+        const Vars::VarRef*  _site_refs   = nullptr;
+        const Vars::Bank*    _io          = nullptr;
+        uint8_t              _site_count  = 0;
+        /** @} */
+#endif
 
         /** @} */
 
@@ -370,9 +385,63 @@ namespace Botanik { namespace Pages {
          *  both paints twice a cycle and flickers. @{ */
 
         /** @brief Site labels and headers, drawn once on focus. Base: nothing. */
-        virtual void draw_payload_static() {}
-        /** @brief Site values on the cold cadence. Base: nothing. */
-        virtual void draw_payload_dynamic() {}
+        /** @name The site's half of the band
+         *
+         *  Two columns of six under the library's rows, laid out by the same
+         *  band() the rows above use, so both halves line up at any width. A
+         *  field past SYSTEM_FIELDS_MAX is dropped rather than drawn off the
+         *  bottom - the static_assert in the site's generated header is what
+         *  catches it before that.
+         *  @{ */
+
+        /** @brief Rows the site half occupies, given how many fields it has. */
+        uint16_t _site_rows() const {
+#if BOTANIK_FEATURE_VARS
+            const uint8_t n = _site_count < Config::SYSTEM_FIELDS_MAX
+                            ? _site_count : Config::SYSTEM_FIELDS_MAX;
+            return (uint16_t)((n + 1u) / 2u);
+#else
+            return 0;
+#endif
+        }
+
+        void _draw_site_labels() {
+#if BOTANIK_FEATURE_VARS
+            if (_site_fields == nullptr || _site_count == 0) return;
+            const Band b = band();
+            const uint16_t rows = _site_rows();
+            _header(PAYLOAD_ROW, 2, "SITE", (uint16_t)(_terminal.cols() - 4));
+            for (uint8_t i = 0; i < _site_count && i < Config::SYSTEM_FIELDS_MAX; i++) {
+                const uint16_t row = (uint16_t)(PAYLOAD_ROW + 1 + (i % rows));
+                _label_at(row, (i < rows) ? b.l_lbl : b.r_lbl, _site_fields[i].label);
+            }
+#endif
+        }
+
+        void _draw_site_values() {
+#if BOTANIK_FEATURE_VARS
+            if (_site_fields == nullptr || _io == nullptr || _site_refs == nullptr) return;
+            const Band b = band();
+            const uint16_t rows = _site_rows();
+            char vb[48], fld[64];
+            for (uint8_t i = 0; i < _site_count && i < Config::SYSTEM_FIELDS_MAX; i++) {
+                const uint16_t row = (uint16_t)(PAYLOAD_ROW + 1 + (i % rows));
+                const bool     left = i < rows;
+                const uint16_t col  = left ? b.l_val : b.r_val;
+                const uint16_t w    = left ? b.l_w   : b.r_w;
+                const Vars::Var h = _io->var(_site_refs[i]);
+                _cell(row, col,
+                      rjust(fld, sizeof(fld), w,
+                            Vars::var_format(*_io, h, vb, sizeof(vb))), w);
+            }
+#endif
+        }
+
+        /** @} */
+
+        virtual void draw_payload_static() { _draw_site_labels(); }
+        /** @brief Site values on the cold cadence. Base: the site's own table. */
+        virtual void draw_payload_dynamic() { _draw_site_values(); }
         /** @brief Site values on the per-second cadence. Base: nothing. */
         virtual void draw_payload_hot() {}
 
@@ -384,8 +453,22 @@ namespace Botanik { namespace Pages {
         /** @brief Bind to @p console, reading the system band from @p sys.
          *  @p sys may be null - every cell then renders blank rather than
          *  faulting, which is what a rig that has no aggregate wants. */
-        StatusPage(Console& console, const SystemContext* sys)
-            : MetricPage(console), _sys(sys) {
+        /** @brief @p fields (+ @p count) is the site's SYSTEM table, @p io what
+         *  resolves them and @p refs where bring-up put the results. All
+         *  borrowed, all optional: a site that declares none gets the library
+         *  band alone. */
+        StatusPage(Console& console, const SystemContext* sys,
+                   const Vars::HomeVar* fields = nullptr, uint8_t count = 0,
+                   const Vars::Bank* io = nullptr,
+                   const Vars::VarRef* refs = nullptr)
+            : MetricPage(console), _sys(sys)
+#if BOTANIK_FEATURE_VARS
+            , _site_fields(fields), _site_refs(refs), _io(io), _site_count(count)
+#endif
+        {
+#if !BOTANIK_FEATURE_VARS
+            (void)fields; (void)count; (void)io; (void)refs;
+#endif
             _hot_ms = Config::PAGE_HOT_MS;   // run state + watchdog + jitter
         }
 

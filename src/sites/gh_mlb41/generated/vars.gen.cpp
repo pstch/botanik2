@@ -777,6 +777,26 @@ const HomeVar g_home_fields[] = {
 // would carry a definition.
 VarRef home_refs[g_home_field_count] = {};
 
+// The SYSTEM band's site half: rows about the UNIT rather than the
+// plant - its supplies, its rails - which no rule tells from a
+// greenhouse reading either.
+const HomeVar g_system_fields[] = {
+    { "Grid", "sys_grid_ok" },
+    { "Grid V", "sys_grid_V" },
+    { "Grid A", "sys_grid_A" },
+    { "Grid Hz", "sys_grid_Hz" },
+    { "Local", "sys_local_ok" },
+    { "Local V", "sys_local_V" },
+    { "Local A", "sys_local_A" },
+    { "Local Hz", "sys_local_Hz" },
+    { "DC rails", "sys_dc_ok" },
+    { "DC1 V", "sys_dc1_V" },
+    { "UPS batt", "sys_upsBat_V" },
+    { "Lockout", "sys_supply_lockout" },
+};
+
+VarRef system_refs[g_system_field_count] = {};
+
 /** @brief The site's shell commands: none. A site table is matched
  *  BEFORE the library built-ins, so a name reused there shadows one. */
 const Botanik::Shell::ShellCommand* const g_commands = nullptr;
@@ -789,6 +809,7 @@ const Botanik::SiteDescriptor g_site = {
     Botanik::Config::SITE_NAME,
     g_commands,    g_command_count,
     g_home_fields, g_home_field_count, home_refs,
+    g_system_fields, g_system_field_count, system_refs,
     &g_device_table,
     rows,          ROWS_COUNT,
 };

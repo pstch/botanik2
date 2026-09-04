@@ -94,6 +94,14 @@ static_assert(g_home_field_count <= Config::HOME_FIELDS_MAX,
 // then, which reads as the inert sink rather than as row 0.
 extern VarRef home_refs[g_home_field_count];
 
+// The SYSTEM band's site half, the same shape. 0 for a site that
+// adds nothing to the library's own rows.
+extern const HomeVar g_system_fields[];
+const uint8_t g_system_field_count = 12;
+static_assert(g_system_field_count <= Config::SYSTEM_FIELDS_MAX,
+              "too many system fields: the SYSTEM page would drop the tail");
+extern VarRef system_refs[g_system_field_count];
+
 // Rows the LIBRARY registers ahead of these, from site.toml. One row
 // past VAR_MAX and registration is REFUSED: every name in it resolves
 // to the sink for the life of the run, and only refused_count() sees it.
