@@ -28,11 +28,14 @@ add_executable(botanik_tests
     test_modbus_image.cpp
     test_modbus_master.cpp
     test_modbus_server.cpp
+    test_io_local.cpp
     test_hal_net.cpp
+    test_resolver.cpp
     test_ntp.cpp
     test_pages.cpp
     test_shell.cpp
     test_shell_vars.cpp
+    test_shell_report.cpp
     test_plc.cpp
     test_site.cpp
     test_sun.cpp
