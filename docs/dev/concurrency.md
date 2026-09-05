@@ -79,20 +79,19 @@ drops that write silently.
 need one, the real problem is almost certainly that something ended up on the wrong
 side of a boundary - fix that instead.
 
-## Two time bases, one clock
+## One time base
 
-Both come from the same monotonic clock; they differ in width and in who reads them.
+`SchedulerContext::timestamp_ms` is **64-bit** and does not wrap. `tick()`
+publishes it once per beat as the GRID point rather than the wall reading, and
+everything stepped in that beat shares it: the render path, alarm dwell, fault
+grace and task scheduling alike. `HAL::Clock::uptime_ms()` is the same clock
+read fresh, for anything outside a beat.
 
-**32-bit, `SchedulerContext::timestamp_ms`.** Republished by `tick()` once per beat
-and shared by the **render path** - terminal, pages, bars - where ages are
-wrap-projected for display. It wraps every ~49 days.
+There is no wrap-safe subtraction discipline to keep any more, and no
+`Utils::Millis32`: both went with the 32-bit field. The one place a wrapping
+counter survives is `HAL::Clock::hrt_ticks()`, whose DELTAS are always taken in
+unsigned arithmetic so the wrap needs no special case.
 
-**64-bit, `HAL::Clock::uptime_ms()`.** Read fresh at the top of the beat and handed
-to every stepped `Component`. Alarm dwell, fault grace and task scheduling all want a
-wrap-free monotonic clock, and the few microseconds between `tick()` and that read
-are immaterial at their second scale.
-
-@warning Every consumer of the 32-bit clock compares with wrap-safe
-`(uint32_t)(now - then)` subtraction, **never** `now > then + delta`.
-`Utils::Millis32` is a strong type over the wrap-prone value whose only operation is
-that subtraction, so it cannot be mixed with the 64-bit uptime by accident.
+@warning `timestamp_ms` is the grid point, so it is up to a beat period behind
+the wall clock. Anything measuring how late the beat itself was reads
+`uptime_us()` directly, as `_record_jitter()` does.

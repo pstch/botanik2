@@ -50,7 +50,7 @@ A site needing an extra page or a component of its own still derives
 ```
  * Bus: RS485, ModbusRTU master, 38400 baud, none/8/1, on COM2.
  * (BOTANIK_MODBUS_BAUD is pinned to match, in this site's config.h.)
- * 20 field devices, 102 mapped signals, 13 free channels. (The published map
+ * 22 field devices, 110 mapped signals. (The published map
  * lists 70, and omits MTR-2 object 2, active power, which the device answers.)
  *
  *   SRR/TAC/MTR-1  Eastron SDM630    addr 5   37 readings
@@ -66,7 +66,8 @@ A site needing an extra page or a component of its own still derives
  *   SRR/CLI/TH-7..9   temp/RH           addr 47-49  low level
  *   SRR/CLI/TH-10..12 temp/RH           addr 50-52  high level
  *
- * Everything is on the bus today: the site has no local terminals yet.
+ * Almost everything is on the bus: IN1 carries pwr_upsLowBat and IN2 the
+ * irrigation inlet pulse train, and those two are the site's local terminals.
  *
  * @warning Binding::reg is the Modbus REGISTER ADDRESS the master puts on the
  * wire: the coil number on the relay boards, and the protocol START ADDRESS on

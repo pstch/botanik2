@@ -23,7 +23,6 @@ namespace Botanik { namespace Logs {
         uint64_t  timestamp;    ///< uptime ms when the entry was raised
         LogLevel  level;
         LogTopic  topic;
-        uint16_t  length;       ///< bytes used in message, excluding the NUL
         char      message[Config::LOG_MESSAGE_LEN];
     };
 

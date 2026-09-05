@@ -26,8 +26,6 @@
 
 namespace Botanik { namespace Shell {
 
-#if BOTANIK_FEATURE_PLC
-
     /** @brief Append to @p buf at @p at, leaving @p at inside cap-1 whatever
      *  printf says it WOULD have written - so a truncated line stops growing
      *  rather than indexing past the end. */
@@ -117,16 +115,6 @@ namespace Botanik { namespace Shell {
                 _emitf(out, sizeof(out), "  DISABLED  %s", pl->name(i));
         }
     }
-
-#else   // !BOTANIK_FEATURE_PLC
-
-    void CommandShell::_cmd_programs(const char*, uint16_t) {
-        _println("programs: this build has no scan cycle");
-    }
-    void CommandShell::_programs_gate(const char*, uint16_t, bool) {}
-    void CommandShell::_programs_status() {}
-
-#endif
 
 }}  // namespace Botanik::Shell
 

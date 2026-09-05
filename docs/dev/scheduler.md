@@ -30,8 +30,9 @@ subsystem can't wedge the loop (and on the OPTA, trip the hardware watchdog).
 If the work for a beat runs long, the loop misses one or more grid points.
 `_skip_beats()` advances the next-tick anchor past every missed beat (so the loop
 doesn't try to "catch up" with a burst of back-to-back ticks), counts them in
-`SchedulerContext::overruns`, and logs an aggregated `"scheduler overrun: skipped
-N beat(s)"` warning at most once per `SCHEDULER_XRUN_LOG_MS`.
+`SchedulerContext::overruns`, and logs nothing at all: a line per skipped beat
+would flood exactly when the loop can least afford it. The condition surfaces
+through the `CPU_XRUN` alarm and the `stats` overrun count instead.
 
 @image html overrun.drawio.svg "A beat whose work runs long. The loop misses t2 and t3; the anchor jumps straight to t4 rather than firing three ticks back to back."
 
@@ -91,7 +92,7 @@ class SchedulerContext {
   cpu_jitter_us_max : uint32 - all-time peak jitter (us)
   tick_count : uint32
   overruns : uint32 - beats skipped on overrun
-  timestamp_ms : uint32 - shared per-tick now (wraps ~49 days)
+  timestamp_ms : uint64 - the beat's grid point, shared by everything in it
 }
 \enduml
 

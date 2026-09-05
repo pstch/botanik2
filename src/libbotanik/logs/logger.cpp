@@ -209,7 +209,6 @@ namespace Botanik { namespace Logs {
         e.topic     = topic;
         int w = vsnprintf(e.message, sizeof(e.message), fmt, ap);
         if (w < 0) w = 0;
-        e.length = (uint16_t)std::min((size_t)w, sizeof(e.message) - 1);
     }
 
     void Logger::_emit(Logs::LogLevel level, Logs::LogTopic topic,

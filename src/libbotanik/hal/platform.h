@@ -331,8 +331,8 @@ namespace Botanik { namespace HAL {
      *  refusal in `attach()` are what keep a pin to one of them. */
     namespace AnalogIn {
 
-        /** @brief Bits the converter is asked for. Ten is what the OPTA's own
-         *  0-10 V front end resolves to across the range; a backend that can do
+        /** @brief Bits the converter is asked for. The OPTA's own 0-10 V front
+         *  end resolves fewer than this across the range; a backend that can do
          *  better still answers on this scale, so a site's calibration is a
          *  property of the wiring and not of the board. */
         static const uint8_t BITS = 12;

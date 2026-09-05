@@ -11,7 +11,6 @@
  *       answers "is it due". No priority: see docs/dev/tasks.md.
  */
 
-#include "libbotanik/plc/health.h"
 #include <cstdint>
 
 #include "libbotanik/config/scheduler.h"
@@ -19,10 +18,11 @@
 #include "libbotanik/tasks/phase.h"
 #include "libbotanik/tasks/task_timer.h"
 
-// Forward-declared, never included. `Component` is the TYPE OF THE ERASED
-// SELF-POINTER, which is what makes an (owner, handler) pair checkable at the
-// registration site; the registry never dereferences it, so `tasks/` stays below
-// `core/`.
+// Forward-declared here, so a header including this one does not acquire
+// `core/`. `Component` is the TYPE OF THE ERASED SELF-POINTER, which is what
+// makes an (owner, handler) pair checkable at the registration site.
+// `tasks.cpp` includes `core/component.h`, because a task registered with no
+// handler IS its component's hook and run_phase() calls step() on it.
 namespace Botanik { class Component; }
 // Health is forward-declared with its underlying type, which C++11 allows for
 // a scoped enum: a task keeps a POINTER to one and never a value.

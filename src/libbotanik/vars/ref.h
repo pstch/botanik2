@@ -62,12 +62,6 @@ namespace Botanik { namespace Vars {
         /** @} */
     };
 
-    /** @brief Whether two types are the same, so a mismatched drive() names the
-     *  problem instead of reporting a deduction conflict. Hand-rolled: three
-     *  lines against a whole `<type_traits>`. */
-    template <typename A, typename B> struct SameType      { static const bool value = false; };
-    template <typename A>             struct SameType<A, A> { static const bool value = true; };
-
 }}  // namespace Botanik::Vars
 
 #endif // VARS_REF_H

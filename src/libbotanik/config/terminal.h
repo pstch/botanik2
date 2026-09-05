@@ -155,9 +155,9 @@ namespace Botanik { namespace Config {
      *  @{ */
 
     /** @brief Single paint depth floor, in ms of wire time at the console rate.
-     *  @warning Must stay above CONSOLE_DRAW_MS (static_asserted): the render runs
-     *  on that group, so a lower floor lets the wire drain empty between paints.
-     *  Nothing measures an underrun, so raise rather than lower it. */
+     *  @warning Must stay above TASK_PERIOD_MS, which console.cpp asserts: the
+     *  flush runs every beat, so a floor under one beat lets the wire drain
+     *  empty. Nothing measures an underrun, so raise rather than lower it. */
 #ifndef BOTANIK_TX_COLD_TARGET_MS
 #  define BOTANIK_TX_COLD_TARGET_MS 128
 #endif

@@ -108,10 +108,10 @@ namespace Botanik { namespace Shell {
         // the unit. The loop keeps running until the watchdog fires - unlike
         // `reset`, which never returns - so there is time to drain it.
         //
-        // CRITICAL does both jobs: the rate limiter cannot drop it on the way
-        // out, and ShellPage lets a critical through the `logs off` gate - so
-        // this IS the reply, on screen either way, and a printed line beside it
-        // would only say the same thing twice.
+        // CRITICAL because ShellPage lets one through the `logs off` gate, so
+        // this IS the reply and a printed line beside it would say it twice.
+        // The rate limiter applies to every level (logger.cpp), so what this
+        // buys at the sink is a reserved FIFO slot, not exemption.
         const Scheduler::SchedulerContext* sc =
             (_sys != nullptr) ? _sys->scheduler : nullptr;
         if (_logger != nullptr) {

@@ -88,8 +88,8 @@
 #  define BOTANIK_FEATURE_MQTT 0
 #endif
 
-/** @brief Solar-position tracker. Standalone: BotanikFirmware does not
- *  instantiate it, so a site that wants it turns it on and owns the instance. */
+/** @brief Solar-position tracker. BotanikFirmware owns the instance and
+ *  registers it; a site reaches it through SetupContext::sun. */
 #ifndef BOTANIK_FEATURE_SUN_TRACKER
 #  define BOTANIK_FEATURE_SUN_TRACKER 0
 #endif
@@ -209,7 +209,8 @@
 #endif
 
 /** @brief Modbus RTU master, filling the process image from the field.
- *  @note Requires BOTANIK_FEATURE_PLC */
+ *  @note Requires BOTANIK_FEATURE_VARS: it scans the site's XP_MODBUS rows,
+ *  which is the table, not the scan cycle. */
 #ifndef BOTANIK_FEATURE_MODBUS_RTU_CLIENT
 #  define BOTANIK_FEATURE_MODBUS_RTU_CLIENT 0
 #endif

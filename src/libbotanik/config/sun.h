@@ -35,16 +35,6 @@ namespace Botanik { namespace Config {
 
 } }
 
-/** @name Parameter factory defaults
- *
- *  Not `Config::` constants: the factory values of the `geo_` rows the library
- *  declares in library_vars.h. The live values are variables, so a unit can be
- *  re-sited from the PARAMS page without a build; these are only what a wiped
- *  store comes back as.
- *  @{ */
-
-
-/** @} */
 
 #undef BOTANIK_CFG
 

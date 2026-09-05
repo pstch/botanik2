@@ -66,7 +66,7 @@ diagnostic.
 
 | Check | Why it matters |
 |---|---|
-| Every alarm row the firmware raises (`alarm_system_reset`, `alarm_cpu_load`, `alarm_cpu_jitter`, `alarm_stack`, `alarm_cpu_xrun`, `alarm_flash_error`) resolves in the variable table | The monitor binds these six names once at bring-up. One that resolves to nothing lands on the bank's inert sink, so the fault would be raised into a variable nobody reads. In practice it means a site left `BOTANIK_PLATFORM_ALARM_VARS` out of its `g_vars[]` - which is why POST reports the missing rows by name. |
+| The alarm model fits: `declared_count()` is not above `count()` | The table is generated whole and the generator refuses one that does not fit, so this catches a build whose `ALARM_SLOTS` is below what the site declares. The tail would otherwise be silently dropped. |
 | The logger has at least one registered writer | A logger with no sinks swallows everything, including this very report. |
 
 ### Result

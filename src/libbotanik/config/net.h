@@ -214,20 +214,6 @@ namespace Botanik { namespace Config {
 
 } }
 
-/** @name Parameter factory defaults
- *
- *  Unlike everything above, these are NOT `Config::` constants: they are the
- *  factory values of the `net_` / `ntp_` / `mqtt_` rows the library declares in
- *  library_vars.h, and the live value lives in the variable table where an
- *  operator can edit and persist it. They sit here so a site pins what its
- *  installation ships with (in `sites/<name>/config.h`) without touching the
- *  table.
- *  @{ */
-
-
-
-
-/** @} */
 
 #undef BOTANIK_CFG
 
