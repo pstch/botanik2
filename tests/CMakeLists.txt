@@ -197,6 +197,30 @@ elseif(DEFINED ENV{IEC2C} AND EXISTS "$ENV{IEC2C}")
 else()
     find_program(_iec2c iec2c)
 endif()
+# `regen-site` is check-generated's other half: the same four commands, in the
+# SOURCE tree, so the one thing a contributor must do after editing a table or
+# an ST file is one command rather than four plus an env var. Still not a build
+# step and never in ALL - see cmake/matiec.cmake for why the output is committed
+# rather than produced - this only removes the chance of running three of the
+# four and committing a half-regenerated tree.
+if(_python3 AND _iec2c)
+    add_custom_target(regen-site
+        COMMAND ${CMAKE_COMMAND} -E env IEC2C=${_iec2c} ${CMAKE_COMMAND} -E chdir
+                ${CMAKE_SOURCE_DIR} ${_python3} scripts/tables.py generate ${BOTANIK_SITE}
+        COMMAND ${CMAKE_COMMAND} -E env IEC2C=${_iec2c} ${CMAKE_COMMAND} -E chdir
+                ${CMAKE_SOURCE_DIR} ${_python3} scripts/tables.py config ${BOTANIK_SITE}
+        COMMAND ${CMAKE_COMMAND} -E env IEC2C=${_iec2c} ${CMAKE_COMMAND} -E chdir
+                ${CMAKE_SOURCE_DIR} ${_python3} scripts/tables.py plant ${BOTANIK_SITE}
+        COMMAND ${CMAKE_COMMAND} -E env IEC2C=${_iec2c} ${CMAKE_COMMAND} -E chdir
+                ${CMAKE_SOURCE_DIR} ${_python3} scripts/tables.py points ${BOTANIK_SITE}
+        USES_TERMINAL
+        COMMENT "Regenerating ${BOTANIK_SITE} into the source tree - review the diff"
+        VERBATIM)
+    if(TARGET matiec)
+        add_dependencies(regen-site matiec)
+    endif()
+endif()
+
 set(_gen ${CMAKE_BINARY_DIR}/genchk)
 set(_site src/sites/${BOTANIK_SITE}/generated)
 if(_python3 AND _iec2c)

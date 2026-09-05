@@ -78,6 +78,7 @@ make -C build botanik_tests          # just build the doctest binary
 ctest --test-dir build --output-on-failure          # all CTest entries
 ctest --test-dir build -R pyte --output-on-failure  # just the pyte suite
 make -C build matiec                 # build the pinned matiec (needs flex/bison/autotools)
+make -C build regen-site               # re-run the generator into the source tree, then commit the diff
 ```
 
 **`make check`** fails on the first problem: the library compiles `-Werror`, so building
@@ -435,10 +436,11 @@ function blocks are one file each, `blocks/<name>/<name>.st`.
 Its RS-485 field devices are `tables/modbus_devices.csv` and
 `tables/modbus_models.csv`.
 
-**The generated files are committed and never built.** Run
-`scripts/tables.py generate|config|plant|points [<site>]` after editing a table or
-an ST file, and commit what comes out - `make check-generated` is what catches you
-if you forget.
+**The generated files are committed and never built.** Run `make -C build regen-site`
+after editing a table or an ST file, and commit what comes out. It is the four
+`scripts/tables.py` commands in one, against the PINNED compiler, in the source tree;
+`make check-generated` is what catches you if you forget. Neither is a build step, and
+`cmake/matiec.cmake` says why.
 
 **The generator owns the checks.** It is the one thing that sees the whole table,
 so everything the site test used to assert about it is refused at generate time
