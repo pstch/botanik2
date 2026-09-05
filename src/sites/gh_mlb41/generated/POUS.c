@@ -3884,7 +3884,7 @@ static void INTAKE_GATES_body__(INTAKE_GATES_data__ *data__) {
     __SET_EXTERNAL(data__->,CLI_INTAKECOOLOK,,__GET_VAR(data__->COOL_GATE.Q,));
     __SET_VAR(data__->,GROUND_BAND.IN,, -(__GET_EXTERNAL(data__->CLI_COOLDEM,)));
     __SET_VAR(data__->,GROUND_BAND.RISE,, -(__GET_EXTERNAL(data__->CLI_GROUNDHEATDEM,)));
-    __SET_VAR(data__->,GROUND_BAND.FALL,,( -(__GET_EXTERNAL(data__->CLI_GROUNDHEATDEM,)) + __GET_EXTERNAL(data__->CLI_GROUNDDEMHYST,)));
+    __SET_VAR(data__->,GROUND_BAND.FALL,,( -(__GET_EXTERNAL(data__->CLI_GROUNDHEATDEM,)) - __GET_EXTERNAL(data__->CLI_GROUNDDEMHYST,)));
     BAND_LATCH_body__(&data__->GROUND_BAND);
     __SET_VAR(data__->,ASKING,,__GET_VAR(data__->GROUND_BAND.Q,));
     __SET_VAR(data__->,GROUND_GATE.IN,,(__GET_EXTERNAL(data__->CLI_TEMP_CS,) - __GET_EXTERNAL(data__->CLI_TEMP_IN,)));
@@ -4749,9 +4749,11 @@ static void IRRIGATION_SCHEDULE_body__(IRRIGATION_SCHEDULE_data__ *data__) {
   __SET_VAR(data__->,PICKED,,__BOOL_LITERAL(FALSE));
 
   __SET_EXTERNAL(data__->,IRR_TODAY,,__GET_EXTERNAL(data__->SYS_TODAY,));
-  if (((__GET_EXTERNAL(data__->SYS_TODAY,) != __UDINT_LITERAL(0)) && (__GET_EXTERNAL(data__->SYS_TODAY,) != __GET_VAR(data__->SERVED_DAY,)))) {
+  if (((__GET_EXTERNAL(data__->SYS_TODAY,) != __UDINT_LITERAL(0)) && (__GET_EXTERNAL(data__->SYS_TODAY,) > __GET_VAR(data__->SERVED_DAY,)))) {
     __SET_VAR(data__->,SERVED_DAY,,__GET_EXTERNAL(data__->SYS_TODAY,));
     __SET_EXTERNAL(data__->,IRR_SERVEDTODAY,,__USINT_LITERAL(0));
+  } else if (((__GET_EXTERNAL(data__->SYS_TODAY,) != __UDINT_LITERAL(0)) && (__GET_EXTERNAL(data__->SYS_TODAY,) < __GET_VAR(data__->SERVED_DAY,)))) {
+    __SET_VAR(data__->,SERVED_DAY,,__GET_EXTERNAL(data__->SYS_TODAY,));
   };
   __SET_VAR(data__->,FORCED,,__GET_EXTERNAL(data__->IRR_FORCENOW,));
   if (!(___GOOD(
