@@ -325,8 +325,13 @@ namespace Botanik { namespace Pages {
                 if (sc.listening)
                     snprintf(val, sizeof(val), ":%u, %u client%s", (unsigned)sc.port,
                              (unsigned)sc.clients, sc.clients == 1 ? "" : "s");
+                else if (!sc.enabled)
+                    snprintf(val, sizeof(val), "off");
+                else if (sc.bind_failed)
+                    snprintf(val, sizeof(val), ":%u bind failed (%d)",
+                             (unsigned)sc.port, sc.bind_error);
                 else
-                    snprintf(val, sizeof(val), "not listening");
+                    snprintf(val, sizeof(val), ":%u not listening", (unsigned)sc.port);
             } else {
                 snprintf(val, sizeof(val), "off");
             }

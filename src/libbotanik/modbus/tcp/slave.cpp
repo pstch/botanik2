@@ -38,8 +38,11 @@ namespace Botanik { namespace Modbus {
 
     SlaveContext TcpSlave::context() const {
         SlaveContext c = _ctx;
-        c.listening = (_listener >= 0);
-        c.port      = _port;
+        c.listening   = (_listener >= 0);
+        c.enabled     = _enabled;
+        c.bind_failed = _bind_failed;
+        c.bind_error  = _bind_error;
+        c.port        = _port;
         c.rows      = _map.count();
         c.clients   = 0;
         for (const Conn& k : _conn) if (k.sock >= 0) c.clients++;
@@ -84,17 +87,22 @@ namespace Botanik { namespace Modbus {
         _listener = Net::tcp_listen(_port);
         if (_listener >= 0) {
             _bind_failed = false;
+            _bind_error  = 0;
             if (_logger != nullptr)
                 _logger->info(Logs::NETWORK, "modbus slave on port %u",
                               (unsigned)_port);
             return;
         }
+        // Carries the backend's own code: "cannot bind" alone sends an operator
+        // hunting, and the answer is usually one number away (a port in use, a
+        // privilege, an address the host does not have).
+        _bind_error = Net::last_error();
         // Retried, and reported once per failure: giving up for the life of the
         // firmware would leave healthy() saying yes over a slave that is not
         // there, and logging every attempt would be a line a minute.
         if (!_bind_failed && _logger != nullptr)
-            _logger->error(Logs::NETWORK, "modbus slave cannot bind port %u",
-                           (unsigned)_port);
+            _logger->error(Logs::NETWORK, "modbus slave cannot bind port %u (err %d)",
+                           (unsigned)_port, _bind_error);
         _bind_failed = true;
     }
 

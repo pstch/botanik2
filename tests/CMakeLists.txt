@@ -33,6 +33,7 @@ add_executable(botanik_tests
     test_io_local.cpp
     test_hal_net.cpp
     test_resolver.cpp
+    test_mqtt.cpp
     test_ntp.cpp
     test_pages.cpp
     test_shell.cpp

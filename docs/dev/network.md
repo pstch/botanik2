@@ -87,3 +87,43 @@ giving up the guarantee that nothing leaves the host:
   reaching its own server, already in-process, and diverting it would make the
   one thing the sim can genuinely exercise unreachable. The listening ports are
   tracked beside their fds so closing a listener retires the exemption.
+
+## Backpressure, and why a full socket is not a dead broker
+
+A QoS-0 publisher may lose a message; it may not lose *half* of one. MQTT frames
+back to back on one TCP stream, so the bytes after an unfinished packet are
+unreadable until the rest of it goes out. `tcp_send()` on a non-blocking socket
+answers with either, and `MqttClient` treats the two differently:
+
+- **Nothing written** (would-block, the socket buffer is full). The message is
+  dropped and `publish()` returns false. The session is untouched: a broker
+  reading slowly is not a broker that has gone, and the caller - telemetry, the
+  log writer, the alarm notifier - already treats false as "dropped".
+- **Part written.** The remainder is kept in the client (`_tx`, one packet's
+  worth) and pushed at the top of every following beat, ahead of anything new.
+  A publish that arrives while a tail is pending is dropped rather than queued.
+  A tail that has not moved for `MQTT_TX_STALL_MS` ends the session, because a
+  peer that never drains it leaves the stream unusable.
+
+This is what the fast simulator clock exposes. Under `BOTANIK_SIM_CLOCK=fast`
+the beat rate against real time is whatever the host manages, so the publisher
+and the mock broker meet at rates a plant network never produces; the client
+used to end the session on the first short write and reconnect straight back
+into the same full socket. `tests/test_mqtt.cpp` drives that against a real
+broker socket that is deliberately not read.
+
+The failure has a name. `MqttClient::fault()` records which of the seven ways a
+session ended and `status_str()` reports it in place of "error", so the system
+page says `broker silent` or `send stalled` rather than sending an operator to a
+log that has already scrolled. `TcpSlave` does the same for its listener: the
+status page separates `off` (mb_enable) from `bind failed`, and the bind failure
+carries `HAL::Network::last_error()` - errno on the simulator, an nsapi code on
+the OPTA - because "cannot bind" alone is one number short of the answer.
+
+The simulator's own mock broker (`botanik_sim/network.h`) has the matching
+rules: its reassembly buffer is `MQTT_TX_BUF`, so a whole packet of the largest
+size the publisher can build always fits, and it reads until the socket is empty
+rather than once per beat. A smaller buffer had nothing to do with the packet
+that overran it but drop bytes from the middle of the stream, after which every
+frame boundary is wrong - the PINGREQs stop being recognised, no PINGRESP comes
+back, and the firmware declares a broker that is right here dead.

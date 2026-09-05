@@ -138,6 +138,18 @@ namespace Botanik { namespace Config {
 #endif
     BOTANIK_CFG(uint32_t, MQTT_RETRY_MS);
 
+    /** @brief How long the tail of a half-written packet may sit unsent before
+     *  the link counts as stuck.
+     *
+     *  A broker that stops reading fills the socket buffer, and MQTT 3.1.1 has
+     *  no way to abandon a packet mid-stream: the client either finishes it or
+     *  the session is unusable. Under the keep-alive so a wedged peer is caught
+     *  by whichever notices first. */
+#ifndef BOTANIK_MQTT_TX_STALL_MS
+#  define BOTANIK_MQTT_TX_STALL_MS 10000
+#endif
+    BOTANIK_CFG(uint32_t, MQTT_TX_STALL_MS);
+
     /** @brief Scratch buffer (bytes) MqttClient builds an outgoing packet in.
      *  Bounds the whole PUBLISH: fixed header + topic + payload. A publish that
      *  would exceed it is refused outright, so it must clear MQTT_TOPIC_LEN plus

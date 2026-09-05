@@ -16,6 +16,7 @@
 
 #include <cstdint>
 
+#include "libbotanik/config/net.h"
 #include "libbotanik/hal/net.h"
 #include "libbotanik/network/network.h"
 #include "libbotanik/network/resolver.h"
@@ -69,6 +70,19 @@ namespace Botanik { namespace Network {
             MQTT_READY,       ///< connected; keepalive + publishes
             MQTT_ERROR,       ///< failed; backing off before a retry
         };
+        /** @brief Why the session last ended. Kept across the backoff so the
+         *  status page and the log say which of the six ways it was, rather
+         *  than "lost". */
+        enum Fault : uint8_t {
+            FAULT_NONE = 0,
+            FAULT_NO_BROKER,     ///< mqtt_host empty, or no resolver wired
+            FAULT_DNS,           ///< the broker name did not resolve
+            FAULT_SOCKET,        ///< open/connect refused, or the peer closed
+            FAULT_TIMEOUT,       ///< no TCP connect, or no CONNACK, in time
+            FAULT_REFUSED,       ///< CONNACK carried a non-zero return code
+            FAULT_TX_STALLED,    ///< a half-sent packet the broker never drained
+            FAULT_SILENT,        ///< no PINGRESP within one and a half keepalives
+        };
         /** @brief The broker in force, and whether a fresh one is waiting for
          *  the next SERVICE beat (set_config() has no clock). */
         MqttConfig    _cfg;
@@ -86,6 +100,15 @@ namespace Botanik { namespace Network {
         uint8_t               _connack[4];
         uint8_t               _connack_len;
         uint64_t              _last_pub_ms;    ///< last successful publish (0 = none)
+        /** @brief The tail of a packet the socket took only part of, and when
+         *  it started waiting. MQTT frames back to back on one stream, so a
+         *  partial write cannot be dropped or retried from the top: the rest of
+         *  those bytes is what the broker needs to parse anything after them.
+         *  Empty (_tx_len 0) whenever the stream is at a packet boundary. */
+        uint8_t               _tx[Config::MQTT_TX_BUF];
+        uint16_t              _tx_len;
+        uint64_t              _tx_since_ms;
+        Fault                 _fault;          ///< why the last session ended
         NameResolver*         _resolver;       ///< DNS resolver
         ResolvedAddr          _broker_addr;    ///< resolved broker address
         /// link gate (null = always blocked)
@@ -103,8 +126,20 @@ namespace Botanik { namespace Network {
         /** @brief True when connected and ready to publish. */
         bool connected() const { return _state == MQTT_READY; }
         /** @brief Connection phase as a short display string
-         *  (off/resolving/connecting/handshake/ready/error). */
+         *  (off/resolving/connecting/handshake/ready). In MQTT_ERROR it is
+         *  fault_str(), because "error" on its own sends an operator to read a
+         *  log that has already scrolled. */
         const char* status_str() const;
+        /** @brief Why the last session ended, as a short display string;
+         *  "none" before the first failure. */
+        const char* fault_str() const;
+        /** @brief Why the last session ended. FAULT_NONE until one does. */
+        Fault fault() const { return _fault; }
+        /** @brief The TASKS verdict: connected or switched off is HEALTHY,
+         *  on the way up is DEGRADED, backing off after a failure is FAULTED.
+         *  @note healthy() stays true throughout - a broker is not the plant,
+         *  and this must not become a second alarm for one cause. */
+        Plc::Health verdict() const override;
         /** @brief Resolved broker IPv4 the socket is using; meaningful while
          *  connected(). */
         ResolvedAddr peer_addr() const { return _broker_addr; }
@@ -119,7 +154,10 @@ namespace Botanik { namespace Network {
         uint64_t last_publish_ms() const { return _last_pub_ms; }
         /** @brief Publish a QoS-0 message now if connected; returns false
          *  otherwise (the caller may drop or retry later). @p retain sets the
-         *  MQTT retain flag. */
+         *  MQTT retain flag.
+         *  @note A socket with no room for the whole packet answers false and
+         *  leaves the session alone: QoS 0 is allowed to lose a message, and a
+         *  broker reading slowly is not a broker that has gone. */
         bool publish(const char* topic, const char* payload, bool retain);
         /** @brief Alarms::Publisher: publish non-retained (QoS 0). */
         bool publish(const char* topic, const char* payload) override {
@@ -134,11 +172,18 @@ namespace Botanik { namespace Network {
          *  @{ */
         void _enter(State s, uint64_t now_ms);
         /// close the socket and back off (-> ERROR)
-        void _fail(uint64_t now_ms);
+        void _fail(uint64_t now_ms, Fault why);
         /// open + start a non-blocking TCP connect
         bool _tcp_begin();
         int  _tcp_poll();                ///< 1 connected, 0 waiting, -1 failed
-        bool _send_connect();            ///< send the MQTT CONNECT packet
+        /** @brief Put one whole packet on the wire, keeping any tail the socket
+         *  would not take. False means nothing was written and the packet is
+         *  the caller's to drop; the session is untouched either way. */
+        bool _send_packet(const uint8_t* buf, int len, uint64_t now_ms);
+        /** @brief Push what is left of a half-written packet. -1 when the
+         *  socket died, 0 while a tail remains, 1 at a packet boundary. */
+        int  _flush_tx(uint64_t now_ms);
+        bool _send_connect(uint64_t now_ms);   ///< send the MQTT CONNECT packet
         int  _poll_connack();            ///< 1 accepted, 0 waiting, -1 failed
         /// READY: keepalive ping + drain/health-check
         void _service(uint64_t now_ms);
