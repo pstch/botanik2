@@ -104,6 +104,11 @@ namespace Botanik {
         // Bind each component's config to the rows behind it, now every one of
         // them exists. Pushed at PHASE_CONFIG, and once at bring-up.
 #if BOTANIK_FEATURE_VARS
+#if BOTANIK_FEATURE_LOGGING
+        // Every sink's own level row. Without this the five *_log_level rows
+        // commit and persist and each writer keeps what it was constructed with.
+        Vars::bind_logger(_binder, _logger);
+#endif
 #if BOTANIK_FEATURE_SUN_TRACKER
         Vars::bind_sun(_binder, _sun);
 #endif

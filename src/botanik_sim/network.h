@@ -31,6 +31,7 @@
 #include <sys/socket.h>
 #include <unistd.h>
 
+#include "libbotanik/config/net.h"
 #include "libbotanik/config/scheduler.h"
 
 #include "libbotanik/hal/net.h"
@@ -121,7 +122,10 @@ namespace Botanik { namespace Network {
          *  buffering lets us trace and answer each whole packet. */
         struct MqttConn {
             int      fd  = -1;
-            uint8_t  buf[256];
+            // At least the firmware's own TX buffer: mqtt_log.h sizes that so
+            // a full log line under the longest topic fits, and a mock that
+            // cannot hold one drops traffic a real broker would take.
+            uint8_t  buf[Botanik::Config::MQTT_TX_BUF];
             uint16_t len = 0;
         };
 
@@ -239,14 +243,18 @@ namespace Botanik { namespace Network {
     inline void start_mock_netd() {
         _netd_fds()[0] = detail::netd_bind(HAL::Network::NTP_MOCK_PORT,  /*dgram=*/true);
         _netd_fds()[1] = detail::netd_bind(HAL::Network::MQTT_MOCK_PORT, /*dgram=*/false);
-        if (_netd_fds()[0] < 0 && _netd_fds()[1] < 0) {
-            // stderr, like the mock broker and the self-check: the harness
-            // failing to start is a fact about this host, not the greenhouse,
-            // and must not reach the LOGS page or MQTT.
-            fprintf(stderr, "[mock-netd] failed to bind\n");
-            fflush(stderr);
-            return;
+        // Named per endpoint: half a netd is what leaves one client stuck
+        // with nothing to explain it, so a single failed bind says which.
+        // stderr, like the mock broker and the self-check: the harness failing
+        // to start is a fact about this host, not the greenhouse, and must not
+        // reach the LOGS page or MQTT.
+        if (_netd_fds()[0] < 0) {
+            fprintf(stderr, "[mock-netd] NTP failed to bind\n"); fflush(stderr);
         }
+        if (_netd_fds()[1] < 0) {
+            fprintf(stderr, "[mock-netd] MQTT failed to bind\n"); fflush(stderr);
+        }
+        if (_netd_fds()[0] < 0 && _netd_fds()[1] < 0) return;
         _netd_running() = true;
         HAL::System::on_reset(&stop_mock_netd);
     }

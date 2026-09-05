@@ -285,8 +285,9 @@ namespace Botanik { namespace Pages {
         if (!_dirty && now - _last_refresh_ms < Config::PAGE_HOT_MS) return;
         _last_refresh_ms = now;
         _dirty = false;
-        uint16_t window = _window();
-        if (window == 0) return;
+        // No early return on a zero window: the siblings on this base draw
+        // their chrome and loop zero times, and a blank screen says nothing.
+        const uint16_t window = _window();
         // Rebuild the view set, re-clamp the window, redraw the whole table
         // immediate-mode: the terminal's diff pares it (@ref dev_screen).
         _collect();

@@ -94,6 +94,7 @@ namespace Botanik { namespace Sim {
                 const Vars::Var v = _io->var(_io->find(ROW_NAME));
                 if (v.meta().name == nullptr || v.meta().bind.reg == 0) {
                     _report("skipped", "'%s' has no register", ROW_NAME);
+                    _ok   = false;   // skipped is not passed
                     _step = MC_DONE;
                     return;
                 }

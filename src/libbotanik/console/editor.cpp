@@ -47,6 +47,9 @@ namespace Botanik { namespace Terminal {
     }
 
     void TextEditor::redraw() {
+        // Width first: console_cols is a parameter, so a redraw may be the
+        // first thing to run at a new geometry and the row breaks are stale.
+        _rebuild_layout();
         _place_rows();          // a page switch handed the band back; reclaim it
         _paint_view();
         _place_cursor(_map_cursor_pos(_pos));

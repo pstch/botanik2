@@ -546,10 +546,14 @@ void RtuMaster::_settle(uint64_t now_ms) {
         // doubling, while the device keeps its place in the rotation.
         uint32_t wait = 0;
         if (!is_read(b.fc)) {
+            // Capped BEFORE the doubling, as _missed() is: an unbanded
+            // override can set a floor high enough that `wait *= 2` wraps.
             wait = _write_min_ms();
-            for (uint8_t i = 0; i < b.refusals && wait < Config::MODBUS_REFUSAL_MAX_MS; ++i)
-                wait *= 2;
             if (wait > Config::MODBUS_REFUSAL_MAX_MS) wait = Config::MODBUS_REFUSAL_MAX_MS;
+            for (uint8_t i = 0; i < b.refusals && wait < Config::MODBUS_REFUSAL_MAX_MS; ++i) {
+                wait *= 2;
+                if (wait > Config::MODBUS_REFUSAL_MAX_MS) wait = Config::MODBUS_REFUSAL_MAX_MS;
+            }
             b.due_ms = now_ms + wait;
             if (b.refusals < 255) b.refusals++;
         }

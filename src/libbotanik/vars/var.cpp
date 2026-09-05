@@ -255,7 +255,10 @@ namespace Botanik { namespace Vars {
     }  // namespace
 
     void Var::override_set(Scalar v) const {
-        if (null()) return;
+        // A T_STR's live text lives in the pool, not the slot, so there is
+        // nothing for an override to shadow - the same refusal the text
+        // overload makes, here because the shell's no-value path lands here.
+        if (null() || meta().type == T_STR) return;
         // Before the write, so the line carries what the row read BEFORE the
         // force: an override that changes nothing still has to be accountable,
         // and the value it displaced is the half nothing else records.

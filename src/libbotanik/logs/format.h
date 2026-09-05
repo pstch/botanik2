@@ -48,6 +48,13 @@ namespace Botanik { namespace Logs {
         { "QUALITY",     "quality"     },
     };
 
+    // An under-filled table is silent in C++: the missing rows read back null
+    // and format_log_entry() dereferences one. Adding a LogTopic without its
+    // row is a compile error, not a crash on the first line it carries.
+    static_assert(sizeof(TOPIC_NAMES) / sizeof(TOPIC_NAMES[0])
+                      == Logs::LOG_TOPIC_COUNT,
+                  "TOPIC_NAMES has one row per LogTopic");
+
     /** @brief Format a log topic into its actual name. */
     inline const char* format_log_topic(Logs::LogTopic topic) {
         return topic < Logs::LOG_TOPIC_COUNT ? TOPIC_NAMES[topic][0] : "";
