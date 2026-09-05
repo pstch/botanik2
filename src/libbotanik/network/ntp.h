@@ -124,6 +124,14 @@ namespace Botanik { namespace Network {
         /** @brief Healthy while a valid time sync is held. */
         bool healthy() const override { return _sync_held; }
 
+        /** @brief The TASKS verdict: synced is HEALTHY, free-running with
+         *  nobody disciplining the clock is not a fault (late() is what says
+         *  it is), and everything else is a clock running on its own. */
+        Plc::Health verdict() const override {
+            if (_sync_held) return Plc::Health::HEALTHY;
+            return late() ? Plc::Health::FAULTED : Plc::Health::HEALTHY;
+        }
+
         /** @brief The clock is free-running AND somebody is meant to be
          *  disciplining it: the alarm condition. A client nobody enabled is not
          *  late, it is off. */

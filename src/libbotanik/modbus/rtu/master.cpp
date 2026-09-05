@@ -620,6 +620,13 @@ bool RtuMaster::healthy() const {
     return _txns > 0 && _dead == 0;
 }
 
+Plc::Health RtuMaster::verdict() const {
+    if (healthy()) return Plc::Health::HEALTHY;
+    // Nothing has answered at all: the segment, not one box on it.
+    if (_txns == 0 || _dead >= _plan.device_count()) return Plc::Health::FAULTED;
+    return Plc::Health::DEGRADED;
+}
+
 const char* RtuMaster::status_str() const {
     if (_plan.block_count() == 0) return "idle";
     if (_txns == 0)               return "silent";

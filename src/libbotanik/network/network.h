@@ -91,6 +91,14 @@ namespace Botanik { namespace Network {
         /** @brief Healthy while the link is up. */
         bool healthy() const override { return is_up(); }
 
+        /** @brief The TASKS verdict: up is HEALTHY, a failed bring-up is
+         *  FAULTED, and coming up is neither. */
+        Plc::Health verdict() const override {
+            if (is_up())   return Plc::Health::HEALTHY;
+            if (failed())  return Plc::Health::FAULTED;
+            return Plc::Health::DEGRADED;
+        }
+
         /** @brief Bring-up FAILED, or the link was lost: the alarm condition,
          *  which is not the same as "not up". Coming up is not a fault and
          *  neither is being switched off, and SETUP times out into this. */

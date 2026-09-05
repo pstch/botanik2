@@ -24,12 +24,15 @@
  * the site's control programs first, then the library's `sys_` tasks, each block
  * by name - the beat's own order is phase-major, and the PHASE column still
  * carries it, but finding one task by eye beats reading the cycle here.
- * Typing narrows the table to the tasks whose name holds what was typed.
+ * Typing narrows the table to the tasks whose name holds what was typed, and
+ * LEFT/RIGHT step a view: every task, or only the ones reading one HEALTH code.
  *
- * HEALTH is a control program's own verdict on its last activation
- * (Plc::Health), blank on an entry that is not a program - most of the table.
- * The panel carries the period instead: a rate is a declaration and does not
- * move, while this is the column worth running an eye down beside MISSED.
+ * HEALTH is one vocabulary for both kinds of entry (Plc::Health): a control
+ * program's verdict on its last activation, and a component's on itself
+ * (Component::verdict(), which defaults to the two ends of healthy()). Blank
+ * only on a program that did not opt in. The panel carries the period instead:
+ * a rate is a declaration and does not move, while this is the column worth
+ * running an eye down beside MISSED.
  *
  * MEAN is microseconds measured by the registry around each dispatch, and says
  * whether a task is affordable. MISSED takes the column beside it rather than
@@ -48,6 +51,7 @@
 #include "libbotanik/console/terminal.h"
 #include "libbotanik/pages/page.h"
 #include "libbotanik/pages/scroll_table.h"
+#include "libbotanik/plc/health.h"
 #include "libbotanik/tasks/tasks.h"
 #include "libbotanik/utils/text.h"
 
@@ -89,6 +93,40 @@ namespace Botanik { namespace Pages {
         enum { C_NAME = 0, C_PERIOD, C_HEALTH, C_PHASE, C_MEAN, C_MISSED };
         /** @} */
 
+        /** @name Views
+         *  The base's view-mode machinery (scroll_table.h): RIGHT steps
+         *  forward, LEFT back. One narrow view per HEALTH code, selecting on
+         *  exactly what the column shows, so the badge and the column cannot
+         *  say different things. An entry with no verdict - a control program
+         *  that did not opt in - appears under ALL alone.
+         *  @{ */
+        static constexpr uint8_t MODE_ALL      = 0;
+        static constexpr uint8_t MODE_HEALTHY  = 1;
+        static constexpr uint8_t MODE_DEGRADED = 2;
+        static constexpr uint8_t MODE_FAULTED  = 3;
+        static constexpr uint8_t MODE_COUNT    = 4;
+
+        uint8_t _mode_count() const override { return MODE_COUNT; }
+        const char* _mode_label(uint8_t i) const override;
+        /** @brief A view keeps a different set, and the row order was built for
+         *  the old one. */
+        void _on_mode_changed() override { _order_gen = 0; _dirty = true; }
+        /** @brief The health a view selects on. Only meaningful past MODE_ALL. */
+        static Plc::Health _mode_health(uint8_t m) {
+            return (m == MODE_HEALTHY)  ? Plc::Health::HEALTHY
+                 : (m == MODE_DEGRADED) ? Plc::Health::DEGRADED
+                                        : Plc::Health::FAULTED;
+        }
+        /** @brief Whether task @p i belongs in the view now showing. A verdict
+         *  moves with no keypress behind it, which is why the order is rebuilt
+         *  every refresh in a narrow view. */
+        bool _in_mode(uint8_t i) const {
+            if (_mode == MODE_ALL) return true;
+            const Plc::Health* h = _reg.task(i).health;
+            return h != nullptr && *h == _mode_health(_mode);
+        }
+        /** @} */
+
         /** @name State
          *  @{ */
         /** @brief Borrowed; the firmware owns it and it outlives the page. */
@@ -120,6 +158,7 @@ namespace Botanik { namespace Pages {
          *  @{ */
         void handle_command(Command cmd, uint16_t count = 1) override {
             if (_filter_command(cmd)) { _dirty = true; return; }
+            if (_mode_command(cmd)) return;         // LEFT/RIGHT change the view
             if (_nav_command(cmd)) { _dirty = true; return; }
             (void)count;
         }

@@ -17,6 +17,7 @@
 #include <cstdint>
 
 #include "libbotanik/core/setup.h"
+#include "libbotanik/plc/health.h"
 #include "libbotanik/tasks/phase.h"
 
 // Forward-declared, NOT included: `logs/` sits below this in the tree (a refused
@@ -45,6 +46,10 @@ namespace Botanik {
         bool          _started = false;   ///< first-step latch (setup + announce)
 
         /** @} */
+
+    private:
+        /** @brief The verdict a task entry points at. @see sample_verdict() */
+        Plc::Health   _health = Plc::Health::HEALTHY;
 
     public:
         /** @name Lifecycle
@@ -93,6 +98,7 @@ namespace Botanik {
                 case Tasks::PHASE_PRESENT: on_present(now_ms); break;
                 default: break;
             }
+            sample_verdict();       // after the work, so it describes this run
         }
 
         /** @brief Step every phase hook for @p now_ms, in beat order. */
@@ -104,6 +110,28 @@ namespace Botanik {
         /** @brief Liveness query polled by reporting. Default true; a component
          *  overrides it where it has a real signal. */
         virtual bool healthy() const { return true; }
+
+        /** @brief This component's verdict on itself, in the vocabulary a
+         *  control program writes: one HEALTH column on the TASKS page covers
+         *  both kinds of entry, and one filter narrows it.
+         *
+         *  Default: the two ends of healthy(), so a component that already has
+         *  a liveness signal reports without doing anything. Override where
+         *  there is a middle - serving on evidence it does not fully trust, or
+         *  degraded but still answering.
+         *  @note Not called health(): several components already own that name
+         *  for something else, and a hidden virtual is a silent one. */
+        virtual Plc::Health verdict() const {
+            return healthy() ? Plc::Health::HEALTHY : Plc::Health::FAULTED;
+        }
+
+        /** @brief Take verdict() into the slot below, which is what a task
+         *  entry points at. The registry calls it around each dispatch: a Task
+         *  holds a POINTER because an ST program's verdict lives in a bank row,
+         *  and the page asking "how is this task" must not know which it has. */
+        void sample_verdict() { _health = verdict(); }
+        /** @brief Where this component's verdict lives; stable for its life. */
+        const Plc::Health* verdict_slot() const { return &_health; }
 
         /** @} */
 
