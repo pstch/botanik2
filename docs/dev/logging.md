@@ -107,3 +107,29 @@ A formatted line is `TIMESTAMP LEVEL TOPIC MESSAGE` (see
 @ref Botanik::Logs::format_log_entry). Levels render as short glyphs (`[-]`
 info, `[!]` warning, `[*]` error, `[@]` critical, ...) and each topic prints as
 its display label (see @ref Botanik::Logs::TOPIC_NAMES).
+
+### Writing a message that fits
+
+The message column starts at `28 + strlen(topic)`, so at 80 columns a first
+line has 42 to 53 columns depending on the topic, while a wrapped continuation
+row has 54. A continuation row is therefore WIDER than any first line, which is
+what makes lead-plus-detail work.
+
+**Keep the first line at or under 40 characters** - below every topic's budget,
+so a line survives a topic being renamed - and put the rest after an explicit
+`\n`. The lead is what an operator scans for; a number an engineer goes looking
+for belongs whole on line 2, where no fold can split it. A variable-width `%s`
+goes on line 1 only if the fixed text around it leaves room for its worst case.
+
+There is no constant for the 40: the console width is a parameter, the console
+is resizable at runtime, and nothing can consult a constant from inside a string
+literal.
+
+`LOG_CONT_PREFIX` sits under the TOPIC column rather than under the message,
+because `store_wrapped()` takes one prefix per entry while the message column is
+topic-dependent. Widening it would cut the continuation budget.
+
+The `Logger` is not a `Component`. It would have to be constructed with the
+table it registers in, and it passes itself as its own logger - a self-reference
+nothing else needs. It also sits below everything: `vars/` reports a refused
+write through one. The firmware registers its refill instead.

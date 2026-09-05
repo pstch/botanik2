@@ -41,7 +41,7 @@ namespace Botanik { namespace HAL { namespace Storage {
 }}}  // namespace Botanik::HAL::Storage
 
 #ifdef TARGET_OPTA
-// ---- OPTA: the Mbed global KV store ------------------------------------------
+// OPTA: the Mbed global KV store
 // kv_set/kv_get/kv_remove resolve to the configured default kvstore, a TDBStore
 // over BlockDevice::get_default_instance() - the external QSPI NOR here. See
 // storage.h, including its @warning about where Mbed places the region.
@@ -98,7 +98,7 @@ namespace Botanik { namespace HAL { namespace Storage {
 }}}  // namespace Botanik::HAL::Storage
 
 #else
-// ---- Simulator: one external file, "key=hex" one record per line ------------
+// Simulator: one external file, "key=hex" one record per line
 // A single file emulates the OPTA's KV store (one flash region holding every
 // key). It lives at a stable path so config persists across sim runs, like the
 // real NVM; override with $BOTANIK_CONFIG_STORE (used by tests). Values are hex

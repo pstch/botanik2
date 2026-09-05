@@ -20,13 +20,11 @@ namespace Botanik { namespace Modbus {
      * @brief Accumulates one response, decides when it is complete, and parses
      * it.
      *
-     * One transaction at a time, which is not a simplification: RTU is
-     * half-duplex and strictly request/response, so there is never a second
-     * frame in flight to accumulate.
+     * One transaction at a time: RTU is half-duplex and strictly
+     * request/response, so there is never a second frame in flight.
      *
-     * The usual cycle is arm() once when the request goes out, feed() whatever
-     * bytes turned up on each beat, poll() to ask whether it is done, then
-     * disarm() before the next transaction.
+     * The cycle is arm() when the request goes out, feed() whatever bytes
+     * turned up each beat, poll() for done, disarm() before the next.
      */
     class RtuFramer {
 

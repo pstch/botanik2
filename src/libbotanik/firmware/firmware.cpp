@@ -365,7 +365,7 @@ namespace Botanik {
     void BotanikFirmware::_register_tasks() {
         using namespace Tasks;
 
-        // --- INPUT: fresh bytes and fresh field, before anything reads ---
+        // INPUT: fresh bytes and fresh field, before anything reads
 #if BOTANIK_FEATURE_VARS
         // The controller's own terminals, before the bus: both fill rows the
         // programs read this beat, and this one cannot fail or block.
@@ -391,11 +391,11 @@ namespace Botanik {
         // that has run, and a companion copied before it would be a beat stale
         // on exactly the transition that matters.
 
-        // --- CONFIG: a commit reaches its component ---
+        // CONFIG: a commit reaches its component
         _binder.register_tasks();
 #endif
 
-        // --- SERVICE: supervision and the background state machines ---
+        // SERVICE: supervision and the background state machines
 #if BOTANIK_FEATURE_SUN_TRACKER
         // A slow recompute of its own, not something a control phase does: the
         // programs that read it just read rows.
@@ -409,16 +409,16 @@ namespace Botanik {
         _net.register_tasks();   // network, ntp, mqtt, telemetry
 #endif
 
-        // --- CONTROL: the site's laws ---
+        // CONTROL: the site's laws
 #if BOTANIK_FEATURE_PLC
         // Every one of them, in the order tables/programs.csv states.
         _st.register_tasks();
 #endif
 
-        // --- OUTPUT: what the programs drove goes to the field ---
+        // OUTPUT: what the programs drove goes to the field
         // The RTU master's other half, registered with its INPUT one above.
 
-        // --- PRESENT: report what just happened ---
+        // PRESENT: report what just happened
 #if BOTANIK_FEATURE_LOGGING
         // No task for the logger: its buckets refill from elapsed time at the
         // moment they are read (Logger::_emit).

@@ -24,12 +24,10 @@ namespace Botanik { namespace Config {
     /** @brief Sockets HAL::Network keeps, per kind - a hard ceiling on the
      *  OPTA, where they are a fixed table of Mbed socket objects.
      *
-     *  The TCP budget is the one that has to be counted rather than guessed,
-     *  because the SERVER is the largest consumer and is easy to forget: the
-     *  Modbus slave holds a listener for the life of the boot AND one slot per
-     *  accepted connection, then MQTT takes one and the TCP master one. The
-     *  count is asserted at the composition root, which is the only place that
-     *  knows which of those a build actually has (@ref firmware/firmware.h).
+     *  Count the TCP budget: the Modbus slave holds a listener for the life of
+     *  the boot AND one slot per accepted connection, then MQTT takes one and
+     *  the TCP master one. Asserted at the composition root, the only place
+     *  that knows which a build has.
      *  @note Running out is not loud: an accepted connection that finds no slot
      *  is indistinguishable from no connection pending. */
 #ifndef BOTANIK_NET_MAX_UDP

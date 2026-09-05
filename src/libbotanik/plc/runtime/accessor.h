@@ -50,10 +50,8 @@
  *  one with equal values - matiec initialises a QUALITY-returning function with
  *  `QUALITY__Q_NONE`, and a separate enum would not convert.
  *
- *  So the members are named constants of the real type and matiec's own list is
- *  discarded. Both blocks are GENERATED from the headers that declare the enums,
- *  so the sides cannot drift. A site's own enumerated type gets its block from
- *  `enums.gen.h` the same way.
+ *  So the members are named constants of the real type, GENERATED from the
+ *  headers that declare the enums. @see @ref dev_st_enums
  *  @{ */
 typedef ::Botanik::Vars::Quality QUALITY;
 typedef ::Botanik::Plc::Health   HEALTH;
@@ -96,16 +94,12 @@ namespace Botanik { namespace Vars {
 
 /** @name VAR_EXTERNAL - the path that generates bind()
  *
- *  A POU declaring `VAR_EXTERNAL` reads and writes the global DIRECTLY:
- *  matiec emits no copy in or out, and the resource body is one call. The
- *  formal-parameter connection list does not work here - it emits a raw `=`
- *  between a value and matiec's own `{value, flags}` struct, which does not
- *  compile against matiec's own runtime either.
+ *  A POU declaring `VAR_EXTERNAL` reads and writes the global DIRECTLY: matiec
+ *  emits no copy in or out, and the resource body is one call.
  *
- *  `__INIT_EXTERNAL` is the whole of `bind()`: one generated INDEX per row.
- *  IEC is case-insensitive and matiec upper-cases every identifier, so the
- *  index is `ROW_<NAME>`, which plant.cpp defines from the table. A name no
- *  table declares fails to COMPILE.
+ *  `__INIT_EXTERNAL` is the whole of `bind()`: one generated `ROW_<NAME>` index
+ *  per row, so a name no table declares fails to COMPILE.
+ *  @see @ref dev_st_boundary
  *  @{ */
 
 #define __DECLARE_EXTERNAL(type, name) \

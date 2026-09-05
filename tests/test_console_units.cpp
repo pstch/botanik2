@@ -24,7 +24,7 @@ using namespace Botanik;
 
 #if BOTANIK_FEATURE_CONSOLE
 
-// --- LineBuffer ------------------------------------------------------------
+// LineBuffer
 
 typedef Pages::LineBuffer<4, 16> Buf4x16;
 
@@ -128,7 +128,7 @@ TEST_CASE("line buffer: a prefix wider than the segment does not underflow") {
     }
 }
 
-// --- Scrollback ------------------------------------------------------------
+// Scrollback
 
 /** @brief A Scrollback with a terminal under it, since every navigation call
  *  paints as it moves. */
@@ -208,7 +208,7 @@ TEST_CASE("scrollback: clear forgets the lines and releases the scroll") {
     CHECK_FALSE(f.scroll(true));            // nothing left to scroll into
 }
 
-// --- ScrollTablePage -------------------------------------------------------
+// ScrollTablePage
 
 /** @brief The base with a row count and nothing else, so the navigation is
  *  answered for without a model, a bank or a real table's drawing. */
@@ -400,7 +400,7 @@ TEST_CASE("alarms: a view that empties under a stationary cursor lets go") {
 #endif
 
 
-// --- AnsiTerminal -----------------------------------------------------------
+// AnsiTerminal
 
 /** @brief A terminal on a pipe, with the grid readable and the wire capturable. */
 struct TermFixture {

@@ -17,24 +17,10 @@
 
 namespace Botanik { namespace Io {
 
-    /**
-     * @brief Publishes every local input row from the PLC's own terminals.
+    /** @brief Publishes every local input row from the PLC's own terminals.
      *
-     * What the RTU client is to the field bus, this is to the wiring that lands
-     * on the controller: a program reads a contact by NAME, and nothing above
-     * it knows which side of the boundary the bit came from. Active-low wiring
-     * is folded in here, so a row reads true = asserted whatever the contact
-     * does.
-     *
-     * The rows are found once, at bring-up, by walking the table for
-     * `Vars::local()` - a `K_INPUT` row whose device is 0, which is the whole
-     * of what makes it ours. There is no channel table to keep in step with
-     * the variable table, because the variable table IS it. A `B_PULSE` row is
-     * not polled as a level - the level of a pulse line is a moment of a train
-     * and not a reading of anything. It IS the counter: attached once here,
-     * and its running total published every beat. There is no pulse table
-     * either, for the same reason there is no channel table.
-     */
+     *  `F_INVERT` is folded in here, so a row reads true = asserted whatever
+     *  the contact does. @see @ref dev_io */
     class LocalInputs : public Component {
 
         /** @name Wiring

@@ -43,13 +43,10 @@ namespace Botanik { namespace Config {
 #endif
     BOTANIK_CFG(uint32_t, SCAN_LATE_MS);
 
-    /** @brief How long after boot the control programs are held, in ms.
-     *
-     *  DEFENCE IN DEPTH. A program that runs before the field has answered
-     *  reads every row's DECLARED value, and the damage is not the wrong
-     *  output for one beat - it is that a momentary bring-up condition gets
-     *  latched by something that outlives it. That has cost two bugs: a rot
-     *  lockout held for five minutes, and a zone quorum alarm on every boot.
+    /** @brief How long after boot the control programs are held, in ms. A
+     *  program running before the field has answered reads every row's
+     *  DECLARED value, and a momentary bring-up condition then gets latched by
+     *  something that outlives it.
      *
      *  The operator's knob is `sys_startup_sec`; this is the floor a build
      *  with no variable table falls back to. Five seconds is about one RS-485

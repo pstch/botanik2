@@ -33,7 +33,7 @@ namespace Botanik { namespace Vars {
         return g_none;
     }
 
-    // ---- Quality --------------------------------------------------------------
+    // Quality
 
     Quality Var::quality() const {
         if (null()) return Q_NONE;
@@ -52,7 +52,7 @@ namespace Botanik { namespace Vars {
         s.flags = (uint8_t)(s.flags | S_WRITTEN);
     }
 
-    // ---- Bounds ---------------------------------------------------------------
+    // Bounds
 
     Scalar Var::_tunable(Scalar fixed, uint16_t row) const {
         if (row == VAR_NONE || _b == nullptr) return fixed;
@@ -98,7 +98,7 @@ namespace Botanik { namespace Vars {
         return b.set() && !in_range(d.type, v, b.lo, b.hi);
     }
 
-    // ---- Reading --------------------------------------------------------------
+    // Reading
 
     Value Var::wire() const {
         const Descriptor& d = meta();
@@ -129,7 +129,7 @@ namespace Botanik { namespace Vars {
         return _b->pool() + off;
     }
 
-    // ---- Driver writes --------------------------------------------------------
+    // Driver writes
 
     void Var::publish(Scalar v, uint64_t now_ms) const {
         Slot& s = _s();
@@ -160,7 +160,7 @@ namespace Botanik { namespace Vars {
         set_quality((a.degenerate() || !a.plausible(eng)) ? Q_NONE : Q_GOOD);
     }
 
-    // ---- Parameter edits ------------------------------------------------------
+    // Parameter edits
 
     SetResult Var::param_check(Scalar v) const {
         const Descriptor& d = meta();
@@ -242,7 +242,7 @@ namespace Botanik { namespace Vars {
         _set(S_PARAM_OWED);
     }
 
-    // ---- Overrides ------------------------------------------------------------
+    // Overrides
 
     namespace {
         /** @brief Force @p h's slot, with no audit line and no companion: the

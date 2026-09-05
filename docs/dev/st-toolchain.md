@@ -19,7 +19,7 @@ state.
 | the compiler | `vendor/matiec/`, pinned - see its `UPSTREAM` |
 | the CMake targets | `cmake/matiec.cmake`, `cmake/matiec-build.cmake` |
 
-## The boundary
+## The boundary {#dev_st_boundary}
 
 **matiec generates the POU BODIES. The variable descriptor tables stay ours.**
 

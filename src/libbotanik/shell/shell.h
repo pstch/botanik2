@@ -185,16 +185,12 @@ namespace Botanik { namespace Shell {
         /** @brief One built-in: name, the one line `help` prints, the full verb
          *  list, and the handler.
          *
-         *  A non-null @c usage marks a NOUN - a command whose work is spelled by
-         *  a verb after it. `help` then prints only @c help for it, and
-         *  _dispatch() answers a bare `<noun>` or `<noun> help` with @c usage
-         *  rather than calling the handler: one screen of commands, and the
-         *  detail one word away. A command with no verbs leaves it null and
-         *  behaves as it always did.
+         *  A non-null @c usage marks a NOUN: `_dispatch()` answers a bare
+         *  `<noun>` or `<noun> help` with it rather than calling the handler.
+         *  Null for a command with no verbs.
          *
-         *  @c group is the key of the HelpGroup the command belongs to, which
-         *  is what `help <group>` filters on. Carried per row rather than as a
-         *  span, so reordering the table cannot put a row in the wrong group. */
+         *  @c group keys the HelpGroup `help <group>` filters on. Per row, so
+         *  reordering the table cannot put a row in the wrong group. */
         struct Builtin {
             const char* name;
             /** @brief Compact argument spelling for a one-line listing; null

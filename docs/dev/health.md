@@ -26,6 +26,18 @@ the storage fault counter. They are appended **after** the site's conditions, so
 alarms always fill from index 0. See @ref user_alarms for what each means
 operationally.
 
+**The thresholds are parameters, not constants.** What counts as too much load,
+jitter or stack usage is a property of the installation, and the number an
+engineer wants to move is the one a unit is nuisance-alarming on at 3am, over a
+terminal, with no toolchain. `Config::ALARM_*_PCT` are the factory defaults
+behind the rows.
+
+`HealthMonitor` reads each one live off its bound row every beat rather than
+caching it on a commit serial: it is one indexed load against a comparison that
+was already happening, and there is nothing to re-initialise when the operator
+moves it. A build that binds nothing reads the bank's inert sink, and `_pct()`
+falls back to the `Config` value.
+
 ## Power-on self-test (POST)
 
 The **POST** is a small, fast self-test `Health::HealthMonitor` runs once on the

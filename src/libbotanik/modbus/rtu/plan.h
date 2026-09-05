@@ -177,14 +177,11 @@ namespace Botanik { namespace Modbus {
     /**
      * @brief Turns the variable table into blocks, once, at bring-up.
      *
-     * Nothing here talks to a bus, a clock or a serial port; it reads a
-     * Vars::Bank and produces an array. The plan is DERIVED, so there is no
-     * second copy of the register map to keep in step and inserting a row
-     * re-plans rather than renumbering anything.
+     * Nothing here talks to a bus, a clock or a serial port. The plan is
+     * DERIVED, so inserting a row re-plans rather than renumbering anything.
      *
-     * Overflow is counted, not logged (this layer has no logger). The owner
-     * reports rows_dropped() and rows_unscanned() at bring-up; both are zero on
-     * a sane table, and neither is allowed to be silent.
+     * Overflow is counted, not logged (this layer has no logger): the owner
+     * reports rows_dropped() and rows_unscanned() at bring-up.
      */
     class Planner {
 

@@ -232,20 +232,9 @@ namespace Botanik { namespace HAL {
 
     }  // namespace Watchdog
 
-    /** @brief The controller's own terminals, by NAME.
-     *
-     *  A site's tables name a local pin with one of these labels rather than a
-     *  number, and the generator emits the constant. The VALUES are ours, not
-     *  the board's: `Arduino.h` reaches exactly one translation unit
-     *  (`hal/inputs.cpp`, under TARGET_OPTA) because it `#define`s `Serial`,
-     *  which collides with HAL::Serial - so a table compiled for both targets
-     *  cannot say `RELAY1` and mean the core's. The BACKEND maps these to
-     *  whatever the board calls them.
-     *
-     *  One flat space across inputs and outputs, so a label identifies a
-     *  terminal whatever a row does with it. IN1..IN8 keep the values the
-     *  input channels already had, so a table that names them by number still
-     *  means what it meant.
+    /** @brief The controller's own terminals, by NAME. ONE flat space across
+     *  inputs and outputs, and the values are OURS rather than the core's.
+     *  @see @ref dev_porting
      *  @{ */
     namespace Pin {
         enum : uint16_t {

@@ -74,16 +74,10 @@ namespace Botanik { namespace Modbus {
         /** @name The probe interleave
          *
          *  One device that is not answering is offered the bus at a time, and
-         *  not until MODBUS_PROBE_SPACING_MS of live traffic has been owed since
-         *  the last transaction that failed. Together those bound what devices
-         *  that are not answering can cost at timeout/(timeout + spacing),
-         *  INDEPENDENT of how many of them there are, which is the whole
-         *  point: without the gate, twelve dead sensors take 7.2 s of bus
-         *  between them just to be declared dead.
-         *
-         *  A gate and a cursor here rather than a state in the transaction FSM:
-         *  a probe is an ordinary transaction over the same framer, settle path
-         *  and gap, and only the SCHEDULING of it differs. */
+         *  not until MODBUS_PROBE_SPACING_MS of live traffic has been owed
+         *  since the last failed transaction. Together those bound what silent
+         *  devices cost at timeout/(timeout + spacing), INDEPENDENT of how many
+         *  there are. @see @ref dev_modbus */
 
         /** @brief No suspect is eligible before this. Set by any transaction
          *  that failed, not only by a probe: the first miss of each device is
@@ -232,16 +226,10 @@ namespace Botanik { namespace Modbus {
         /** @brief One `rtu_` row's live value, or @p dflt when the row is
          *  absent (a site without the library splice) or reads invalid.
          *
-         *  The value is NOT clamped to the row's band. An override is
-         *  type-checked and unbanded on purpose - a maintenance operator may
-         *  need a setting the band refuses - so what is out of range reaches
-         *  here, and each caller says what it means rather than pretending it
-         *  was something else. Zero is the one that recurs: it means STOP, and
-         *  @see _slot_of is where that is honoured.
-         *
-         *  The Config constant is the fallback as well as the row's factory
-         *  value, so a build with no rows behaves exactly as it did before they
-         *  existed. */
+         *  NOT clamped to the row's band: an override is type-checked and
+         *  unbanded, so an out-of-range setting reaches here and each caller
+         *  says what it means. Zero recurs and means STOP (@see _slot_of). The
+         *  Config constant is both the fallback and the row's factory value. */
         uint32_t _tune(uint16_t r, uint32_t dflt) const;
 
         uint32_t _timeout_ms()     const { return _tune(Vars::Row::rtu_timeout_ms,     Config::MODBUS_TIMEOUT_MS); }

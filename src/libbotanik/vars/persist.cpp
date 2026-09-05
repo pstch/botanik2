@@ -60,7 +60,7 @@ namespace Botanik { namespace Vars {
         }
     }  // namespace
 
-    // ---- KvStore --------------------------------------------------------------
+    // KvStore
 
     bool KvStore::load(const char* key, void* out, uint16_t width, uint16_t* got) {
         size_t n = 0;
@@ -75,7 +75,7 @@ namespace Botanik { namespace Vars {
 
     bool KvStore::remove(const char* key) { return HAL::Storage::remove(key); }
 
-    // ---- One row, one key -----------------------------------------------------
+    // One row, one key
 
     bool Persist::_get(const Descriptor& d, const char* prefix, Scalar* out) const {
         char key[HAL::Storage::KEY_MAX];
@@ -107,7 +107,7 @@ namespace Botanik { namespace Vars {
         return _store->remove(key);
     }
 
-    // ---- Parameters -----------------------------------------------------------
+    // Parameters
 
     void Persist::_load_params() {
         if (_store == nullptr) return;
@@ -221,7 +221,7 @@ namespace Botanik { namespace Vars {
         return SET_OK;
     }
 
-    // ---- Overrides ------------------------------------------------------------
+    // Overrides
 
     uint16_t Persist::_load_overrides() {
         if (_store == nullptr) return 0;
@@ -303,7 +303,7 @@ namespace Botanik { namespace Vars {
         return n;
     }
 
-    // ---- Retained -------------------------------------------------------------
+    // Retained
 
     uint16_t Persist::_load_retained() {
         if (_store == nullptr) return 0;
@@ -350,7 +350,7 @@ namespace Botanik { namespace Vars {
         return (uint16_t)(save_retained() + save_owed());
     }
 
-    // ---- Lifecycle ------------------------------------------------------------
+    // Lifecycle
 
     uint32_t Persist::_retain_ms() const {
         const int32_t sec = (int32_t)_io.var(Row::sys_retain_sec).as_i64();

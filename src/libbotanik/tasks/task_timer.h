@@ -68,10 +68,8 @@ namespace Botanik { namespace Tasks {
          *                       reports @p period_ms instead: handing a timer
          *                       "everything since boot" would fire it at once.
          * @param[out] missed    activations dropped since the last run. A task
-         *                       due late runs ONCE; missed activations are
-         *                       dropped, never caught up, because a burst of
-         *                       catch-up runs lands exactly when the system is
-         *                       already behind.
+         *                       due late runs ONCE; drops are never caught up
+         *                       (@ref dev_tasks).
          * @return true if the task should run now. Const - see @ref timer_split.
          */
         bool due(uint64_t now_ms, uint32_t period_ms,

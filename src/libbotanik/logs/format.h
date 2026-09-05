@@ -77,26 +77,11 @@ namespace Botanik { namespace Logs {
      *  alignment the next time the prefix moves.
      *
      *  format_log_entry() below emits `"%s %s %s%s %s"`, so the message starts
-     *  at column `28 + strlen(topic)`, or 27 with no topic (the ":" is
-     *  skipped). At an 80-column console that leaves the first line 42 (ALARM_FLAP)
-     *  to 53 (no topic) columns, while a continuation row gets
-     *  `80 - strlen(LOG_CONT_PREFIX)` = 54, WIDER than any first line. That is
-     *  what makes lead-plus-detail work.
+     *  at column `28 + strlen(topic)`, or 27 with no topic. At 80 columns that
+     *  leaves a first line 42 to 53 columns wide against a continuation row's
+     *  `80 - strlen(LOG_CONT_PREFIX)` = 54.
      *
-     *  **Rule for writing a message**: keep the first line at or under 40
-     *  characters - below every topic's budget, so a line survives a topic being
-     *  renamed - and put the rest after an explicit '\n'. The lead is what an
-     *  operator scans for; a number an engineer goes looking for belongs whole
-     *  on line 2, where no fold can split it. A variable-width "%s" goes on
-     *  line 1 only if the fixed text around it leaves room for its worst case.
-     *
-     *  There is no constant for the 40: the console width is a parameter, the
-     *  console is resizable at runtime, and nothing can consult a constant from
-     *  inside a string literal.
-     *
-     *  LOG_CONT_PREFIX sits under the TOPIC column, not under the message:
-     *  store_wrapped() takes one prefix per entry while the message column is
-     *  topic-dependent, and widening it would cut the continuation budget.
+     *  How to write a message to fit that: @ref dev_logging.
      *  @{ */
     static constexpr const char* CONT_PREFIX     = "> ";
     static constexpr const char* LOG_CONT_PREFIX = "                        > ";

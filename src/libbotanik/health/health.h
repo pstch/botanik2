@@ -84,13 +84,8 @@ namespace Botanik { namespace Health {
         static void _latch_task(Component* c, const Tasks::Tick& t);
 
         /** @brief Latch a requested ending, then carry this beat's verdict to
-         *  control authority and the authority to the programs.
-         *
-         *  Here rather than in the composition root because everything it needs
-         *  is already here: the verdict is this class's, the hold is on the
-         *  Bank it already writes alarms into, and the gate is on the registry
-         *  every Component is built with. It also raises SCAN_LATE, which is a
-         *  platform alarm like the six others this binds.
+         *  control authority and the authority to the programs. Also raises
+         *  SCAN_LATE, a platform alarm like the six others this binds.
          *  @note The ending is latched in every build; everything after it
          *  needs the bank. */
         void _latch_control(uint64_t now_ms);
@@ -236,16 +231,10 @@ namespace Botanik { namespace Health {
         /** @name The thresholds those alarms fire at
          *
          *  Parameters, not constants: what counts as too much load, jitter or
-         *  stack is a property of the INSTALLATION, and the number you want to
-         *  move is the one a unit is nuisance-alarming on - at 3am, over a
-         *  terminal, without a toolchain. `Config::ALARM_*_PCT` are the factory
-         *  defaults behind them.
-         *
-         *  Read live off the bound row each beat rather than cached on a commit
-         *  serial: it is one indexed load against a threshold comparison that
-         *  was already happening, and there is nothing to re-initialise when it
-         *  moves. Bound beside the alarms they threshold, and unbound they read
-         *  the bank's inert sink, so _pct() falls back to the Config value.
+         *  stack is a property of the INSTALLATION. `Config::ALARM_*_PCT` are
+         *  the factory defaults behind them. Read live off the bound row each
+         *  beat; unbound they read the bank's inert sink, so _pct() falls back
+         *  to the Config value. @see @ref dev_health
          *  @{ */
 #if BOTANIK_FEATURE_VARS
         uint16_t _p_load_pct   = { Vars::VAR_NONE };

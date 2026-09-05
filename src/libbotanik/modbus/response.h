@@ -39,13 +39,10 @@ namespace Botanik { namespace Modbus {
      * @param out      filled on every terminal result, so a refusal still says
      *                 which unit and function it refused
      *
-     * @return ERR_OK, ERR_EXCEPTION when the slave refused - which is a RESULT,
-     *         not a parse failure: the frame was well formed and the device is
-     *         alive - or the specific mismatch.
-     *
-     * Checked in the order that yields the most useful diagnosis: who answered,
-     * what they answered about, then whether the shape matches what was asked.
-     * The transport decided the frame is intact; this decides whether it is OURS.
+     * @return ERR_OK, ERR_EXCEPTION when the slave refused (a RESULT: the frame
+     *         was well formed and the device is alive), or the specific
+     *         mismatch. The transport decided the frame is intact; this decides
+     *         whether it is OURS.
      */
     Error match_response(uint8_t unit, const uint8_t* body, uint16_t body_len,
                          const Expect& e, Response* out);

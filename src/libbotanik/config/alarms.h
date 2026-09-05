@@ -48,14 +48,9 @@ namespace Botanik { namespace Config {
     BOTANIK_CFG(uint32_t, HEALTH_RESET_WINDOW_MS);
 
     /** @brief How long after boot a CHANGE of quality or of program health is
-     *  bring-up rather than news, and so is adopted without a log line.
-     *
-     *  Everything settles in the first seconds - every field row goes valid as
-     *  its device first answers, every program leaves INHIBITED on its first
-     *  activation - and announcing all of it is several hundred debug lines in
-     *  one breath, which the rate limiter then sheds along with whatever else
-     *  was being said. Long enough to cover the slowest poll rung, so a row is
-     *  adopted at its first real reading and not at its default.
+     *  bring-up rather than news, and so is adopted without a log line. Keep it
+     *  past the slowest poll rung, so a row is adopted at its first real
+     *  reading and not at its default.
      *  @note Alarms are NOT quiet here. This is the change log; a condition
      *  that matters raises its own row and annunciates on its own dwell. */
 #ifndef BOTANIK_HEALTH_QUIET_MS

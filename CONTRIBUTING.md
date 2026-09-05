@@ -61,7 +61,7 @@ Every public member carries a Doxygen comment. Keep it to budget:
 |---|---|
 | `@brief` | 1 line, 2 if needed. **Hard cap 3.** |
 | `@note` | at most one, <= 2 lines, for a caveat that changes how you call it |
-| Whole doc block on one entity | **<= 6 lines** |
+| Whole doc block on one entity | **<= 6 lines of prose**; `@param` / `@return` lines are contract and do not count |
 | `@param` / `@return` | **only** for a non-obvious unit, range, ownership, sentinel or error value - never to restate the name |
 | `@code` examples | **not in headers** - put them in `docs/dev/` or a test |
 | `@section` | **not in headers** - that is a doc, by definition |
@@ -70,10 +70,13 @@ Every public member carries a Doxygen comment. Keep it to budget:
 | `@name` groups | keep (flat, per scope) - but no prose inside the group |
 | `#include` annotations | omit (`#include <cstdint> // uint16_t/uint32_t`) |
 
-**Per-file budget: prose lines <= 50% of code lines.** Higher than the 15% for
-implementations because every public entity carries a `@brief`: a
-declaration-dense API header has a floor near 40% with no prose at all. Doxygen
-scaffolding (`@name`, `@{`, `@}`) is not counted.
+**No per-file ratio for a header.** The table above is the whole rule. A ratio
+here measures how many things a header declares rather than how wordy it is:
+across `libbotanik`, one documented entity costs 2.8 code lines and 1.9 prose
+lines, so a header that documents its API lands near 90% however tightly each
+block is written. The budget this replaces was 50%, which no header carrying a
+`@brief` on every entity can reach - meeting it meant undocumenting about half
+of them.
 
 ```cpp
 /** @brief Write to the TX ring.
@@ -99,7 +102,11 @@ Comment only non-obvious invariants, hardware or protocol quirks, workarounds
 comment that restates the line below it, and no section banners
 (`// ---- helpers ----`).
 
-**Per-file budget: prose lines <= 15% of code lines.**
+**Per-file budget: prose lines <= 30% of code lines.** The tree sits at 27.9%
+across `libbotanik` and 21.5% across the tests (September 2026), so the bar is
+just above it: it exists to catch drift, not to describe today. Unlike a
+header's, this ratio is worth having, because implementation prose is
+discretionary and proportional to nothing.
 
 ```cpp
 // ICH via SM4: write 'pressure' chars in insert mode, opening a gap that
@@ -125,14 +132,20 @@ constructions - state the fact; no history in code, `git log` has it; no
 restating a rule three ways for emphasis; no em-dashes (use ` - `, a colon, or
 parentheses).
 
-The budgets are a guide for review, not a gate - nothing measures them
+The budget is a guide for review, not a gate - nothing measures it
 automatically. `cloc` gives the ratio for a file or a tree when you want a number.
 
-A file that is almost entirely public API surface, or notes on silicon the code
-cannot show, will sit above budget legitimately: `vars/model.h` is ~80 public
-declarations each carrying a distinct contract, and `hal/platform.cpp` documents
-RS-485 DE guard times and CR1 write protection. Trimming those further means
-deleting a contract rather than prose. That is the exception, not the licence.
+A handful of blocks run past six prose lines legitimately, where the block is
+the only place a contract lives: `vars/declare.h` carries the alarm dwell
+semantics (`on_s` and `off_s` gate what is SAID, `hold_s` decides what is TRUE),
+`hal/platform.cpp` the RS-485 DE guard times, `modbus/rtu/framing.h` the echo
+count. Nineteen blocks in `libbotanik` are over, and each was looked at.
+
+Where a file sits above the ratio, the question is which of the rules above it
+breaks, not how far over it is. `hal/platform.cpp` is at 50% and documents RS-485 DE
+guard times and CR1 write protection: trimming that means deleting a fact the
+code cannot show. A file at the same ratio because every third line is narrated
+is a different case entirely, and the ratio alone does not tell them apart.
 
 ---
 

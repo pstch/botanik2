@@ -18,10 +18,9 @@ namespace Botanik { namespace Io {
     /**
      * @brief Carries every local output row to the pin it named.
      *
-     * The mirror image of LocalInputs, and the same rule: local is a Modbus
-     * device address of 0, the row's `reg` is the `HAL::Pin` label its table
-     * named, and `F_INVERT` is folded in HERE - one place per direction, the
-     * way the field bus does it for a remote coil.
+     * The mirror image of LocalInputs: the row's `reg` is the `HAL::Pin` label
+     * its table named, and `F_INVERT` is folded in HERE, one place per
+     * direction. @see @ref dev_io
      *
      * A DO row and an RO row are the same thing to this class. The scopes
      * differ for the operator, who sees a relay and a lamp as different kinds

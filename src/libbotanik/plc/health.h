@@ -12,14 +12,10 @@ namespace Botanik { namespace Plc {
 
     /** @brief A program's verdict on its own answer, written by the LAW.
      *
-     *  Coarse on purpose: anything finer belongs to the ROWS, where a reading
-     *  that is not believable says so in its own quality and every consumer
-     *  already reads that. This is the one thing a row cannot say - whether the
-     *  law that wrote it thinks the answer is worth having.
-     *
-     *  Every output is written on every scan, so the question is never whether
-     *  a row moved. It is what the number MEANS: a decision, a decision taken
-     *  on evidence the law does not fully trust, or the safe state.
+     *  Coarse on purpose: anything finer belongs to the ROWS and their quality.
+     *  Every output is written on every scan, so this says what the number
+     *  MEANS - a decision, a decision on evidence the law does not fully trust,
+     *  or the safe state.
      *
      *  @note The codes are the ST enumeration's too, which matiec numbers
      *  0,1,2... in declaration order - so this order is

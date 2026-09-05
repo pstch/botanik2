@@ -374,7 +374,7 @@ namespace Botanik { namespace Shell {
             return HAL::Network::ip4_to_str(a, ipbuf, sizeof(ipbuf));
         };
 
-        // --- Link --------------------------------------------------------
+        // Link
         const char* mode = Vars::get_int(_bank(), Vars::Row::net_dhcp) ? "DHCP" : "static";
         snprintf(val, sizeof(val), "%s  (%s)", net->status_str(), mode);
         _line("Network", val);
@@ -401,7 +401,7 @@ namespace Botanik { namespace Shell {
             _line("DNS", val);
         }
 
-        // --- NTP ---------------------------------------------------------
+        // NTP
         if (ntp != nullptr) {
             if (ntp->synced())
                 snprintf(val, sizeof(val), "%s  (offset %+ld ms)",
@@ -425,7 +425,7 @@ namespace Botanik { namespace Shell {
             _line("NTP", "disabled");
         }
 
-        // --- MQTT --------------------------------------------------------
+        // MQTT
         if (mqt != nullptr) {
             uint64_t lp = mqt->last_publish_ms();
             if (lp != 0) {

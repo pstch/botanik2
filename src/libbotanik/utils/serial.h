@@ -31,10 +31,8 @@ namespace Botanik { namespace Utils {
      *  Every method runs on the main loop, the ring is NOT ISR-safe.
      *  Producer and consumer being the same thread, no barrier is needed.
      *
-     *  **Not a Component.** It is a ring buffer and a port, with no lifecycle
-     *  and nothing to announce; receive() and transmit() are called by whoever
-     *  owns the wire (Console, SerialLogWriter) from that owner's own tasks,
-     *  because the pump and the thing that fills it are the same beat's work. */
+     *  **Not a Component**: receive() and transmit() are called by whoever owns
+     *  the wire (Console, SerialLogWriter) from that owner's own tasks. */
     class BufferedSerial : public ByteSink {
     private:
 

@@ -181,8 +181,9 @@ If a comment would still be true after the function was rewritten a different wa
 is rationale and does not belong next to the code. Prefer readable code over a comment
 explaining unreadable code.
 
-- `@brief` is 1-2 lines (hard cap 3); a whole doc block is <= 6 lines; at most one
-  `@note`. No `@code` and no `@section` in a header - those go to `docs/dev/`.
+- `@brief` is 1-2 lines (hard cap 3); a whole doc block is <= 6 lines of PROSE
+  (`@param`/`@return` are contract and do not count); at most one `@note`. No
+  `@code` and no `@section` in a header - those go to `docs/dev/`.
 - `@param`/`@return` only for a non-obvious unit, range, ownership or sentinel. Never
   to restate the parameter name.
 - Implementations: non-obvious invariants, quirks and workarounds only. No banners, no
@@ -190,10 +191,18 @@ explaining unreadable code.
 - Tests: the test name is the documentation. No header comment above a `TEST_CASE`.
 - Prose: no "not X but Y" constructions, no history (`git log` has it), no em-dashes.
 
-Rough budgets for review, not a gate: prose lines <= **50%** of code lines in a header,
-<= **15%** in a `.cpp` or a test. Headers get more room because every public entity
-carries a `@brief`; `@name`/`@{`/`@}` scaffolding does not count. `vars/model.h` and
-`hal/platform.cpp` sit above budget legitimately - see `CONTRIBUTING.md`.
+A header has **no prose ratio**: the per-entity caps above are the rule. A ratio there
+measures how many things a header declares, not how wordy it is. Measured over
+`libbotanik`, a documented entity costs 2.8 code lines and 1.9 prose lines, so any
+header obeying "every public entity carries a `@brief`" lands near 90%; the old 50%
+was reachable only by leaving half the API undocumented.
+
+For a `.cpp` or a test the ratio does carry signal, because implementation prose is
+discretionary: **prose lines <= 30% of code lines**, `@name`/`@{`/`@}` scaffolding not
+counted. The tree sits at 27.9% and 21.5% (September 2026), so the bar is set just
+above it to catch drift rather than to describe today. Over it, look for the two
+things the rules above already forbid: a banner, and a comment restating the line
+below.
 
 ## Architecture
 

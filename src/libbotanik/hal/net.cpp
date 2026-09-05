@@ -15,7 +15,7 @@
 #include "libbotanik/hal/platform.h"
 
 #ifdef TARGET_OPTA
-// ---- OPTA backend (Mbed) ----
+// OPTA backend (Mbed)
 
 #include <cstring>
 
@@ -255,7 +255,7 @@ namespace Botanik { namespace HAL { namespace Network {
 }}}
 
 #else
-// ---- Simulator backend (real BSD sockets, loopback-only) ----
+// Simulator backend (real BSD sockets, loopback-only)
 //
 // Thin and protocol-agnostic, like the OPTA backend: real host sockets, but
 // hermetic by construction - udp_sendto/tcp_connect divert every destination to

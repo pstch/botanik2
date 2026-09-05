@@ -163,15 +163,10 @@ namespace Botanik { namespace HAL {
     /**
      * @brief Serial access.
      *
-     * CONSOLE and MONITOR are *logical* endpoints, each backed by a concrete
-     * transport behind one small interface, so which physical port serves which
-     * role is a one-line change in get(). Today: CONSOLE on the hardware UART
-     * (Mbed's own CONSOLE_TX/RX for this target, PG_14 / PG_9), MONITOR on USB
-     * CDC.
-     *
-     * Pure Mbed - no Arduino core. Virtual dispatch is cheap here: two
-     * long-lived RAM objects, not a flash-resident descriptor table where a vptr
-     * would force it out of .rodata.
+     * CONSOLE and MONITOR are *logical* endpoints: which physical port serves
+     * which role is a one-line change in get(). Today CONSOLE is the hardware
+     * UART (PG_14 / PG_9, Mbed's own CONSOLE_TX/RX for this target) and MONITOR
+     * is USB CDC. Pure Mbed, no Arduino core. @see @ref dev_porting
      */
     namespace Serial {
 

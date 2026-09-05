@@ -252,12 +252,10 @@ namespace Botanik { namespace HAL {
      *  CONSOLE is wired to stdin/stdout, MONITOR to stderr (output only).
      *
      *  FIELDBUS is a SOCKETPAIR: the firmware holds one end and the simulated
-     *  devices the other (fieldbus_peer_fd()). Bytes really travel, over the
-     *  same read()/write() path, so the master's framing, CRCs and timeouts are
-     *  exercised rather than emulated. A stream cannot lose a collision, so
-     *  nothing here models two devices answering at once; the sim's devices
-     *  answer strictly in turn. A pair that cannot be created leaves the port
-     *  unbound: a bus with no devices on it.
+     *  devices the other (fieldbus_peer_fd()), so framing, CRCs and timeouts
+     *  are exercised rather than emulated. A stream cannot lose a collision, so
+     *  two devices answering at once is not modelled. A pair that cannot be
+     *  created leaves the port unbound.
      *  @param port CONSOLE, MONITOR or FIELDBUS. */
     Raw* get(Port port);
 
