@@ -149,6 +149,13 @@ namespace Botanik { namespace HAL { namespace Network {
     /** @brief Recv: >0 bytes, 0 would-block, <0 closed. */
     int       tcp_recv(TcpSocket s, void* buf, size_t len);
     void      tcp_close(TcpSocket s);
+
+    /** @brief The backend's own code for the call that just failed: errno on
+     *  the simulator, an nsapi error on the OPTA. Only meaningful straight
+     *  after a call that answered with a failure, and not comparable across
+     *  targets - a number to put in a log line, never to branch on.
+     *  @return the code, or 0 when the backend has none. */
+    int       last_error();
     /** @} */
 
 }}}  // namespace Botanik::HAL::Network

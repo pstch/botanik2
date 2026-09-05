@@ -102,10 +102,11 @@ namespace Botanik { namespace Tasks {
         Component* owner   = nullptr;
         void     (*handler)(Component* owner, const Tick& tick) = nullptr;
         /** @brief Where this entry's verdict lives, or null for a task that
-         *  has none. A POINTER, because an ST program's health belongs to the
-         *  roster slot rather than to anything the registry holds, and a page
-         *  asking "how is this task" should not have to know that.
-         *  Plc::Runtime::Plant points it at the slot's. */
+         *  has none. A POINTER, because the two kinds keep it in different
+         *  places - a component's own slot, an ST program's roster slot - and a
+         *  page asking "how is this task" should not have to know which.
+         *  add(Component&) points it at the component's; Plc::Runtime::Plant
+         *  repoints it, to null for a program that did not opt into health. */
         const Plc::Health* health = nullptr;
         /** @brief Whether the next activation is a first scan (Tick::first).
          *  True at registration: nothing has run yet. */

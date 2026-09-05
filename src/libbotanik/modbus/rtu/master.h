@@ -150,6 +150,11 @@ namespace Botanik { namespace Modbus {
          *  @{ */
 
         bool healthy() const override;
+        /** @brief The TASKS verdict: a bus with SOME devices answering is
+         *  degraded rather than faulted - the rows behind the live ones are
+         *  still readings, and an engineer sent to "the bus is down" would be
+         *  looking at the wrong thing. */
+        Plc::Health verdict() const override;
         /** @brief A short phrase for the status bar and the shell. */
         const char* status_str() const;
 

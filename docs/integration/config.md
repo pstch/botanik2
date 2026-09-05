@@ -266,6 +266,7 @@ Broker host, port and keepalive are runtime parameters (`mqtt_host`, `mqtt_port`
 |---|---|---|
 | `MQTT_CONNECT_TIMEOUT_MS` | 10000 | |
 | `MQTT_RETRY_MS` | 30000 | |
+| `MQTT_TX_STALL_MS` | 10000 | how long a half-written packet may sit before the session counts as stuck |
 | `MQTT_TX_BUF` | 384 | bounds the whole PUBLISH; an oversized one is refused outright. `static_assert`ed to clear `MQTT_TOPIC_LEN + LOG_MESSAGE_LEN + 32`, since the largest payload is a log line, not a reading |
 | `MQTT_TOPIC_LEN` | 96 | topic buffer shared by all three publishers, so a long `MQTT_TOPIC_PREFIX` truncates the same way everywhere |
 | `MQTT_PAYLOAD_LEN` | 64 | caps a published telemetry value's formatted width |

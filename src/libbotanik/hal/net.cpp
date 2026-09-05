@@ -46,6 +46,9 @@ namespace Botanik { namespace HAL { namespace Network {
             return (g_tcp_ptr[s] != 0) ? g_tcp_ptr[s] : &g_tcp[s];
         }
         bool tcp_valid(TcpSocket s) { return s >= 0 && s < MAX_TCP && g_tcp_used[s]; }
+        // What last_error() reports. Only the calls that have a code worth
+        // keeping write it; @see net.h.
+        nsapi_error_t g_last_error = NSAPI_ERROR_OK;
         // Claim a free slot; -1 when the budget is spent.
         int tcp_slot() {
             for (int i = 0; i < MAX_TCP; ++i) if (!g_tcp_used[i]) return i;
@@ -194,13 +197,17 @@ namespace Botanik { namespace HAL { namespace Network {
     }
     TcpSocket tcp_listen(uint16_t port) {
         int i = tcp_slot();
-        if (i < 0) return -1;
+        // Not an nsapi answer, so it gets one of its own: the budget is spent.
+        if (i < 0) { g_last_error = NSAPI_ERROR_NO_SOCKET; return -1; }
         g_tcp[i].close();
-        if (g_tcp[i].open(eth()) != NSAPI_ERROR_OK) return -1;
+        nsapi_error_t e = g_tcp[i].open(eth());
+        if (e != NSAPI_ERROR_OK) { g_last_error = e; return -1; }
         // Bound to the wildcard address: the link's own IP is what DHCP says it
         // is, and it changes under a lease renewal without the listener caring.
-        if (g_tcp[i].bind(port) != NSAPI_ERROR_OK ||
-            g_tcp[i].listen(1)   != NSAPI_ERROR_OK) { g_tcp[i].close(); return -1; }
+        e = g_tcp[i].bind(port);
+        if (e == NSAPI_ERROR_OK) e = g_tcp[i].listen(1);
+        if (e != NSAPI_ERROR_OK) { g_last_error = e; g_tcp[i].close(); return -1; }
+        g_last_error = NSAPI_ERROR_OK;
         g_tcp[i].set_blocking(false);
         g_tcp_ptr[i] = 0; g_tcp_used[i] = true;
         return i;
@@ -251,6 +258,8 @@ namespace Botanik { namespace HAL { namespace Network {
         if (g_tcp_ptr[s] != 0) { delete g_tcp_ptr[s]; g_tcp_ptr[s] = 0; }
         g_tcp_used[s] = false;
     }
+
+    int last_error() { return (int)g_last_error; }
 
 }}}
 
@@ -533,7 +542,13 @@ namespace Botanik { namespace HAL { namespace Network {
         // would otherwise fight over one port.
         sockaddr_in sin = make_sin(mock_loopback_ip(), p);
         if (::bind(fd, reinterpret_cast<sockaddr*>(&sin), sizeof(sin)) < 0 ||
-            ::listen(fd, 4) < 0) { ::close(fd); return -1; }
+            ::listen(fd, 4) < 0) {
+            // close() would overwrite what last_error() is here to report.
+            const int why = errno;
+            ::close(fd);
+            errno = why;
+            return -1;
+        }
         g_listen[slot].fd = fd; g_listen[slot].port = p;
         return fd;
     }
@@ -572,6 +587,9 @@ namespace Botanik { namespace HAL { namespace Network {
         listener_forget(s);                      // no-op for an ordinary socket
         ::close(s);
     }
+
+    // errno IS the backend code here, and every call above leaves it set.
+    int last_error() { return errno; }
 
 }}}
 

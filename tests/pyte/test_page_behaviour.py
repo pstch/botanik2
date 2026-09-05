@@ -114,12 +114,12 @@ def test_a_wildcard_filter_narrows_a_table(spawn):
 
 
 def test_tasks_page_reports_program_health(spawn):
-    """HEALTH is a verdict a program OPTED IN to, and blank on everything else.
+    """HEALTH is one vocabulary for both kinds of entry, blank on one of them.
 
-    The blank half is the claim worth pinning, and it is wider than it was: a
-    library task has no health, and neither does a control program that did not
-    ask for a health row. A page that read one off the task anyway would fault,
-    not misprint.
+    A component reports its own verdict and a control program that opted in
+    reports the law's. The blank is now exactly one case - a program with no
+    health row - and it is the half worth pinning: a page that read a verdict
+    off that task anyway would fault, not misprint.
     """
     term = boot(spawn)
     goto(term, keys.ALT_7, "TASK")
@@ -177,7 +177,51 @@ def test_tasks_page_reports_program_health(spawn):
     def row():
         return next((l for l in term.view() if "sys_console_rx" in l and "input" in l), None)
     assert term.until(lambda: row() is not None), "the row never finished painting"
-    assert "HEALTHY" not in row(), f"a non-program claimed a health: {row()!r}"
+    # A library task is a Component, and a Component has a verdict of its own:
+    # the default is the two ends of healthy(), so a console reader reads
+    # HEALTHY rather than nothing.
+    assert term.until(lambda: cells(3) == ["HEALTHY"]), \
+        "a component task reported no verdict: %s" % cells(3)
+
+
+def test_tasks_page_filters_by_health(spawn):
+    """LEFT/RIGHT narrow the table to one HEALTH code.
+
+    The view selects on the same verdict the column prints, so the badge and
+    the column cannot disagree. HEALTHY is the one code a booted unit is
+    certain to have rows under; the empty views are asserted through the badge
+    rather than through a count, since which of the other two is populated is a
+    property of the plant.
+    """
+    term = boot(spawn)
+    goto(term, keys.ALT_7, "TASK")
+
+    # Tolerant of a half-painted row: the band goes out left to right at 4800
+    # baud, so a line can be on screen before its HEALTH cell is.
+    def cells(col):
+        out = []
+        for l in term.view():
+            if not l.startswith("  | "):
+                continue
+            parts = l.split("|")
+            if len(parts) <= col or parts[1].strip() in ("", "TASK"):
+                continue
+            out.append(parts[col].strip())
+        return out
+
+    assert term.until(lambda: len([n for n in cells(1) if n]) > 3), \
+        "the table never painted"
+    assert term.wait_screen("[ALL]"), "the view badge is missing"
+
+    term.send(keys.RIGHT)
+    assert term.wait_screen("[HEALTHY]"), "RIGHT did not step the view"
+    # Every row the view keeps says the code the badge does, and there is at
+    # least one: the console's own tasks are healthy on a unit that booted.
+    assert term.until(lambda: cells(3) and set(cells(3)) == {"HEALTHY"}), \
+        "the HEALTHY view kept a row that is not: %s" % cells(3)
+
+    term.send(keys.LEFT)
+    assert term.wait_screen("[ALL]"), "LEFT did not step back"
 
 
 def test_network_comes_up(spawn):

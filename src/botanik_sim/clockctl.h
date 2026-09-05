@@ -33,6 +33,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <sched.h>
 #include <unistd.h>
 
 #include "libbotanik/config/scheduler.h"
@@ -103,10 +104,19 @@ namespace Botanik { namespace Sim {
      */
     inline void fast_pace() {
         const uint32_t x = fast_speed();
-        if (x == 0) return;                     // flat out
-        const uint64_t want_ms = (HAL::_virtual_ns() / 1000000u) / x;
-        const uint64_t have_ms = HAL::Clock::real_uptime_ms();
-        if (want_ms > have_ms) usleep((useconds_t)((want_ms - have_ms) * 1000u));
+        if (x != 0) {
+            const uint64_t want_ms = (HAL::_virtual_ns() / 1000000u) / x;
+            const uint64_t have_ms = HAL::Clock::real_uptime_ms();
+            if (want_ms > have_ms) {
+                usleep((useconds_t)((want_ms - have_ms) * 1000u));
+                return;
+            }
+        }
+        // Nothing slept, so give the host a scheduling point: the sim under
+        // SCHED_FIFO (which is what running it as root buys) is a loop that
+        // never yields, and the kernel work its own loopback sockets depend on
+        // shares the core it is pinned to. Free when nothing else wants the CPU.
+        sched_yield();
     }
 
     /** @brief Tell the harness the requested beats are done and drained. */

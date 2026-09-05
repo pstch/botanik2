@@ -55,6 +55,15 @@ namespace Botanik { namespace Modbus {
          *  second copy to keep in step.
          *  @{ */
         bool     listening   = false;   ///< the port is bound
+        /** @brief mb_enable. Not listening is only a FAULT when this is on:
+         *  a display that cannot tell the two apart reports a slave the
+         *  operator switched off as a slave that broke. */
+        bool     enabled     = false;
+        /** @brief The port is wanted, and the last attempt to bind it failed.
+         *  bind_error is what the backend said (errno on the simulator, an
+         *  nsapi code on the OPTA), 0 when it had nothing to say. */
+        bool     bind_failed = false;
+        int      bind_error  = 0;
         uint16_t port        = 0;       ///< what it is bound to
         uint8_t  clients     = 0;       ///< live connections
         uint16_t rows        = 0;       ///< rows in the map
@@ -134,6 +143,7 @@ namespace Botanik { namespace Modbus {
         /** @brief The port could not be bound. Kept so the failure is retried
          *  and reported once rather than every attempt. */
         bool          _bind_failed = false;
+        int           _bind_error  = 0;    ///< HAL::Network::last_error() from it
         uint64_t      _retry_ms = 0;
         SlaveContext _ctx;
         /** @brief The link, borrowed and possibly null. @see set_network */

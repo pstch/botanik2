@@ -119,13 +119,20 @@ namespace Botanik { namespace Network {
 
         /** @brief One MQTT client: its fd plus a reassembly buffer. TCP is a byte
          *  stream, so one read can coalesce several packets or split one;
-         *  buffering lets us trace and answer each whole packet. */
+         *  buffering lets us trace and answer each whole packet.
+         *
+         *  The buffer holds a WHOLE packet of the largest size the publisher
+         *  can build. A smaller one cannot parse the packet that overruns it
+         *  and has nothing to do but drop bytes from the middle of the stream,
+         *  after which every frame boundary is wrong: the PINGREQs stop being
+         *  recognised, no PINGRESP comes back, and the firmware declares a
+         *  broker that is right here dead. */
         struct MqttConn {
             int      fd  = -1;
             // At least the firmware's own TX buffer: mqtt_log.h sizes that so
             // a full log line under the longest topic fits, and a mock that
             // cannot hold one drops traffic a real broker would take.
-            uint8_t  buf[Botanik::Config::MQTT_TX_BUF];
+            uint8_t  buf[Config::MQTT_TX_BUF];
             uint16_t len = 0;
         };
 
@@ -142,19 +149,12 @@ namespace Botanik { namespace Network {
             }
         }
 
-        /** @brief Read what's available, then trace + answer every complete MQTT
-         *  packet now buffered, leaving any partial tail for the next call.
-         *  Returns false once the peer closes (so the caller drops the conn). */
-        inline bool netd_serve_mqtt(MqttConn& c) {
-            // Append into the reassembly buffer (drop a stuck full buffer rather
-            // than read 0 bytes and misread it as a close).
-            if (c.len >= sizeof(c.buf)) c.len = 0;
-            ssize_t n = ::recv(c.fd, c.buf + c.len, sizeof(c.buf) - c.len, 0);
-            if (n == 0) return false;                   // peer closed
-            if (n > 0)  c.len += (uint16_t)n;           // n < 0: would-block, parse what we have
-
-            // Parse as many whole packets as the buffer holds. MQTT fixed header:
-            // type byte + a 1..4 byte remaining-length varint + that many bytes.
+        /** @brief Trace + answer every whole MQTT packet in @p c's buffer,
+         *  leaving a partial tail for the next call. False when the stream can
+         *  no longer be followed and the connection has to go. */
+        inline bool netd_parse_mqtt(MqttConn& c) {
+            // MQTT fixed header: type byte + a 1..4 byte remaining-length
+            // varint + that many bytes.
             size_t off = 0;
             while (c.len - off >= 2) {
                 uint32_t rem = 0, mult = 1;
@@ -169,6 +169,16 @@ namespace Botanik { namespace Network {
                 }
                 if (!complete) break;                   // varint not all here yet
                 size_t total = 1 + rl + rem;
+                // Longer than the buffer will ever hold: this stream cannot be
+                // resynchronised, so end the connection and let the client come
+                // back on a boundary both ends agree on. Skipping the bytes
+                // instead leaves the two framing different packets for ever.
+                if (total > sizeof(c.buf)) {
+                    fprintf(stderr, "[mock-mqtt] %zu-byte packet over the %zu-byte "
+                                    "buffer; dropping the connection\n",
+                            total, sizeof(c.buf));
+                    return false;
+                }
                 if (c.len - off < total) break;         // body not all here yet
                 netd_answer_mqtt(c.fd, &c.buf[off], total);
                 off += total;
@@ -178,6 +188,25 @@ namespace Botanik { namespace Network {
                 c.len -= (uint16_t)off;
             }
             return true;
+        }
+
+        /** @brief Read and answer until the socket is empty; false once the peer
+         *  closes, so the caller drops the conn.
+         *
+         *  Until EMPTY, not one read per call: a publisher filling the socket
+         *  faster than a single read drains it backs the kernel buffer up until
+         *  its own sends block, and under a fast clock that is every beat. */
+        inline bool netd_serve_mqtt(MqttConn& c) {
+            for (;;) {
+                // A buffer with no room left holds at least one whole packet
+                // (it is sized for the largest), so parsing always frees some.
+                if (c.len == sizeof(c.buf) && !netd_parse_mqtt(c)) return false;
+                ssize_t n = ::recv(c.fd, c.buf + c.len, sizeof(c.buf) - c.len, 0);
+                if (n == 0) return false;               // peer closed
+                if (n < 0)  break;                      // would-block: drained
+                c.len += (uint16_t)n;
+            }
+            return netd_parse_mqtt(c);
         }
     }  // namespace detail
 

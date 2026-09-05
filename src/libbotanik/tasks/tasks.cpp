@@ -95,6 +95,7 @@ namespace Botanik { namespace Tasks {
         if (t == nullptr) return false;
         t->owner   = &owner;
         t->handler = handler;
+        t->health  = owner.verdict_slot();
         return true;
     }
 
@@ -107,6 +108,7 @@ namespace Botanik { namespace Tasks {
         if (t == nullptr) return false;
         t->owner   = &owner;
         t->handler = nullptr;
+        t->health  = owner.verdict_slot();
         return true;
     }
 
@@ -136,8 +138,14 @@ namespace Botanik { namespace Tasks {
             tick.first  = t.first_activation;
             // A task registered without a handler is one whose work IS its
             // component's hook for the phase it sits in.
-            if (t.handler != nullptr) t.handler(t.owner, tick);
-            else                      t.owner->step(now_ms, t.phase);
+            if (t.handler != nullptr) {
+                t.handler(t.owner, tick);
+                // step() samples for itself; a handler task bypasses it, and
+                // its entry still points at the same slot.
+                if (t.owner != nullptr) t.owner->sample_verdict();
+            } else {
+                t.owner->step(now_ms, t.phase);
+            }
             // Cleared after the run: the flag describes the activation that just
             // happened, so a handler reads it for its own run and no other.
             t.first_activation = false;

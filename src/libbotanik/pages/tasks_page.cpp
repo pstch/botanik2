@@ -33,6 +33,9 @@ namespace Botanik { namespace Pages {
         if (!_dirty && now - _last_refresh_ms < REFRESH_MS) return;
         _last_refresh_ms = now;
         _dirty = false;
+        // A narrow view selects on a verdict, which moves with no keypress
+        // behind it: its row set has to be rebuilt every refresh.
+        if (_mode != MODE_ALL) _order_gen = 0;
         uint16_t n = _count();
         _clamp_selection();
         _follow_selection();
@@ -47,12 +50,16 @@ namespace Botanik { namespace Pages {
         _draw_panel();
     }
 
+    const char* TasksPage::_mode_label(uint8_t i) const {
+        return (i == MODE_ALL) ? "ALL" : Plc::health_name(_mode_health(i));
+    }
+
     void TasksPage::_ensure_order() const {
         const uint8_t n = (uint8_t)_reg.count();
         if (_order_of == n && _order_gen == _filter_gen) return;   // still current
         _order_n = 0;
         for (uint8_t i = 0; i < n; i++)
-            if (_filter_match(_reg.task(i).name)) _order[_order_n++] = i;
+            if (_filter_match(_reg.task(i).name) && _in_mode(i)) _order[_order_n++] = i;
         for (uint8_t i = 1; i < _order_n; i++) {
             const uint8_t v = _order[i];
             uint8_t j = i;
