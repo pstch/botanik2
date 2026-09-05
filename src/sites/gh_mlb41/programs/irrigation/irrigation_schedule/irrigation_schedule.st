@@ -84,9 +84,14 @@ END_VAR
      has never been set", which the row carries as itself rather than as a
      date. *)
   irr_today := sys_today;
-  IF sys_today <> 0 AND sys_today <> served_day THEN
+  (* FORWARD only. A clock corrected backwards would otherwise clear the
+     tally and let the day be watered twice, which is the failure tray_due.st
+     refuses for the same reason. A backward step re-anchors without clearing. *)
+  IF sys_today <> 0 AND sys_today > served_day THEN
     served_day      := sys_today;
     irr_servedToday := 0;
+  ELSIF sys_today <> 0 AND sys_today < served_day THEN
+    served_day := sys_today;
   END_IF;
 
   forced := irr_forceNow;

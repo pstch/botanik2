@@ -60,7 +60,7 @@ END_VAR
        output and it crosses a rung as slowly as it likes. *)
     ground_band.IN   := -cli_coolDem;
     ground_band.RISE := -cli_groundHeatDem;
-    ground_band.FALL := -cli_groundHeatDem + cli_groundDemHyst;
+    ground_band.FALL := -cli_groundHeatDem - cli_groundDemHyst;
     ground_band();
     asking := ground_band.Q;
     ground_gate.IN   := cli_temp_cs - cli_temp_in;
