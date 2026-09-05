@@ -233,6 +233,14 @@ if(_python3 AND _iec2c)
         COMMAND ${CMAKE_COMMAND} -E compare_files
                 ${CMAKE_SOURCE_DIR}/src/libbotanik/plc/runtime/quality.gen.h
                 ${_gen}/src/libbotanik/plc/runtime/quality.gen.h
+        # health.gen.h is generated beside quality.gen.h and compiled in through
+        # accessor.h; points.md was regenerated above and compared to nothing.
+        COMMAND ${CMAKE_COMMAND} -E compare_files
+                ${CMAKE_SOURCE_DIR}/src/libbotanik/plc/runtime/health.gen.h
+                ${_gen}/src/libbotanik/plc/runtime/health.gen.h
+        COMMAND ${CMAKE_COMMAND} -E compare_files
+                ${CMAKE_SOURCE_DIR}/docs/reference/points.md
+                ${_gen}/docs/reference/points.md
         COMMAND ${CMAKE_COMMAND} -E rm -rf ${_gen}
         USES_TERMINAL
         COMMENT "Sweep: the committed generated sources still match the tables"

@@ -153,8 +153,16 @@ def read_table(path, cols):
         rd = csv.reader(fh)
         head = [h.strip() for h in next(rd)]
         if head != cols: sys.exit('%s: header %s != %s' % (path, head, cols))
-        return [dict(zip(head, [c.strip() for c in r])) for r in rd
-                if r and any(c.strip() for c in r)]
+        out = []
+        for n, r in enumerate(rd, start=2):
+            if not r or not any(c.strip() for c in r): continue
+            # zip() stops at the shorter list, so a dropped comma would take a
+            # trailing column out of the dict and revert it to a default.
+            if len(r) != len(head):
+                sys.exit('%s:%d has %d fields, the header has %d'
+                         % (path, n, len(r), len(head)))
+            out.append(dict(zip(head, [c.strip() for c in r])))
+        return out
 
 
 def toml(path):
@@ -359,6 +367,8 @@ def build(site):
             'param_first': 0, 'param_count': n_param,
             'cal': read_table(os.path.join(site, 'tables', 'analog_cal.csv'),
                               AUX['analog_cal'].split()),
+            'dev': read_table(os.path.join(site, 'tables', 'modbus_devices.csv'),
+                              AUX['modbus_devices'].split()),
             'home': read_table(os.path.join(site, 'tables', 'home.csv'),
                                AUX['home'].split()),
             # Optional: a site with nothing to add to the SYSTEM band declares
@@ -498,6 +508,58 @@ def check(t):
         if r['_fac'] == 'A' and len(r['code']) > 9:
             bad.append('%s: alarm code %r is longer than 9' % (r['name'], r['code']))
 
+    # An alarm's CODE is what the bar and the page show, so two alarms sharing
+    # one are indistinguishable exactly where an operator is reading them.
+    codes = {}
+    for r in table:
+        if r['_fac'] != 'A': continue
+        c = r['code']
+        if not c:
+            bad.append('%s: an alarm needs a code' % r['name'])
+            continue
+        if c in codes:
+            bad.append('%s and %s share alarm code %r' % (codes[c], r['name'], c))
+        codes[c] = r['name']
+
+    # The FIELD bus, which the register check above skips because `reg` there
+    # addresses a device rather than the TCP map. Two rows on one device's same
+    # register is a typo either way: as an output the last writer wins.
+    used = {}
+    for r in table:
+        if KIND[r['_fac']] not in ('INPUT', 'OUTPUT'): continue
+        d = r.get('device', '')
+        if not d or d == '0': continue          # local, checked by terminal above
+        # The address column is per factory, as it is for a local terminal:
+        # a coil row has no `reg`.
+        addr = r.get('reg') or r.get('coil') or r.get('channel') or ''
+        if addr == '': continue
+        k = (d, r.get('fc', ''), addr)
+        if k in used:
+            bad.append('%s and %s both claim device %s fc %r address %s'
+                       % (used[k], r['name'], k[0], k[1], k[2]))
+        used[k] = r['name']
+
+    # ...and the device has to be one the site declares, or the master plans a
+    # unit that will never answer.
+    addrs = set(d['addr'] for d in t['dev'])
+    if addrs:
+        for r in table:
+            if KIND[r['_fac']] not in ('INPUT', 'OUTPUT'): continue
+            d = r.get('device', '')
+            if not d or d == '0' or d in addrs: continue
+            bad.append('%s: device %s is in no modbus_devices.csv row' % (r['name'], d))
+
+    # A calibration with its ends the wrong way round scales every reading
+    # backwards, and the band check above only sees rows, not these.
+    for c in t['cal']:
+        for lo, hi in (('raw_min', 'raw_max'), ('eng_min', 'eng_max'),
+                       ('min', 'max')):
+            a, b2 = _num(c[lo].rstrip('f')), _num(c[hi].rstrip('f'))
+            if a is None or b2 is None: continue
+            if a >= b2:
+                bad.append('%s: %s (%g) is not below %s (%g)'
+                           % (c['cal'], lo, a, hi, b2))
+
     if bad:
         for b in bad: print('  ' + b, file=sys.stderr)
         sys.exit('%d table error(s)' % len(bad))
@@ -507,7 +569,9 @@ def check(t):
 
 def quote(v, col, fac=None):
     if col in TEXT or col in TEXT_BY_FAC.get(fac, ()):
-        return '"%s"' % v.replace('"', '\\"')
+        # Backslash first: escaping the quotes of a value that already ends in
+        # one would produce an escaped quote and never close the literal.
+        return '"%s"' % v.replace('\\', '\\\\').replace('"', '\\"')
     if col in SYMBOL and v and not _numeric(v) and not v.startswith(SYMBOL[col]):
         return SYMBOL[col] + v
     return v
