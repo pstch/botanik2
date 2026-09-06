@@ -122,5 +122,7 @@ def points(site):
               '| reads | %s |' % (', '.join('`%s`' % r for r in reads) or '-'),
               '| writes | %s |' % (', '.join('`%s`' % w for w in writes) or '-'), '']
 
-    open('docs/reference/points.md', 'w').write('\n'.join(L))
+    out = os.path.join('docs', 'reference', 'points.md')
+    os.makedirs(os.path.dirname(out), exist_ok=True)
+    open(out, 'w').write('\n'.join(L))
     print('  points.md      %d rows, %d programs' % (len(table), len(prog)))
