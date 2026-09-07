@@ -89,8 +89,9 @@ doctest_discover_tests(botanik_tests PROPERTIES LABELS unit)
 set(BOTANIK_CTEST_JOBS ${_nproc} CACHE STRING
     "Parallel job count for the ctest gate (make check)")
 # The run itself is gate.cmake: `-LE unit` first, then the per-case entries only
-# when doctest failed. Excluding by label rather than naming what to run means a
-# newly added test joins the gate by default.
+# when doctest failed, which says whether a case fails alone or only in company.
+# Excluding by label rather than naming what to run means a newly added test
+# joins the gate by default.
 add_custom_target(check
     COMMAND ${CMAKE_COMMAND} -DCTEST=${CMAKE_CTEST_COMMAND}
             -DJOBS=${BOTANIK_CTEST_JOBS}
@@ -291,7 +292,7 @@ add_dependencies(check-full check-bare)
 # Its own tree, like check-bare's: --coverage changes every object, and folding
 # it into build/ would make an ordinary `make check` pay for instrumentation.
 find_program(GCOV_EXE NAMES gcov)
-if(GCOV_EXE AND CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+if(GCOV_EXE AND _python3 AND CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
     add_custom_target(coverage
         COMMAND ${CMAKE_COMMAND} -G ${CMAKE_GENERATOR} -S ${CMAKE_SOURCE_DIR}
                 -B ${CMAKE_BINARY_DIR}/coverage -DBOTANIK_TARGET=SIMULATOR
@@ -307,18 +308,18 @@ if(GCOV_EXE AND CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
         # having, so the report runs either way.
         COMMAND ${CMAKE_COMMAND} -E env ${CMAKE_CTEST_COMMAND} -LE unit
                 --test-dir ${CMAKE_BINARY_DIR}/coverage || ${CMAKE_COMMAND} -E true
-        COMMAND ${CMAKE_COMMAND} -DGCOV=${GCOV_EXE}
-                -DTREE=${CMAKE_BINARY_DIR}/coverage
-                -DSRC=${CMAKE_SOURCE_DIR}
-                -DOUT=${CMAKE_BINARY_DIR}/coverage.json
-                -P ${CMAKE_SOURCE_DIR}/cmake/coverage.cmake
+        COMMAND ${_python3} ${CMAKE_SOURCE_DIR}/scripts/coverage.py
+                --gcov ${GCOV_EXE}
+                --tree ${CMAKE_BINARY_DIR}/coverage
+                --src ${CMAKE_SOURCE_DIR}
+                --out ${CMAKE_BINARY_DIR}/coverage.json
         USES_TERMINAL
         COMMENT "Sweep: line coverage of libbotanik, both suites (build/coverage/)"
         VERBATIM
     )
     add_dependencies(check-full coverage)
 else()
-    message(STATUS "check-full: no gcov, skipping the coverage report")
+    message(STATUS "check-full: no gcov or python3, skipping the coverage report")
 endif()
 
 # pyte screen-assertion tests (Python) - host-only, joined to the same CTest

@@ -2,8 +2,12 @@
 # ============================================================================
 # `-LE unit` runs the aggregate doctest entry plus the pyte files: every test
 # once, in the one-process configuration that catches a case corrupting state
-# for the ones after it. Only on a doctest failure does it re-run the per-case
-# entries, so each failing case is named on its own.
+# for the ones after it.
+#
+# Only on a doctest failure does it re-run the per-case entries, each in a fresh
+# process. That is not for the NAMES - doctest already prints the failing case
+# with its file and line - but to tell a case that fails on its own from one
+# that only fails in company.
 #
 # Driven with -DCTEST=<ctest> -DJOBS=<n>, from the build directory.
 
@@ -20,7 +24,7 @@ execute_process(COMMAND ${CTEST} -R "^doctest$"
 
 if(NOT _doctest_rc EQUAL 0)
     message("")
-    message("=== doctest failed; re-running the cases one process each to name them ===")
+    message("=== doctest failed; re-running the cases one process each ===")
     # A case that only fails in company passes on its own, so an all-green run
     # below does not overturn the failure above.
     message("    An all-green run below usually means INTERFERENCE between cases,")

@@ -67,9 +67,11 @@ a warning in a library source fails the build of the suite; then both suites via
 `ctest -LE unit`. The gate runs the whole doctest binary in ONE process, which is
 what catches a case corrupting state for the ones after it.
 
-On a doctest failure `tests/gate.cmake` re-runs the per-case entries so each
-failing case is named. If that re-run comes back all-green the fault is usually
-interference between cases: reproduce with `./build/tests/botanik_tests`. The
+doctest names the failing case, with file and line, in that one-process run. On
+a failure `tests/gate.cmake` also re-runs the per-case entries, each in a fresh
+process, which answers a different question: an all-green re-run means the case
+fails only in company, so the fault is interference. Reproduce it with
+`./build/tests/botanik_tests`, the one-process configuration. The
 exception is the socket-backed cases (`test_modbus_server.cpp`,
 `test_modbus_master.cpp`), which bind a PID-derived 127/8 address, so a recycled
 PID can meet the lingering sockets of a run that just exited. If only those
