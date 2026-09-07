@@ -32,7 +32,7 @@ using namespace Botanik::Modbus;
 /** @brief A row's Modbus REGISTER address. Two words per row, high first, so
  *  the address is twice the row number. Bits are indexed by the row number
  *  itself - that asymmetry is the map's, and this is where the file states
- *  it. @see docs/dev/modbus.md */
+ *  it. */
 static uint16_t reg_addr(uint16_t reg) { return (uint16_t)(reg * 2u); }
 
 struct MapFixture {

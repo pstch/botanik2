@@ -5,7 +5,7 @@
  *        would have put it.
  *
  * TextEditor reconciles its own rows rather than going through the back-buffer
- * diff (25 bytes against 195 - see docs/dev/editor.md), which buys the wire
+ * diff (25 bytes against 195), which buys the wire
  * budget and costs the one thing a diff gives away free: the screen can drift
  * from the model and nothing notices. These cases are that notice.
  */

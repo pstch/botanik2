@@ -182,13 +182,12 @@ def test_cursor_returns_to_the_prompt_after_clear(term):
     """^U parks the hardware cursor after the prompt, whatever it cleared.
 
     pyte's cursor is the one on the wire, so this asserts what present() homed
-    the terminal at. A single-row clear used to leave it where the text ended:
-    the shell suppresses the editor's redraw, and the suppressed path skipped
-    the declaration along with it.
+    the terminal at. The shell suppresses the editor's redraw, and a suppressed
+    path that skips the cursor declaration leaves it where the text ended.
     """
     home = (_prompt_row(term), 9)         # PS1 is 9 columns
-    # One row, then two: the multi-row clear shrinks the band back down, and
-    # only that path ever re-placed the cursor.
+    # One row, then two: the multi-row clear shrinks the band back down, and it
+    # is the only path that re-places the cursor.
     for text, drawn in ((b"hello", ["botanik> hello"]),
                         (RULER.encode(), ["botanik> " + RULER[:71],
                                           "> " + RULER[71:]])):

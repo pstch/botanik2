@@ -1,17 +1,15 @@
 {
     // Both configurations read the compile database CMake writes
-    // (CMAKE_EXPORT_COMPILE_COMMANDS is ON), so IntelliSense sees exactly the
-    // flags the build used. The OPTA entry used to hand-copy the Mbed core's 35
-    // include paths and 86 defines with the core version hardcoded - a second
-    // copy of what the build already auto-discovers, guaranteed to drift on the
-    // next core upgrade. Configure the matching tree once and this stays right:
-    //   cmake -B build-debug -DBOTANIK_TARGET=SIMULATOR
+    // (CMAKE_EXPORT_COMPILE_COMMANDS is ON), so IntelliSense sees the flags the
+    // build used rather than a hand-copied list of Mbed include paths and
+    // defines. Configure the matching tree once and this stays right:
+    //   cmake -B build       -DBOTANIK_TARGET=SIMULATOR
     //   cmake -B build-opta  -DBOTANIK_TARGET=OPTA
     "version": 4,
     "configurations": [
         {
             "name": "SIMULATOR",
-            "compileCommands": "${workspaceFolder}/build-debug/compile_commands.json",
+            "compileCommands": "${workspaceFolder}/build/compile_commands.json",
             "compilerPath": "/usr/bin/g++",
             "intelliSenseMode": "linux-gcc-x64",
             "cppStandard": "c++11",

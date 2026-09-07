@@ -367,7 +367,7 @@ the four `scripts/tables.py` commands in one, against the pinned compiler, in th
 source tree; `make check-generated` catches you if you forget.
 
 **The generator owns the checks.** It is the one thing that sees the whole table,
-so it refuses at generate time what the site test used to assert: names unique
+so it refuses at generate time what a runtime test cannot: names unique
 under case folding, registers unique and inside their block, a mapped kind with
 no register, local terminals unique per direction, a band end naming no row or
 the wrong type, a default outside its own band, an alarm code too long for the
