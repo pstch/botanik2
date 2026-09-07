@@ -1,6 +1,4 @@
 {
-    // The "Debug simulator (xterm)" launch config uses console: externalTerminal,
-    // which on Linux opens whatever terminal this points to. Pin it to xterm.
     "terminal.external.linuxExec": "xterm",
     "files.associations": {
         "ctime": "cpp",
@@ -10,12 +8,6 @@
     },
     "search.useIgnoreFiles": false,
 
-    // Agent worktrees under .claude/worktrees/ are full checkouts with their own
-    // build trees, ~1 GB and ~12k files inside the workspace. Left alone, VS Code
-    // registers each as a repository and watches it recursively, and one agent's
-    // build then fans a file-event storm into N concurrent `git status`, killing
-    // the extension host. Keep them out of the watcher, explorer, search and repo
-    // detection.
     "files.watcherExclude": {
         "**/.claude/**": true,
         "**/build/**": true,
@@ -24,15 +16,11 @@
     "files.exclude": {
         "**/.claude/worktrees": true
     },
-    // search.useIgnoreFiles is off above, so nothing else keeps search out of
-    // the worktrees and the build trees.
     "search.exclude": {
         "**/.claude": true,
         "build*/**": true,
         "includes/**": true
     },
-    // Only the workspace root is a repository. Use "Git: Open Repository" to
-    // pull a worktree into the SCM view deliberately, one at a time.
     "git.autoRepositoryDetection": false,
     "git.repositoryScanIgnoredFolders": [
         "node_modules",
@@ -45,8 +33,6 @@
     "C_Cpp.codeAnalysis.clangTidy.enabled": true,
     "C_Cpp.codeAnalysis.clangTidy.useBuildPath": true,
     "C_Cpp.codeAnalysis.runAutomatically": false,
-    // The same clang-tidy binary as the CLI and CI. The extension otherwise uses
-    // its own bundled build, whose version and findings can differ.
     "C_Cpp.codeAnalysis.clangTidy.path": "/usr/bin/clang-tidy-19",
     "C_Cpp.codeAnalysis.exclude": {
         ".claude/**": true,
@@ -56,6 +42,4 @@
         "build/**": true,
         "/usr/**": true
     },
-    // Checks come from .clang-tidy alone, shared with the CLI. No
-    // checks.enabled/disabled overrides here, so the two cannot drift.
 }
