@@ -1,0 +1,24 @@
+ 1 2 3:LOGS 4 5 6 7 8 9             00:01:08        run:  RUN cpu:100% stk:  1%
+
+
+
+
+
+26/01/01 00:00:00.000 [-] BOOT: Botanik v0.13.12-dev
+                        > Running on : x86-64 POSIX simulator
+26/01/01 00:00:00.000 [-] MODBUS: 110 rows, 24 blocks, 22 devices
+                        > 24.9% of the bus at 38400 baud
+26/01/01 00:00:00.000 [-] HEALTH: POST ok (site gh_mlb41)
+26/01/01 00:00:00.000 [-] NETWORK: modbus slave on port 502
+26/01/01 00:00:00.000 [~] BOOT: setup done, outputs are safe, starting...
+26/01/01 00:00:00.000 [~] BOOT: boot complete
+                        > HW watchdog 10000 ms
+26/01/01 00:00:00.000 [~] BOOT: console 4800 baud
+26/01/01 00:00:00.000 [~] BOOT: monitor 115200 baud
+26/01/01 00:00:00.010 [~] BOOT: LoopScheduler initialized
+26/01/01 00:00:00.010 [-] NETWORK: network bring-up (static)
+26/01/01 00:00:00.010 [+] NETWORK: network up: 127.0.0.1
+26/01/01 00:00:00.020 [+] TIME: NTP synced (192.168.1.1:123)
+26/01/01 00:00:00.030 [+] NETWORK: MQTT connected (192.168.1.1:1883)
+26/01/01 00:00:05.000 [+] BOOT: control tasks enabled, system operational
+ ALARMS : SYS_RST

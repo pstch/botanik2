@@ -2,6 +2,10 @@
 
 <!-- source of truth: shell/shell.h; commands are noun then verb -->
 
+## The screen
+
+@verbinclude shell.txt
+
 ## The prompt
 
 ## Noun then verb

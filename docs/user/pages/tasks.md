@@ -2,6 +2,10 @@
 
 <!-- source of truth: pages/tasks.h, tasks/registry.h -->
 
+## The screen
+
+@verbinclude tasks.txt
+
 ## The table
 
 ## Rates and phases

@@ -2,6 +2,10 @@
 
 <!-- source of truth: pages/params.h, vars/param_check -->
 
+## The screen
+
+@verbinclude params.txt
+
 ## The list
 
 ## Editing a value

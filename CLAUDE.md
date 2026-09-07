@@ -60,7 +60,13 @@ ctest --test-dir build --output-on-failure          # all CTest entries
 ctest --test-dir build -R pyte --output-on-failure  # just pyte
 make -C build matiec                 # build the pinned matiec (needs flex/bison/autotools)
 make -C build regen-site             # regenerate into the source tree, then commit the diff
+python3 scripts/screens.py           # recapture the user manual's console screenshots
 ```
+
+`scripts/screens.py` drives `botanik_sim` through the pyte harness and writes one
+rendered 80x24 screen per console page into `docs/user/pages/screens/`, which the
+pages pull in with `@verbinclude`. Not a build step and nothing diffs it: it
+writes `.txt` only, so it can never touch a page's prose.
 
 **`make check`** fails on the first problem: the library compiles `-Werror`, so
 a warning in a library source fails the build of the suite; then both suites via

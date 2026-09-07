@@ -2,6 +2,10 @@
 
 <!-- source of truth: logs/logger.h, pages/logs.h -->
 
+## The screen
+
+@verbinclude logs.txt
+
 ## Levels
 
 ## Topics
