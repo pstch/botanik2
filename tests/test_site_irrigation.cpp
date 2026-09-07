@@ -59,9 +59,9 @@ TEST_CASE_FIXTURE(StRig, "irrigation: every row it reads back is written before 
 }
 
 TEST_CASE_FIXTURE(StRig, "irrigation: a modulation nobody can read still waters, and says it guessed") {
-    // The two halves of this used to disagree: the CYCLE was told to run on
-    // the declared modulation, while the SCHEDULE still refused to name a tray
-    // without a measured one - so nothing started and the tray stayed dry.
+    // The two halves have to agree. The cycle runs on the declared modulation,
+    // so the schedule must name a tray without a measured one; refusing leaves
+    // nothing started and the tray dry.
     no_soak(live);
     slot(live);
     live.bank.var(live.ref("irr_liters_tray1")).param_set(5.0f);
@@ -284,7 +284,7 @@ TEST_CASE_FIXTURE(StRig,
 
 TEST_CASE("irrigation: the day the schedule runs on is today's date") {
     // Two ways of asking what day it is, and they have to agree. They did not:
-    // the date came off cal_time_ms(), which takes an UPTIME-domain instant and
+    // the date came off cal_time_ms(), which takes an uptime-domain instant and
     // projects it onto the wall, so a wall time handed to it was projected a
     // second time - a date around 2083, gaining a day every twelve hours. Every
     // tray's interval was therefore half what its parameter said.
@@ -371,7 +371,7 @@ TEST_CASE_FIXTURE(StRig, "irrigation: the two ways the slot can be told a lie") 
     live.bank.var(live.ref("irr_liters_tray1")).param_set(5.0f);
     const uint16_t slot = live.ref("irr_slotOpen");
 
-    // The PROBES, not the derived row: temp_rh_sensors votes cli_temp_ext from
+    // The probes, not the derived row: temp_rh_sensors votes cli_temp_ext from
     // them every scan and would overwrite anything published straight onto it.
     INFO("a warm end of night waters, which is what the dawn slot is FOR");
     for (uint8_t i = 1; i <= 3; i++) {
@@ -416,7 +416,6 @@ TEST_CASE_FIXTURE(StRig, "irrigation: the two ways the slot can be told a lie") 
 }
 
 TEST_CASE_FIXTURE(StRig, "irrigation: the afternoon is not a watering slot") {
-    // The meters FIRST: the cycle judges a fill against what they publish.
     summer(live);
 
     field(live, "cli_temp_ext", 25.0f);
@@ -440,7 +439,7 @@ TEST_CASE_FIXTURE(StRig, "irrigation: the afternoon is not a watering slot") {
     INFO("and a cold end of night waits for that window rather than watering "
          "cold roots");
     Live g;
-    // Every irrigation law is ST, so the second plant is just the RESOURCE.
+    // Every irrigation law is ST, so the second plant is just the resource.
     Plc::Runtime::Plant st2(Botanik::SetupContext(g.reg), g.bank);
     st2.wire();
     struct { Plc::Runtime::Plant* st;
@@ -448,7 +447,7 @@ TEST_CASE_FIXTURE(StRig, "irrigation: the afternoon is not a watering slot") {
     summer(g);
     g.bank.var(g.ref("irr_forceOn_tray1")).param_set(true);
     put_phase(g, Site::PHASE_DAWN_BREEZE);
-    // Below the gate, and FORCED under it: slot() puts every other case above.
+    // Below the gate, and forced under it: slot() puts every other case above.
     force(g, "cli_temp_ext",
           g.bank.var(g.ref("irr_dawnGate_degC")).as_f32() - 1.0f);
     d2.step(1000);
@@ -456,7 +455,6 @@ TEST_CASE_FIXTURE(StRig, "irrigation: the afternoon is not a watering slot") {
 }
 
 TEST_CASE_FIXTURE(StRig, "irrigation: a fill fault names the tray, not just the cycle") {
-    // The meters FIRST: the cycle judges a fill against what they publish.
     summer(live);
 
     // Tray 2 alone is due, and nothing will ever arrive to fill it.
@@ -506,7 +504,6 @@ TEST_CASE("irrigation: total water tracks the modulation whatever the split") {
 }
 
 TEST_CASE_FIXTURE(StRig, "irrigation: the cycle fills to its dose, then drains, then idles") {
-    // The meters FIRST: the cycle judges a fill against what they publish.
     summer(live);
     no_soak(live);
 
@@ -563,7 +560,6 @@ TEST_CASE_FIXTURE(StRig, "irrigation: the cycle fills to its dose, then drains, 
 }
 
 TEST_CASE_FIXTURE(StRig, "irrigation: the two meters read as a counter and a rate") {
-    // The meters FIRST: the cycle judges a fill against what they publish.
     summer(live);
     live.bank.var(live.ref("irr_input_qtyPerImp")).param_set(1.0f);
 
@@ -587,7 +583,6 @@ TEST_CASE_FIXTURE(StRig, "irrigation: the two meters read as a counter and a rat
 }
 
 TEST_CASE_FIXTURE(StRig, "irrigation: what comes back out is judged against what went in") {
-    // The meters FIRST: the cycle judges a fill against what they publish.
     summer(live);
     // Bare, not REQUIREd: a channel another case already attached answers
     // false, and this one only needs it counting.
@@ -601,7 +596,6 @@ TEST_CASE_FIXTURE(StRig, "irrigation: what comes back out is judged against what
 }
 
 TEST_CASE_FIXTURE(StRig, "irrigation: a tray that does not drain names itself") {
-    // The meters FIRST: the cycle judges a fill against what they publish.
     summer(live);
 
     // A trickle: half a litre back out of twenty.
@@ -614,7 +608,6 @@ TEST_CASE_FIXTURE(StRig, "irrigation: a tray that does not drain names itself") 
 }
 
 TEST_CASE_FIXTURE(StRig, "irrigation: a silent outlet meter gives no verdict, not a clog") {
-    // The meters FIRST: the cycle judges a fill against what they publish.
     summer(live);
 
     const float back = drain_at(live, d, 0.0f, false);
@@ -627,7 +620,6 @@ TEST_CASE_FIXTURE(StRig, "irrigation: a silent outlet meter gives no verdict, no
 }
 
 TEST_CASE_FIXTURE(StRig, "irrigation: a fill that never arrives raises, and still opens the drain") {
-    // The meters FIRST: the cycle judges a fill against what they publish.
     summer(live);
 
     slot(live);
@@ -677,9 +669,9 @@ TEST_CASE_FIXTURE(StRig, "irrigation: a fill that never arrives is spent, not re
 }
 
 TEST_CASE_FIXTURE(StRig, "irrigation: the pulse line says whether the meter is ticking") {
-    // LocalInputs skips a B_PULSE terminal as a LEVEL deliberately, so nothing else can
+    // LocalInputs skips a B_PULSE terminal as a level deliberately, so nothing else can
     // publish this row - it read as never-written for the life of the run.
-    // Its LEVEL is meaningless (a pulse is a moment of a train), so what it
+    // Its level is meaningless (a pulse is a moment of a train), so what it
     // carries is whether an edge arrived in the beat.
     const uint16_t line = live.ref("irr_inPulse");
 

@@ -270,7 +270,7 @@ TEST_CASE("modbus server: two clients are served independently") {
         f.exchange(b, mbap(0x2222, 1, read_pdu(FC_READ_HOLDING, 900 * 2, 1)));
     REQUIRE(ra.size() >= 9);
     REQUIRE(rb.size() >= 9);
-    // Each gets its OWN transaction id back: crossing them would have a master
+    // Each gets its own transaction id back: crossing them would have a master
     // match an answer to the wrong question.
     CHECK(((ra[0] << 8) | ra[1]) == 0x1111);
     CHECK(((rb[0] << 8) | rb[1]) == 0x2222);
@@ -278,7 +278,7 @@ TEST_CASE("modbus server: two clients are served independently") {
 
 TEST_CASE("modbus server: a link that has not come up yet is not a link that fell") {
     // BotanikFirmware::setup() opens the listener and calls set_network()
-    // BEFORE the first beat, so the first on_input() reads the link with
+    // before the first beat, so the first on_input() reads the link with
     // nothing observed yet. Reading that as a FALL closes the listener the
     // log just announced, and the port stays shut for a whole
     // MODBUS_TCP_BIND_RETRY_MS - 30 s of a server that is not there.

@@ -27,7 +27,7 @@ using namespace Botanik::Network;
 namespace {
 
 /** @brief Resolve @p host until it stops being PENDING, or give up.
- *  The emulated lookup answers on a deadline in UPTIME, so the wait is a real
+ *  The emulated lookup answers on a deadline in uptime, so the wait is a real
  *  sleep - bounded, since a wedged resolver is the failure being watched for. */
 ResolveStatus settle(NameResolver& r, const char* host, ResolvedAddr* out,
                      int rounds = 40) {
@@ -76,7 +76,7 @@ TEST_CASE("resolver: a hostname resolves without blocking, over several calls") 
     NameResolver r;
     ResolvedAddr a = {{0, 0, 0, 0}};
 
-    // The first call starts the lookup and polls once. It must NOT block: the
+    // The first call starts the lookup and polls once. It must not block: the
     // whole point of the poll API is that the main loop keeps running.
     const ResolveStatus first = r.resolve("broker.example", &a);
     CHECK((first == RESOLVE_PENDING || first == RESOLVE_OK));
@@ -108,7 +108,7 @@ TEST_CASE("resolver: a cached entry past its age is re-resolved, not served") {
 
     HAL::Clock::sleep_ms(5);
     // Past the age, so the row is dropped and a fresh lookup starts - which
-    // means this call is NOT an immediate OK from the cache.
+    // means this call is not an immediate OK from the cache.
     ResolvedAddr b = {{0, 0, 0, 0}};
     const ResolveStatus again = r.resolve("mqtt.example", &b);
     CHECK((again == RESOLVE_PENDING || again == RESOLVE_OK));

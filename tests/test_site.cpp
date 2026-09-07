@@ -54,13 +54,10 @@ namespace {
 }  // namespace
 
 TEST_CASE("site: running the whole site leaves every parameter where it was") {
-    // RUNS the site - each program once, plus simulate() - which is the one
-    // thing no static check covers: a law or the simulated field writing a row
-    // it does not own.
-    //
-    // What this case used to also do was resolve every name. Nothing resolves
-    // now: a row is a generated index, and a name no table declares does not
-    // compile.
+    // Runs the site: each program once, plus simulate(). That is the one thing
+    // no static check covers, a law or the simulated field writing a row it
+    // does not own. Names need no checking here, since a row is a generated
+    // index and a name no table declares does not compile.
     SiteBank f;
 
     Logs::Logger logger;
@@ -75,7 +72,7 @@ TEST_CASE("site: running the whole site leaves every parameter where it was") {
 #ifdef TARGET_SIMULATOR
     Site::simulate(f.bank, 1000);
 #endif
-    // Every program is ST, so the RESOURCE is what binds them: wire() resolves
+    // Every program is ST, so the resource is what binds them: wire() resolves
     // each one's VAR_EXTERNALs and records whether it got them all.
     Botanik::Tasks::Registry prog_reg;
     Plc::Runtime::Plant st(Botanik::SetupContext(prog_reg), f.bank);
@@ -94,7 +91,7 @@ TEST_CASE("site: running the whole site leaves every parameter where it was") {
 
 #if BOTANIK_FEATURE_SUN_TRACKER
 TEST_CASE("site: every local row gets a terminal") {
-    // Level inputs and pulse counters come off the SAME eight pins, so a table
+    // Level inputs and pulse counters come off the same eight pins, so a table
     // can declare more than exist. Such a row reads its declared value for the
     // life of the run, which on a contact is indistinguishable from open.
     Botanik::Tasks::Registry reg;
@@ -201,11 +198,10 @@ TEST_CASE_FIXTURE(SiteBank, "vars: forcing a companion is how a row reads dead")
 
 #if BOTANIK_FEATURE_PLC
 TEST_CASE("site: a program that opted into health publishes it, off its own name") {
-    // The row is derived from the roster's name, so a renamed program would
-    // quietly stop publishing and the row it used to drive would sit at its
-    // declared FAULTED for ever. The generator refuses a law that owes a health
-    // and does not write it; what is left for here is that the two agree at
-    // RUN time about which row that is.
+    // The row is derived from the roster's name, so a renamed program stops
+    // publishing and leaves the row it drove at its declared FAULTED. The
+    // generator refuses a law that owes a health and does not write it; what is
+    // left for here is that the two agree at RUN time about which row it is.
     Vars::Bank bank;
     Botanik::Tasks::Registry reg;
     TestSite::build(bank);

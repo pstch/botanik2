@@ -4,7 +4,7 @@
 /**
  * @file vt_model.h
  * @brief VtScreen - an independent VT102 that interprets what the terminal
- *        emitted, so a test can ask what the OPERATOR would be looking at.
+ *        emitted, so a test can ask what the operator would be looking at.
  *
  * The back-buffer's own FRONT/BACK agreement proves nothing about the wire:
  * present() writes BACK itself, from the same code that builds the escape. This

@@ -55,7 +55,7 @@ TEST_CASE("health: SYS_RST is asserted for the reset window and then clears") {
 }
 
 TEST_CASE("health: CPU load and jitter are judged against the beat, not a constant") {
-    // Integer-scaled (no float): at threshold must NOT fire, one us past must.
+    // Integer-scaled (no float): at threshold must not fire, one us past must.
     Fixture f;
     Health::HealthMonitor h(Botanik::SetupContext(nullptr, &f.log), &f.sched, &f.bank);
 

@@ -51,8 +51,8 @@ TEST_CASE("hal net: the invalid handle resolves nothing") {
 }
 
 TEST_CASE("hal net: a real lookup still resolves after a poll of the sentinel") {
-    // The guard must reject the sentinel rather than consume a slot: polling 0
-    // used to free the first slot on its way out.
+    // The guard rejects the sentinel rather than consuming a slot: polling 0
+    // must not free the first one on its way out.
     for (int i = 0; i < 8; i++) CHECK(dns_poll(0, nullptr) == DNS_FAILED);
 
     const DnsHandle h = dns_begin("broker.local");

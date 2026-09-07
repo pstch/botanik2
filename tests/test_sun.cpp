@@ -16,7 +16,7 @@ using namespace Botanik;
 
 namespace {
 
-// solar_position() takes an UPTIME and converts it to a wall instant itself,
+// solar_position() takes an uptime and converts it to a wall instant itself,
 // so an instant goes in through that conversion's inverse. The sim's wall
 // clock is the host's and cannot be set.
 Sun::SolarPosition at(uint64_t unix_ms, double lat, double lon) {

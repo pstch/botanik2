@@ -8,18 +8,17 @@
  *
  * The two questions are different and a suite wants both:
  *
- *  - **CONVERGENCE** - does the incremental screen equal the one a full repaint
+ *  - Convergence: does the incremental screen equal the one a full repaint
  *    would produce? The editor and every page reconcile their own rows, so the
- *    screen can drift from the model and the terminal's own diff cannot notice:
- *    FRONT and BACK agree, and the wrong glyph stays. `converged()` is that
- *    check, and it is what four of this round's console findings were.
- *  - **BYTE BUDGET** - what did NOT reach the wire? A page that repaints
- *    everything is still correct, so convergence passes while the link at 4800
- *    baud does not keep up. `paint()` hands back the bytes to assert on.
+ *    screen can drift from the model without the terminal's own diff noticing -
+ *    FRONT and BACK agree, and the wrong glyph stays. `converged()` asks.
+ *  - Byte budget: what did not reach the wire? A page that repaints everything
+ *    is still correct, so convergence passes while the link at 4800 baud does
+ *    not keep up. `paint()` hands back the bytes to assert on.
  *
- * Pages are driven DIRECTLY, not through Console's own beat: the status bar
- * carries a live clock, so a whole-console convergence check would be flaky by
- * construction. What is on screen here is what the page under test put there.
+ * Pages are driven directly rather than through Console's own beat: the status
+ * bar carries a live clock, which would make a whole-console convergence check
+ * flaky by construction.
  */
 
 #include <string>
@@ -36,24 +35,22 @@ namespace botanik_test {
 
     /** @brief A Console on a pipe, at a stated geometry.
      *
-     *  The three geometries worth covering are the ends of what the operator
-     *  can actually ask for: `console_cols` is banded 80..132 and
-     *  `console_rows` 20..32, so a page correct only at the 80x24 default is a
-     *  page nobody has tested. */
+     *  `console_cols` is banded 80..132 and `console_rows` 20..32, so the
+     *  geometries worth covering are the ends of that plus the 80x24 default. */
     struct PageFixture {
         PipeSerial          wire;
         uint64_t            now = 0;
         Botanik::Terminal::Console console;
         /** @brief An independent VT fed every byte that left the ring. FRONT
-         *  says what the renderer meant; this says what the operator sees. */
+         *  says what the renderer meant, this what the operator sees. */
         VtScreen            vt;
 
         explicit PageFixture(uint16_t rows = 24, uint16_t cols = 80)
             : console(Botanik::SetupContext(), wire.serial, &now) {
             console.reconfigure(Botanik::Terminal::ConsoleConfig().type, cols, rows);
-            // Far above any real link: a paced paint would otherwise leave the
-            // grid holding what the wire has not carried yet, and every
-            // assertion here would be about the pacing rather than the page.
+            // Far above any real link. A paced paint would leave the grid
+            // holding what the wire has not carried yet, and every assertion
+            // here would be about the pacing rather than the page.
             console.terminal().set_baud(4000000u);
             vt.reshape(console.terminal().rows_total(), console.terminal().cols());
         }
@@ -80,7 +77,7 @@ namespace botanik_test {
 
         /** @brief Blank the screen, the grids and the VT together, so what
          *  follows is measured from nothing.
-         *  @note Twice: a screen's FIRST establish stamps a 4-byte boot banner
+         *  @note Twice: a screen's first establish stamps a 4-byte boot banner
          *  the grids do not carry, and the second one's ED is what wipes it. */
         void reset_wire() {
             console.terminal().establish_screen();
@@ -89,9 +86,9 @@ namespace botanik_test {
         }
 
         /** @brief The first cell where the VT and FRONT disagree, described;
-         *  empty when the screen the operator sees is the one FRONT asked for.
+         *  empty when the operator's screen is the one FRONT asked for.
          *  One string rather than a CHECK per cell: this runs per keystroke in
-         *  the fuzz, and 1920 assertions a step is its own denial of service. */
+         *  the fuzz, where 1920 assertions a step is unusable. */
         std::string wire_diff() const {
             const Botanik::Terminal::AnsiTerminal& t = console.terminal();
             char msg[256];

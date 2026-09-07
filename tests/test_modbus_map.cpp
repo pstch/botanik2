@@ -113,7 +113,7 @@ TEST_CASE("modbus map: an address in a gap is not the neighbouring row") {
     MapFixture f;
     // The published set is sparse. A lookup that clamped to the nearest row
     // would hand a master someone else's value under an address it asked for -
-    // and a WRITE would land on the wrong parameter.
+    // and a write would land on the wrong parameter.
     uint16_t gaps = 0;
     for (uint32_t r = 0; r <= 0xFFFF && gaps < 64; r++) {
         bool found = false;

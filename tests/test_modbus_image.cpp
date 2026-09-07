@@ -114,9 +114,9 @@ TEST_CASE("modbus image: a failed read invalidates rather than leaving the last 
 }
 
 TEST_CASE("modbus image: a block nobody answered reads nothing usable") {
-    // A refusal and a silence used to be different codes. They are one now:
-    // what a READER does about either is identical, and the difference an
-    // operator needs is one log line from the master naming the device.
+    // A refusal and a silence are one code: what a reader does about either is
+    // identical, and the difference an operator needs is the master's own log
+    // line naming the device.
     ImageFixture f;
     const Block* b = f.a_read_block(false);
     REQUIRE_MESSAGE(b != nullptr, "the site has no such block");

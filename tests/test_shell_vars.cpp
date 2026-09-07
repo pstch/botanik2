@@ -1,6 +1,6 @@
 /**
  * @file test_shell_vars.cpp
- * @brief The shell's WRITE path: `params`, `overrides`, `programs`, `alarms`.
+ * @brief The shell's write path: `params`, `overrides`, `programs`, `alarms`.
  *
  * These are the commands that change what the plant does, and every one of them
  * runs against the site's real table rather than a hand-built one - a band a
@@ -8,7 +8,7 @@
  * scan roster a `programs disable` takes a law out of. `test_shell.cpp` wires no
  * SystemContext and so tests the dispatcher; this tests what the verbs do.
  *
- * Every assertion here is on the OPERATOR-VISIBLE answer, not on a member: a
+ * Every assertion here is on the operator-visible answer, not on a member: a
  * verb that silently did the right thing and said the wrong one has failed at
  * the only interface it has.
  */
@@ -354,7 +354,7 @@ TEST_CASE("shell programs: enabling under an inhibited sys_control says it chang
 
 TEST_CASE("shell programs: a bare gate verb refuses rather than acting on everything") {
     Rig f;
-    // `programs disable` with no argument must NOT mean `all`: that is the one
+    // `programs disable` with no argument must not mean `all`: that is the one
     // typo that would stop the whole plant.
     f.run("programs disable");
     CHECK(f.said("name it, or `all`"));

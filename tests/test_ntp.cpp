@@ -52,7 +52,7 @@ TEST_CASE("ntp: the fraction becomes milliseconds") {
 
 TEST_CASE("ntp: an all-zero timestamp is unsynchronised, and only that") {
     // RFC 5905's "unknown or unsynchronised". It stays invalid because a server
-    // that has no time sends zeros - but ONLY the all-zero case, since in era 1
+    // that has no time sends zeros - but only the all-zero case, since in era 1
     // second zero is a real instant.
     CHECK(ntp_to_unix_ms(Packet(0, 0).b) == 0ull);
     CHECK(ntp_to_unix_ms(Packet(0, 1).b) != 0ull);
@@ -72,9 +72,8 @@ TEST_CASE("ntp: the 2036 wrap keeps time moving forward") {
 }
 
 TEST_CASE("ntp: a reply from after 2036 is a time, not a rejection") {
-    // The regression this guards. secs with the top bit clear used to be read
-    // as pre-1970 and discarded, so from 2036-02-07 onward every reply was
-    // dropped and the clock never disciplined again.
+    // secs with the top bit clear is era 1, not pre-1970. Read as pre-1970 it
+    // is discarded, and from 2036-02-07 onward every reply goes with it.
     const uint32_t a_year = 31556952u;
     for (uint32_t years = 1; years <= 60; years++) {
         const uint32_t secs = years * a_year;         // top bit clear: era 1

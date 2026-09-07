@@ -3,7 +3,7 @@
  * @brief The whole plant on one bank: every program registered, driven beat by
  *        beat against the weather and the pipes a case describes.
  *
- * Shared by the two scenario files. INLINE rather than an anonymous namespace:
+ * Shared by the two scenario files. Inline rather than an anonymous namespace:
  * each file uses about half of this, and an unused static function warns where
  * an unused inline one does not.
  */
@@ -32,14 +32,12 @@ namespace fixture {
 
 /** @brief Every program the site runs, in registration order.
  *
- *  The order IS the data flow: instruments, then the ladders that read their
- *  rows, then the actuators that read the demands. A case that registered them
- *  in another order would be testing a plant this one does not build.
+ *  The order is the data flow: instruments, then the ladders that read their
+ *  rows, then the actuators that read the demands.
  *
- *  Two are deliberately absent. the SUN TRACKER needs a fix and a wall clock, and
- *  day_phase would then follow the hour the suite happens to run at - so the
- *  phase is an INPUT here, stated by the scenario, and the program that
- *  would otherwise own it has cases of its own.
+ *  @note Two are absent. The sun tracker needs a fix and a wall clock, and
+ *  day_phase would then follow whatever hour the suite runs at, so the phase is
+ *  an input here, stated by the scenario.
  */
 struct Plant;
 inline void hold_weather(Plant& p);
@@ -67,8 +65,8 @@ struct Plant {
     SetupContext ctx() { return Botanik::SetupContext(f.reg); }
     Vars::Bank&  io()  { return f.bank; }
 
-    /** @brief ONE beat, in the order the firmware has: the local terminals,
-     *  then the ST plant. A case that steps the cycle alone runs neither. */
+    /** @brief One beat, in the firmware's order: the local terminals, then the
+     *  ST plant. */
     void beat() {
         t += 100;
         terminals.step(t, Tasks::PHASE_INPUT);
@@ -120,8 +118,8 @@ struct Weather {
 
 inline Weather& g_wx() { static Weather v = {}; return v; }
 
-/** @brief The phase a scenario is set in. HELD every beat: day_phase owns the
- *  row and republishes it, aninline Site::DayPhase& g_phase() { static Site::DayPhase v = Site::PHASE_DAY; return v; }. */
+/** @brief The phase a scenario is set in. Held every beat: day_phase owns the
+ *  row and republishes it from a sun the scenario is not simulating. */
 inline Site::DayPhase& g_phase() { static Site::DayPhase v = Site::PHASE_DAY; return v; }
 
 /** @brief Minutes since sunrise, for the laws that measure the day from it. */
@@ -150,9 +148,9 @@ inline void hold_weather(Plant& p) {
     p.put("pwr_upsBat_V", 26.0f);
     p.put("pwr_genBat_V", 26.0f);
     p.f.bank.var(p.ref("pwr_upsLowBat")).publish(from_bool(T_BOOL, false), p.t);
-    // FORCED, because day_phase is in this plant now and rewrites the row on
-    // every scan from a sun the scenario is not simulating. An override
-    // shadows the live value, which is what a forced phase means anyway.
+    // Forced: day_phase is in this plant and rewrites the row every scan from
+    // a sun the scenario is not simulating. An override shadows the live
+    // value.
     p.f.bank.var(p.ref("cli_phase")).override_set(Vars::from_i64(Vars::T_U8, (int64_t)g_phase()));
     p.f.bank.var(p.ref("cli_phase_qlt")).override_set(Vars::from_bool(Vars::T_BOOL, true));
     // sun_watch is not in this plant, and the morning watering slot is measured
@@ -164,10 +162,10 @@ inline void hold_weather(Plant& p) {
 /**
  * @brief The hydraulics a scenario puts behind the valves.
  *
- * The weather for the water: what the inlet delivers while it is open, how much
- * of it the tray gives back down the drain, and what passes with everything
- * shut. Nothing here decides anything - it reads the valves the cycle has
- * driven and answers at the two meters, exactly as the pipework would.
+ * What the inlet delivers while it is open, how much of it the tray gives back
+ * down the drain, and what passes with everything shut. It decides nothing: it
+ * reads the valves the cycle drove and answers at the two meters, as the
+ * pipework would.
  */
 struct Plumbing {
     float fill_Lpm;     ///< what arrives at the inlet meter while filling
@@ -196,9 +194,9 @@ inline void hold_water(Plant& p) {
     const Site::IrrState st = irr_state(p);
     const bool inlet_open = (st == Site::IRR_FILLING || st == Site::IRR_FLUSHING);
 
-    // The inlet meter is a PULSE TRAIN, a whole litre a pulse: carry the
-    // fraction rather than rounding it away, or anything slower than ten
-    // litres a second meters as nothing at all.
+    // The inlet meter is a pulse train, a whole litre a pulse. Carry the
+    // fraction rather than rounding it away, or anything slower than ten litres
+    // a second meters as nothing.
     const float per_pulse = p.num("irr_input_qtyPerImp");
     g_owed() += (inlet_open ? g_pipe().fill_Lpm : g_pipe().leak_Lpm) / 600.0f;
     while (per_pulse > 0.0f && g_owed() >= per_pulse) {
@@ -206,11 +204,10 @@ inline void hold_water(Plant& p) {
         g_owed() -= per_pulse;
     }
 
-    // The outlet is a 4-20 mA loop, so what the pipework answers with is a
-    // RATE. Draining, the tray gives back its share of the dose and then stops
-    // - and the inlet is shut, so nothing is arriving meanwhile. Flushing, what
-    // goes in comes straight back out: same water, same rate, no tray between
-    // the two ends.
+    // The outlet is a 4-20 mA loop, so the pipework answers with a rate.
+    // Draining, the tray gives back its share of the dose and stops, with the
+    // inlet shut. Flushing, what goes in comes straight back out at the same
+    // rate, no tray between the two ends.
     float out = 0.0f;
     if (st == Site::IRR_DRAINING &&
         p.num("irr_drained_L") < g_pipe().drain_frac * p.num("irr_volume_L"))
@@ -222,17 +219,18 @@ inline void hold_water(Plant& p) {
 
 /** @brief Beats, then a snapshot. Every water snapshot goes through this.
  *
- *  A meter answers over a window - the inlet differentiates over five seconds,
- *  the outlet averages and then deadbands - so a reading taken on the beat a
- *  valve moved still describes the state BEFORE it. Ten seconds is longer than
- *  either window; a flush lasts ten and gets eight.
+ *  A meter answers over a window (the inlet differentiates over five seconds,
+ *  the outlet averages then deadbands), so a reading taken on the beat a valve
+ *  moved still describes the state before it. Ten seconds clears either window;
+ *  a flush lasts ten and gets eight.
  */
 inline void settle_meters(Plant& p, uint32_t beats = 100) { p.weather_for(beats); }
 
 /** @brief Put @p pipe behind the valves for the rest of the case, and make the
  *  plant hold both the weather and the water every beat. */
 inline void plumbing(Plant& p, const Plumbing& pipe) {
-    // Bare, not REQUIREd: a channel another case already attached answers false.
+    // Bare, not REQUIREd: a channel another case already attached answers
+    // false.
     g_pipe() = pipe;
     g_owed() = 0.0f;
     p.hold = hold_water;
@@ -252,7 +250,7 @@ inline void force_rise(Plant& p, int16_t minutes) {
 }
 
 /** @brief The day phase, which the sun tracker cannot produce without a fix.
- *  Forced here, because a scenario is about the weather and not about NTP. */
+ *  Forced: a scenario is about the weather, not about NTP. */
 inline void force_phase(Plant& p, Site::DayPhase phase) {
     g_phase() = phase;
     p.f.bank.var(p.ref("cli_phase")).override_set(Vars::from_i64(Vars::T_U8, (int64_t)phase));
@@ -371,9 +369,8 @@ inline bool leaking(Plant& p)      { return p.on("alarm_water_leak"); }
 inline uint32_t run_until(Plant& p, bool (*done)(Plant&), uint32_t budget) {
     for (uint32_t i = 1; i <= budget; i++) {
         p.hold(p);
-        // The WHOLE beat. It used to drive the cycle alone, back when the
-        // irrigation laws were all C++; the meters and the modulation are on
-        // the resource now, so a run that skips it meters nothing.
+        // The whole beat: the meters and the modulation are on the resource,
+        // so a run that skips it meters nothing.
         p.beat();
         if (done(p)) return i;
     }

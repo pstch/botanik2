@@ -2,8 +2,8 @@
 """The ST half: the site's enumerated types, the resource matiec compiles, and
 the roster `Plc::Runtime::Plant` runs.
 
-Everything here needs the compiler's own answer - what each body WRITES - which
-is why the checks that belong to a law live here and not beside the table's."""
+Everything here needs the compiler's own answer, what each body writes, so the
+checks that belong to a law live here rather than beside the table's."""
 
 import os, re, sys
 
@@ -15,11 +15,10 @@ from site_tables import (AUX, H, KIND, _opted_in, build, read_table, site_guard,
 def enums(site):
     """`generated/enums.st` and `generated/enums.gen.h` from enums.csv.
 
-    ONE declaration, two languages. matiec numbers an enumerated type 0,1,2...
-    in declaration ORDER and rejects explicit values, so the ST side can only
-    spell a set that is contiguous from zero - which is checked here, because
-    the codes are also a Modbus contract and a gap in one would silently
-    renumber the other.
+    One declaration, two languages. matiec numbers an enumerated type 0,1,2...
+    in declaration order and rejects explicit values, so the ST side can only
+    spell a set contiguous from zero. Checked here: the codes are also a Modbus
+    contract, and a gap in one would silently renumber the other.
 
     The C++ side is the same type, not a second one with equal values: matiec's
     own member list is discarded and these constants take its place, exactly as
@@ -286,15 +285,16 @@ def check_laws(t, prog, writes):
         print('  %d row(s) with two authors (read-modify-write): %s'
               % (len(shared), ', '.join(shared)))
 
-    # ...and the other direction: a row nothing writes. An OUTPUT, an ALARM or a
-    # STATUS with no author is a law somebody meant to write and did not, and it
-    # reads its declared value for the life of the plant with nothing to say so.
+    # ...and the other direction: a row nothing writes. An output, an alarm or
+    # a status row with no author is a law that was meant to be written and was
+    # not, and it reads its declared value for the life of the plant with
+    # nothing to say so.
     every = set()
     for pou in writes.values(): every |= {x.upper() for x in pou}
     for r in table:
         k = KIND[r['_fac']]
         if k not in ('OUTPUT', 'ALARM', 'STATUS'): continue
-        # The LIBRARY's own rows are written by the library, in C++: its alarms
+        # The library's own rows are written by the library, in C++: its alarms
         # come from HealthMonitor and its status values from the components that
         # produce them. Only the SITE's rows are a law's to write.
         if r.get('_lib'): continue
@@ -329,8 +329,8 @@ def check_laws(t, prog, writes):
             bad.append('%s: opts into health and owes prog_%s_health'
                        % (e['name'], e['name']))
 
-    # ...and the same for PARKING: a program told to park that never answers
-    # holds the whole shutdown open until plc_parkTimeout_sec runs out.
+    # ...and the same for parking: a program told to park that never answers
+    # holds the shutdown open until plc_parkTimeout_sec runs out.
     for e in prog:
         if not _opted_in(e, 'park'): continue
         if ('PROG_%s_PARKED' % e['name']).upper() not in \
@@ -433,8 +433,8 @@ def plant(site):
 # ---- the ST enumerations the LIBRARY owns -----------------------------------
 
 # (ST type, header the C++ enum is declared in, the enum's own declaration, how
-#  a member is spelled in C++, the member pattern). Both are types matiec must
-#  be handed rather than allowed to number itself.
+#  a member is spelled in C++, the member pattern). Both are types matiec must be
+#  handed rather than allowed to number itself.
 LIB_ENUMS = [
     ('QUALITY', 'src/libbotanik/vars/descriptor.h',
      r'enum Quality : uint8_t \{(.*?)\n    \};',

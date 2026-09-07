@@ -99,7 +99,7 @@ TEST_CASE_FIXTURE(StRig, "zone: temperature survives losing every humidity probe
 
 TEST_CASE("lifecycle: no law runs outside RUN") {
     // Defence in depth at both ends. Before RUN the field has not answered and
-    // every row reads its DECLARED value; after RUN the unit is on its way out.
+    // every row reads its declared value; after RUN the unit is on its way out.
     Live f;
     Plc::Runtime::Plant st(Botanik::SetupContext(f.reg), f.bank);
     st.wire();
@@ -223,10 +223,10 @@ TEST_CASE("control: a parking program travels to its safe state before it is dro
 }
 
 TEST_CASE_FIXTURE(StRig, "quality: a block that HOLDS says so, rather than 'no data'") {
-    // Every conditioning block keeps its last average when the reading stops -
-    // that is what the filter is for - and each used to publish Q_NONE for
-    // it, so Ref::get() handed a law the declared value and threw the held
-    // reading away. QUAL() asks SEEDED at every site now.
+    // Every conditioning block keeps its last average when the reading stops,
+    // which is what the filter is for. Published as Q_NONE, Ref::get() hands a
+    // law the declared value and throws the held reading away, so QUAL() asks
+    // for SEEDED at every site.
     const uint16_t dc  = live.ref("sys_dc1_V");
     const uint16_t wind = live.ref("cli_wind_mps");
 
@@ -333,8 +333,8 @@ TEST_CASE("lifecycle: a plant with no lifecycle at all runs") {
 }
 
 TEST_CASE_FIXTURE(StRig, "watch: a dead ceiling does not silence the humidity alarm") {
-    // One gate over the temperature AND the margin used to cover all three
-    // alarms, so losing the ceiling took the humidity alarm with it - even
+    // One gate over the temperature and the margin together would cover all
+    // three alarms, so losing the ceiling takes the humidity alarm with it even
     // though the floor still gives a margin the model believes.
     for (uint8_t i = 1; i <= 3; i++) {
         char n[24];
@@ -357,7 +357,7 @@ TEST_CASE_FIXTURE(StRig, "watch: a dead ceiling does not silence the humidity al
 
 TEST_CASE_FIXTURE(StRig, "watch: stratification nobody measured is not a stratification alarm") {
     // cli_dTStrat_degC substitutes cli_dTStratLow_degC when unmeasured, so the
-    // alarm was held down by the DECLARED values agreeing rather than by a gate.
+    // alarm was held down by the declared values agreeing rather than by a gate.
     live.bank.var(live.ref("cli_dTStratHigh_degC")).publish(from_f32(T_F32, 0.5f), 0);
     for (uint8_t i = 1; i <= 3; i++) {
         char n[24];
@@ -376,7 +376,7 @@ TEST_CASE_FIXTURE(StRig, "watch: stratification nobody measured is not a stratif
 TEST_CASE_FIXTURE(StRig, "zone: a probe that comes back rejoins the average, it does not snap to it") {
     // The filter is fed the SCAN CLOCK, not an elapsed time, so a block that is
     // only called while its input is believable stops updating its `last`. The
-    // first sample after an outage then arrives with the WHOLE outage as dt,
+    // first sample after an outage then arrives with the whole outage as dt,
     // alpha goes to nearly 1, and the average jumps to the new reading in one
     // beat - which is the opposite of what every one of these blocks says it
     // does. A dead probe coming back must not move the house four degrees.
@@ -451,7 +451,7 @@ TEST_CASE_FIXTURE(StRig, "zone: a zone that has never been measured has nothing 
  *  TempRHSensors publishes as a pair. */
 static void levels(Live& f, float hi, float lo, uint64_t at = 0,
                    bool hi_ok = true, bool lo_ok = true) {
-    // The PROBES: cli_temp_hi and cli_temp_lo are temp_rh_sensors' outputs
+    // The probes: cli_temp_hi and cli_temp_lo are temp_rh_sensors' outputs
     // now, so publishing them directly is overwritten on the next scan. A
     // level "nobody measures" is one whose three probes stopped answering.
     char n[24];
@@ -551,8 +551,8 @@ TEST_CASE_FIXTURE(StRig, "target: a bank phase only shifts the target when yeste
     // and target_temp applies no offset whatever the phase says.
     live.bank.var(live.ref("sol_ready")).set(true);
 
-    // FORCED, not written: day_phase owns cli_phase and the two arms now, and
-    // rewrites them every scan. An override SHADOWS the live value, so this is
+    // forced, not written: day_phase owns cli_phase and the two arms now, and
+    // rewrites them every scan. An override shadows the live value, so this is
     // both what survives a scan and what an operator actually does - it is how
     // a cold-bank morning gets rehearsed in July.
     INFO("COLD_BANK in force but not armed runs at the ordinary target");
@@ -718,7 +718,7 @@ TEST_CASE("cooling: an unknown demand puts every actuator at its own safe state"
     Live f;
     fine_weather(f);
     interlocks_clear(f);
-    // Every one of the five actuators is ST now, so the RESOURCE is the whole
+    // Every one of the five actuators is ST now, so the resource is the whole
     // beat.
     Plc::Runtime::Plant st(Botanik::SetupContext(f.reg), f.bank);
     st.wire();
@@ -920,10 +920,9 @@ TEST_CASE_FIXTURE(StRig, "humidity, rot guard: an unmeasured margin ventilates r
 
 TEST_CASE_FIXTURE(StRig,
                   "weather: a storm is 75 kmph of sustained wind, not a stiff breeze") {
-    // It used to be read off the roof's own lockouts, so a passing shower or a
-    // gust over the vent-closing threshold put a storm on the ribbon. Those are
-    // reasons to shut the roof, which is a much lower bar than the weather
-    // being severe.
+    // Read off the roof's own lockouts, a passing shower or a gust over the
+    // vent-closing threshold would put a storm on the ribbon. Those are reasons
+    // to shut the roof, a much lower bar than severe weather.
     Vars::Ref<bool> storm = TestScan::ref_of<bool>(live, "alarm_weather_storm");
     const float shut = live.bank.var(live.ref("cli_windShutEnd_mps")).as_f32();
     uint64_t t = 0;

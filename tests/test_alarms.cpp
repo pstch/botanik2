@@ -119,7 +119,7 @@ TEST_CASE("alarm: an ack belongs to one episode - either edge drops it") {
 }
 
 TEST_CASE("alarm: an ack survives the raw bit dropping while the hold is still up") {
-    // hold_s extends the EPISODE past the raw bit, and the ack goes with the
+    // hold_s extends the episode past the raw bit, and the ack goes with the
     // episode: the alarm has not stopped while the hold is up.
     AlarmBank f(HOLD_TABLE, 1);
     Alarms::AlarmController m(Botanik::SetupContext(), &f.rows);
@@ -244,7 +244,7 @@ TEST_CASE("alarm: hold_s still latches a condition nobody is forcing") {
 
 TEST_CASE("alarm: the hold latches a blip, and the dwell still refuses to announce it") {
     // The two policies pull opposite ways and both have to hold: hold_s keeps a
-    // one-beat condition VISIBLE for five minutes, and on_s says five minutes
+    // one-beat condition visible for five minutes, and on_s says five minutes
     // of latch is not five seconds of signal. Measured on the episode instead,
     // the dwell would be unreachable on any row declaring both - which is
     // thirteen of this firmware's - and every blip would annunciate in full.
@@ -363,7 +363,7 @@ namespace {
         Terminal::Console      console;
         Vars::Bank             bank;
         /** @brief The K_ALARM rows as an alarm source, bound after the table
-         *  below. NOT `rows` - the ctor's screen-height parameter is. */
+         *  below. not `rows` - the ctor's screen-height parameter is. */
         Vars::BankAlarms       alarm_rows;
         Alarms::AlarmController     model;
         Pages::AlarmsPage      page;
@@ -556,8 +556,7 @@ TEST_CASE("alarms render: a typed filter keeps the matching rows, ESC gives the 
     CHECK(back.find("ddd") != std::string::npos);
 }
 
-// 'a' used to ack; it is a filter character now, so the ack moved to a key that
-// cannot be typed.
+// 'a' is a filter character, so the ack is on a key that cannot be typed.
 TEST_CASE("alarms render: ENTER acknowledges the selected condition") {
     RenderFixture f;
     raise_all(f);

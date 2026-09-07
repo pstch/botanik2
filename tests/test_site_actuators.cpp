@@ -11,7 +11,7 @@
 namespace site_programs {
 
 TEST_CASE("scan: every ST program is its own task, at the roster's period") {
-    // The RESOURCE would dispatch them as one fixed sequence. We call each
+    // The resource would dispatch them as one fixed sequence. We call each
     // body ourselves instead, which is what keeps a program a program: its own
     // period, its own entry in the TASKS table, its own health.
     TestScan::Live live;
@@ -61,7 +61,7 @@ TEST_CASE("scan: a health row exists exactly where a program asked for one") {
 
 TEST_CASE_FIXTURE(StRig, "scan: an ST timer measures VIRTUAL time, whatever the beat size") {
     // The property the clock buys over a threaded dt: a block differences
-    // sys_now_ms against its OWN last reading, so it is rate-independent. The
+    // sys_now_ms against its own last reading, so it is rate-independent. The
     // simulator accelerates by advancing the virtual clock faster in real
     // time, never by changing the step, so this is also what makes a
     // greenhouse day in a minute give the same answers as a greenhouse day.
@@ -73,7 +73,7 @@ TEST_CASE_FIXTURE(StRig, "scan: an ST timer measures VIRTUAL time, whatever the 
     // it: a step can only ever land on one side or the other.
     uint64_t t = 0;
     for (uint32_t step : { 100u, 700u }) {
-        // FORCED: wx_sensors owns these three, and with no station answering
+        // forced: wx_sensors owns these three, and with no station answering
         // it publishes the companions FALSE - which is the roof going blind,
         // not the shower this case is about.
         force(live, "cli_rain_mmph", 0.4f);
@@ -98,7 +98,7 @@ TEST_CASE_FIXTURE(StRig, "fans: an unknown gap floors them at their safe state, 
     Vars::Ref<bool> s1 = TestScan::ref_of<bool>(live, "cli_destrat1_speed1");
     Vars::Ref<bool> s3 = TestScan::ref_of<bool>(live, "cli_destrat1_speed3");
 
-    // The PROBES: every row between them and the fans is an ST output now, so
+    // The probes: every row between them and the fans is an ST output now, so
     // an "unknown gap" is the levels nobody is measuring. strat_sensor then
     // publishes the low rung and the ladder engages speed 1.
     for (uint8_t i = 1; i <= 3; i++) {
@@ -150,8 +150,8 @@ TEST_CASE_FIXTURE(StRig, "screen: a cold night deploys it, and the traverse is p
     CHECK_FALSE(moving.get());
 }
 
-/** @brief The roof is entirely ST now - the lockout and the rams both - so a
- *  case that used to hold its own drive just steps the RESOURCE. */
+/** @brief The roof is entirely ST, lockout and rams both, so a case steps the
+ *  resource rather than holding a drive of its own. */
 struct RoofDrive {
     Plc::Runtime::Plant st;
     explicit RoofDrive(Live& f) : st(Botanik::SetupContext(f.reg), f.bank) {
@@ -395,7 +395,7 @@ TEST_CASE_FIXTURE(StRig, "windows: an unmeasured sky shuts the roof rather than 
     INFO("the SAME readings, no longer believed: both rows still say calm and "
          "dry, which is the trap - only the companions separate a fine sky "
          "from one nobody is watching");
-    // FORCED false: wx_sensors owns both companions and republishes them
+    // forced false: wx_sensors owns both companions and republishes them
     // every scan, so a case rehearsing a blind sky has to shadow them.
     distrust(live, "cli_rain_mmph");
     distrust(live, "cli_wind_mps");
@@ -407,9 +407,9 @@ TEST_CASE_FIXTURE(StRig, "windows: an unmeasured sky shuts the roof rather than 
 }
 
 TEST_CASE_FIXTURE(StRig, "intractors: a start and a full set alike is full speed, not a divide") {
-    // Both are an operator's, and the ramp between them used to be written out
-    // by hand: set them to the same number and the divide produced a NaN that
-    // went straight onto both fan speed rows, past the safe-state floor.
+    // Both are an operator's, and a hand-written ramp between them divides by
+    // their difference: set to the same number, that is a NaN straight onto
+    // both fan speed rows, past the safe-state floor.
     Vars::Ref<float> intr = TestScan::ref_of<float>(live, "cli_intr1");
     Vars::Var start = live.bank.var(live.ref("cli_intakeStartDem"));
     Vars::Var full  = live.bank.var(live.ref("cli_intakeFullDem"));
@@ -584,7 +584,7 @@ TEST_CASE_FIXTURE(StRig, "skirt: the humidify arm is proportional, the cooling a
     const uint32_t min_on = live.bank.var(live.ref("cli_skirtMinOn_sec")).value().as<uint32_t>();
 
     // Dry enough for a wet pad to cool, so the cooling arm is not gated out.
-    // FORCED: temp_rh_zone owns the margin and humidity owns the lockout, and
+    // forced: temp_rh_zone owns the margin and humidity owns the lockout, and
     // both are on this beat.
     force(live, "cli_dpMargin_degC", 20.0f);
     force(live, "cli_rotLockout", false);

@@ -45,9 +45,9 @@ namespace botanik_test {
             // callers do it: a prompt and a length that disagree is a memcpy
             // off the end of a literal, and it reads as correct.
             if (notes_prompts) {
-                // NOTES: the three prompts are the same WIDTH, which is what
-                // docs/dev/editor.md requires and what makes a class flip
-                // invisible to a length comparison. @see NotesPage::PROMPT_LINE
+                // NOTES: the three prompts are the same width, which is what
+                // makes a class flip invisible to a length comparison.
+                // @see NotesPage::PROMPT_LINE
                 set_ps("> ", "  ", "> ");
             } else {
                 set_ps("botanik> ", "> ", "...> ");   // @see ShellPage::_setup_editor
@@ -59,7 +59,7 @@ namespace botanik_test {
             } else {
                 editor.set_origin((uint16_t)(rows - 1));   // @see ShellPage::_setup_editor
             }
-            // Blank BEFORE the first paint: reset() stamps the prompt into
+            // Blank before the first paint: reset() stamps the prompt into
             // FRONT, and a blank that lands after it leaves the editor
             // believing a prompt is on screen that nothing will repaint.
             reset_wire();
@@ -90,9 +90,9 @@ namespace botanik_test {
             return pump();
         }
 
-        /** @brief What the screen WOULD hold painted from the model, with the
-         *  editor's own state left exactly as it was. Ctrl+L on the real
-         *  console; here the same two calls it makes. */
+        /** @brief What the screen would hold painted from the model, with the
+         *  editor's own state left as it was. Ctrl+L on the real console; here
+         *  the same two calls it makes. */
         std::vector<std::string> repainted() {
             console.terminal().establish_screen();
             editor.redraw();

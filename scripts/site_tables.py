@@ -11,10 +11,10 @@ DEFAULT_SITE = 'src/sites/gh_mlb41'
 
 
 def site_dir(arg=None):
-    """Which site to generate. The ARGUMENT first, so `check-generated` can
-    regenerate the site the build selected rather than the default; then the
-    environment, which is how that check redirects the whole run into a scratch
-    copy - a check never writes into the tree it is checking."""
+    """Which site to generate: the argument first, so `check-generated` can
+    regenerate the site the build selected rather than the default, then the
+    environment, which is how that check redirects the run into a scratch copy.
+    A check never writes into the tree it is checking."""
     env = os.environ.get('BOTANIK_SITE_DIR')
     if env: return env
     if not arg: return DEFAULT_SITE
@@ -23,7 +23,7 @@ def site_dir(arg=None):
 VAR_NONE = 'VAR_NONE'
 
 # factory -> (csv stem, the CSV's columns). The factory's own parameter list is
-# FAC_COLS below: `qlt` is generated, not declared.
+# FAC_COLS below; `qlt` is generated, not declared.
 ROWS = {
     'P':   ('params',      'name type def lo hi lo_row hi_row digits unit reg desc notes writable retained'),
     'PE':  ('params_enum', 'name def label reg desc notes writable retained'),
@@ -58,13 +58,13 @@ KIND = {'P': 'PARAM', 'PE': 'PARAM', 'PS': 'PARAM',
         'MO': 'OUTPUT', 'AO': 'OUTPUT', 'DO': 'OUTPUT', 'RO': 'OUTPUT',
         'Q': 'QUALITY'}
 
-# Emission order within each half. Parameters first and contiguous; then
+# Emission order within each half: parameters first and contiguous, then
 # everything else, each companion directly after its row.
 PARAM_FACS = ['P', 'PE', 'PS']
 OTHER_FACS = ['A', 'SV', 'SVE', 'MI', 'MO', 'AI', 'AO', 'DI', 'PI', 'DO', 'RO']
 
 TEXT = {'name', 'unit', 'desc', 'notes', 'code', 'tag', 'model_name'}
-# Columns whose type depends on the FACTORY: a text parameter's default is a
+# Columns whose type depends on the factory: a text parameter's default is a
 # string where every other factory's is a number.
 TEXT_BY_FAC = {'PS': {'def'}}
 # Not quoted, but not a number either: a symbol the emitted C++ names.
@@ -254,11 +254,11 @@ def programs(site):
 def quality_names(site, prog):
     """Which rows get a `_qlt` companion.
 
-    One per INPUT row - a reading can always stop being one - plus one per row
-    an opted-in program writes, because a law that can fail to compute has to be
-    able to say so. Nothing else: a row with no companion is good, always.
+    One per input row, since a reading can always stop being one, plus one per
+    row an opted-in program writes, because a law that can fail to compute has
+    to be able to say so. Nothing else: a row with no companion is good, always.
 
-    ALARMS are excluded even under an opt-in. An alarm is a verdict rather than
+    Alarms are excluded even under an opt-in. An alarm is a verdict rather than
     a reading: AlarmController takes the boolean and has nothing to substitute,
     so a quality beside it would be a row nothing consults.
 
@@ -398,9 +398,9 @@ def check(t):
         seen[k] = r
 
     # The TCP-slave register: unique, and present on every kind an external
-    # master addresses. An INPUT or an OUTPUT has none - its `reg` addresses a
-    # device on the FIELD bus - and a status value with register 0 is simply not
-    # published, which is what the old `G` scope was.
+    # master addresses. An input or an output has none, since its `reg`
+    # addresses a device on the field bus, and a status value with register 0 is
+    # not published.
     regs = {}
     gen_base = min(int(t['toml']['registers'][k])
                    for k in ('quality_base', 'park_base', 'prog_base'))
@@ -440,10 +440,10 @@ def check(t):
                            % (used[pin], r['name'], pin))
             used[pin] = r['name']
 
-    # A field INPUT that can never go stale is a trap: nothing expires a row
-    # whose timeout is 0, so it would hold its last reading, believed, for the
-    # life of the firmware once its device went quiet. The planner used to
-    # refuse it at bring-up, which is a table defect discovered on hardware.
+    # A field input that can never go stale is a trap: nothing expires a row
+    # whose timeout is 0, so once its device goes quiet it holds its last
+    # reading, believed, for the life of the firmware. Refused here rather than
+    # at bring-up, which would be a table defect discovered on hardware.
     for r in table:
         if KIND[r['_fac']] != 'INPUT': continue
         if r.get('device', '0') == '0': continue
@@ -451,19 +451,19 @@ def check(t):
             bad.append('%s: a field input needs a timeout_ms, or nothing ever '
                        'stops believing it' % r['name'])
 
-    # A LOCAL row must be a kind the controller's own terminals can actually be.
-    # The OPTA has eight inputs, four relays, four LEDs and a button - and NO
-    # analog output. Without this an AO row on device 0 declares, generates and
-    # passes every other check, and is then driven by nothing.
+    # A local row must be a kind the controller's own terminals can be. The
+    # OPTA has eight inputs, four relays, four LEDs and a button, and no analog
+    # output. Without this an AO row on device 0 declares, generates and passes
+    # every other check, and is then driven by nothing.
     for r in table:
         if r['_fac'] in ('AO', 'MI', 'MO') and r.get('device') == '0':
             bad.append('%s: device 0 means LOCAL, and there is no local %s'
                        % (r['name'], r['_fac']))
 
     # Every row a band end names must exist, share the referring row's type, and
-    # leave that row's own default inside the band - which is what keeps a pair
-    # reachable: an operator can always move one end and then the other, but only
-    # if the pair was valid to begin with.
+    # leave that row's own default inside the band. That is what keeps a pair
+    # reachable: an operator can move one end and then the other, but only if
+    # the pair started valid.
     by_name = dict((r['name'], r) for r in table)
     for r in table:
         ends = []
@@ -521,7 +521,7 @@ def check(t):
             bad.append('%s and %s share alarm code %r' % (codes[c], r['name'], c))
         codes[c] = r['name']
 
-    # The FIELD bus, which the register check above skips because `reg` there
+    # The field bus, which the register check above skips because `reg` there
     # addresses a device rather than the TCP map. Two rows on one device's same
     # register is a typo either way: as an output the last writer wins.
     used = {}

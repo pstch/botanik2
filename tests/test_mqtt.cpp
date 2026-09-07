@@ -4,10 +4,9 @@
  *
  * The publisher is QoS 0 and the transport is a stream, which puts two rules in
  * tension: a message that will not fit may be dropped, but a message that is
- * half written may not - the bytes after it are unreadable until the rest goes.
- * A broker that reads slowly used to trip both, ending the session on the first
- * short write, and the reconnect published straight back into the same full
- * socket. That is the loop these cases pin.
+ * half written may not, since the bytes after it are unreadable until the rest
+ * goes. A broker that reads slowly trips both if the session ends on the first
+ * short write and the reconnect publishes back into the same full socket.
  */
 
 #include <fcntl.h>

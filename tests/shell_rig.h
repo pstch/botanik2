@@ -86,8 +86,8 @@ struct Rig {
     Modbus::RtuMaster                 rtu;
 #endif
     /** @brief What `stats` reports on. A bare struct rather than a
-     *  LoopScheduler: a case wants to STATE the metrics it is asserting about,
-     *  and a real scheduler would only ever hold whatever the host did. */
+     *  LoopScheduler, so a case can state the metrics it asserts about: a real
+     *  scheduler would only ever hold whatever the host did. */
     Scheduler::SchedulerContext       sched;
     SystemContext                     sys;
     Terminal::Console                 console;
@@ -147,7 +147,7 @@ struct Rig {
         sys.modbus_rtu = &rtu;
 #endif
         // `alarms ack` and the log verbs reach their targets this way, not
-        // through the context: they MUTATE, and the context is the read side.
+        // through the context: they mutate, and the context is the read side.
         shell.set_diagnostics(&log, &alarms);
     }
 

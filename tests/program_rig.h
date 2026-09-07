@@ -3,7 +3,7 @@
  * @brief The fixtures the site's program tests are written against.
  *
  * One live bank, one registry, and the ST plant over the site's own programs.
- * needs. Shared because the three program test files drive the same site.
+ * Shared: the three program test files drive the same site.
  */
 
 #ifndef TESTS_PROGRAM_RIG_H
@@ -28,31 +28,27 @@ using namespace Botanik::Vars;
 
 using TestScan::Live;
 
-// INLINE, not an anonymous namespace: the three program test files each use a
-// SUBSET of these, and an unused static function warns where an unused inline
-// one does not.
+// Inline rather than an anonymous namespace: each of the three files uses a
+// subset, and an unused static function warns where an unused inline one does
+// not.
 
-/** @brief Summer, as the modulation ladder would report it: full watering. The
- *  ladder is its own program now, so a cycle case states the factor rather than
- *  driving the weather that would produce it. */
+/** @brief Summer, as the modulation ladder reports it: full watering. A cycle
+ *  case states the factor rather than driving the weather behind it. */
 inline void summer(Live& f) {
     f.bank.var(f.ref("irr_mod")).set(1.0f);
 }
 
-/** @brief Take the soak out of the cycle, which `irr_soak_sec` 0 is for.
- *  A case about the fill or the drain states its own configuration; the soak
- *  has a case of its own and the scenarios run at the site's real figure. */
+/** @brief Take the soak out of the cycle: `irr_soak_sec` 0. A case about the
+ *  fill or the drain states its own configuration. */
 inline void no_soak(Live& f) {
     f.bank.var(f.ref("irr_soak_sec")).param_set("0");
 }
 
-/** @brief Force a row, and mean it.
+/** @brief Force a row: an override, which shadows the live value.
  *
- *  A row another ST program writes cannot be set: the next scan overwrites it.
- *  An override SHADOWS the live value, so it survives, and it is what an
- *  operator does when they want a law to see a number the plant is not
- *  producing. A case about how a law RESPONDS to an input forces the input;
- *  a case about how the input is PRODUCED drives the chain instead.
+ *  A row another ST program writes cannot be set, since the next scan
+ *  overwrites it. Force where the case is about how a law responds to an input;
+ *  drive the chain where it is about how the input is produced.
  *  @{ */
 inline void force(Live& f, const char* row, float v) {
     f.bank.var(f.ref(row)).override_set(from_f32(T_F32, v));
@@ -65,10 +61,8 @@ inline void force(Live& f, const char* row, int64_t v) {
     const uint16_t r = f.ref(row);
     f.bank.var(r).override_set(from_i64(f.bank.descriptor(r).type, v));
 }
-/** @brief Make @p row read like a dead instrument, and the other way.
- *
- *  A quality is a row, so this is an ordinary force of an ordinary row - which
- *  is exactly what an operator does from the monitor page. */
+/** @brief Make @p row read like a dead instrument, and the other way. A
+ *  quality is a row, so this is an ordinary force. */
 inline void distrust(Live& f, const char* row) {
     f.bank.var(f.ref(row)).quality_var().override_set(Scalar::U(Q_NONE));
 }
@@ -77,15 +71,14 @@ inline void believe(Live& f, const char* row) {
 }
 /** @} */
 
-/** @brief Put the day where a case needs it, through the SUN.
+/** @brief Put the day where a case needs it, through the sun.
  *
- *  cli_phase is day_phase_controller's output now, so setting it directly is
+ *  cli_phase is day_phase_controller's output, so setting it directly is
  *  overwritten on the next scan. The boundaries are minutes either side of
  *  sunrise and sunset, and a phase is reached by placing the clock inside its
- *  window - the same way the plant reaches it.
- *  @note The two BANK phases also need their arm, which day_phase derives from
- *  the published extremes. A case wanting one sets cli_prevDayMax_degC or
- *  cli_prevNightMin_degC past its trigger first. */
+ *  window, the way the plant reaches it.
+ *  @note The two bank phases also need their arm, which day_phase derives from
+ *  the published extremes. */
 inline void put_phase(Live& f, Site::DayPhase p) {
     f.bank.var(f.ref("sol_ready")).set(true);
     int rise = 0, set_ = 0;
@@ -100,9 +93,8 @@ inline void put_phase(Live& f, Site::DayPhase p) {
     }
     f.bank.var(f.ref("sol_fromRise_min")).set_i(rise);
     f.bank.var(f.ref("sol_fromSet_min")).set_i(set_);
-    // A BANK phase also needs its arm, and day_phase derives that from the
-    // extremes it accumulates rather than from the row - so the house has to
-    // have BEEN hot, or cold, the way the plant reaches one. FORCED, because
+    // day_phase derives the arm from the extremes it accumulates, not from the
+    // row, so the house has to have been hot or cold. Forced, because
     // temp_rh_zone owns cli_temp_in and would put the probes back over it.
     if (p == Site::PHASE_COLD_BANK)
         force(f, "cli_temp_in",
@@ -111,52 +103,47 @@ inline void put_phase(Live& f, Site::DayPhase p) {
         force(f, "cli_temp_in",
               f.bank.var(f.ref("cli_heatBankTrg_degC")).as_f32() - 5.0f);
 
-    // AND the row itself, because both kinds of rig exist: one running
-    // day_phase, which derives cli_phase from the two above and would
-    // overwrite anything set here, and one that does not, where this is the
-    // only thing that puts the plant in a phase at all.
+    // And the row itself: a rig running day_phase derives cli_phase from the
+    // two above and overwrites anything set here, and a rig without it has
+    // nothing else that puts the plant in a phase.
     f.bank.var(f.ref("cli_phase")).set_i((int64_t)p);
     f.bank.var(f.ref("cli_phase")).set_quality(Q_GOOD);
 }
 
 /** @brief Put the plant in the end-of-night watering slot. A cycle may only
- *  START in one of the two the spec allows, so every irrigation case has to
- *  say which one it is in. */
+ *  start in one of the two slots, so every irrigation case says which. */
 inline void slot(Live& f) {
     put_phase(f, Site::PHASE_DAWN_BREEZE);
-    // ...and past the DAWN GATE, which is the other half of the slot: watering
-    // cold roots is what it exists to prevent. temp_rh_sensors owns
-    // cli_temp_ext and publishes the row's band FLOOR for a zone nothing has
-    // ever measured, so a rig that seeds no exterior probe is always too cold
-    // to water. A case about the gate itself forces it back down.
+    // ...and past the dawn gate, which prevents watering cold roots.
+    // temp_rh_sensors owns cli_temp_ext and publishes the row's band floor for
+    // a zone nothing has measured, so a rig seeding no exterior probe is always
+    // too cold to water.
     force(f, "cli_temp_ext",
           f.bank.var(f.ref("irr_dawnGate_degC")).as_f32() + 5.0f);
 }
 
-/** @brief Where the roof parks with a house nobody can measure, from the row
- *  that declares it - cli_windowDem, which is what cooling_controller
- *  publishes there. NOT cli_windowN_tgt, whose declared value is where the
- *  roof sits with nothing driving at all: shut. The two used to be the same
- *  number and reading the wrong one looked right. */
+/** @brief Where the roof parks with a house nobody can measure: the declared
+ *  value of cli_windowDem, which is what cooling_controller publishes there.
+ *  @note Never cli_windowN_tgt, whose declared value is where the roof sits
+ *  with nothing driving at all: shut. */
 inline float safe_open(Live& f) {
     const Vars::Descriptor& d = f.bank.descriptor(f.ref("cli_windowDem"));
     return Vars::as_f32(d.type, d.def);
 }
 
 /** @brief Publish one field-read row as if the bus had just answered it.
- *  publish() judges the band and writes the row's quality, so a case giving a
- *  reading says the instrument answered in one call; distrust() is how one
- *  rehearses an instrument that has gone. */
+ *  publish() judges the band and writes the row's quality, so one call says the
+ *  instrument answered. distrust() rehearses one that has gone. */
 inline void field(Live& f, const char* row, float v, uint64_t at = 0) {
     f.bank.var(f.ref(row)).publish(from_f32(T_F32, v), at);
 }
 
 /** @brief The house at two levels, and the row derived from them.
  *
- *  The cooling ladder controls on `cli_temp_in` and reports its verdict on
- *  the levels behind it, so a case stating one without the other is
- *  stating half a house. WORST CASE, as temp_rh_zone makes it - FORCED,
- *  because temp_rh_zone is ST and would overwrite a published one. */
+ *  The cooling ladder controls on `cli_temp_in` and reports its verdict on the
+ *  levels behind it, so stating one without the other states half a house.
+ *  Worst case, as temp_rh_zone makes it, and forced, because temp_rh_zone
+ *  would overwrite a published value. */
 inline void interior(Live& f, float hi, float lo) {
     field(f, "cli_temp_hi", hi);
     field(f, "cli_temp_lo", lo);
@@ -171,32 +158,25 @@ inline void fine_weather(Live& f) {
     force(f, "cli_windGust_mps", 2.0f);
 }
 
-/** @brief Clear the interlocks that DEFAULT to their forbidding state.
+/** @brief Clear the interlocks that default to their forbidding state.
  *
- *  A permissive boolean whose whole purpose is to forbid something defaults to
- *  the forbidding answer: a roof must not open on a supply nobody has measured,
- *  and the skirt must not humidify into air that has only just dried. dc_watch
- *  and humidity are what clear them, and a rig without those on the beat never
- *  does - so a case about anything else has to say so. */
+ *  A roof must not open on a supply nobody has measured, and the skirt must not
+ *  humidify into air that has only just dried. dc_watch and humidity clear
+ *  them; a rig without those on the beat never does. */
 inline void interlocks_clear(Live& f) {
-    // FORCED, not set: dc_watch and humidity own these two and republish them
-    // every scan. The supply one is the sharper case - pwr_upsLowBat declares
-    // TRUE ("an unreadable terminal is not a healthy supply"), so a rig with
-    // no local terminals reaches a real lockout within its debounce.
+    // Forced, not set: dc_watch and humidity own these two and republish them
+    // every scan. pwr_upsLowBat declares true (an unreadable terminal is not a
+    // healthy supply), so a rig with no local terminals reaches a real lockout
+    // within its debounce.
     force(f, "sys_supply_lockout", false);
     force(f, "cli_rotLockout", false);
 }
-/** @brief A live bank with ONE program on the beat, which is what a law's own
- *  case needs: `prog` is the program, `d` the beat over it.
+/** @brief The ST plant on its own, which is what a law's own case needs.
  *
- *  PHASE_INPUT runs too, because the beat has one: a local terminal reaches a
- *  law as a ROW, and a meter reading an edge count off one gets zero for the
- *  life of a rig that never publishes it. */
-/** @brief The ST plant on its own.
- *
- *  There is no program object to hold a rig open on - destrat_controller is
- *  generated ST now - so the fixture drives the RESOURCE. `d.step()` keeps the
- *  name every other rig uses so a case reads the same. */
+ *  There is no program object to hold a rig open on, so the fixture drives the
+ *  resource. PHASE_INPUT runs too: a local terminal reaches a law as a row, and
+ *  a meter reading an edge count off one gets zero for the life of a rig that
+ *  never publishes it. */
 struct StRig {
     Live                live;
     /** PHASE_INPUT's job, which the beat does before PHASE_CONTROL: the local
@@ -208,14 +188,13 @@ struct StRig {
         d.terminals = &terminals;
         st.wire();
         d.st = &st;
-        // The whole conditioning chain is ST now, so seeding a DERIVED row
-        // achieves nothing: temp_rh_sensors overwrites the levels from the
-        // probes, strat_sensor the gap from the levels, destrat the demand
-        // from the gap. A case seeds the probes, or it seeds nothing.
+        // Seeding a derived row achieves nothing: temp_rh_sensors overwrites
+        // the levels from the probes, strat_sensor the gap from the levels,
+        // destrat the demand from the gap. Seed the probes or seed nothing.
         //
-        // Both levels alike, so the gap is zero and destrat asks for nothing:
-        // its demand is one of the four floors under the fan ladder, and a
-        // case about any OTHER floor needs it quiet.
+        // Both levels alike, so the gap is zero and destrat asks for nothing.
+        // Its demand is one of the four floors under the fan ladder, and a case
+        // about any other floor needs it quiet.
         for (uint8_t i = 1; i <= 3; i++) {
             char n[24];
             snprintf(n, sizeof n, "cli_temp_hi%u", (unsigned)i);

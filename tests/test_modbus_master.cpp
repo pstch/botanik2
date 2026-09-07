@@ -64,7 +64,7 @@ struct BusFixture {
         // the registry, which is the path the firmware itself uses.
         master.setup(0);
         // Re-rate the port AFTER setup, which called fieldbus_begin() at the
-        // real MODBUS_BAUD. The sim throttles writes against REAL time, and a
+        // real MODBUS_BAUD. The sim throttles writes against real time, and a
         // test walks simulated seconds in microseconds of it, so at 19200 the
         // port would refuse all but the first frame. The wire's timing is not
         // what these cases are about. @see PageFixture, same trick.

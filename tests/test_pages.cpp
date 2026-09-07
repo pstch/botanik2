@@ -125,8 +125,8 @@ TEST_CASE("pages: SYSTEM converges at every supported geometry") {
 }
 
 TEST_CASE("pages: SYSTEM renders with no SystemContext at all") {
-    // The base documents a null aggregate and used to dereference it. A rig
-    // that has no SystemContext should get a blank band, not a fault.
+    // The base documents a null aggregate, so a rig with no SystemContext gets
+    // a blank band rather than a fault.
     botanik_test::PageFixture f;
     Pages::StatusPage page(f.console, nullptr);
 

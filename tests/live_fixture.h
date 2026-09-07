@@ -31,7 +31,7 @@ struct Live {
      *  A companion declares Q_NONE, which is right in the field: nothing is
      *  believed until something measures it. In a rig it is the wrong start for
      *  a derived row, because whatever the program under test READS comes from
-     *  a program the rig is not running. The program's OWN companions are
+     *  a program the rig is not running. The program's own companions are
      *  overwritten on its first scan, so this cannot hide one it fails to
      *  publish - a case rehearsing a dead instrument clears the one it means.
      *
@@ -41,7 +41,7 @@ struct Live {
     void believe_all() {
         for (uint16_t i = 0; i < bank.count(); i++) {
             const Botanik::Vars::Descriptor& d = bank.descriptor(i);
-            // The row a companion speaks for is the one BEFORE it.
+            // The row a companion speaks for is the one before it.
             if (d.kind != Botanik::Vars::K_QUALITY || i == 0) continue;
             const Botanik::Vars::Descriptor& row = bank.descriptor(i - 1);
             if (row.kind == Botanik::Vars::K_INPUT ||

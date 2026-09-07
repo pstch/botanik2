@@ -523,7 +523,7 @@ TEST_CASE("terminal: the urgent row goes first when the budget is short") {
     f.put(23, 0, "URGENT");
     f.term.restart_scan();
 
-    // One present(), not the drain loop: what does the FIRST tick carry?
+    // One present(), not the drain loop: what does the first tick carry?
     std::string first;
     for (int i = 0; i < 3 && first.find("URGENT") == std::string::npos; i++) {
         f.term.present();

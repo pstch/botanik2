@@ -1,6 +1,6 @@
 /**
  * @file test_editor_wire.cpp
- * @brief What the OPERATOR saw, and what it cost to show them.
+ * @brief What the operator saw, and what it cost to show them.
  *
  * test_editor.cpp asserts about FRONT, which answers whether the editor's model
  * of the screen is right. Neither of the questions here is that one: an

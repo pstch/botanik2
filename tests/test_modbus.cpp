@@ -149,7 +149,7 @@ TEST_CASE("modbus: match_response separates a refusal from a mismatch") {
 }
 
 TEST_CASE("modbus: a single write is confirmed by its echo alone") {
-    // FC05/FC06 echo the value, and that echo is the ONLY confirmation it
+    // FC05/FC06 echo the value, and that echo is the only confirmation it
     // landed - the multi-writes echo a count instead.
     const Expect e = { 0x11, FC_WRITE_COIL, 0x00AC, 1, 0xFF00 };
     Response r = {};
@@ -195,13 +195,13 @@ TEST_CASE("modbus: a tuning row forced to zero cannot divide the ranking") {
     reg.setup(0);
     REQUIRE(rtu.plan().block_count() > 0);
 
-    // What the shell does. An override is type-checked and NOT banded, so it
+    // What the shell does. An override is type-checked and not banded, so it
     // reaches _tune() past a band that starts at 1000.
     const uint16_t r = bank.find("rtu_rewrite_ms");
     REQUIRE(r != Vars::VAR_NONE);
     REQUIRE(bank.var(r).override_set("0") == Vars::SET_OK);
 
-    // _pick() divides by the deadline this feeds. It used to be SIGFPE here.
+    // _pick() divides by the deadline this feeds: a zero is a SIGFPE.
     for (uint64_t t = 0; t <= 30000; t += 100) {
         const uint16_t pick = rtu.next_block(t);
         CHECK((pick == RtuMaster::NO_BLOCK || pick < rtu.plan().block_count()));

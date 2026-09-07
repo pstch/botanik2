@@ -8,13 +8,13 @@
 
 `site` is a name under src/sites/, or a path. BOTANIK_SITE_DIR overrides it.
 
-Offline: the output is COMMITTED and never built. `make check-generated` is what
-holds the two together - it regenerates into a scratch copy and diffs.
+Offline: the output is committed and never built. `make check-generated` holds
+the two together by regenerating into a scratch copy and diffing.
 
-The generator owns the whole table. It merges the library's rows into the site's,
-applies the site's overrides, orders the rows, assigns every index and every
-generated register, resolves every name to an index, and CHECKS. Nothing it
-checks is checked again at runtime."""
+The generator owns the whole table. It merges the library's rows into the
+site's, applies the site's overrides, orders the rows, assigns every index and
+every generated register, resolves every name to an index, and checks. Nothing
+it checks is checked again at runtime."""
 
 import os, re, sys
 
@@ -198,7 +198,7 @@ def config(site):
     t = build(site)
     tom, dep = t['toml'], prereqs()
     table = t['table']
-    # Named for the SITE: "BOTANIK_SITE_*" is the same symbol in every site's
+    # Named for the site: "BOTANIK_SITE_*" is the same symbol in every site's
     # generated header, so two of them in one translation unit would silently
     # skip the second.
     guard = site_guard(tom)
@@ -208,7 +208,7 @@ def config(site):
     for r in table:
         if r['_fac'] == 'PS': pool += as_int(r['cap'], defs)
     analog = sum(1 for r in table if r['_fac'] in ('AI', 'AO'))
-    # Vars::mapped(): a register, and not one that addresses the FIELD bus.
+    # Vars::mapped(): a register, and not one that addresses the field bus.
     mapped = sum(1 for r in table
                  if (r.get('reg') or '0').strip() not in ('', '0')
                  and KIND[r['_fac']] not in ('INPUT', 'OUTPUT'))
@@ -216,8 +216,8 @@ def config(site):
     val = [('SITE_NAME', '"%s"' % tom['site']['name']),
            ('SITE_CONTROL_MS', tom['rates']['control']),
            ('SITE_SENSE_MS', tom['rates']['sense']),
-           # COMPUTED, not stated: the table is generated, so its size is a fact
-           # about it rather than a ceiling somebody has to keep ahead of.
+           # Computed rather than stated: the table is generated, so its size
+           # is a fact about it rather than a ceiling to keep ahead of.
            ('VAR_MAX', len(table)),
            ('STR_POOL_BYTES', pool),
            ('ANALOG_ROWS_MAX', analog),
