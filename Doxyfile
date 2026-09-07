@@ -4,7 +4,7 @@
 # Output lands in:       docs/doxygen/html/index.html
 #
 # Tuned for Doxygen 1.9.x. The source uses JavaDoc-style comments, so this
-# config mostly points Doxygen at src/ and turns on full extraction.
+# config points Doxygen at src/ and turns on full extraction.
 
 #---------------------------------------------------------------------------
 # Project identity
@@ -19,27 +19,19 @@ CREATE_SUBDIRS         = NO
 #---------------------------------------------------------------------------
 # Input
 #---------------------------------------------------------------------------
-# The docs landing is the dedicated Botanik mainpage (docs/index.md), named by
-# USE_MDFILE_AS_MAINPAGE below; README.md is the GitHub front page and is
-# intentionally left out of the API docs.
+# The narrative manual under docs/ was removed and is being rewritten. Until it
+# is back there is no mainpage: README.md is the GitHub front page and stays out
+# of the API docs. Re-add docs/ to INPUT and set USE_MDFILE_AS_MAINPAGE when the
+# manual returns.
 INPUT                  = src \
                          tests \
-                         docs
+                         docs/reference
 FILE_PATTERNS          = *.h *.cpp *.c *.md
-# Every narrative page is markdown - one syntax, and one that renders in an
-# editor and on GitHub. This is what makes docs/index.md the mainpage rather
-# than a page named "index"; the rest carry an explicit {#anchor} on their title.
-USE_MDFILE_AS_MAINPAGE = docs/index.md
 RECURSIVE              = YES
 IMAGE_PATH             = images
 
-# Scratch space for working notes. Excluded so a plan never renders beside the
-# pages documenting real mechanisms and reads as one of them; when a note comes
-# true, fold it into the manual rather than linking it.
-EXCLUDE                = docs/design
-
-# Vendored toolchain/Mbed headers and build artifacts are not our code. The
-# doctest single header under tests/vendor is third-party too.
+# Vendored toolchain and Mbed headers, and build artifacts. The doctest single
+# header under tests/vendor is third-party too.
 EXCLUDE_PATTERNS       = */build/* \
                          */includes/* \
                          */archive/* \
@@ -48,7 +40,7 @@ EXCLUDE_PATTERNS       = */build/* \
                          */.pytest_cache/* \
                          */__pycache__/*
 
-# Implementation-detail namespaces are not API. Anonymous ones go via
+# Implementation-detail namespaces are not API. Anonymous ones go through
 # EXTRACT_ANON_NSPACES below; named `detail` ones are excluded by symbol.
 EXCLUDE_SYMBOLS        = *::detail \
                          *::detail::*
@@ -56,8 +48,8 @@ EXCLUDE_SYMBOLS        = *::detail \
 #---------------------------------------------------------------------------
 # What to extract
 #---------------------------------------------------------------------------
-# Many .cpp files carry no doc comments; EXTRACT_ALL still documents their
-# declarations so the API surface is complete.
+# Many .cpp files carry no doc comments; EXTRACT_ALL documents their
+# declarations anyway, so the API surface is complete.
 EXTRACT_ALL            = YES
 EXTRACT_PRIVATE        = YES
 EXTRACT_STATIC         = YES
@@ -89,9 +81,9 @@ TAB_SIZE               = 4
 #---------------------------------------------------------------------------
 # Preprocessing
 #---------------------------------------------------------------------------
-# Parse #include directives but do NOT predefine TARGET_SIMULATOR/TARGET_OPTA:
-# leaving both undefined lets Doxygen document both HAL implementations
-# (hal/simulator.h and hal/opta.h) instead of just one platform's branch.
+# Parse #include directives, but leave TARGET_SIMULATOR and TARGET_OPTA
+# undefined so Doxygen documents both HAL backends (hal/simulator.h and
+# hal/opta.h) rather than one platform's branch.
 ENABLE_PREPROCESSING   = YES
 MACRO_EXPANSION        = NO
 EXPAND_ONLY_PREDEF     = NO

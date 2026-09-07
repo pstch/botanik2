@@ -1,20 +1,18 @@
 # Line coverage of the library, read off the gcda a coverage build left behind.
+# Reports, never fails: what it is for is noticing a fall, and the per-area
+# table says where.
 #
-# REPORTS, never fails. A ceiling that fails teaches people to raise the number;
-# what this is for is noticing a fall, and the per-area table is what says where.
+# Two sources this deliberately does not use, each of which gives a badly wrong
+# answer:
 #
-# Two things this does NOT do, both of which give a badly wrong answer:
+#  - `gcov -n`'s per-file summary counts a header's inline bodies against
+#    whichever .cpp pulled them in.
+#  - Headers themselves: gcov attributes a header's inline code to one
+#    translation unit and reports every other TU that included it as zero.
 #
-#  - It does not read `gcov -n`'s own per-file summary. That figure counts a
-#    header's inline bodies against whichever .cpp pulled them in, so
-#    health.cpp - 223 lines - reports 13912 of them.
-#  - It does not count HEADERS. gcov attributes a header's inline code to ONE
-#    translation unit and reports every other TU that included it as zero, so a
-#    header's figure says which .cpp gcov read first, not what the tests reach.
-#
-# So: -p to write the per-source .gcov (the paths are mangled into the name,
-# without which `shell/shell.cpp` and `pages/shell.cpp` collide and the second
-# silently wins), then count the annotated lines.
+# So: -p to write the per-source .gcov, then count the annotated lines. Without
+# -p the paths are not mangled into the name and `shell/shell.cpp` collides with
+# `pages/shell.cpp`.
 #
 # Invoked as: cmake -DGCOV=... -DTREE=... -DSRC=... -DOUT=... -P cmake/coverage.cmake
 
@@ -36,8 +34,8 @@ if(NOT _rc EQUAL 0)
     return()
 endif()
 
-# The mangled name carries the path with '#' for '/', so the glob is the filter:
-# library .cpp only.
+# The mangled name carries the path with '#' for '/', so the glob filters to
+# library .cpp.
 file(GLOB _reports "${_work}/*#libbotanik#*.cpp.gcov")
 
 set(_areas "")
@@ -46,8 +44,8 @@ set(_total_all 0)
 
 foreach(_report IN LISTS _reports)
     # An annotated line starts with its execution count, or with ##### for one
-    # that was never reached. Everything else - a '-' line, the header block -
-    # carries no coverage and is not part of the denominator.
+    # never reached. A '-' line and the header block carry no coverage and stay
+    # out of the denominator.
     file(STRINGS "${_report}" _all_lines REGEX "^ *(#####|=====|[0-9]+\\*?) *: *[1-9]")
     file(STRINGS "${_report}" _hit_lines REGEX "^ *[0-9]+\\*? *: *[1-9]")
     list(LENGTH _all_lines _all)

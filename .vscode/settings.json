@@ -10,12 +10,12 @@
     },
     "search.useIgnoreFiles": false,
 
-    // Agent worktrees live under .claude/worktrees/ - each is a full checkout
-    // with its own build tree, so they sit inside the workspace as ~1 GB and
-    // ~12k files. Left alone, VS Code registers every one as its own repository
-    // and recursively watches it: one agent's build fans a file-event storm out
-    // into N concurrent `git status`, which is what kills the extension host.
-    // Keep them out of the watcher, the explorer, search and repo detection.
+    // Agent worktrees under .claude/worktrees/ are full checkouts with their own
+    // build trees, ~1 GB and ~12k files inside the workspace. Left alone, VS Code
+    // registers each as a repository and watches it recursively, and one agent's
+    // build then fans a file-event storm into N concurrent `git status`, killing
+    // the extension host. Keep them out of the watcher, explorer, search and repo
+    // detection.
     "files.watcherExclude": {
         "**/.claude/**": true,
         "**/build/**": true,
@@ -39,14 +39,14 @@
         ".claude"
     ],
 
-    "C_Cpp.default.compileCommands": "${workspaceFolder}/build-debug/compile_commands.json",
+    "C_Cpp.default.compileCommands": "${workspaceFolder}/compile_commands.json",
     "C_Cpp.default.cppStandard": "c++11",
     "C_Cpp.default.cStandard": "c11",    
     "C_Cpp.codeAnalysis.clangTidy.enabled": true,
     "C_Cpp.codeAnalysis.clangTidy.useBuildPath": true,
     "C_Cpp.codeAnalysis.runAutomatically": false,
-    // Use the same clang-tidy binary as the CLI/CI (the extension otherwise uses
-    // its own bundled build, whose version - and findings - can differ).
+    // The same clang-tidy binary as the CLI and CI. The extension otherwise uses
+    // its own bundled build, whose version and findings can differ.
     "C_Cpp.codeAnalysis.clangTidy.path": "/usr/bin/clang-tidy-19",
     "C_Cpp.codeAnalysis.exclude": {
         ".claude/**": true,
@@ -56,6 +56,6 @@
         "build/**": true,
         "/usr/**": true
     },
-    // Checks come solely from the .clang-tidy file (single source of truth shared
-    // with the CLI); no checks.enabled/disabled overrides here, to avoid drift.
+    // Checks come from .clang-tidy alone, shared with the CLI. No
+    // checks.enabled/disabled overrides here, so the two cannot drift.
 }

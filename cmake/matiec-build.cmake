@@ -1,6 +1,6 @@
 # Build the pinned matiec. Driven with -P by the `matiec` target.
 #
-# The sources are COPIED into ${BIN}/src first: matiec has no VPATH build, and
+# The sources are copied into ${BIN}/src first: matiec has no VPATH build, and
 # building in place would leave object files and generated Makefiles in
 # vendor/, where `git status` would carry them for ever.
 #
@@ -8,8 +8,8 @@
 #   BIN  - where iec2c lands; ${BIN}/src is the scratch copy
 #   JOBS - parallel make
 #
-# The compiler is autoconf's own choice, deliberately: CMAKE_C_COMPILER is
-# arm-none-eabi-gcc in an OPTA tree and this is a HOST tool.
+# The compiler is autoconf's own choice: CMAKE_C_COMPILER is arm-none-eabi-gcc
+# in an OPTA tree, and this is a host tool.
 
 set(_work "${BIN}/src")
 
@@ -34,7 +34,7 @@ if(NOT EXISTS "${_work}/iec2c")
 endif()
 execute_process(COMMAND "${CMAKE_COMMAND}" -E copy "${_work}/iec2c" "${BIN}/iec2c")
 
-# Provenance, for when a check-st diff has to be explained.
+# Provenance, for when a check-generated diff has to be explained.
 if(EXISTS "${SRC}/UPSTREAM")
     execute_process(COMMAND "${CMAKE_COMMAND}" -E copy
                     "${SRC}/UPSTREAM" "${BIN}/iec2c.version")

@@ -4,17 +4,14 @@
 
 ### Include guards
 
-Every header uses a traditional `#ifndef` include guard. The macro name is
-derived from the file's path relative to `src/`, replacing `/` and `.` with `_`
-and uppercasing everything:
+Every header uses an `#ifndef` guard named after the file's path relative to
+`src/`, with `/` and `.` replaced by `_` and everything uppercased:
 
 ```
-src/libbotanik/utils/serial.h  →  UTILS_SERIAL_H
-src/libbotanik/console/ansi.h →  CONSOLE_ANSI_H
-src/libbotanik_config.h        →  LIBBOTANIK_CONFIG_H
+src/libbotanik/utils/serial.h  ->  UTILS_SERIAL_H
+src/libbotanik/console/ansi.h  ->  CONSOLE_ANSI_H
+src/libbotanik_config.h        ->  LIBBOTANIK_CONFIG_H
 ```
-
-Structure:
 
 ```cpp
 #ifndef SUBSYSTEM_FILENAME_H
@@ -25,7 +22,7 @@ Structure:
 #endif // SUBSYSTEM_FILENAME_H
 ```
 
-The `#endif` comment uses exactly one space before `//`.
+One space before the `//` on the `#endif`.
 
 ### Naming conventions
 
@@ -36,47 +33,41 @@ The `#endif` comment uses exactly one space before `//`.
 | Enum types | PascalCase (`enum class`) or UPPER_SNAKE_CASE prefix (plain `enum`) | `enum class State`, `enum PlcRxState` |
 | Enum values | UPPER_SNAKE_CASE | `PLC_RUNNING`, `LEFT` |
 | Public methods | `snake_case` | `write_chars()`, `available()` |
-| Private methods | `_snake_case` (leading underscore) | `_shift_row()`, `_build_rows()` |
-| Private members | `_snake_case` (leading underscore) | `_serial`, `_rx_head` |
-| Public members / local variables | `snake_case` | `buf_start`, `row_count` |
-| Constants (`constexpr` / `static const`) | UPPER_SNAKE_CASE | `RX_BUF_SIZE`, `TASK_PERIOD_MS` |
+| Private methods | `_snake_case` | `_shift_row()`, `_build_rows()` |
+| Private members | `_snake_case` | `_serial`, `_rx_head` |
+| Public members, locals | `snake_case` | `buf_start`, `row_count` |
+| Constants | UPPER_SNAKE_CASE | `RX_BUF_SIZE`, `TASK_PERIOD_MS` |
 
 ### Documentation
 
-> **Comments say what the code cannot: units, ownership, sentinels, wire facts,
-> hardware quirks, invariants. Everything else - rationale, alternatives
-> considered, history, architecture - goes to `docs/dev/`, or is deleted.**
+> Comments say what the code cannot: units, ownership, sentinels, wire facts,
+> hardware quirks, invariants. Rationale, alternatives, history and
+> architecture go to `docs/`, or are deleted.
 
-Test: if a comment would still be true after the function was rewritten a
-different way, it is rationale. It does not belong next to the code.
+A comment that would still be true after the function was rewritten a
+different way is rationale, and does not belong next to the code.
 
-Prefer readable code to code that needs a comment. Extracting a well-named
-function or local beats explaining a block.
+Prefer readable code to code that needs a comment. A well-named function or
+local beats explaining a block.
 
 #### Headers
 
-Every public member carries a Doxygen comment. Keep it to budget:
+Every public entity carries a Doxygen comment, within this budget:
 
 | | Budget |
 |---|---|
-| `@brief` | 1 line, 2 if needed. **Hard cap 3.** |
+| `@brief` | 1-2 lines, hard cap 3 |
 | `@note` | at most one, <= 2 lines, for a caveat that changes how you call it |
-| Whole doc block on one entity | **<= 6 lines of prose**; `@param` / `@return` lines are contract and do not count |
-| `@param` / `@return` | **only** for a non-obvious unit, range, ownership, sentinel or error value - never to restate the name |
-| `@code` examples | **not in headers** - put them in `docs/dev/` or a test |
-| `@section` | **not in headers** - that is a doc, by definition |
-| `@file` block | `@file` + one-line `@brief`, plus at most one `@note` linking its doc |
-| Data members | one-line trailing `///<`, or nothing |
-| `@name` groups | keep (flat, per scope) - but no prose inside the group |
-| `#include` annotations | omit (`#include <cstdint> // uint16_t/uint32_t`) |
+| Whole doc block | <= 6 lines of prose; `@param` and `@return` are contract and do not count |
+| `@param` / `@return` | only for a non-obvious unit, range, ownership, sentinel or error value |
+| `@code` | not in headers |
+| `@section` | not in headers |
+| `@file` block | `@file` plus a one-line `@brief`, and at most one `@note` |
+| Data members | a one-line trailing `///<`, or nothing |
+| `@name` groups | flat, per scope, no prose inside the group |
+| `#include` annotations | omit |
 
-**No per-file ratio for a header.** The table above is the whole rule. A ratio
-here measures how many things a header declares rather than how wordy it is:
-across `libbotanik`, one documented entity costs 2.8 code lines and 1.9 prose
-lines, so a header that documents its API lands near 90% however tightly each
-block is written. The budget this replaces was 50%, which no header carrying a
-`@brief` on every entity can reach - meeting it meant undocumenting about half
-of them.
+There is no prose ratio for a header: the budget above is the rule.
 
 ```cpp
 /** @brief Write to the TX ring.
@@ -84,7 +75,7 @@ of them.
 uint16_t write(const char* buf, uint16_t len);
 ```
 
-Not this - three tags that say only what the signature already says:
+Three tags that only restate the signature are worse than none:
 
 ```cpp
 /**
@@ -97,16 +88,12 @@ Not this - three tags that say only what the signature already says:
 
 #### Implementations
 
-Comment only non-obvious invariants, hardware or protocol quirks, workarounds
-(with the reason), and algorithmic intent that is not legible from the code. No
-comment that restates the line below it, and no section banners
-(`// ---- helpers ----`).
+Comment non-obvious invariants, hardware and protocol quirks, workarounds and
+their reason, and intent that is not legible from the code. No comment that
+restates the line below it, and no section banners.
 
-**Per-file budget: prose lines <= 30% of code lines.** The tree sits at 27.9%
-across `libbotanik` and 21.5% across the tests (September 2026), so the bar is
-just above it: it exists to catch drift, not to describe today. Unlike a
-header's, this ratio is worth having, because implementation prose is
-discretionary and proportional to nothing.
+Keep prose to 30% of code lines or under. `cloc` gives the ratio when you want
+a number; nothing enforces it.
 
 ```cpp
 // ICH via SM4: write 'pressure' chars in insert mode, opening a gap that
@@ -114,130 +101,107 @@ discretionary and proportional to nothing.
 _terminal->write_chars(&_buf[pos], pressure, /*insert=*/true);
 ```
 
+A few blocks run past six lines because they are the only place a contract
+lives - the alarm dwell semantics in `vars/declare.h`, the RS-485 DE guard
+times in `hal/platform.cpp`, the echo count in `modbus/rtu/framing.h`. Where a
+file sits over the ratio, ask which rule above it breaks, not how far over it
+is.
+
 #### Tests
 
 The test name is the documentation. No comment header above a `TEST_CASE`, no
-prose narrating the steps, no comment restating a `CHECK`. Comment only a
-non-obvious magic constant or a genuine gotcha - why *this* byte sequence, why
-*this* timing.
+prose narrating the steps, no comment restating a `CHECK`. Comment a
+non-obvious constant or a real gotcha: why *this* byte sequence, why *this*
+timing.
 
-Prefer a shared fixture over repeating (and re-explaining) setup:
-`tests/site_bank.h`, `tests/params_fixture.h`, `tests/term_fixture.h`,
-`tests/recording_writer.h`.
+Prefer a shared fixture to repeating setup - `tests/site_bank.h`,
+`tests/term_fixture.h`, `tests/live_fixture.h`, `tests/recording_writer.h`.
 
 #### Prose style
 
-Applies to comments, docs and commit messages alike: no "not X but Y"
-constructions - state the fact; no history in code, `git log` has it; no
-restating a rule three ways for emphasis; no em-dashes (use ` - `, a colon, or
-parentheses).
-
-The budget is a guide for review, not a gate - nothing measures it
-automatically. `cloc` gives the ratio for a file or a tree when you want a number.
-
-A handful of blocks run past six prose lines legitimately, where the block is
-the only place a contract lives: `vars/declare.h` carries the alarm dwell
-semantics (`on_s` and `off_s` gate what is SAID, `hold_s` decides what is TRUE),
-`hal/platform.cpp` the RS-485 DE guard times, `modbus/rtu/framing.h` the echo
-count. Nineteen blocks in `libbotanik` are over, and each was looked at.
-
-Where a file sits above the ratio, the question is which of the rules above it
-breaks, not how far over it is. `hal/platform.cpp` is at 50% and documents RS-485 DE
-guard times and CR1 write protection: trimming that means deleting a fact the
-code cannot show. A file at the same ratio because every third line is narrated
-is a different case entirely, and the ratio alone does not tell them apart.
+In comments, docs and commit messages alike: no "not X but Y" constructions,
+no history (`git log` has it), no restating a rule three ways for emphasis, no
+em-dashes (use ` - `, a colon or parentheses).
 
 ---
 
 ## Non-blocking design
 
-**Nothing in this codebase ever blocks.** This is a hard requirement on the OPTA
-target, where blocking stalls the RTOS and watchdog.
+Nothing in this codebase blocks. On the OPTA, blocking stalls the RTOS and the
+watchdog.
 
 ### The `step()` contract
 
-Any class that needs regular CPU time exposes a `step()` method:
+Any class that needs regular CPU time exposes:
 
 ```cpp
 void step();  // called every iteration of the main loop; returns quickly
 ```
 
 The main loop calls `step()` on every stateful object in a fixed order. Each
-`step()` must do a bounded, small amount of work and return promptly - never
-wait for I/O, never spin.
+call does a bounded, small amount of work and returns. Never wait for I/O,
+never spin.
 
 ### Bounded loops
 
-Loops inside `step()` are always bounded by a compile-time or known-worst-case
-count:
+Loops inside `step()` are bounded by a compile-time or known worst-case count:
 
-- `BufferedSerial::receive()` / `transmit()` - bounded by UART FIFO depth.
-- `BufferedLogWriter::drain()` - bounded by `LOG_QUEUE_SIZE` (64 entries max).
-- `PlcLogReader::step()` - bounded by `LOG_PLC_BUFFER_SIZE` (32 entries max).
+- `BufferedSerial::receive()` / `transmit()` - the UART FIFO depth.
+- `BufferedLogWriter::drain()` - `LOG_QUEUE_SIZE`, 64 entries.
+- `PlcLogReader::step()` - `LOG_PLC_BUFFER_SIZE`, 32 entries.
 
-If a loop could potentially run for longer than the task budget
-(`TASK_PERIOD_MS` = 10 ms), add a per-call limit and carry state across calls.
+A loop that could outrun the task budget (`TASK_PERIOD_MS`, 10 ms) needs a
+per-call limit and state carried across calls.
 
 ### Silent TX drops
 
-`BufferedSerial::write()` returns the number of bytes actually written. When the
-TX ring buffer is full it returns early - **it never blocks**. Callers in the
-ANSI layer (`ansi.cpp`) do not check the return value by design; the consequence
-is that partial escape sequences can be lost, causing transient display
-corruption. This is an accepted trade-off. If the baud rate is too slow for the
-rendering workload, reduce render frequency rather than adding blocking.
+`BufferedSerial::write()` returns the number of bytes written and returns early
+when the TX ring is full. The ANSI layer does not check that return value, so a
+partial escape sequence can be lost and the display corrupt transiently. If the
+baud rate cannot keep up with the render workload, render less often rather than
+blocking.
 
 ### Logging
 
-`Logger::push_entry()` enqueues to each registered writer's internal FIFO and
-returns immediately. Writers must have their `drain()` called from the main loop
-(e.g., via `SerialLogWriter`). If `drain()` is never called, the queue fills and
-new entries are silently dropped.
+`Logger::push_entry()` enqueues to each writer's FIFO and returns. Writers need
+`drain()` called from the main loop; without it the queue fills and new entries
+are dropped.
 
 ## Checking your work
 
 ```bash
-# Build the simulator (the only target that works without Arduino PLC IDE headers)
 cmake -B build -DBOTANIK_TARGET=SIMULATOR
 make -C build
-
-# clang-tidy (uses .clang-tidy + build/compile_commands.json). Incremental: only
-# the TUs whose sources or headers changed since the last run.
-make -C build clang-tidy
-
-# ...and the unconditional sweep: drop the stamps, then re-run
-rm -rf build/clang-tidy && make -C build clang-tidy
+make -C build check        # the gate
+make -C build check-full   # the sweep, before a push that touches memory handling
 ```
 
-### clang-tidy version
+clang-tidy runs incrementally over the TUs whose sources or headers changed:
 
-Pin **LLVM 19** (`clang-tidy-19`) everywhere - editor, CLI, and CI; findings
-differ across major versions. The MS C/C++ extension defaults to its own bundled
-clang-tidy, so `.vscode/settings.json` pins it to the system binary
-(`clangTidy.path`) and defers all check selection to `.clang-tidy`.
+```bash
+make -C build clang-tidy
+rm -rf build/clang-tidy && make -C build clang-tidy   # the whole tree
+```
 
-### Sanitizers (ASAN/UBSAN)
+Pin **LLVM 19** (`clang-tidy-19`) in the editor, the CLI and CI; findings differ
+across major versions. `.vscode/settings.json` points the MS C/C++ extension at
+the system binary, since it otherwise uses its own bundled build.
 
-SIMULATOR-only runtime sanitizers, via the `BOTANIK_SANITIZE` option
-(`address` | `undefined` | `address+undefined`). **Off by default** - they more
-than double compile CPU, so they are a sweep rather than a per-edit tax.
+### Sanitizers
 
-The usual way to run them is `make -C build check-full`, which re-runs the whole
-gate instrumented in a `build/asan/` tree of its own. To drive one by hand, use a
-separate build dir so the flags never mix with the normal build:
+SIMULATOR-only, via `BOTANIK_SANITIZE` (`address` | `undefined` |
+`address+undefined`), off by default. `make check-full` runs the gate
+instrumented in `build/asan/`. To drive one by hand, use a separate build
+directory so the flags never mix:
 
 ```bash
 cmake -B build-asan -DBOTANIK_SANITIZE=address+undefined
 make -C build-asan botanik_sim
-
-# Interactive: run, exercise the UI, then Ctrl+C for a clean exit (so leak and
-# UB checks run at exit). Send sanitizer output to a file to keep the UI readable.
 UBSAN_OPTIONS=print_stacktrace=1 ./build-asan/botanik_sim 2>san.log
 ```
 
-Findings are **recoverable** by default - UBSAN logs each one and execution
-continues, so the simulator stays usable. For a strict one-shot/CI run that exits
-non-zero on the first finding, add `halt_on_error=1`:
+Findings are recoverable by default, so the interactive simulator stays usable.
+For a one-shot run that exits on the first finding:
 
 ```bash
 ASAN_OPTIONS=halt_on_error=1:detect_leaks=1 \

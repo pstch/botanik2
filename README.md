@@ -2,167 +2,132 @@
 
 ![Botanik logo](images/logo.png "Botanik")
 
-This project hosts the programming of a control system for a small-scale
-horticultural greenhouse. It handles irrigation (on fixed schedules) and
-ventilation (air blowers, intractors, window openers, thermal screens and an
-evapo-transpiration cooling system). It runs alongside other autonomous
-systems - an emergency heat blower and a heatpump, each on their own
-thermostat - and monitors their operation, the power supply, and the emergency
-generator.
+Control system for a small horticultural greenhouse. It runs irrigation on
+fixed schedules and drives ventilation: air blowers, intractors, window
+openers, thermal screens and an evapo-transpiration cooling system. An
+emergency heat blower and a heatpump run on their own thermostats; botanik
+monitors them, along with the power supply and the emergency generator.
 
-The system runs on an Arduino OPTA PLC (STM32H747 dual-core ARM) with a few
-Modbus RTU I/O modules, which lets us run custom C++ alongside the PLC
-programming. That custom code exists to work around the many shortcomings of
-Arduino's PLC platform - which is frustrating, largely undocumented, and
-missing features standard elsewhere. This repository is therefore also a place
-to capture the knowledge we've gathered about that platform.
+The target is an Arduino OPTA PLC (STM32H747, dual-core ARM) with a few Modbus
+RTU I/O modules. We run custom C++ on it rather than the vendor PLC tooling,
+which is undocumented and missing a lot. Some of what we learned about that
+platform is written down here.
 
 ## Library structure
 
-`libbotanik` is a C++11 library, split into independent subsystems under
-`src/libbotanik/`. It is platform-agnostic: everything goes through a Hardware
-Abstraction Layer so the same code builds as a Linux simulator or for the OPTA.
+`libbotanik` is a C++11 library under `src/libbotanik/`, split into
+subsystems. All platform access goes through a HAL, so the same code builds as
+a Linux simulator or as OPTA firmware.
 
 | Subsystem | Path | Responsibility |
 |---|---|---|
-| **HAL** | `hal/` | Unified platform interface (clocks, memory ordering, stack/PLC introspection, serial). `simulator.h` and `opta.h` implement it. |
-| **Scheduler** | `scheduler/` | Non-blocking fixed-period loop driver with overrun handling and built-in CPU-load, scheduling-jitter, work-duration, and stack-usage instrumentation. |
-| **Console UI** | `console/` | `Console` drives a multiplexed page display over the `AnsiTerminal` VT device; `InputParser` decodes byte streams into events; `TextEditor` is a byte-efficient line editor. |
-| **Pages** | `pages/` | Full-screen views (`Home`, `Shell`, `Logs`, `Alarms`, `Params`, `Monitor`, `Tasks`) behind a common `Page` interface. |
-| **Logging** | `logs/` | `Logger` rate-limits with a dual token-bucket, then fans entries out to `LogWriter`s. |
-| **Variables** | `vars/` | One table of `Variable` rows - readings, coils, computed values, parameters, alarms - with `Bank` the only thing that gets, sets and overrides them. |
-| **PLC** | `plc/` | The IEC 61131-3 POU vocabulary a site's control programs are written in: stateless functions, and function blocks that take `dt_ms` rather than reading a clock. |
-| **Modbus** | `modbus/` | The RS-485 field bus (master and device model) and the plant network (TCP server over the register map, and a TCP master). |
-| **Utils** | `utils/` | `BufferedSerial` (ring-buffered UART), `filters.h` (reusable EMA / windowed-max metric filters), and time/uptime helpers. |
+| HAL | `hal/` | Clocks, memory ordering, stack and system introspection, serial, storage, network. `simulator.h` and `opta.h` are the two backends. |
+| Scheduler | `scheduler/` | Fixed-period loop driver. Handles overruns and measures CPU duty, jitter, work duration and stack high-water per beat. |
+| Tasks | `tasks/` | The task table and `TaskTimer`. The scheduler decides when a beat happens, the registry decides what runs in it. |
+| Console | `console/` | `AnsiTerminal` is the VT device; `Console` multiplexes pages over it; `TextEditor` is the line editor. |
+| Pages | `pages/` | Full-screen views behind a common `Page` interface. |
+| Shell | `shell/` | `CommandShell`. Commands are noun then verb. |
+| Logging | `logs/` | `Logger`, rate-limited by a dual token bucket, fanning out to `LogWriter`s. |
+| Alarms | `alarms/` | `AlarmController` over an alarm source table, with per-alarm dwell policy. |
+| Health | `health/` | Platform-health alarms, the power-on self-test, and the watchdog verdict. |
+| Variables | `vars/` | One table of rows - readings, coils, computed values, parameters, alarms - and the RAM over it. |
+| PLC | `plc/` | The IEC 61131-3 vocabulary the control programs are written in, in ST, plus the runtime that joins matiec's output to the beat. |
+| I/O | `io/` | The controller's own input terminals, published like any field row. |
+| Modbus | `modbus/` | RS-485 field bus and plant network, master and device model on each. |
+| Network | `network/` | Link bring-up, name resolution, NTP and MQTT, all non-blocking. |
+| Sun | `sun/` | Solar position, from the NOAA math. |
+| Utils | `utils/` | Ring-buffered serial, metric filters, time helpers. |
 
-The application wires these together and runs them from a single non-blocking
-loop - see `src/botanik_sim/main.cpp` for the canonical setup. `BotanikFirmware`
-owns the components and the beat; a site supplies the tables it runs on.
+`BotanikFirmware` owns the components and drives the beat. A site supplies the
+tables and control programs it runs on; `src/botanik_sim/main.cpp` is the
+canonical wiring.
 
 ## Key concepts
 
-- **Nothing blocks.** Every stateful object exposes a `step()` that does a
-  small, bounded amount of work and returns immediately; the main loop calls
-  them in a fixed order. Blocking would stall the RTOS and trip the watchdog on
-  the OPTA. See [CONTRIBUTING.md](CONTRIBUTING.md) for the full contract.
-- **HAL-only platform access.** Code never calls `<time.h>` or platform APIs
-  directly - only `HAL::Clock::uptime_ms()`, `HAL::Memory::dsb()`,
-  `HAL::Memory::ordered_copy()`, etc. This is what makes the simulator possible.
+- **Nothing blocks.** Every stateful object has a `step()` that does a small
+  bounded amount of work and returns. Blocking stalls the RTOS and trips the
+  watchdog on the OPTA. `CONTRIBUTING.md` has the contract.
+- **Platform access goes through the HAL.** No `<time.h>`, no Arduino calls
+  outside `hal/`. This is what makes the simulator possible.
 - **One variable model.** A Modbus reading, a relay coil, a computed value and
-  a configuration parameter are all rows of one table, differing by field rather
-  than by type. Everything addresses a row by NAME; a name that matches nothing
-  resolves to an inert sink and is counted, never to a real row.
-- **Rate-limited logging.** A global bucket plus a per-topic bucket throttle log
-  volume; suppressed-message counts are reported on a slower cadence.
-- **Byte-efficient terminal.** The UI targets a low-bandwidth serial link, so
-  the console/editor layer minimizes the escape sequences it emits.
-- **Self-instrumenting loop.** `LoopScheduler` measures per-beat CPU load (the
-  duty cycle, `(period − slept)/period`), scheduling jitter, work duration, and
-  stack high-water usage (the last via stack painting), surfaced live in the
-  status bar and the `stats` shell command.
+  a configuration parameter are rows of one table, differing by field rather
+  than by type.
+- **The console is byte-efficient.** It targets a 4800-baud serial link, so the
+  terminal and editor layers minimise what they emit.
 
 ## Building
 
-The default target is the Linux simulator (`SIMULATOR`), which compiles to a
-native executable; the OPTA target cross-compiles and links a flashable image
-(see below). Builds default to a profiler-friendly `DEBUG` type:
+Requires CMake 3.10+ and a C++11 compiler. The default target is the Linux
+simulator; builds default to `DEBUG` (`-O0 -g3`).
 
 ```bash
-cmake -B build-debug -DBOTANIK_TARGET=SIMULATOR
-make -C build-debug
-./build-debug/botanik_sim        # run the simulator
+cmake -B build -DBOTANIK_TARGET=SIMULATOR
+make -C build
+./build/botanik_sim
 ```
 
-Sanitizers are **off by default** on every build type. Instrumentation more than
-doubles compile CPU and lands hardest on the test suite, so it moved off the gate
-that runs most often and into `make check-full`, which re-runs the whole gate under
-ASan+UBSan in a tree of its own. To instrument a tree directly, configure it with
-`-DBOTANIK_SANITIZE=address+undefined`; the interactive sim runs fine instrumented.
+`-DCMAKE_BUILD_TYPE=RELEASE` gives `-O3`, LTO and `NDEBUG`.
+`-DBOTANIK_SANITIZE=address+undefined` instruments a tree; sanitizers are off
+by default and `make check-full` runs the gate instrumented in a tree of its
+own.
 
-For an optimized build, add `-DCMAKE_BUILD_TYPE=RELEASE` (enables `-O3`/LTO,
-compiles assertions out, and defaults sanitizers off).
+`.envrc` exports `MAKEFLAGS=-j4` and `CTEST_PARALLEL_LEVEL` for
+[direnv](https://direnv.net) users. `ccache` is used when installed.
 
 ### OPTA target
 
-The `OPTA` target cross-compiles the library and firmware for the Arduino OPTA
-PLC with `arm-none-eabi-gcc`:
-
 ```bash
-arduino-cli core install arduino:mbed_opta   # one-time: the Mbed OPTA core
+arduino-cli core install arduino:mbed_opta   # one-time
 cmake -B build-opta -DBOTANIK_TARGET=OPTA
 make -C build-opta
 ```
 
-This builds `libbotanik` and links `botanik_opta`, the flashable M7 image; the
-entry wiring it compiles lives in
-[src/botanik_fw](src/botanik_fw/README.md). The Mbed
-headers and ARM toolchain come from the core that `arduino-cli` installs under
-`~/.arduino15`; the build auto-discovers the highest installed version (override
-with `-DMBED_CORE_ROOT=...` or the `ARDUINO_DATA_DIR` env var).
+This links `botanik_opta`, the flashable M7 image; the entry wiring is in
+[src/botanik_fw](src/botanik_fw/README.md). The Mbed headers and the ARM
+toolchain come from the core `arduino-cli` installs under `~/.arduino15`. The
+build takes the highest version installed; override with `-DMBED_CORE_ROOT=...`
+or `ARDUINO_DATA_DIR`.
 
-### Tests
+## Tests
 
-Unit tests use [doctest](https://github.com/doctest/doctest) (vendored as a
-single header under `tests/vendor/`) and run only in the `SIMULATOR` build,
-linked against the host library. From a configured SIMULATOR tree:
-
-```bash
-make -C build-debug check          # the full pre-push gate (see below)
-```
-
-`check` is the one-shot pre-push gate. It runs two things and fails on the
-first problem:
-
-- a **warning-clean compile** - the library compiles `-Werror`
-  (`BOTANIK_WERROR=ON`), so any compiler warning in a library source fails the
-  build. `-DBOTANIK_WERROR=OFF` for a warning-tolerant WIP tree;
-- the **doctest and pyte suites** via `ctest`.
-
-Two things are deliberately NOT in it, both periodic sweeps rather than
-per-change checks: **clang-tidy** (`make clang-tidy`, the `bugprone-*` checks from
-`.clang-tidy`) and the **sanitizers** (`make check-full`, the same gate again under
-ASan+UBSan).
-
-The pieces, if you need them individually:
+Two host-only suites, both under CTest: [doctest](https://github.com/doctest/doctest)
+unit tests in `tests/`, and pyte screen tests in `tests/pyte/` that drive
+`botanik_sim` over a PTY.
 
 ```bash
-make -C build-debug clang-tidy     # just the static analysis
-make -C build-debug botanik_tests  # just build the test binary
-./build-debug/tests/botanik_tests  # run it directly (doctest CLI)
-./build-debug/tests/botanik_tests -s   # ...showing every passing check, incl. the struct-size table
-ctest --test-dir build-debug --output-on-failure
+make -C build check        # the pre-push gate: warning-clean build, both suites
+make -C build check-full   # the sweep: clang-tidy, bare profiles, generated-source
+                           # drift, the OPTA cross build, then the gate under ASan+UBSan
+make -C build coverage     # per-area line coverage, reported not enforced
 ```
 
-The suite covers the `format_float`/`format_age` text helpers, the time
-utilities (rollover projection + calendar conversion), and a `sizeof` test that
-documents the in-memory footprint of the big UI/PLC structures.
+The library compiles `-Werror`, so a warning in a library source fails `check`
+at the build step. clang-tidy and the sanitizers are in `check-full` rather
+than `check`: both are too slow to pay per edit.
+
+```bash
+make -C build botanik_tests             # just build the doctest binary
+./build/tests/botanik_tests             # run it directly (doctest CLI)
+./build/tests/botanik_tests -tc=<name>  # one case
+ctest --test-dir build --output-on-failure
+```
 
 ## Licence
 
-Botanik is free software under the **GNU General Public License, version 3** -
-see [LICENSE](LICENSE).
+Botanik is free software under the GNU General Public License, version 3 - see
+[LICENSE](LICENSE).
 
-`vendor/matiec` is a separate work under the same licence, carrying its own
-`COPYING` and an `UPSTREAM` note recording the commit it was taken from. It is a
-BUILD TOOL: the repository runs the binary and commits its output, and nothing of
-matiec's is linked or compiled into the firmware. The one place that could have
-happened is its IEC library, which is why `src/libbotanik/plc/functions/ieclib.txt`
-replaces it and why `vendor/matiec` carries no `lib/` at all.
+`vendor/matiec` is a separate work under the same licence, with its own
+`COPYING` and an `UPSTREAM` note recording the commit it came from. It is a
+build tool: we run the binary and commit its output, and none of it is linked
+or compiled into the firmware. Its IEC library would have been the exception,
+which is why `src/libbotanik/plc/functions/ieclib.txt` replaces it and why
+`vendor/matiec` carries no `lib/`.
 
-## Documentation & useful links
+## Links
 
-- [CONTRIBUTING.md](CONTRIBUTING.md) - code style, naming, and the non-blocking design rules.
-- [CLAUDE.md](CLAUDE.md) - architecture summary and build notes for AI coding agents.
-- [docs/EVENT_DISPATCH.md](docs/EVENT_DISPATCH.md) - terminal input event flow.
-- [docs/KEYBINDINGS.md](docs/KEYBINDINGS.md) - terminal key bindings.
-- API reference - `make -C build-debug docs` regenerates the HTML under
-  `docs/doxygen/html/` (or run `doxygen Doxyfile` directly), then open
-  `docs/doxygen/html/index.html`. The generated
-  [Testing](docs/doxygen/html/testing.html) page covers
-  the test suite and the struct-size table.
-
-### External
-
+- [CONTRIBUTING.md](CONTRIBUTING.md) - code style and the non-blocking rules.
+- [CLAUDE.md](CLAUDE.md) - orientation for AI coding agents.
+- API reference: `make -C build docs`, then open `docs/doxygen/html/index.html`.
 - [Arduino OPTA](https://www.arduino.cc/pro/hardware/product/opta/)
 - [Modbus Application Protocol](https://modbus.org/docs/Modbus_Application_Protocol_V1_1b3.pdf)
-- [ANSI escape codes](https://en.wikipedia.org/wiki/ANSI_escape_code)

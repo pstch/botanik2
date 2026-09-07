@@ -16,10 +16,9 @@ if(NOT _rc EQUAL 0)
 endif()
 
 # One pass over `size -A`, summing by section. FLASH is what the loader writes:
-# code, the exception tables, and .data's initialisers. STATIC RAM is .data plus
-# .bss - the part of the SRAM region that is spoken for before the heap gets
-# what is left. .lwip_sec and .heap are deliberately not counted: the first is
-# its own region, and the second is the remainder being measured against.
+# code, the exception tables, and .data's initialisers. Static RAM is .data plus
+# .bss, the part of the SRAM region spoken for before the heap gets the rest.
+# .lwip_sec is its own region and .heap is that remainder, so neither counts.
 set(_flash 0)
 set(_ram 0)
 string(REPLACE "\n" ";" _lines "${_sz}")
@@ -54,13 +53,11 @@ message(STATUS "footprint: flash ${_flash} / ${FLASH_MAX}, "
 if(FLASH_MAX GREATER 0 AND _flash GREATER FLASH_MAX)
     message(FATAL_ERROR
             "flash ${_flash} B is over the ${FLASH_MAX} B ceiling. "
-            "Raise BOTANIK_FLASH_MAX_BYTES only after reading why it grew - "
-            "docs/dev/footprint.md says where the image goes.")
+            "Raise BOTANIK_FLASH_MAX_BYTES only after reading why it grew.")
 endif()
 if(RAM_MAX GREATER 0 AND _ram GREATER RAM_MAX)
     message(FATAL_ERROR
-            "static RAM ${_ram} B is over the ${RAM_MAX} B ceiling. "
-            "This is the load-bearing half: what it takes comes out of the "
-            "heap, which lwIP and Mbed draw on at runtime. See "
-            "docs/dev/footprint.md.")
+            "static RAM ${_ram} B is over the ${RAM_MAX} B ceiling. What it "
+            "takes comes out of the heap, which lwIP and Mbed draw on at "
+            "runtime.")
 endif()
