@@ -19,16 +19,19 @@ CREATE_SUBDIRS         = NO
 #---------------------------------------------------------------------------
 # Input
 #---------------------------------------------------------------------------
-# The narrative manual under docs/ was removed and is being rewritten. Until it
-# is back there is no mainpage: README.md is the GitHub front page and stays out
-# of the API docs. Re-add docs/ to INPUT and set USE_MDFILE_AS_MAINPAGE when the
-# manual returns.
+# docs/index.md is the mainpage, named by USE_MDFILE_AS_MAINPAGE below.
+# README.md is the GitHub front page and stays out of the API docs.
 INPUT                  = src \
                          tests \
-                         docs/reference
+                         docs
 FILE_PATTERNS          = *.h *.cpp *.c *.md
+USE_MDFILE_AS_MAINPAGE = docs/index.md
 RECURSIVE              = YES
-IMAGE_PATH             = images
+IMAGE_PATH             = images \
+                         images/logic
+
+# Working notes, if any: excluded so a plan never renders beside the manual.
+EXCLUDE                = docs/design
 
 # Vendored toolchain and Mbed headers, and build artifacts. The doctest single
 # header under tests/vendor is third-party too.
