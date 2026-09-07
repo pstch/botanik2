@@ -11,7 +11,7 @@
  * @note A component does not fetch its own configuration: it is HANDED one
  *       through set_config(). See vars/bindings.h.
  * @note A component has no rate of its own: that belongs to its TASK, and the
- *       elapsed time is Tasks::Tick::dt_ms. See docs/dev/tasks.md.
+ *       elapsed time is Tasks::Tick::dt_ms. See @ref dev_tasks.
  */
 
 #include <cstdint>

@@ -8,7 +8,7 @@
  * @note No transport here: tcp/slave.h owns the sockets and the beat, pdu.h the
  *       framing, this the answer.
  * @note The address derivation, the sparse-gap rule and the quality table are
- *       the integrator's reference: docs/dev/modbus.md, "The TCP slave".
+ *       the integrator's reference: @ref dev_modbus, "The TCP slave".
  */
 
 #include <cstddef>
@@ -155,7 +155,7 @@ namespace Botanik { namespace Modbus {
 
         /** @brief Apply the single register @p addr, splicing it into the other
          *  half of its row, then validating and committing the whole row.
-         *  @see docs/dev/modbus.md for why FC06 is supported rather than refused. */
+         *  @see dev_modbus for why FC06 is supported rather than refused. */
         Exception write_register(uint16_t addr, uint16_t value,
                                  uint16_t* committed = nullptr);
 

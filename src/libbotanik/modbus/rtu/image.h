@@ -7,7 +7,7 @@
  *        become a frame.
  * @note Free functions: there is no state to keep. What has been read lives in
  *       the bank, and what is owed to the field is a bit on the row that owes
- *       it. See docs/dev/modbus.md.
+ *       it. See @ref dev_modbus.
  */
 
 #include <cstdint>

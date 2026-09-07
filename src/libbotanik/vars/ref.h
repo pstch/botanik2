@@ -7,7 +7,7 @@
  *        program declares its interface with.
  *
  * A row index is a bare `uint16_t`, generated. `Ref<T>` adds the row's C++ type
- * and reads the runtime's one bank. See docs/dev/scan.md.
+ * and reads the runtime's one bank. See @ref dev_scan.
  */
 
 #include <cstdint>

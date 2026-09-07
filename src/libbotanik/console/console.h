@@ -6,7 +6,7 @@
  * @brief Console - the multiplexed page display driven over an AnsiTerminal:
  *        routes input to the active page, owns the row-0 status bar and the
  *        bottom alarm bar, reserves the content area, drives step().
- * @note Renderers reach the device through terminal(). See docs/dev/pages.md.
+ * @note Renderers reach the device through terminal(). See @ref dev_pages.
  */
 
 #include <cstdint>

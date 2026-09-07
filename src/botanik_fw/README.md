@@ -39,8 +39,8 @@ Only three things are taken from the Arduino Mbed core package: the prebuilt
 `libmbed.a`, that linker script, and the target's `PinNames`. The package's own 2017
 toolchain is deliberately not used - it is roughly 40x slower on the Mbed headers.
 
-See [Building and testing](../../docs/dev/build.md) for the constraints on the link
-(the float ABI in particular) and the full build options.
+See @ref dev_build for the constraints on the link (the float ABI in
+particular) and the full build options.
 
 ## Field IO
 

@@ -73,6 +73,5 @@ you do.
 | `BOTANIK_NO_LOAD_ALARMS` | Holds the CPU_* load alarms (CPU_LOAD / CPU_JITT / CPU_XRUN) cleared, so the active-alarm set is deterministic for screen goldens. Set it to a non-zero value. Defaults ON under a virtual clock. No effect on OPTA (no environment). See `health/health.h`. |
 | `BOTANIK_WATCHDOG` | `0` to run without it. Defaults ON, except under a virtual clock. |
 
-See also the developer manual: [the page framework](../../docs/dev/pages.md),
-[the scheduler](../../docs/dev/scheduler.md), and
-[log flow](../../docs/dev/logging.md).
+See also the developer manual: @ref dev_pages, @ref dev_scheduler and
+@ref dev_logging.

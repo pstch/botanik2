@@ -4,7 +4,7 @@
 /**
  * @file local_inputs.h
  * @brief LocalInputs - the controller's own input terminals, published as rows.
- * @note The wiring rules and the channel map: docs/dev/io.md
+ * @note The wiring rules and the channel map: @ref dev_io
  */
 
 #include <cstdint>

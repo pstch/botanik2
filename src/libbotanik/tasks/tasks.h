@@ -8,7 +8,7 @@
  * @note GROUP is how often a task runs, PHASE where in the beat it sits, and
  *       neither derives from the other. Rate is a tuning knob; phase is a
  *       correctness property, so dispatch is phase-major and the period only
- *       answers "is it due". No priority: see docs/dev/tasks.md.
+ *       answers "is it due". No priority: see @ref dev_tasks.
  */
 
 #include <cstdint>

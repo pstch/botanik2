@@ -146,7 +146,7 @@ namespace Botanik { namespace Config {
     /** @brief How many of those may actually be written per beat. Storage is
      *  synchronous and a TDBStore write costs milliseconds, so 61 in one beat
      *  would let a remote master stall the field bus past its own response
-     *  deadline. @see docs/dev/concurrency.md */
+     *  deadline. @see dev_concurrency */
 #ifndef BOTANIK_MODBUS_PERSIST_PER_STEP
 #  define BOTANIK_MODBUS_PERSIST_PER_STEP 2
 #endif

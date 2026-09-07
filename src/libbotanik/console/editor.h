@@ -1,7 +1,7 @@
 /**
  * @file editor.h
  * @brief Multi-row line editor for a low-bandwidth serial terminal. Auto-wrap
- *        is off: the editor owns wrapping. See docs/dev/editor.md.
+ *        is off: the editor owns wrapping. See @ref dev_editor.
  */
 #ifndef CONSOLE_EDITOR_H
 #define CONSOLE_EDITOR_H

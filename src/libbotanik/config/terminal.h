@@ -151,7 +151,7 @@ namespace Botanik { namespace Config {
      *
      *  Serial TX is one FIFO with no jumping ahead, so bulk producers progress
      *  only while the buffer is shallow. A depth floor gates that; per-tick caps
-     *  bound the burst. See docs/dev/screen.md.
+     *  bound the burst. See @ref dev_screen.
      *  @{ */
 
     /** @brief Single paint depth floor, in ms of wire time at the console rate.

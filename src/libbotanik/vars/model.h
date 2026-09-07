@@ -6,7 +6,7 @@
  * @brief The Bank, which owns the table, and Var, the handle every row-level
  *        operation hangs off.
  * @note The slot is handle.h and the const half descriptor.h, both included
- *       here, so a consumer needs only this one header. See docs/dev/vars.md.
+ *       here, so a consumer needs only this one header. See @ref dev_vars.
  */
 
 #include <cstdint>

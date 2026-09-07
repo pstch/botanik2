@@ -6,7 +6,7 @@
  * @brief The RAM slot: the mutable quarter of a row, parallel to the descriptor
  *        table.
  * @note The const half is descriptor.h. The Bank and the Var handle over the
- *       pair are model.h, which includes this. See docs/dev/vars.md.
+ *       pair are model.h, which includes this. See @ref dev_vars.
  */
 
 #include <cstdint>

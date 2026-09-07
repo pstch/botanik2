@@ -21,7 +21,7 @@ The reference Botanik **site**: everything specific to one physical greenhouse.
 | `sim.h` | hand-written | the simulated field: it writes the variable tables the way a Modbus driver will. Its whole body is `#ifdef TARGET_SIMULATOR`, so it drops out of the hardware build |
 
 Regenerate with `scripts/tables.py` - `generate`, `config`, `points` (which
-writes `docs/reference/points.md`) and `plant` (which needs `IEC2C=` pointing
+writes `docs/gh_mlb41/variables.md`) and `plant` (which needs `IEC2C=` pointing
 at a built matiec). The output is COMMITTED and is never a build step.
 
 ## The control laws
@@ -34,8 +34,7 @@ roster - name, instance, source, rate - and it decides the order they run in.
 `prog_<name>_health` row where it opted in, and its own writer slot.
 
 A program reads and writes rows by NAME, through `VAR_EXTERNAL`. Nothing is
-passed between them: `docs/dev/st-migration.md` has the migration's own
-lessons, and `docs/dev/scan.md` the scan model.
+passed between them: @ref dev_scan has the scan model.
 
 There is no site subclass. `Site::firmware()` is a generated accessor over a
 function-local static `BotanikFirmware`, bound to `g_site` - function-local
