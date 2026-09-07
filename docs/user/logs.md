@@ -1,4 +1,4 @@
-# LOGS {#user_logs}
+# LOGS: the log tail {#user_logs}
 
 <!-- source of truth: logs/logger.h, pages/logs.h -->
 
@@ -7,5 +7,7 @@
 ## Topics
 
 ## Filtering
+
+## Scrolling back
 
 ## Dropped messages

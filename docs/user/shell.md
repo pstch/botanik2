@@ -1,6 +1,8 @@
-# The shell {#user_shell}
+# SHELL: the command line {#user_shell}
 
 <!-- source of truth: shell/shell.h; commands are noun then verb -->
+
+## The prompt
 
 ## Noun then verb
 
@@ -8,4 +10,4 @@
 
 ## Reading a report
 
-## Keeping logs off the transcript
+## Keeping the log tail off the transcript

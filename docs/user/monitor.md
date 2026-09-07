@@ -1,4 +1,4 @@
-# MONITOR: watching and forcing {#user_monitor}
+# MONITOR: watching and forcing rows {#user_monitor}
 
 <!-- source of truth: pages/monitor.h, vars/var.h override_set() -->
 

@@ -2,10 +2,10 @@
 
 <!-- source of truth: console/parser.cpp, console/editor.h -->
 
+## Changing page
+
 ## Moving around
 
 ## Editing a line
 
 ## The kill ring
-
-## Page and tab keys

@@ -1,4 +1,4 @@
-# ALARMS {#user_alarms}
+# ALARMS: the alarm list {#user_alarms}
 
 <!-- source of truth: alarms/alarms.h, pages/alarms.h -->
 
@@ -10,4 +10,4 @@
 
 ## Acknowledging
 
-## The alarm bar
+## How the alarm bar relates to this page

@@ -1,4 +1,4 @@
-# TASKS {#user_tasks}
+# TASKS: the task table {#user_tasks}
 
 <!-- source of truth: pages/tasks.h, tasks/registry.h -->
 
