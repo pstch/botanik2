@@ -41,7 +41,6 @@ def enums(site):
         sys.exit('%d enumeration(s) ST cannot spell' % len(bad))
 
     ctx = [{'name': n, 'upper': n.upper(), 'ctype': mem[0]['ctype'],
-            'width': max(len(e['symbol']) for e in mem),
             'members': mem} for n, mem in groups]
 
     render.write(os.path.join(site, 'generated', 'enums.st'), 'enums.st.j2',
@@ -123,11 +122,7 @@ def emit_plant_cpp(site, t, prog, writes):
                       if _opted_in(e, 'health') else 'Vars::VAR_NONE'})
 
     render.write(os.path.join(site, 'generated', 'plant.cpp'), 'plant.cpp.j2',
-                 externals=externals, ext_width=max(len(n) for n in ext),
-                 programs=programs,
-                 w_name=max(len(e['name']) for e in prog),
-                 w_pou=max(len(e['pou']) for e in prog),
-                 w_inst=max(len(e['instance'].upper()) for e in prog))
+                 externals=externals, programs=programs)
 
 
 def _home(index, n):
@@ -263,10 +258,9 @@ def plant(site):
     render.write(os.path.join(site, 'generated', 'plant.st'), 'plant.st.j2',
                  banner=H.replace('//', '(*').rstrip() + ' *)',
                  config_name=os.path.basename(site.rstrip(os.sep)),
-                 globals_=sorted(rows.items()), w_row=max(len(n) for n in rows),
+                 globals_=sorted(rows.items()),
                  programs=[{'instance': e['instance'], 'pou': e['pou'].lower()}
-                           for e in prog],
-                 w_inst=max(len(e['instance']) for e in prog))
+                           for e in prog])
     pl = os.path.join(site, 'generated', 'plant.st')
 
     # matiec FIRST: plant.cpp's write rosters are read out of the POUS.c it
@@ -330,7 +324,6 @@ def _lib_enum(st, header, decl, spell, member):
     out = 'src/libbotanik/plc/runtime/%s.gen.h' % st.lower()
     render.write(out, 'lib_enum.gen.h.j2', header=header, st=st,
                  guard='BOTANIK_PLC_RUNTIME_%s_GEN_H' % st,
-                 width=max(len(c) for c in codes),
                  codes=[{'name': c, 'spelt': spell % c} for c in codes])
     return st.lower(), len(codes)
 

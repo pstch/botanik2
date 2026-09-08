@@ -71,7 +71,6 @@ def generate(site):
 
     render.write(os.path.join(site, 'generated', 'rows.gen.h'), 'rows.gen.h.j2',
                  banner=H.rstrip('\n'), guard=guard,
-                 width=max(len(r['name']) for r in table),
                  rows=[{'name': r['name'], 'index': r['_i']} for r in table])
 
     print('  vars.gen.cpp   %d rows (%d params), %d quality, %d order'

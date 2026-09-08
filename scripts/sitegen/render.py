@@ -17,17 +17,63 @@ for what they produce. The settings below are what keep the output BYTE-EXACT:
 """
 
 import os
+import sys
 
 from jinja2 import Environment, FileSystemLoader, StrictUndefined
 
-ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+SCRIPTS = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+ROOT = os.path.dirname(SCRIPTS)
 TEMPLATES = os.path.join(ROOT, 'templates')
+
+sys.path.insert(0, SCRIPTS)
+from mdtable import align  # noqa: E402
+
+
+def _width(items, attr=None):
+    """The widest of @p items, for a column a template lines up itself.
+
+    Named so a template can say `{% set w = rows | width('name') %}` beside the
+    loop that uses it, rather than being handed a number from elsewhere."""
+    vals = [i[attr] for i in items] if attr else list(items)
+    return max((len(str(v)) for v in vals), default=0)
+
+
+def _pad(value, width):
+    """@p value in a column @p width wide."""
+    return str(value).ljust(width)
+
+
+def _arg(value, width):
+    """@p value as one argument of a macro list: a comma, then the padding.
+
+    The comma goes inside the column, so the next argument starts where the
+    column ends however long this one is."""
+    return (str(value) + ',').ljust(width + 1)
+
+
+def _cont(loop):
+    """The ` \\` that continues a macro body, on every line but the last."""
+    return '' if loop.last else ' \\'
+
+
+def _suffix(value, text):
+    """@p text after @p value, or nothing at all where the value is empty.
+
+    The trailing-comment case: a description that is there gets its marker, and
+    one that is not leaves no trailing space behind."""
+    return text % value if value else ''
+
 
 _env = Environment(loader=FileSystemLoader(TEMPLATES),
                    undefined=StrictUndefined,
                    keep_trailing_newline=True,
                    trim_blocks=True,
                    lstrip_blocks=True)
+_env.filters['width'] = _width
+_env.filters['pad'] = _pad
+_env.filters['arg'] = _arg
+_env.filters['cont'] = _cont
+_env.filters['suffix'] = _suffix
 
 
 def render(name, **ctx):
@@ -36,8 +82,13 @@ def render(name, **ctx):
 
 
 def write(path, name, **ctx):
-    """Render, and write it where it belongs, creating the directory."""
+    """Render, and write it where it belongs, creating the directory.
+
+    Markdown goes through the table aligner, so a generated page's tables line
+    up in the source the way a hand-written one's do."""
     out = render(name, **ctx)
+    if path.endswith('.md'):
+        out = align(out)
     d = os.path.dirname(path)
     if d:
         os.makedirs(d, exist_ok=True)
