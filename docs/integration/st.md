@@ -2,40 +2,6 @@
 
 <!-- source of truth: plc/functions/*.st, plc/blocks/*.st, tables/programs.csv -->
 
-![](block_Ton.drawio.svg)
-
-![](block_Tof.drawio.svg)
-
-![](block_Tp.drawio.svg)
-
-![](block_Ewma.drawio.svg)
-
-![](block_MedianOf3.drawio.svg)
-
-![](block_MovingAverageN.drawio.svg)
-
-![](block_Deadband.drawio.svg)
-
-![](block_Hysteresis.drawio.svg)
-
-![](block_Hysteresis3.drawio.svg)
-
-![](block_Staircase3.drawio.svg)
-
-![](block_Ramp.drawio.svg)
-
-![](block_Integral.drawio.svg)
-
-![](block_Derivative.drawio.svg)
-
-![](block_Pid.drawio.svg)
-
-![](block_Sr.drawio.svg)
-
-![](block_RTrig.drawio.svg)
-
-![](block_Actuator.drawio.svg)
-
 ## A program is one file
 
 ## Declaring what it reads and writes
@@ -44,15 +10,50 @@
 
 ## The block vocabulary
 
-### Timers
+<!-- One subsection per FUNCTION_BLOCK declared under plc/blocks/, in source-file
+     order: timers, filters, analog, meter, pid, actuator. BAND_LATCH and DC_RAIL
+     have no diagram. The drawings are named for the C++ blocks the ST replaced,
+     hence block_Ton.drawio.svg under TON_MS. -->
 
-### Filters
+### TON_MS
+
+![](block_Ton.drawio.svg)
+
+### TOF_MS
+
+![](block_Tof.drawio.svg)
+
+### EWMA
+
+![](block_Ewma.drawio.svg)
+
+### DEADBAND
+
+![](block_Deadband.drawio.svg)
+
+### STAIRCASE3
+
+![](block_Staircase3.drawio.svg)
+
+### BAND_LATCH
+
+### DC_RAIL
+
+### INTEGRAL
+
+![](block_Integral.drawio.svg)
+
+### DERIVATIVE
+
+![](block_Derivative.drawio.svg)
 
 ### PID
 
-### Actuators
+![](block_Pid.drawio.svg)
 
-### Meters
+### ACTUATOR
+
+![](block_Actuator.drawio.svg)
 
 ## Opting into health
 

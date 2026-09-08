@@ -2,8 +2,6 @@
 
 <!-- source of truth: modbus/rtu/, tables/modbus_devices.csv, tables/modbus_models.csv -->
 
-![](modbus-master.drawio.svg)
-
 ## Devices
 
 ## Models
