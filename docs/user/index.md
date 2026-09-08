@@ -36,3 +36,25 @@ hardware does nothing.
 - @subpage user_tasks
 - @subpage user_system
 - @subpage user_notes
+
+## Control authority
+
+Three things decide whether a control program drives anything, and the strictest
+of them wins:
+
+- the operator, through `sys_control` for every program at once, or
+  `programs disable <pat>` for one of them, or a glob of them;
+- the unit, through its run state: the laws run in RUN only, never while it is
+  starting up, shutting down or halted. The header bar carries it, and the
+  SYSTEM page spells it out;
+- the program itself, through the health it reports. The TASKS page shows that
+  per program.
+
+A program that stops running does not leave what it was driving where it stood.
+Its rows go to their declared safe state on the next beat, so a valve closes and
+a fan stops rather than holding the last thing they were told.
+
+The exception is a program that parks. Those keep being called on the way out,
+so a roof finishes shutting before the unit halts instead of being dropped
+half open.
+
