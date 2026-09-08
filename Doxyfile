@@ -27,13 +27,14 @@ INPUT                  = src \
 FILE_PATTERNS          = *.h *.cpp *.c *.md
 USE_MDFILE_AS_MAINPAGE = docs/index.md
 RECURSIVE              = YES
-# A diagram lives beside the page that references it, so this lists the doc
-# directories that hold one. images/ keeps the logos, and images/logic/ the
-# block drawings no page references yet.
+# A diagram lives with the page that references it, in the section's own
+# diagrams/ where a section has several, so this lists the doc directories that
+# hold one. images/ keeps the logos, and images/logic/ the block drawings no
+# page references yet.
 IMAGE_PATH             = images \
                          images/logic \
                          docs/gh_mlb41/diagrams \
-                         docs/integration \
+                         docs/integration/diagrams \
                          docs/dev/foundations \
                          docs/dev/runtime \
                          docs/dev/console \
