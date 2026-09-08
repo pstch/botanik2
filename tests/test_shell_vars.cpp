@@ -5,7 +5,7 @@
  * These are the commands that change what the plant does, and every one of them
  * runs against the site's real table rather than a hand-built one - a band a
  * `params set` is judged by, a `_qlt` companion an override drags with it, the
- * scan roster a `programs disable` takes a law out of. `test_shell.cpp` wires no
+ * scan roster a `programs stop` takes a law out of. `test_shell.cpp` wires no
  * SystemContext and so tests the dispatcher; this tests what the verbs do.
  *
  * Every assertion here is on the operator-visible answer, not on a member: a
@@ -293,7 +293,7 @@ TEST_CASE("shell vars: an unrecognised verb prints the noun's usage, not an erro
         { "vars frobnicate",      "vars get"          },
         { "params frobnicate",    "params set"        },
         { "overrides frobnicate", "overrides clear"   },
-        { "programs frobnicate",  "programs disable"  },
+        { "programs frobnicate",  "programs stop"  },
         { "alarms frobnicate",    "alarms ack"        },
     };
     for (const Case& c : CASES) {
@@ -322,23 +322,83 @@ TEST_CASE("shell programs: list names every program in the scan, with its state"
 
 TEST_CASE("shell programs: disable takes a law out of the scan and list says so") {
     Rig f;
-    f.run("programs disable irrigation");
-    CHECK(f.said("1 program(s) DISABLED"));
-    CHECK(f.run("programs list irrigation").find("DISABLED") != std::string::npos);
-    CHECK(f.run("programs status").find("1 DISABLED") != std::string::npos);
+    f.run("programs stop irrigation");
+    CHECK(f.said("1 program(s) STOPPED"));
+    CHECK(f.run("programs list irrigation").find("STOPPED") != std::string::npos);
+    CHECK(f.run("programs status").find("1 STOPPED") != std::string::npos);
 
-    f.run("programs enable irrigation");
-    CHECK(f.said("1 program(s) enabled"));
+    f.run("programs start irrigation");
+    CHECK(f.said("1 program(s) started"));
     CHECK(f.run("programs list irrigation").find("running") != std::string::npos);
+}
+
+TEST_CASE("shell control: stop takes every law out of the scan, start puts them back") {
+    Rig f;
+    CHECK(f.run("control status").find("28 of 28 running") != std::string::npos);
+
+    f.run("control stop");
+    CHECK(f.said("control STOPPED"));
+    CHECK_FALSE(f.var("sys_control").as_bool());
+    CHECK(f.run("control status").find("0 of 28 running") != std::string::npos);
+
+    f.run("control start");
+    CHECK(f.said("control started"));
+    CHECK(f.var("sys_control").as_bool());
+    CHECK(f.run("control status").find("28 of 28 running") != std::string::npos);
+}
+
+TEST_CASE("shell control: start/stop stay in RAM, enable/disable reach the store") {
+    Rig f;
+    RamStore store;
+    f.persist.set_store(&store);
+
+    f.run("control stop");
+    CHECK(f.said("this run only"));
+    CHECK_FALSE(store.stored("sys_control"));
+
+    f.run("control disable");
+    CHECK(f.said("saved"));
+    CHECK(store.stored("sys_control"));
+    CHECK_FALSE(f.var("sys_control").as_bool());
+
+    f.run("control enable");
+    CHECK(f.said("saved"));
+    CHECK(f.var("sys_control").as_bool());
+}
+
+TEST_CASE("shell control: a save storage refuses is said so, not reported as durable") {
+    Rig f;
+    RamStore store;
+    store.refuse = true;
+    f.persist.set_store(&store);
+
+    f.run("control disable");
+    CHECK(f.said("REFUSED"));
+    // The RAM half still took: the plant is stopped either way, and an
+    // operator told otherwise would think the laws were still driving.
+    CHECK_FALSE(f.var("sys_control").as_bool());
+}
+
+TEST_CASE("shell control: the two gates are independent, and status says which holds") {
+    Rig f;
+    // The operator's half alone is not enough: a unit outside RUN drives
+    // nothing whatever sys_control says. The firmware hands the plant the run
+    // state; the rig does not, and a plant without one reads every beat as RUN.
+    f.plant.set_run_state(&f.sched.run_state);
+    f.sched.run_state = Scheduler::RunState::START;
+    const std::string got = f.run("control start");
+    CHECK(got.find("control started") != std::string::npos);
+    CHECK(got.find("not in RUN") != std::string::npos);
+    CHECK(got.find("0 of 28 running") != std::string::npos);
 }
 
 TEST_CASE("shell programs: the gate is the operator's, and it takes a glob") {
     Rig f;
-    f.run("programs disable irr*");
-    CHECK(f.said("6 program(s) DISABLED"));
-    CHECK(f.run("programs status").find("6 DISABLED") != std::string::npos);
-    f.run("programs enable all");
-    CHECK(f.run("programs status").find("0 DISABLED") != std::string::npos);
+    f.run("programs stop irr*");
+    CHECK(f.said("6 program(s) STOPPED"));
+    CHECK(f.run("programs status").find("6 STOPPED") != std::string::npos);
+    f.run("programs start all");
+    CHECK(f.run("programs status").find("0 STOPPED") != std::string::npos);
 }
 
 TEST_CASE("shell programs: enabling under an inhibited sys_control says it changes nothing") {
@@ -347,22 +407,22 @@ TEST_CASE("shell programs: enabling under an inhibited sys_control says it chang
     // program that still will not run is exactly the confusing case.
     f.var("sys_control").override_set(Vars::Scalar::B(false));
     REQUIRE_FALSE(f.plant.control_allowed());
-    f.run("programs enable irrigation");
+    f.run("programs start irrigation");
     CHECK(f.said("sys_control is off"));
     CHECK(f.said("none of them will run"));
 }
 
 TEST_CASE("shell programs: a bare gate verb refuses rather than acting on everything") {
     Rig f;
-    // `programs disable` with no argument must not mean `all`: that is the one
+    // `programs stop` with no argument must not mean `all`: that is the one
     // typo that would stop the whole plant.
-    f.run("programs disable");
+    f.run("programs stop");
     CHECK(f.said("name it, or `all`"));
-    CHECK(f.run("programs status").find("0 DISABLED") != std::string::npos);
+    CHECK(f.run("programs status").find("0 STOPPED") != std::string::npos);
 
-    f.run("programs disable nosuchprog");
+    f.run("programs stop nosuchprog");
     CHECK(f.said("no such program"));
-    CHECK(f.run("programs status").find("0 DISABLED") != std::string::npos);
+    CHECK(f.run("programs status").find("0 STOPPED") != std::string::npos);
 }
 
 TEST_CASE("shell programs: status is a tally plus the ones worth naming") {
@@ -372,11 +432,11 @@ TEST_CASE("shell programs: status is a tally plus the ones worth naming") {
     CHECK(clean.find("28 running") != std::string::npos);
     CHECK(clean.find("sys_control on") != std::string::npos);
     INFO("a clean plant names nobody: the tally is the whole answer");
-    CHECK(clean.find("DISABLED  ") == std::string::npos);
+    CHECK(clean.find("STOPPED   ") == std::string::npos);
 
-    f.run("programs disable irrigation");
+    f.run("programs stop irrigation");
     INFO("...and a disabled one is named, since that is what an operator needs");
-    CHECK(f.run("programs status").find("DISABLED  irrigation") != std::string::npos);
+    CHECK(f.run("programs status").find("STOPPED   irrigation") != std::string::npos);
 }
 
 #endif // BOTANIK_FEATURE_PLC

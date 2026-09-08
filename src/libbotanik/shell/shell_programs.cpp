@@ -46,7 +46,7 @@ namespace Botanik { namespace Shell {
                 _emitf(out, sizeof(out), "  %-22s %-8s %s", pl->name(i),
                        Plc::health_name(pl->health(i)),
                        pl->running(i)   ? "running"
-                       : !pl->enabled(i) ? "DISABLED"
+                       : !pl->enabled(i) ? "STOPPED"
                                          : "held");
                 shown++;
             }
@@ -55,17 +55,19 @@ namespace Botanik { namespace Shell {
             return;
         }
 
-        if (arg_eq(verb, wv, "enable"))  { _programs_gate(nm, wn, true);  return; }
-        if (arg_eq(verb, wv, "disable")) { _programs_gate(nm, wn, false); return; }
+        if (arg_eq(verb, wv, "start")) { _programs_gate(nm, wn, true);  return; }
+        if (arg_eq(verb, wv, "stop"))  { _programs_gate(nm, wn, false); return; }
         if (arg_eq(verb, wv, "status"))  { _programs_status();            return; }
 
         _verb_usage("programs");
     }
 
-    /** @brief Put the programs @p nm globs in or out of the scan. A disabled
+    /** @brief Put the programs @p nm globs in or out of the scan. A stopped
      *  one drops what it drives to its declared safe state on the next beat,
      *  which is the whole point of the verb - a coil left energised by a law
-     *  nobody is running is what this exists to prevent. */
+     *  nobody is running is what this exists to prevent.
+     *  @note start/stop, never enable/disable: this choice lives in RAM and a
+     *  reboot forgets it. `control` is the half that has a durable form. */
     void CommandShell::_programs_gate(const char* nm, uint16_t wn, bool on) {
         Plc::Runtime::Plant* pl = (_sys != nullptr) ? _sys->plant : nullptr;
         char out[128];
@@ -82,7 +84,7 @@ namespace Botanik { namespace Shell {
             hit++;
         }
         if (hit == 0) { _println("programs: no such program"); return; }
-        _emitf(out, sizeof(out), "%u program(s) %s", hit, on ? "enabled" : "DISABLED");
+        _emitf(out, sizeof(out), "%u program(s) %s", hit, on ? "started" : "STOPPED");
         // The operator's gate is one of two, and saying so here is cheaper than
         // an operator wondering why an enabled program is not running.
         if (on && !pl->control_allowed())
@@ -101,7 +103,7 @@ namespace Botanik { namespace Shell {
             else if (!pl->enabled(i))                  off++;
             if (pl->running(i))                        run++;
         }
-        _emitf(out, sizeof(out), "programs: %u  (%u running, %u DISABLED, %u INVALID)",
+        _emitf(out, sizeof(out), "programs: %u  (%u running, %u STOPPED, %u INVALID)",
                (unsigned)n, (unsigned)run, (unsigned)off, (unsigned)bad);
         _emitf(out, sizeof(out), "control: %s",
                pl->control_allowed() ? "sys_control on" : "sys_control OFF");
@@ -113,7 +115,7 @@ namespace Botanik { namespace Shell {
             if (pl->health(i) != Plc::Health::HEALTHY)
                 _emitf(out, sizeof(out), "  INVALID   %s", pl->name(i));
             else if (!pl->enabled(i))
-                _emitf(out, sizeof(out), "  DISABLED  %s", pl->name(i));
+                _emitf(out, sizeof(out), "  STOPPED   %s", pl->name(i));
         }
     }
 

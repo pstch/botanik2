@@ -9,7 +9,9 @@ Botanik provides an interactive serial console that multiplexes multiple distinc
 ## Keyboard shortcuts
 
 The console intercepts these itself, before the active page sees them. Every
-other key reaches the page.
+other key reaches the page directly.
+
+TODO: visually align this table so that it's easier to edit
 
 | key | what it does |
 |---|---|
@@ -19,11 +21,7 @@ other key reaches the page.
 | `Tab`, `Ctrl+PageDown` | the next page |
 | `Shift+Tab`, `Ctrl+PageUp` | the previous page |
 | `Ctrl+L` | repaint everything: the two bars, then the page |
-| `Ctrl+C` | cancel |
-
-`Ctrl+C` is offered to the page first, so a page in the middle of an edit
-cancels it. Where the page does not take it, the simulator quits and the
-hardware does nothing.
+| `Ctrl+C` | if not handled by the page : exit the simulator|
 
 ## The pages {#user_pages}
 
@@ -42,19 +40,20 @@ hardware does nothing.
 Two things decide whether a control program drives anything, and the stricter
 of them wins:
 
-- the operator, in either of two ways. `programs disable <pat>` takes one
-  program out of the scan, or a glob of them, or `all`; it holds that choice in
-  memory, so a disabled program comes back on the next reboot. The
-  `sys_control` setting is the same choice for every program at once, and being
-  a parameter it can be saved to survive one: `params set sys_control 0`, then
-  `params save sys_control`;
+- the operator, through `control` for every program at once or `programs` for
+  one of them, and both spell the difference the same way. `start` and `stop`
+  last until the next reboot; `enable` and `disable` save the choice, so the
+  unit comes up that way. `programs` has no saved form: the roster decides
+  which programs exist, and a unit coming up with one silently out of the scan
+  is a plant nobody can explain;
 - the unit, through its run state: the laws run in RUN only, never while it is
   starting up, shutting down or halted. The header bar carries it, and the
   SYSTEM page spells it out.
 
-`programs status` reports both at once, so it is what to read when nothing is
-moving: it counts what is running, names what is disabled, and says whether
-`sys_control` is on.
+`control status` is what to read when nothing is moving. It reports both gates
+at once, counts how many programs that leaves running, and says so when control
+is on but the unit has not reached RUN. `programs status` names the ones that
+are stopped.
 
 A program's own health is not a third gate. It is what the program says about
 its last answer, shown per program on the TASKS page, and a FAULTED one keeps
