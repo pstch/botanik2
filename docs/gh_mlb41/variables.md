@@ -515,7 +515,7 @@ One section per kind, in the order `Vars::Kind` declares them.
 | pwr_dc_V2 | T_F32 | 11 | 4 | 3 | 1 | V | DC PS2 bus voltage | - |
 | irr_out_Lpm | T_F32 | 11 | 4 | 4 | 1 | Lpm | irrigation output flow | Hall turbine through a 4-20 mA transmitter: the loop, not the pulse train, is what is wired. 4 mA = no flow |
 | pwr_upsLowBat | T_BOOL | 0 | 2 | IN1 | - | - | UPS low battery contact | closed = the UPS is about to drop; holds every actuator. Fails ASSERTED: an unreadable terminal is not a healthy supply |
-| irr_inCount | T_U32 | - | - | - | - | - | inlet meter edge count since boot | raw pulses, as the interrupt counter has them; the meter law turns them into litres and carries the 32-bit wrap |
+| irr_inCount | T_U32 | 0 | - | IN2 | 1 | - | inlet meter edge count since boot | raw pulses, as the interrupt counter has them; the meter law turns them into litres and carries the 32-bit wrap |
 
 ## Outputs
 
@@ -525,34 +525,34 @@ One section per kind, in the order `Vars::Kind` declares them.
 |---|---|---|---|---|---|---|---|
 | cli_intr1 | T_F32 | 16 | 6 | 0 | 0.15f | intractor 1 speed | safe is 15%, not stopped: some air is always wanted |
 | cli_intr2 | T_F32 | 16 | 6 | 1 | 0.15f | intractor 2 speed | safe is 15%, not stopped: some air is always wanted |
-| cli_window_opn1 | T_BOOL | 31 | - | - | false | window 1 open | - |
-| cli_window_clo1 | T_BOOL | 31 | - | - | false | window 1 close | - |
-| irr_input_ro1 | T_BOOL | 31 | - | - | false | irrigation input valve 1 | - |
-| irr_output_ro1 | T_BOOL | 31 | - | - | true | irrigation output valve 1 | - |
-| irr_tray1 | T_BOOL | 31 | - | - | true | tray 1 valve | - |
-| irr_tray2 | T_BOOL | 31 | - | - | true | tray 2 valve | - |
-| cli_window_opn2 | T_BOOL | 32 | - | - | false | window 2 open | - |
-| cli_window_clo2 | T_BOOL | 32 | - | - | false | window 2 close | - |
-| irr_input_ro2 | T_BOOL | 32 | - | - | false | irrigation input valve 2 | - |
-| irr_output_ro2 | T_BOOL | 32 | - | - | true | irrigation output valve 2 | - |
-| irr_tray3 | T_BOOL | 32 | - | - | true | tray 3 valve | - |
-| irr_tray4 | T_BOOL | 32 | - | - | true | tray 4 valve | - |
-| cli_window_opn3 | T_BOOL | 33 | - | - | false | window 3 open | - |
-| cli_window_clo3 | T_BOOL | 33 | - | - | false | window 3 close | - |
-| cli_destrat1_speed1 | T_BOOL | 33 | - | - | true | destratification fan 1 speed 1 | SAFE IS RUNNING, not off: still air is itself a rot risk, and low speed costs little. The only actuator here whose safe state is energised |
-| cli_destrat1_speed2 | T_BOOL | 33 | - | - | false | destratification fan 1 speed 2 | off at the safe state; speed 1 carries it |
-| cli_destrat1_speed3 | T_BOOL | 33 | - | - | false | destratification fan 1 speed 3 | off at the safe state; speed 1 carries it |
-| cli_screen | T_BOOL | 33 | - | - | true | thermal screen | deploys on a de-energised coil (safe+invert) so a dead PLC leaves it out |
-| irr_tray5 | T_BOOL | 33 | - | - | true | tray 5 valve | - |
-| irr_tray6 | T_BOOL | 33 | - | - | true | tray 6 valve | - |
-| cli_window_opn4 | T_BOOL | 34 | - | - | false | window 4 open | - |
-| cli_window_clo4 | T_BOOL | 34 | - | - | false | window 4 close | - |
-| cli_destrat2_speed1 | T_BOOL | 34 | - | - | true | destratification fan 2 speed 1 | SAFE IS RUNNING, not off: still air is itself a rot risk, and low speed costs little. The only actuator here whose safe state is energised |
-| cli_destrat2_speed2 | T_BOOL | 34 | - | - | false | destratification fan 2 speed 2 | off at the safe state; speed 1 carries it |
-| cli_destrat2_speed3 | T_BOOL | 34 | - | - | false | destratification fan 2 speed 3 | off at the safe state; speed 1 carries it |
-| cli_skirtValve | T_BOOL | 34 | - | - | false | wet skirt valve | pulsed: humidify effort, or cooling |
-| irr_tray7 | T_BOOL | 34 | - | - | true | tray 7 valve | - |
-| irr_tray8 | T_BOOL | 34 | - | - | true | tray 8 valve | - |
+| cli_window_opn1 | T_BOOL | 31 | 5 | 0 | false | window 1 open | - |
+| cli_window_clo1 | T_BOOL | 31 | 5 | 1 | false | window 1 close | - |
+| irr_input_ro1 | T_BOOL | 31 | 5 | 2 | false | irrigation input valve 1 | - |
+| irr_output_ro1 | T_BOOL | 31 | 5 | 3 | true | irrigation output valve 1 | - |
+| irr_tray1 | T_BOOL | 31 | 5 | 4 | true | tray 1 valve | - |
+| irr_tray2 | T_BOOL | 31 | 5 | 5 | true | tray 2 valve | - |
+| cli_window_opn2 | T_BOOL | 32 | 5 | 0 | false | window 2 open | - |
+| cli_window_clo2 | T_BOOL | 32 | 5 | 1 | false | window 2 close | - |
+| irr_input_ro2 | T_BOOL | 32 | 5 | 2 | false | irrigation input valve 2 | - |
+| irr_output_ro2 | T_BOOL | 32 | 5 | 3 | true | irrigation output valve 2 | - |
+| irr_tray3 | T_BOOL | 32 | 5 | 4 | true | tray 3 valve | - |
+| irr_tray4 | T_BOOL | 32 | 5 | 5 | true | tray 4 valve | - |
+| cli_window_opn3 | T_BOOL | 33 | 5 | 0 | false | window 3 open | - |
+| cli_window_clo3 | T_BOOL | 33 | 5 | 1 | false | window 3 close | - |
+| cli_destrat1_speed1 | T_BOOL | 33 | 5 | 2 | true | destratification fan 1 speed 1 | SAFE IS RUNNING, not off: still air is itself a rot risk, and low speed costs little. The only actuator here whose safe state is energised |
+| cli_destrat1_speed2 | T_BOOL | 33 | 5 | 3 | false | destratification fan 1 speed 2 | off at the safe state; speed 1 carries it |
+| cli_destrat1_speed3 | T_BOOL | 33 | 5 | 4 | false | destratification fan 1 speed 3 | off at the safe state; speed 1 carries it |
+| cli_screen | T_BOOL | 33 | 5 | 5 | true | thermal screen | deploys on a de-energised coil (safe+invert) so a dead PLC leaves it out |
+| irr_tray5 | T_BOOL | 33 | 5 | 6 | true | tray 5 valve | - |
+| irr_tray6 | T_BOOL | 33 | 5 | 7 | true | tray 6 valve | - |
+| cli_window_opn4 | T_BOOL | 34 | 5 | 0 | false | window 4 open | - |
+| cli_window_clo4 | T_BOOL | 34 | 5 | 1 | false | window 4 close | - |
+| cli_destrat2_speed1 | T_BOOL | 34 | 5 | 2 | true | destratification fan 2 speed 1 | SAFE IS RUNNING, not off: still air is itself a rot risk, and low speed costs little. The only actuator here whose safe state is energised |
+| cli_destrat2_speed2 | T_BOOL | 34 | 5 | 3 | false | destratification fan 2 speed 2 | off at the safe state; speed 1 carries it |
+| cli_destrat2_speed3 | T_BOOL | 34 | 5 | 4 | false | destratification fan 2 speed 3 | off at the safe state; speed 1 carries it |
+| cli_skirtValve | T_BOOL | 34 | 5 | 5 | false | wet skirt valve | pulsed: humidify effort, or cooling |
+| irr_tray7 | T_BOOL | 34 | 5 | 6 | true | tray 7 valve | - |
+| irr_tray8 | T_BOOL | 34 | 5 | 7 | true | tray 8 valve | - |
 
 ## Quality companions
 

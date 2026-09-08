@@ -39,6 +39,20 @@ def _md(v):
     return v.replace('|', '\\|').replace('\n', ' ') if v else '-'
 
 
+def _wire(r, col):
+    """A wire field the CSV does not carry, because declare.h fixes it.
+
+    RO() builds { coil, device, 5, 1, ... }: a relay is FC05, write single
+    coil, at the coil number, so relay_out.csv states neither. PI() builds
+    { channel, 0, edge, 1, ... }: a pulse terminal is local, and the slot a
+    function code would sit in carries the EDGE instead, so it has none."""
+    if r['_fac'] == 'RO':
+        return {'fc': '5', 'reg': r.get('coil'), 'regs': '1'}.get(col)
+    if r['_fac'] == 'PI':
+        return {'device': '0', 'reg': r.get('channel'), 'regs': '1'}.get(col)
+    return None
+
+
 def _point_row(r, want):
     lo, hi = r.get('lo', ''), r.get('hi', '')
     out = []
@@ -47,7 +61,7 @@ def _point_row(r, want):
                                         if lo or hi else '-')
         elif c == 'access':  out.append('RW' if r.get('writable', 'true') != 'false' else 'RO')
         elif c == 'type':    out.append(_md(r.get('type') or FAC_TYPE.get(r['_fac'], '')))
-        else:                out.append(_md(r.get(c)))
+        else:                out.append(_md(r.get(c) or _wire(r, c)))
     return out
 
 
