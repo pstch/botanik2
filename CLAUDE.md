@@ -60,16 +60,22 @@ ctest --test-dir build --output-on-failure          # all CTest entries
 ctest --test-dir build -R pyte --output-on-failure  # just pyte
 make -C build matiec                 # build the pinned matiec (needs flex/bison/autotools)
 make -C build regen-site             # regenerate into the source tree, then commit the diff
-python3 scripts/screens.py           # recapture the console screenshots
-python3 scripts/screens.py --scenarios   # ...and HOME under each simulated day
+make -C build docs                   # regenerate the variables page, then render
+make -C build docs-screens           # recapture the console screenshots
 scripts/sim_scenario.sh <name> [when]    # run one scenario interactively
 ```
 
-`scripts/screens.py` drives `botanik_sim` through the pyte harness and writes
-rendered 80x24 screens into `docs/user/pages/screens/` (one per console page) and
-`docs/gh_mlb41/screens/` (HOME under each scenario), which the pages pull in with
-`@verbinclude`. Not a build step and nothing diffs it: it writes `.txt` only, so
-it can never touch a page's prose.
+`make docs` regenerates the site's variables page and renders the manual, in a
+few seconds. `docs-screens` is deliberately **not** one of its dependencies: it
+boots a simulator per scenario and takes a minute and a half, too much to pay
+for every render.
+
+`scripts/screens.py` is what that target runs. It drives `botanik_sim` through
+the pyte harness and writes rendered 80x24 screens into `docs/user/screens/` (one
+per console page) and `docs/gh_mlb41/screens/` (HOME under each simulated day),
+which the pages pull in with `@verbinclude`. It writes `.txt` only, so it can
+never touch a page's prose, and it masks the git hash and the measured TPS - the
+two cells that would otherwise rewrite a committed screen on every commit.
 
 `scripts/sim_scenario.sh` runs the sim on one named day under the virtual clock.
 `when` is `2026-07-01T18:30:00Z`, or `18:30Z` for that time on the default day;
