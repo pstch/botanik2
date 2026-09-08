@@ -60,13 +60,21 @@ ctest --test-dir build --output-on-failure          # all CTest entries
 ctest --test-dir build -R pyte --output-on-failure  # just pyte
 make -C build matiec                 # build the pinned matiec (needs flex/bison/autotools)
 make -C build regen-site             # regenerate into the source tree, then commit the diff
-python3 scripts/screens.py           # recapture the user manual's console screenshots
+python3 scripts/screens.py           # recapture the console screenshots
+python3 scripts/screens.py --scenarios   # ...and HOME under each simulated day
+scripts/sim_scenario.sh <name> [when]    # run one scenario interactively
 ```
 
-`scripts/screens.py` drives `botanik_sim` through the pyte harness and writes one
-rendered 80x24 screen per console page into `docs/user/pages/screens/`, which the
-pages pull in with `@verbinclude`. Not a build step and nothing diffs it: it
-writes `.txt` only, so it can never touch a page's prose.
+`scripts/screens.py` drives `botanik_sim` through the pyte harness and writes
+rendered 80x24 screens into `docs/user/pages/screens/` (one per console page) and
+`docs/gh_mlb41/screens/` (HOME under each scenario), which the pages pull in with
+`@verbinclude`. Not a build step and nothing diffs it: it writes `.txt` only, so
+it can never touch a page's prose.
+
+`scripts/sim_scenario.sh` runs the sim on one named day under the virtual clock.
+`when` is `2026-07-01T18:30:00Z`, or `18:30Z` for that time on the default day;
+omitted, each scenario starts at the hour it has something to show.
+`scripts/scenarios.tsv` is the roster both of them read.
 
 **`make check`** fails on the first problem: the library compiles `-Werror`, so
 a warning in a library source fails the build of the suite; then both suites via
