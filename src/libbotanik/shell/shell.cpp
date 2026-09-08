@@ -155,7 +155,8 @@ namespace Botanik { namespace Shell {
             { "alarms",    "...",       "the alarm table, and acknowledging",
                            "list [<pat>]         code, or a glob: TOO_*\n"
                            "get <code|name>\n"
-                           "ack <code|name|all>",                 G_TAB, false,
+                           "ack <code|name|all>\n"
+                           "unack <code|name|all>",               G_TAB, false,
                                                                &CommandShell::_cmd_alarms     },
 #if BOTANIK_FEATURE_VARS
             { "vars",      "...",       "read any variable, whatever its scope",

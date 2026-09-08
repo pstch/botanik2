@@ -266,15 +266,16 @@ stopping it, which is `sys_control` or a run state that is not RUN. Starting a
 program on a unit whose control is off is answered with a line saying nothing
 will move.
 
-#### alarms list|get|ack
+#### alarms list|get|ack|unack
 
 The alarm table.
 
-| verb                            | what it does                                |
-|---------------------------------|---------------------------------------------|
-| `list [<pat>]`                  | the active alarms: code, variable, age, ack |
-| `get <code>` or `<name>`        | one alarm, and the row behind it            |
-| `ack <code>`, `<name>` or `all` | acknowledge it                              |
+| verb                              | what it does                                |
+|-----------------------------------|---------------------------------------------|
+| `list [<pat>]`                    | the active alarms: code, variable, age, ack |
+| `get <code>` or `<name>`          | one alarm, and the row behind it            |
+| `ack <code>`, `<name>` or `all`   | acknowledge it                              |
+| `unack <code>`, `<name>` or `all` | take the acknowledgement back               |
 
 `list` filters on the CODE, which is what the alarm bar shows and how a plant's
 alarms group (`TOO_*`, `WTR_*`). `get` takes either the code or the variable
@@ -287,6 +288,10 @@ Acknowledging clears an alarm from the alarm bar. It does not clear the
 condition, and it applies to one episode: either edge drops it, so an alarm that
 goes away and comes back is unacknowledged again. Only an active alarm can be
 acknowledged; anything else is answered with "no active alarm".
+
+`unack` is the same gesture the other way, for an ack put on the wrong row. It
+is the ALARMS page's `Enter` toggle spelled out, and `unack all` undoes an
+`ack all` that was too broad.
 
 #### vars list|get|info
 

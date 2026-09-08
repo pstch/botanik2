@@ -184,6 +184,27 @@ TEST_CASE("alarm: ack_all acknowledges every active condition and counts them") 
     CHECK(m2.condition(1).user_ack == true);
 }
 
+TEST_CASE("alarm: unack takes one back, unack_all takes back every one") {
+    AlarmBank f(TABLE, 2);
+    Alarms::AlarmController m(Botanik::SetupContext(), &f.rows);
+    m.setup(0);   // the scan is on_setup(): the rows exist now
+    step_bits(f.bank, f.rows, m, 0x3, 1000);                              // both active
+    CHECK(m.ack_all() == 2);
+
+    CHECK(m.unack("aaa") == true);
+    CHECK(m.condition(0).user_ack == false);
+    CHECK(m.unack("aaa") == false);                 // nothing left to take back
+    CHECK(m.unack("zzz") == false);                 // unknown code
+    CHECK(m.unack("BBB") == true);                  // by code, as ack resolves it
+    CHECK(m.condition(1).user_ack == false);
+
+    CHECK(m.unack_all() == 0);
+    CHECK(m.ack_all() == 2);
+    CHECK(m.unack_all() == 2);
+    CHECK(m.condition(0).user_ack == false);
+    CHECK(m.condition(1).user_ack == false);
+}
+
 TEST_CASE("alarm: releasing an override clears a condition it was holding on") {
     // `override x off`: the row snaps back to the live (unwritten) value, false.
     AlarmBank f(NORMAL_TABLE, 1);

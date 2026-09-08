@@ -339,6 +339,19 @@ namespace Botanik { namespace Alarms {
             return n;
         }
 
+        /** @brief Take back every acknowledgement; returns how many. Walks
+         *  every row, not the active ones: an ack on a condition that has
+         *  since cleared is already gone (update()), so there is none to find. */
+        uint8_t unack_all() {
+            uint8_t n = 0;
+            for (uint8_t i = 0; i < _count; i++) {
+                if (!_conditions[i].user_ack) continue;
+                _conditions[i].user_ack = false;
+                n++;
+            }
+            return n;
+        }
+
         /** @} */
 
         /** @name Forcing

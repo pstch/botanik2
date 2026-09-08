@@ -21,25 +21,34 @@ namespace Botanik { namespace Shell {
         uint16_t wlen; const char* sub = arg_next(args, alen, wlen);
         char out[80];
 
-        // "alarms ack <code|all>" - mutates, so it needs the model wired via
-        // set_diagnostics.
-        if (sub && arg_eq(sub, wlen, "ack")) {
+        // "alarms ack|unack <code|all>" - mutate, so they need the model wired
+        // via set_diagnostics. Both spellings here: they are one gesture, and
+        // an ack put on the wrong row is a mis-keystroke to undo.
+        const bool ack = sub && arg_eq(sub, wlen, "ack");
+        if (ack || (sub && arg_eq(sub, wlen, "unack"))) {
             if (_alarm_model == nullptr) {
                 _println("alarms: model unavailable"); return;
             }
             uint16_t tlen; const char* tgt = arg_next(args, alen, tlen);
             if (tgt == nullptr) {
-                _verb_usage("alarms", "ack"); return;
+                _verb_usage("alarms", ack ? "ack" : "unack"); return;
             }
             if (arg_eq(tgt, tlen, "all")) {
-                _emitf(out, sizeof(out), "acknowledged %u active alarm(s)",
-                       _alarm_model->ack_all());
+                _emitf(out, sizeof(out),
+                       ack ? "acknowledged %u active alarm(s)"
+                           : "took back %u acknowledgement(s)",
+                       ack ? _alarm_model->ack_all() : _alarm_model->unack_all());
             } else {
                 char code[24];
                 uint16_t cl = std::min(tlen, (uint16_t)(sizeof(code) - 1));
                 memcpy(code, tgt, cl); code[cl] = '\0';
-                _emitf(out, sizeof(out), _alarm_model->ack(code)
-                       ? "acknowledged %s" : "no active alarm '%s'", code);
+                const bool hit = ack ? _alarm_model->ack(code)
+                                     : _alarm_model->unack(code);
+                _emitf(out, sizeof(out),
+                       ack ? (hit ? "acknowledged %s" : "no active alarm '%s'")
+                           : (hit ? "%s: acknowledgement taken back"
+                                  : "no acknowledged alarm '%s'"),
+                       code);
             }
             return;
         }
