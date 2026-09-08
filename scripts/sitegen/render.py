@@ -17,16 +17,11 @@ for what they produce. The settings below are what keep the output BYTE-EXACT:
 """
 
 import os
-import sys
 
 from jinja2 import Environment, FileSystemLoader, StrictUndefined
 
-SCRIPTS = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-ROOT = os.path.dirname(SCRIPTS)
+ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 TEMPLATES = os.path.join(ROOT, 'templates')
-
-sys.path.insert(0, SCRIPTS)
-from mdtable import align  # noqa: E402
 
 
 def _width(items, attr=None):
@@ -82,13 +77,8 @@ def render(name, **ctx):
 
 
 def write(path, name, **ctx):
-    """Render, and write it where it belongs, creating the directory.
-
-    Markdown goes through the table aligner, so a generated page's tables line
-    up in the source the way a hand-written one's do."""
+    """Render, and write it where it belongs, creating the directory."""
     out = render(name, **ctx)
-    if path.endswith('.md'):
-        out = align(out)
     d = os.path.dirname(path)
     if d:
         os.makedirs(d, exist_ok=True)
