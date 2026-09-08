@@ -44,6 +44,21 @@ def test_detail_and_edit(spawn):
     assert term.wait_for("120"), "committed value did not round-trip"
 
 
+def test_home_selects_the_first_row(spawn):
+    """Home reaches the page: the table's first row, and the page it was on.
+
+    The console once took it for a switch to page 0, so the tab is asserted as
+    well as the selection.
+    """
+    term = _params(spawn)
+    _down(term, 12)                                  # ntp_poll_sec
+    assert term.wait_for("NTP poll interval"), "detail panel did not follow selection"
+
+    term.send(keys.HOME_KEY)
+    assert term.wait_screen("monitor UART rate"), "Home did not select the first row"
+    assert term.wait_screen("5:PARAMS"), "Home left the page"
+
+
 def test_filter_narrows_the_table(spawn):
     """Typing filters the rows by name, and ESC gives the rest back.
 

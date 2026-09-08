@@ -189,7 +189,6 @@ namespace Botanik { namespace Terminal {
                 page->redraw();
                 break;
             }
-            if (ev.command == Command::HOME)   { switch_to(0);  break; }
             if (ev.command >= Command::ALT_1 && ev.command <= Command::ALT_9) {
                 switch_to((uint8_t)((uint16_t)ev.command - (uint16_t)Command::ALT_1));
                 break;

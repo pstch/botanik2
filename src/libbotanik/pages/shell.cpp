@@ -102,6 +102,7 @@ namespace Botanik { namespace Pages {
             case Command::CTRL_B:     _editor.move_left();          break;
             case Command::RIGHT:
             case Command::CTRL_F:     _editor.move_right();         break;
+            case Command::HOME:
             case Command::CTRL_A:     _editor.move_to_line_start(); break;
             case Command::END:
             case Command::CTRL_E:     _editor.move_to_line_end();   break;

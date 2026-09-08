@@ -15,14 +15,10 @@ other key reaches the page directly.
 |----------------------------|--------------------------------------------------|
 | `Alt+1` .. `Alt+9`         | go to that page                                  |
 | `Alt+0`                    | go to the tenth page, where a site registers one |
-| `Home`                     | go to the first page                             |
 | `Tab`, `Ctrl+PageDown`     | the next page                                    |
 | `Shift+Tab`, `Ctrl+PageUp` | the previous page                                |
 | `Ctrl+L`                   | repaint everything: the two bars, then the page  |
 | `Ctrl+C`                   | if the page does not take it: exit the simulator |
-
-@note `Home` is taken here, so it never reaches a page. A table's last row is
-`End`; there is no key for its first.
 
 ## The pages {#user_pages}
 

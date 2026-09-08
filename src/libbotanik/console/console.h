@@ -228,7 +228,7 @@ namespace Botanik { namespace Terminal {
 
         /** @brief Drain up to INPUT_EVENTS_PER_TICK parsed events into the active
          *  page, consuming the terminal-level intercepts (Ctrl-L redraw,
-         *  Home/Alt-N/Tab switches, Ctrl-C) first. */
+         *  Alt-N/Tab switches, Ctrl-C) first. */
         void _pump_input();
 
         /** @brief Hand the content band back to the incoming page as plain

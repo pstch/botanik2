@@ -10,6 +10,7 @@ The monitor page is the sixth page, it shows a table of input, output and comput
 | `Up`, `Ctrl+P`       | move the selection up                             |
 | `Down`, `Ctrl+N`     | move the selection down                           |
 | `PageUp`, `PageDown` | a screenful at a time                             |
+| `Home`               | the first row                                     |
 | `End`                | the last row                                      |
 | `Left`, `Right`      | cycle the view shown in the legend                |
 | any text             | filter on it; the legend shows the pattern        |

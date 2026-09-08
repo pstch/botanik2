@@ -19,7 +19,7 @@ The notes page is the ninth page of the console, it provides a persistent scratc
 | `Up`, `Ctrl+P`         | up one line                                    |
 | `Down`, `Ctrl+N`       | down one line                                  |
 | `PageUp`, `PageDown`   | a screenful at a time                          |
-| `Ctrl+A`               | the start of the line                          |
+| `Home`, `Ctrl+A`       | the start of the line                          |
 | `End`, `Ctrl+E`        | the end of the line                            |
 | `Alt+B`, `Alt+F`       | back or forward one word                       |
 | `Ctrl+Space`           | set the mark                                   |

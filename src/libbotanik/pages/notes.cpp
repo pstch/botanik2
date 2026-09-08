@@ -15,7 +15,7 @@
 namespace Botanik { namespace Pages {
 
     void NotesPage::handle_command(Command cmd, uint16_t count) {
-        // TAB, HOME and CTRL_L never arrive: the console takes them for page
+        // TAB and CTRL_L never arrive: the console takes them for page
         // switching and redraw before a page is offered the event.
         switch (cmd) {
             case Command::ENTER:
@@ -40,6 +40,7 @@ namespace Botanik { namespace Pages {
             case Command::PAGE_UP:     _editor.page_up();                  break;
             case Command::PAGE_DOWN:   _editor.page_down();                break;
 
+            case Command::HOME:
             case Command::CTRL_A:      _editor.move_to_line_start();       break;
             case Command::END:
             case Command::CTRL_E:      _editor.move_to_line_end();         break;

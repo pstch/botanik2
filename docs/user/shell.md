@@ -17,7 +17,7 @@ The shell page is the second page in the console, it's used to monitor the state
 | `Left`, `Ctrl+B`         | back one character                                |
 | `Right`, `Ctrl+F`        | forward one character                             |
 | `Alt+B`, `Alt+F`         | back or forward one word                          |
-| `Ctrl+A`                 | the start of the line                             |
+| `Home`, `Ctrl+A`         | the start of the line                             |
 | `End`, `Ctrl+E`          | the end of the line                               |
 | `Backspace`              | delete backwards                                  |
 | `Delete`, `Ctrl+D`       | delete forwards                                   |
