@@ -1,17 +1,15 @@
 # SHELL: the command line {#user_shell}
 
-<!-- source of truth: shell/shell.h; commands are noun then verb -->
-
-## The screen
+The shell page is the second page in the console, it's used to monitor the state of the runtime and interact with variables, parameters, alarms, etc.
 
 @verbinclude shell.txt
 
-## The prompt
+## Commands
 
-## Noun then verb
+TODO: add the list of commands, like shown in the output of the "help" command, but in a markdown table
 
-## Command reference
+### System commands
 
-## Reading a report
+### Status commands
 
-## Keeping the log tail off the transcript
+### Variable table commands

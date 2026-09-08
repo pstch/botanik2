@@ -1,17 +1,9 @@
 # ALARMS: the alarm list {#user_alarms}
 
-<!-- source of truth: alarms/alarms.h, pages/alarms.h -->
-
-## The screen
+The alarms page shows a table of alarms, and can be used to monitor alarm state & acknowledge alarms.
 
 @verbinclude alarms.txt
 
-## The list
+## Alarm mechanics
 
-## What an episode is
-
-## Dwell: on, off and hold
-
-## Acknowledging
-
-## How the alarm bar relates to this page
+TODO: describe the on/off/hold dwell times and the acknowledgement mechanics

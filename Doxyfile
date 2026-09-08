@@ -27,8 +27,17 @@ INPUT                  = src \
 FILE_PATTERNS          = *.h *.cpp *.c *.md
 USE_MDFILE_AS_MAINPAGE = docs/index.md
 RECURSIVE              = YES
+# A diagram lives beside the page that references it, so this lists the doc
+# directories that hold one. images/ keeps the logos, and images/logic/ the
+# block drawings no page references yet.
 IMAGE_PATH             = images \
-                         images/logic
+                         images/logic \
+                         docs/gh_mlb41 \
+                         docs/integration \
+                         docs/dev/foundations \
+                         docs/dev/runtime \
+                         docs/dev/console \
+                         docs/dev/field
 
 # Where \verbinclude looks. The console screenshots in the user manual are
 # captured by scripts/screens.py and kept beside the pages that show them,
