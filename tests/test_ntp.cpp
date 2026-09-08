@@ -13,7 +13,7 @@
 #include "libbotanik.h"
 #include "libbotanik/network/ntp.h"
 
-namespace ntp_time {
+namespace tests { namespace ntp_time {
 
 using namespace Botanik;
 using namespace Botanik::Network;
@@ -95,4 +95,4 @@ TEST_CASE("ntp: the era boundary is the top bit, not a date comparison") {
 
 #endif
 
-}  // namespace ntp_time
+}}  // namespace tests::ntp_time

@@ -13,7 +13,7 @@
 #include "libbotanik.h"
 #include "site_bank.h"
 
-namespace TestScan {
+namespace tests { namespace TestScan {
 
 struct Live {
     Botanik::Tasks::Registry reg;   ///< what the case's components register in
@@ -75,6 +75,6 @@ inline Botanik::Vars::Ref<T> ref_of(Live& f, const char* name) {
     return r;
 }
 
-}  // namespace TestScan
+}}  // namespace tests::TestScan
 
 #endif  // TESTS_LIVE_FIXTURE_H

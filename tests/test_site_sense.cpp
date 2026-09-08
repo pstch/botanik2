@@ -8,7 +8,7 @@
 
 #include "program_rig.h"
 
-namespace site_programs {
+namespace tests { namespace site_programs {
 
 TEST_CASE_FIXTURE(StRig, "zone: the selector keeps the middle reading and discards the extremes") {
     Vars::Ref<float> hi = TestScan::ref_of<float>(live, "cli_temp_hi");
@@ -1085,4 +1085,4 @@ TEST_CASE_FIXTURE(StRig, "weather: a fifty-day dry spell reads as fifty days") {
     CHECK(since.get() == doctest::Approx(0.0f));
 }
 
-}  // namespace site_programs
+}}  // namespace tests::site_programs

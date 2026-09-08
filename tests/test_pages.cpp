@@ -20,7 +20,7 @@
 #include "page_fixture.h"
 #include "site_bank.h"
 
-namespace page_convergence {
+namespace tests { namespace page_convergence {
 
 using namespace Botanik;
 
@@ -295,4 +295,4 @@ TEST_CASE("pages: NOTES converges at every supported geometry") {
 }
 #endif
 
-}  // namespace page_convergence
+}}  // namespace tests::page_convergence

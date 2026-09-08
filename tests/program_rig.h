@@ -21,7 +21,7 @@
 #include "live_fixture.h"
 
 
-namespace site_programs {
+namespace tests { namespace site_programs {
 
 using namespace Botanik;
 using namespace Botanik::Vars;
@@ -218,6 +218,6 @@ struct StRig {
     } d;
 };
 
-}  // namespace site_programs
+}}  // namespace tests::site_programs
 
 #endif // TESTS_PROGRAM_RIG_H

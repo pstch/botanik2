@@ -14,6 +14,8 @@
 
 using namespace Botanik;
 
+namespace tests {
+
 namespace {
 
 // solar_position() takes an uptime and converts it to a wall instant itself,
@@ -117,3 +119,5 @@ TEST_CASE("sun: the polar cases saturate rather than going undefined") {
 }
 
 #endif // BOTANIK_FEATURE_SUN_TRACKER
+
+}  // namespace tests

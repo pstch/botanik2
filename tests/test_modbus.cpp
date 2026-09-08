@@ -14,7 +14,7 @@
 
 #include "site_bank.h"
 
-namespace modbus_wire {
+namespace tests { namespace modbus_wire {
 
 using namespace Botanik;
 using namespace Botanik::Modbus;
@@ -209,4 +209,4 @@ TEST_CASE("modbus: a tuning row forced to zero cannot divide the ranking") {
 }
 #endif
 
-}  // namespace modbus_wire
+}}  // namespace tests::modbus_wire

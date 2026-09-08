@@ -117,6 +117,11 @@ timing.
 Prefer a shared fixture to repeating setup - `tests/site_bank.h`,
 `tests/term_fixture.h`, `tests/live_fixture.h`, `tests/recording_writer.h`.
 
+All test code lives in `namespace tests`, one per-file namespace inside it
+(`namespace tests { namespace modbus_map {`). The library declares two
+namespaces, `Botanik` and `Site`; without this the suite added forty more
+beside them, and a test type in `Botanik` is worse still.
+
 #### Prose style
 
 In comments, docs and commit messages alike: no "not X but Y" constructions,

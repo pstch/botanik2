@@ -19,7 +19,7 @@
 
 #include "shell_rig.h"
 
-namespace shell_report {
+namespace tests { namespace shell_report {
 
 using namespace Botanik;
 
@@ -333,4 +333,4 @@ TEST_CASE("shell history: a repeated line is not stored twice") {
 
 #endif // BOTANIK_FEATURE_SHELL_PAGE && BOTANIK_FEATURE_VARS
 
-}  // namespace shell_report
+}}  // namespace tests::shell_report

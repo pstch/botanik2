@@ -8,7 +8,7 @@
 
 #include "program_rig.h"
 
-namespace site_programs {
+namespace tests { namespace site_programs {
 
 TEST_CASE("scan: every ST program is its own task, at the roster's period") {
     // The resource would dispatch them as one fixed sequence. We call each
@@ -638,4 +638,4 @@ TEST_CASE_FIXTURE(StRig, "skirt: damp air gates the cooling arm, and the rot loc
     CHECK(TestScan::ref_of<float>(live, "cli_skirtDuty").get() == doctest::Approx(0.0f));
 }
 
-}  // namespace site_programs
+}}  // namespace tests::site_programs

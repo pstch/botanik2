@@ -13,7 +13,7 @@
 
 #include "libbotanik/vars/persist.h"
 
-namespace test_store {
+namespace tests { namespace test_store {
 
 /** @brief One key, one blob. The prefix is part of the key, so a row's setting,
  *  its override and its retained copy cannot collide - exactly as they do not
@@ -59,6 +59,6 @@ struct RamStore final : Botanik::Vars::VarStore {
     }
 };
 
-}  // namespace test_store
+}}  // namespace tests::test_store
 
 #endif  // TESTS_RAM_STORE_H

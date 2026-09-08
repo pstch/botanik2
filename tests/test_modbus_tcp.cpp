@@ -18,7 +18,7 @@
 #include "libbotanik.h"
 #include "libbotanik/modbus/tcp/pdu.h"
 
-namespace modbus_tcp {
+namespace tests { namespace modbus_tcp {
 
 using namespace Botanik;
 using namespace Botanik::Modbus;
@@ -224,4 +224,4 @@ TEST_CASE("modbus tcp: an encoder given no room writes nothing and says so") {
 
 #endif
 
-}  // namespace modbus_tcp
+}}  // namespace tests::modbus_tcp

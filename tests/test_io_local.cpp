@@ -21,7 +21,7 @@
 #include "libbotanik/vars/declare.h"
 #include "site_bank.h"
 
-namespace io_local {
+namespace tests { namespace io_local {
 
 using namespace Botanik;
 using namespace Botanik::Vars;
@@ -210,4 +210,4 @@ TEST_CASE("io: both components put themselves in the beat, in their own phase") 
 
 #endif // BOTANIK_FEATURE_VARS
 
-}  // namespace io_local
+}}  // namespace tests::io_local

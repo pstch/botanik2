@@ -28,7 +28,7 @@
 
 // alarms
 
-namespace alarms {
+namespace tests { namespace alarms {
 
 using namespace Botanik;
 
@@ -330,11 +330,11 @@ TEST_CASE("alarm reader: model reads each condition's variable") {
     CHECK(m.condition(2).active == true);
 }
 
-}  // namespace alarms
+}}  // namespace tests::alarms
 
 // alarms_render
 
-namespace alarms_render {
+namespace tests { namespace alarms_render {
 
 using namespace Botanik;
 using Command = Terminal::InputEvent::Command;
@@ -610,11 +610,11 @@ TEST_CASE("alarms render: ^S on a row with nothing forced says so rather than sa
     CHECK(f.paint().find("nothing") != std::string::npos);
 }
 
-}  // namespace alarms_render
+}}  // namespace tests::alarms_render
 
 // notifier
 
-namespace notifier {
+namespace tests { namespace notifier {
 
 // The #if guards below need BOTANIK_FEATURE_* defined (undefined reads as 0).
 
@@ -718,9 +718,9 @@ TEST_CASE("AlarmController: a transition fans out to every registered notifier")
     CHECK(b.on == 2);
 }
 
-}  // namespace notifier
+}}  // namespace tests::notifier
 
-namespace static_source {
+namespace tests { namespace static_source {
 
 using namespace Botanik;
 
@@ -770,9 +770,9 @@ TEST_CASE("alarm: a default StaticAlarmTable declares nothing") {
     CHECK(m.active_count() == 0);
 }
 
-}  // namespace static_source
+}}  // namespace tests::static_source
 
-namespace slot_overflow {
+namespace tests { namespace slot_overflow {
 
 using namespace Botanik;
 
@@ -812,4 +812,4 @@ TEST_CASE("alarm: a source declaring more than the slots hold loses the tail saf
     CHECK(m.unack(names[n - 1].c_str()) == false);
 }
 
-}  // namespace slot_overflow
+}}  // namespace tests::slot_overflow

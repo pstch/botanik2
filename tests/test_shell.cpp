@@ -17,7 +17,7 @@
 
 #include "term_fixture.h"
 
-namespace shell_behaviour {
+namespace tests { namespace shell_behaviour {
 
 using namespace Botanik;
 
@@ -152,4 +152,4 @@ TEST_CASE("shell: an unguarded command still runs on its own") {
 
 #endif // BOTANIK_FEATURE_SHELL_PAGE
 
-}  // namespace shell_behaviour
+}}  // namespace tests::shell_behaviour

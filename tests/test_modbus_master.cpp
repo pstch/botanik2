@@ -29,7 +29,7 @@
 #include "recording_writer.h"
 #include "site_bank.h"
 
-namespace modbus_master {
+namespace tests { namespace modbus_master {
 
 using namespace Botanik;
 using namespace Botanik::Modbus;
@@ -278,4 +278,4 @@ TEST_CASE("modbus master: status_str says which of those it is") {
 
 #endif
 
-}  // namespace modbus_master
+}}  // namespace tests::modbus_master

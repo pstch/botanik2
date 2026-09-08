@@ -31,7 +31,7 @@
 #include "term_fixture.h"
 #include "vt_model.h"
 
-namespace botanik_test {
+namespace tests { namespace botanik_test {
 
     /** @brief A Console on a pipe, at a stated geometry.
      *
@@ -216,6 +216,6 @@ namespace botanik_test {
         }
     };
 
-}  // namespace botanik_test
+}}  // namespace tests::botanik_test
 
 #endif // BOTANIK_TEST_PAGE_FIXTURE_H

@@ -24,7 +24,7 @@
 
 #include "libbotanik.h"
 
-namespace ScenarioTrace {
+namespace tests { namespace ScenarioTrace {
 
 inline std::FILE* out() {
     static std::FILE* f = nullptr;
@@ -77,6 +77,6 @@ inline void row(Botanik::Vars::Bank& io, const char* name) {
     std::fprintf(out(), "V|%s|%s|%s\n", name, val, q);
 }
 
-}  // namespace ScenarioTrace
+}}  // namespace tests::ScenarioTrace
 
 #endif // TESTS_SCENARIO_TRACE_H

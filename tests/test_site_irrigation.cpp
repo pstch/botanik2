@@ -8,7 +8,7 @@
 
 #include "program_rig.h"
 
-namespace site_programs {
+namespace tests { namespace site_programs {
 
 namespace {
 
@@ -691,4 +691,4 @@ TEST_CASE_FIXTURE(StRig, "irrigation: the pulse line says whether the meter is t
     CHECK(live.bank.var(line).valid());
 }
 
-}  // namespace site_programs
+}}  // namespace tests::site_programs

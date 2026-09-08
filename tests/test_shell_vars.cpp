@@ -20,7 +20,7 @@
 #include "ram_store.h"
 #include "shell_rig.h"
 
-namespace shell_vars {
+namespace tests { namespace shell_vars {
 
 using namespace Botanik;
 
@@ -466,4 +466,4 @@ TEST_CASE("shell alarms: an ack belongs to one episode") {
 
 #endif // BOTANIK_FEATURE_SHELL_PAGE && BOTANIK_FEATURE_VARS
 
-}  // namespace shell_vars
+}}  // namespace tests::shell_vars

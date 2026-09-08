@@ -23,7 +23,7 @@
 
 #include "editor_fixture.h"
 
-namespace editor_wire {
+namespace tests { namespace editor_wire {
 
 using botanik_test::EditorFixture;
 
@@ -282,4 +282,4 @@ TEST_CASE("editor: an edit costs the bytes it is budgeted") {
         MESSAGE("editor wire-byte ledger:\n" << ledger);
 }
 
-}  // namespace editor_wire
+}}  // namespace tests::editor_wire

@@ -20,7 +20,7 @@
 
 #if BOTANIK_FEATURE_SHELL_PAGE
 
-namespace shell_wire {
+namespace tests { namespace shell_wire {
 
 using Botanik::Terminal::InputEvent;
 using Command = InputEvent::Command;
@@ -123,6 +123,6 @@ TEST_CASE("shell: an edit costs the bytes it is budgeted") {
         MESSAGE("shell wire-byte ledger:\n" << ledger);
 }
 
-}  // namespace shell_wire
+}}  // namespace tests::shell_wire
 
 #endif  // BOTANIK_FEATURE_SHELL_PAGE

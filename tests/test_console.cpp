@@ -10,7 +10,7 @@
 #include "libbotanik.h"
 #include "term_fixture.h"
 
-namespace console_input {
+namespace tests { namespace console_input {
 
 using namespace Botanik;
 using Terminal::InputParser;
@@ -91,9 +91,9 @@ TEST_CASE("input: a new sequence does not inherit the last one's parameters") {
     CHECK(f.step("B")      == Command::DOWN);
 }
 
-}  // namespace console_input
+}}  // namespace tests::console_input
 
-namespace home_geometry {
+namespace tests { namespace home_geometry {
 
 using namespace Botanik;
 
@@ -148,4 +148,4 @@ TEST_CASE("home: the log band shrinks with the screen rather than moving up") {
 }
 #endif
 
-}  // namespace home_geometry
+}}  // namespace tests::home_geometry

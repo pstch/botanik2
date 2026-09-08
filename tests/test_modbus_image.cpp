@@ -20,7 +20,7 @@
 
 #include "site_bank.h"
 
-namespace modbus_image {
+namespace tests { namespace modbus_image {
 
 using namespace Botanik;
 using namespace Botanik::Modbus;
@@ -284,4 +284,4 @@ TEST_CASE("modbus image: reasserting owes the value again without changing it") 
 
 #endif
 
-}  // namespace modbus_image
+}}  // namespace tests::modbus_image

@@ -14,7 +14,7 @@
 #include "libbotanik.h"
 #include "libbotanik/hal/net.h"
 
-namespace hal_net {
+namespace tests { namespace hal_net {
 
 using namespace Botanik;
 using namespace Botanik::HAL::Network;
@@ -83,4 +83,4 @@ TEST_CASE("hal net: a terminal result consumes the handle") {
 
 #endif
 
-}  // namespace hal_net
+}}  // namespace tests::hal_net

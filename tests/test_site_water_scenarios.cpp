@@ -8,7 +8,7 @@
 
 #include "plant_fixture.h"
 
-namespace site_scenarios {
+namespace tests { namespace site_scenarios {
 using namespace fixture;
 
 TEST_CASE("scenario: a dawn watering serves the trays one at a time") {
@@ -346,4 +346,4 @@ TEST_CASE("scenario: the two things the inlet meter can see on its own") {
     snapshot_water(p, "the fill given up on, and no clog claimed");
 }
 
-}  // namespace site_scenarios
+}}  // namespace tests::site_scenarios

@@ -17,7 +17,7 @@
 #include "sites/gh_mlb41/site.h"
 #include "site_bank.h"
 
-namespace health {
+namespace tests { namespace health {
 
 using namespace Botanik;
 
@@ -357,4 +357,4 @@ TEST_CASE("quality: bring-up is adopted in silence, not announced row by row") {
 
 
 
-}  // namespace health
+}}  // namespace tests::health

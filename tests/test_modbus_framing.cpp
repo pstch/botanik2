@@ -18,7 +18,7 @@
 #include "libbotanik/modbus/rtu/codec.h"
 #include "libbotanik/modbus/rtu/framing.h"
 
-namespace modbus_framing {
+namespace tests { namespace modbus_framing {
 
 using namespace Botanik;
 using namespace Botanik::Modbus;
@@ -305,4 +305,4 @@ TEST_CASE("rtu framing: the counters point at different faults and reset togethe
 
 #endif // BOTANIK_FEATURE_MODBUS_RTU_CLIENT
 
-}  // namespace modbus_framing
+}}  // namespace tests::modbus_framing

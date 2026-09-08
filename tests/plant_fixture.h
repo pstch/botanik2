@@ -21,7 +21,7 @@
 #include "live_fixture.h"
 #include "scenario_trace.h"
 
-namespace site_scenarios {
+namespace tests { namespace site_scenarios {
 
 using namespace Botanik;
 using namespace Botanik::Vars;
@@ -397,6 +397,6 @@ inline bool fabric_out(Plant& p) { return p.on("cli_screen"); }
  *  so a failure says which step it was. */
 #define SAY(text) ScenarioTrace::note(text); INFO(text)
 
-}  // namespace site_scenarios
+}}  // namespace tests::site_scenarios
 
 #endif // TESTS_PLANT_FIXTURE_H

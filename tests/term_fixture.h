@@ -18,7 +18,7 @@
 #include "libbotanik/hal/platform.h"
 #include "libbotanik/utils/serial.h"
 
-namespace botanik_test {
+namespace tests { namespace botanik_test {
 
     /** @brief A BufferedSerial whose far end is a pipe this object owns.
      *
@@ -59,6 +59,6 @@ namespace botanik_test {
         }
     };
 
-}  // namespace botanik_test
+}}  // namespace tests::botanik_test
 
 #endif // BOTANIK_TEST_TERM_FIXTURE_H

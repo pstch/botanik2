@@ -23,7 +23,7 @@
 
 // site_names
 
-namespace site_names {
+namespace tests { namespace site_names {
 
 
 using namespace Botanik;
@@ -361,9 +361,9 @@ TEST_CASE("site: a pair that must stay ordered cannot be edited out of order") {
     }
 }
 
-}  // namespace site_names
+}}  // namespace tests::site_names
 
-namespace site_params {
+namespace tests { namespace site_params {
 
 using namespace Botanik;
 
@@ -474,9 +474,9 @@ TEST_CASE("params: a program's write waits on the cadence, an operator's on the 
     CHECK_FALSE(bank.var(setting).param_unsaved());
 }
 
-}  // namespace site_params
+}}  // namespace tests::site_params
 
-namespace site_capacity {
+namespace tests { namespace site_capacity {
 
 using namespace Botanik;
 
@@ -529,4 +529,4 @@ TEST_CASE("local io: every pin label is claimable by exactly one direction") {
 }
 
 
-}  // namespace site_capacity
+}}  // namespace tests::site_capacity

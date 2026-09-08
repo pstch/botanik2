@@ -25,7 +25,7 @@
 #include "libbotanik/network/network.h"
 #include "libbotanik/network/resolver.h"
 
-namespace mqtt_client {
+namespace tests { namespace mqtt_client {
 
 using namespace Botanik;
 using namespace Botanik::Network;
@@ -202,4 +202,4 @@ TEST_CASE("mqtt: an unconfigured broker is a fault with a name") {
 
 #endif  // BOTANIK_FEATURE_MQTT && BOTANIK_FEATURE_NETWORK
 
-}  // namespace mqtt_client
+}}  // namespace tests::mqtt_client

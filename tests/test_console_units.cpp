@@ -18,7 +18,7 @@
 #include "page_fixture.h"
 #include "site_bank.h"
 
-namespace console_units {
+namespace tests { namespace console_units {
 
 using namespace Botanik;
 
@@ -549,4 +549,4 @@ TEST_CASE("terminal: establish_screen makes the next paint a full one") {
 
 #endif // BOTANIK_FEATURE_CONSOLE
 
-}  // namespace console_units
+}}  // namespace tests::console_units

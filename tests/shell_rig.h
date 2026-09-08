@@ -37,7 +37,7 @@
 #include "site_bank.h"
 #include "term_fixture.h"
 
-namespace shell_rig {
+namespace tests { namespace shell_rig {
 
 using namespace Botanik;
 
@@ -181,6 +181,6 @@ struct Rig {
 
 #endif // BOTANIK_FEATURE_SHELL_PAGE && BOTANIK_FEATURE_VARS
 
-}  // namespace shell_rig
+}}  // namespace tests::shell_rig
 
 #endif // TESTS_SHELL_RIG_H

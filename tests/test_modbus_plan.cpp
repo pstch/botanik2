@@ -20,7 +20,7 @@
 
 #include "site_bank.h"
 
-namespace modbus_plan {
+namespace tests { namespace modbus_plan {
 
 using namespace Botanik;
 using namespace Botanik::Modbus;
@@ -226,4 +226,4 @@ TEST_CASE("modbus plan: with no device table every unit gets the protocol's limi
 
 #endif
 
-}  // namespace modbus_plan
+}}  // namespace tests::modbus_plan

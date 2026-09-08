@@ -28,7 +28,7 @@
 
 #include "libbotanik/config/terminal.h"
 
-namespace botanik_test {
+namespace tests { namespace botanik_test {
 
     /** @brief A VT102 screen driven by the bytes a terminal emitted.
      *
@@ -255,6 +255,6 @@ namespace botanik_test {
         /** @} */
     };
 
-}  // namespace botanik_test
+}}  // namespace tests::botanik_test
 
 #endif // BOTANIK_TEST_VT_MODEL_H

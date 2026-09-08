@@ -8,7 +8,7 @@
 
 #include "plant_fixture.h"
 
-namespace site_scenarios {
+namespace tests { namespace site_scenarios {
 using namespace fixture;
 
 TEST_CASE("scenario: a hot afternoon opens the roof and pulls cool ground air") {
@@ -366,4 +366,4 @@ TEST_CASE("scenario: an evening moves the plant the other way, in order") {
 
 
 
-}  // namespace site_scenarios
+}}  // namespace tests::site_scenarios

@@ -19,7 +19,7 @@
 
 #include "editor_fixture.h"
 
-namespace editor_invariant {
+namespace tests { namespace editor_invariant {
 
 using namespace Botanik;
 using botanik_test::EditorFixture;
@@ -131,4 +131,4 @@ TEST_CASE("editor: a NOTES reflow then a word kill leaves no stray glyph") {
     check_converged(f, "reflow then kill_word_back");
 }
 
-}  // namespace editor_invariant
+}}  // namespace tests::editor_invariant

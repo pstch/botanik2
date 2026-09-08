@@ -29,7 +29,7 @@
 
 #include "site_bank.h"
 
-namespace modbus_server {
+namespace tests { namespace modbus_server {
 
 using namespace Botanik;
 using namespace Botanik::Modbus;
@@ -426,4 +426,4 @@ TEST_CASE("modbus tcp pair: the server going away is a fault, not a hang") {
 
 #endif
 
-}  // namespace modbus_server
+}}  // namespace tests::modbus_server

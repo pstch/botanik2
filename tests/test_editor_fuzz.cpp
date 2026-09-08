@@ -19,7 +19,7 @@
 
 #include "editor_fixture.h"
 
-namespace editor_fuzz {
+namespace tests { namespace editor_fuzz {
 
 using botanik_test::EditorFixture;
 
@@ -148,4 +148,4 @@ TEST_CASE("editor: a random edit sequence keeps the wire and FRONT in step") {
             sweep(GEOMETRIES[g], seed, 300);
 }
 
-}  // namespace editor_fuzz
+}}  // namespace tests::editor_fuzz

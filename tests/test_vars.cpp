@@ -17,6 +17,8 @@
 
 using namespace Botanik;
 
+namespace tests {
+
 namespace {
 
 // Three rows to read through. A status value with register 0 is the computed
@@ -381,3 +383,5 @@ TEST_CASE("vars: parse_f64 is correctly rounded once narrowed to a float") {
     CHECK(bad == 0);
     CHECK(checked > 90000);
 }
+
+}  // namespace tests

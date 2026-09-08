@@ -23,7 +23,7 @@
 
 #include "page_fixture.h"
 
-namespace botanik_test {
+namespace tests { namespace botanik_test {
 
     /** @brief A console with one editor on it and nothing else, so a full
      *  repaint of the editor is a full repaint of everything on screen. */
@@ -109,6 +109,6 @@ namespace botanik_test {
         PageFixture::same(incremental, f.repainted(), what);
     }
 
-}  // namespace botanik_test
+}}  // namespace tests::botanik_test
 
 #endif // BOTANIK_TEST_EDITOR_FIXTURE_H

@@ -17,7 +17,7 @@
 #include "libbotanik.h"
 #include "libbotanik/network/resolver.h"
 
-namespace resolver {
+namespace tests { namespace resolver {
 
 using namespace Botanik;
 using namespace Botanik::Network;
@@ -176,4 +176,4 @@ TEST_CASE("resolver: the table serves more distinct names than it has rows") {
 
 #endif // BOTANIK_FEATURE_NETWORK
 
-}  // namespace resolver
+}}  // namespace tests::resolver

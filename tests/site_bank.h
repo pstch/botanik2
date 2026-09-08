@@ -12,7 +12,7 @@
 
 #include BOTANIK_SITE_HEADER            // Site::g_site
 
-namespace TestSite {
+namespace tests { namespace TestSite {
 
     inline void build(Botanik::Vars::Bank& bank) {
         bank.init(Site::g_site.rows, Site::g_site.order, Site::g_site.row_count,
@@ -33,6 +33,6 @@ namespace TestSite {
         bank.init(rows, nullptr, n, first, count);
     }
 
-}  // namespace TestSite
+}}  // namespace tests::TestSite
 
 #endif // TESTS_SITE_BANK_H

@@ -22,7 +22,7 @@
 
 #include "site_bank.h"
 
-namespace modbus_map {
+namespace tests { namespace modbus_map {
 
 using namespace Botanik;
 using namespace Botanik::Modbus;
@@ -325,4 +325,4 @@ TEST_CASE("modbus map: to_wire round-trips through the registers that carry it")
 
 #endif
 
-}  // namespace modbus_map
+}}  // namespace tests::modbus_map
