@@ -32,7 +32,7 @@ RECURSIVE              = YES
 # block drawings no page references yet.
 IMAGE_PATH             = images \
                          images/logic \
-                         docs/gh_mlb41 \
+                         docs/gh_mlb41/diagrams \
                          docs/integration \
                          docs/dev/foundations \
                          docs/dev/runtime \
