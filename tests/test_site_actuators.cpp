@@ -185,14 +185,14 @@ TEST_CASE("windows: the wind takes the roof down a ramp before it shuts it") {
     force(f, "cli_windGust_mps", ease - 2.0f);
     for (uint32_t i = 0; i < 40; i++) d.step(t += 1000);
     CHECK(cap.get() == doctest::Approx(1.0f));
-    CHECK(f.bank.var(f.ref("cli_window1_pos")).as_f32() > 0.9f);
+    CHECK(f.bank.var(f.ref("cli_window_pos1")).as_f32() > 0.9f);
 
     INFO("at it, the roof may open cli_windShutMax and no more");
     force(f, "cli_wind_mps", ease);
     force(f, "cli_windGust_mps", ease);
     for (uint32_t i = 0; i < 60; i++) d.step(t += 1000);
     CHECK(cap.get() == doctest::Approx(top).epsilon(0.02));
-    CHECK(f.bank.var(f.ref("cli_window1_pos")).as_f32() <= doctest::Approx(top).epsilon(0.1));
+    CHECK(f.bank.var(f.ref("cli_window_pos1")).as_f32() <= doctest::Approx(top).epsilon(0.1));
 
     INFO("half way up the band, half the ceiling");
     force(f, "cli_wind_mps", (ease + shut) / 2.0f);
@@ -206,7 +206,7 @@ TEST_CASE("windows: the wind takes the roof down a ramp before it shuts it") {
     for (uint32_t i = 0; i < 80; i++) d.step(t += 1000);
     CHECK(f.bank.var(f.ref("cli_windLockout")).as_bool());
     CHECK(cap.get() == doctest::Approx(0.0f));
-    CHECK(f.bank.var(f.ref("cli_window1_pos")).as_f32() < 0.05f);
+    CHECK(f.bank.var(f.ref("cli_window_pos1")).as_f32() < 0.05f);
 }
 
 TEST_CASE("windows: rain shuts the roof whatever the wind is doing") {
@@ -227,7 +227,7 @@ TEST_CASE("windows: rain shuts the roof whatever the wind is doing") {
     for (uint32_t i = 0; i < 40; i++) d.step(t += 1000);
     CHECK(f.bank.var(f.ref("cli_rainLockout")).as_bool());
     CHECK(cap.get() == doctest::Approx(0.0f));
-    CHECK(f.bank.var(f.ref("cli_window1_pos")).as_f32() < 0.05f);
+    CHECK(f.bank.var(f.ref("cli_window_pos1")).as_f32() < 0.05f);
 }
 
 TEST_CASE("windows: a forced lockout shuts the roof, with no weather to do it") {
@@ -243,7 +243,7 @@ TEST_CASE("windows: a forced lockout shuts the roof, with no weather to do it") 
     force(f, "cli_windowDem", 1.0f);
     uint64_t t = 0;
     for (uint32_t i = 0; i < 40; i++) d.step(t += 1000);
-    REQUIRE(f.bank.var(f.ref("cli_window1_pos")).as_f32() > 0.9f);
+    REQUIRE(f.bank.var(f.ref("cli_window_pos1")).as_f32() > 0.9f);
     REQUIRE_FALSE(f.bank.var(f.ref("cli_windowLockout")).as_bool());
 
     INFO("the rain lockout forced by hand: the roof shuts on the ROW, and the "
@@ -252,13 +252,13 @@ TEST_CASE("windows: a forced lockout shuts the roof, with no weather to do it") 
             == Vars::SET_OK);
     for (uint32_t i = 0; i < 60; i++) d.step(t += 1000);
     CHECK(f.bank.var(f.ref("cli_windowLockout")).as_bool());
-    CHECK(f.bank.var(f.ref("cli_window1_pos")).as_f32() < 0.1f);
+    CHECK(f.bank.var(f.ref("cli_window_pos1")).as_f32() < 0.1f);
 
     INFO("...and releasing it gives the roof back to the ladder");
     f.bank.var(f.ref("cli_rainLockout")).override_clear();
     for (uint32_t i = 0; i < 60; i++) d.step(t += 1000);
     CHECK_FALSE(f.bank.var(f.ref("cli_windowLockout")).as_bool());
-    CHECK(f.bank.var(f.ref("cli_window1_pos")).as_f32() > 0.9f);
+    CHECK(f.bank.var(f.ref("cli_window_pos1")).as_f32() > 0.9f);
 }
 
 TEST_CASE_FIXTURE(StRig, "screen: the phase gives permission, the demand only asks") {
@@ -314,8 +314,8 @@ TEST_CASE_FIXTURE(StRig, "windows: exactly one ram is energised at a time") {
         uint8_t energised = 0;
         for (uint8_t w = 1; w <= 4; w++) {
             char opn[24], clo[24];
-            snprintf(opn, sizeof(opn), "cli_window%u_opn", (unsigned)w);
-            snprintf(clo, sizeof(clo), "cli_window%u_clo", (unsigned)w);
+            snprintf(opn, sizeof(opn), "cli_window_opn%u", (unsigned)w);
+            snprintf(clo, sizeof(clo), "cli_window_clo%u", (unsigned)w);
             const bool o = live.bank.var(live.ref(opn)).as_bool();
             const bool c = live.bank.var(live.ref(clo)).as_bool();
             const bool both = o && c;
@@ -328,7 +328,7 @@ TEST_CASE_FIXTURE(StRig, "windows: exactly one ram is energised at a time") {
     INFO("and all four get there in the end");
     for (uint8_t w = 1; w <= 4; w++) {
         char pos[24];
-        snprintf(pos, sizeof(pos), "cli_window%u_pos", (unsigned)w);
+        snprintf(pos, sizeof(pos), "cli_window_pos%u", (unsigned)w);
         CHECK(live.bank.var(live.ref(pos)).as_f32() == doctest::Approx(1.0f).epsilon(0.05));
     }
 }
@@ -337,7 +337,7 @@ TEST_CASE_FIXTURE(StRig, "windows: rain shuts them, and the lockout outlives the
     fine_weather(live);
     interlocks_clear(live);
 
-    Vars::Ref<float> tgt = TestScan::ref_of<float>(live, "cli_window1_tgt");
+    Vars::Ref<float> tgt = TestScan::ref_of<float>(live, "cli_window_tgt1");
     Vars::Ref<bool>  rain_lock = TestScan::ref_of<bool>(live, "cli_rainLockout");
     force(live, "cli_windowDem", 1.0f);
 
@@ -380,7 +380,7 @@ TEST_CASE_FIXTURE(StRig, "windows: a gust shuts them, and the mean alone does no
     d.step(200);
     d.step(300);
     CHECK(wind_lock.get());
-    CHECK(TestScan::ref_of<float>(live, "cli_window1_tgt").get() ==
+    CHECK(TestScan::ref_of<float>(live, "cli_window_tgt1").get() ==
           doctest::Approx(0.0f));
 }
 

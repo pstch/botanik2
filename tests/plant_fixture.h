@@ -134,17 +134,17 @@ inline void hold_weather(Plant& p) {
     p.probe("cli_rh_lo%u", 3, g_wx().rh);
     p.probe("cli_rh_cs%u", 3, g_wx().rh);
     p.probe("cli_rh_ext%u", 3, g_wx().rh_ext);
-    p.probe("cli_rain%u_mmph", 2, g_wx().rain);
-    p.probe("cli_wind%u_mps", 2, g_wx().wind);
-    p.probe("cli_windGust%u_mps", 2, g_wx().wind * 1.5f);
-    p.probe("cli_irrad%u_Wpm2", 2, 0.0f);
+    p.probe("cli_rain_mmph%u", 2, g_wx().rain);
+    p.probe("cli_wind_mps%u", 2, g_wx().wind);
+    p.probe("cli_windGust_mps%u", 2, g_wx().wind * 1.5f);
+    p.probe("cli_irrad_Wpm2%u", 2, 0.0f);
     // The supplies, so nothing is held off for want of power.
     p.put("grid_LN_V", 230.0f);
     p.put("grid_Hz", 50.0f);
     p.put("ats_V", 230.0f);
     p.put("ats_Hz", 50.0f);
-    p.put("pwr_dc1_V", 24.0f);
-    p.put("pwr_dc2_V", 24.0f);
+    p.put("pwr_dc_V1", 24.0f);
+    p.put("pwr_dc_V2", 24.0f);
     p.put("pwr_upsBat_V", 26.0f);
     p.put("pwr_genBat_V", 26.0f);
     p.f.bank.var(p.ref("pwr_upsLowBat")).publish(from_bool(T_BOOL, false), p.t);
@@ -265,7 +265,7 @@ inline void snapshot(Plant& p, const char* moment) {
         "cli_temp_in", "cli_temp_ext", "cli_temp_cs", "cli_rh_hi",
         "cli_dpMargin_degC", "cli_targetTemp_degC", "cli_phase",
         "cli_coolDem", "cli_stratDem", "cli_humidDem", "cli_rotVentDem",
-        "cli_windowDem", "cli_window1_pos", "cli_screen", "cli_screenMoving",
+        "cli_windowDem", "cli_window_pos1", "cli_screen", "cli_screenMoving",
         "cli_intr1", "cli_fanSpeed", "cli_skirtDuty", "cli_skirtValve",
         "cli_intakeCoolOk", "cli_groundHeatOk", "cli_intakeDryOk",
         "cli_rainLockout", "cli_windLockout", "cli_windowCap",
@@ -388,7 +388,7 @@ inline void cooling_evening(Plant& p) {
     hold_weather(p);
 }
 
-inline bool roof_shut(Plant& p)  { return p.num("cli_window1_pos") < 0.1f; }
+inline bool roof_shut(Plant& p)  { return p.num("cli_window_pos1") < 0.1f; }
 inline bool fabric_out(Plant& p) { return p.on("cli_screen"); }
 
 }  // namespace fixture

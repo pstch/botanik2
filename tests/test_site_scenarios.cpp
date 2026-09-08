@@ -27,8 +27,8 @@ TEST_CASE("scenario: a hot afternoon opens the roof and pulls cool ground air") 
     CHECK(p.num("cli_windowDem") == doctest::Approx(1.0f));
     // One ram at a time, 15 s each: four windows is a minute of travel.
     p.weather_for(900);
-    CHECK(p.num("cli_window1_pos") > 0.9f);
-    CHECK(p.num("cli_window4_pos") > 0.9f);
+    CHECK(p.num("cli_window_pos1") > 0.9f);
+    CHECK(p.num("cli_window_pos4") > 0.9f);
 
     SAY("intractors: the space under the greenhouse is 14 degC cooler, so the "
          "gate is open and they run");
@@ -87,7 +87,7 @@ TEST_CASE("scenario: rain shuts the roof over the cooling ladder's objection") {
     Plant p;
     hold(p, HOT_AFTERNOON, Site::PHASE_DAY);
     p.weather_for(900);
-    REQUIRE(p.num("cli_window1_pos") > 0.9f);
+    REQUIRE(p.num("cli_window_pos1") > 0.9f);
     snapshot(p, "before the shower: the roof wide open");
 
     SAY("it starts raining on a hot afternoon: the ladder still wants the roof "
@@ -96,7 +96,7 @@ TEST_CASE("scenario: rain shuts the roof over the cooling ladder's objection") {
     p.weather_for(600);
     CHECK(p.on("cli_rainLockout"));
     CHECK(p.num("cli_windowDem") > 0.5f);      // the demand is unchanged...
-    CHECK(p.num("cli_window1_pos") < 0.1f);    // ...and the roof is shut anyway
+    CHECK(p.num("cli_window_pos1") < 0.1f);    // ...and the roof is shut anyway
     snapshot(p, "raining: the demand stands, the roof does not");
 
     SAY("the shower stops, and the lockout OUTLIVES it: a shower that has just "
@@ -104,7 +104,7 @@ TEST_CASE("scenario: rain shuts the roof over the cooling ladder's objection") {
     g_wx().rain = 0.0f;
     p.weather_for(600);
     CHECK(p.on("cli_rainLockout"));
-    CHECK(p.num("cli_window1_pos") < 0.1f);
+    CHECK(p.num("cli_window_pos1") < 0.1f);
     snapshot(p, "a minute after the last drop");
 }
 
@@ -167,7 +167,7 @@ TEST_CASE("scenario: a zone dying leaves the plant safe, not confident") {
     Plant p;
     hold(p, HOT_AFTERNOON, Site::PHASE_DAY);
     p.weather_for(900);
-    REQUIRE(p.num("cli_window1_pos") > 0.9f);
+    REQUIRE(p.num("cli_window_pos1") > 0.9f);
     const float was = p.num("cli_temp_hi");
 
     SAY("all three ceiling probes stop answering, and the FLOOR carries the "
@@ -194,7 +194,7 @@ TEST_CASE("scenario: a zone dying leaves the plant safe, not confident") {
 
     SAY("the plant keeps running on the floor: still hot, still open");
     CHECK(p.num("cli_coolDem") > 0.5f);
-    CHECK(p.num("cli_window1_pos") > 0.9f);
+    CHECK(p.num("cli_window_pos1") > 0.9f);
 
     SAY("the dew-point margin is still MEASURED, and it is the FLOOR's: a "
          "level holding an old reading does not speak for the house");
@@ -330,7 +330,7 @@ TEST_CASE("scenario: an evening moves the plant the other way, in order") {
     force_phase(p, Site::PHASE_DAY);
     trace_weather(HOT_AFTERNOON, Site::PHASE_DUSK_BREEZE);
     p.weather_for(900);
-    REQUIRE(p.num("cli_window1_pos") > 0.9f);
+    REQUIRE(p.num("cli_window_pos1") > 0.9f);
     REQUIRE_FALSE(p.on("cli_screen"));
 
     SAY("dusk, and the house loses heat at a couple of degrees a minute");

@@ -2,7 +2,7 @@
 
   ==== SYSTEM STATUS =========================================================
   Run state                        RUN    Watchdog          10000 ms, kicking
-  CPU jitter        0.0% (peak 0.00ms)    Task period        10 ms (5741 TPS)
+  CPU jitter        0.0% (peak 0.00ms)    Task period        10 ms (5861 TPS)
   Tasks                  50, 0 us/beat    Task load            0.0%, 0 missed
   Network                       online    NTP sync                     synced
   Network IP                 127.0.0.1    MQTT                  ready (  0 m)

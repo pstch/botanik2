@@ -58,8 +58,7 @@ def _collapse(names, least=2):
 
     A site declares a row per tray, per zone, per probe, and a law that reads
     eight of them says nothing more by naming all eight. The index is the FIRST
-    run of digits, so cli_irrad1_Wpm2 groups on cli_irrad + _Wpm2 and the 2 in
-    the unit is left alone."""
+    run of digits, so grid_L1_V groups on grid_L + _V rather than on the unit."""
     groups, order = {}, []
     for n in names:
         m = _IDX.match(n)

@@ -276,8 +276,8 @@ One section per kind, in the order `Vars::Kind` declares them.
 | pwr_dc_engMax_V | T_F32 | 30.0 | 0.0 .. 48.0 | V | RW | 403 | DC volts at the high end | one divider for both rails |
 | pwr_dc_min | T_F32 | 20.0 | 0.0 .. 48.0 | V | RW | 404 | lowest believable dc volts | under this: a dead sensor |
 | pwr_dc_max | T_F32 | 30.0 | 0.0 .. 48.0 | V | RW | 405 | highest believable dc volts | over this: a dead sensor |
-| pwr_dc1_avg_ms | T_U16 | 1000 | 10 .. 10000 | ms | RW | 406 | rolling average for DC PS1 | per divider setup |
-| pwr_dc2_avg_ms | T_U16 | 1000 | 10 .. 10000 | ms | RW | 413 | rolling average for DC PS2 | per divider setup |
+| pwr_dc_avg_ms1 | T_U16 | 1000 | 10 .. 10000 | ms | RW | 406 | rolling average for DC PS1 | per divider setup |
+| pwr_dc_avg_ms2 | T_U16 | 1000 | 10 .. 10000 | ms | RW | 413 | rolling average for DC PS2 | per divider setup |
 | pwr_upsBat_rawMin_mV | T_U16 | 4000 | 0 .. 10000 | mV | RW | 414 | UPS battery raw value at the low end | per divider setup |
 | pwr_upsBat_rawMax_mV | T_U16 | 6000 | 0 .. 10000 | mV | RW | 415 | UPS battery raw value at the high end | per divider setup |
 | pwr_upsBat_engMin_V | T_F32 | 20.0 | 0.0 .. 48.0 | V | RW | 416 | UPS battery volts at the low end | per divider setup |
@@ -300,8 +300,8 @@ One section per kind, in the order `Vars::Kind` declares them.
 | pwr_localHi_V | T_F32 | 260.0 | 0.0 .. 500.0 | V | RW | 433 | local AC volts: high alarm | - |
 | pwr_localLo_Hz | T_F32 | 45.0 | 0.0 .. 100.0 | Hz | RW | 434 | local AC frequency: low alarm | wider than the grid: a generator wanders |
 | pwr_localHi_Hz | T_F32 | 55.0 | 0.0 .. 100.0 | Hz | RW | 435 | local AC frequency: high alarm | wider than the grid: a generator wanders |
-| pwr_dc1Lo_V | T_F32 | 22.0 | 0.0 .. 48.0 | V | RW | 436 | DC PS1 volts: low alarm | above pwr_dc_min; that one says the sensor is dead |
-| pwr_dc2Lo_V | T_F32 | 22.0 | 0.0 .. 48.0 | V | RW | 437 | DC PS2 volts: low alarm | above pwr_dc_min; that one says the sensor is dead |
+| pwr_dcLo_V1 | T_F32 | 22.0 | 0.0 .. 48.0 | V | RW | 436 | DC PS1 volts: low alarm | above pwr_dc_min; that one says the sensor is dead |
+| pwr_dcLo_V2 | T_F32 | 22.0 | 0.0 .. 48.0 | V | RW | 437 | DC PS2 volts: low alarm | above pwr_dc_min; that one says the sensor is dead |
 | pwr_upsBatLo_V | T_F32 | 23.0 | 0.0 .. 48.0 | V | RW | 438 | UPS battery volts: low alarm | the contact is what holds the plant; this only warns |
 | pwr_genBatLo_V | T_F32 | 23.0 | 0.0 .. 48.0 | V | RW | 439 | gen. battery volts: low alarm | too low to crank the generator |
 | pwr_genStart_sec | T_U16 | 30 | 5 .. 300 | sec | RW | 440 | the generator has this long to take over | grid gone and the ATS still dead past it: the set did not start |
@@ -372,14 +372,14 @@ One section per kind, in the order `Vars::Kind` declares them.
 | irr_delivered_L | T_F32 | 0 | 1 | L | 536 | delivered into the tray being filled | counted off irr_inPulse, one pulse per irr_input_qtyPerImp |
 | irr_drained_L | T_F32 | 0 | 1 | L | 538 | drained back out of the tray being served | integrated off irr_out_Lpm over the drain window |
 | irr_outFlow_Lpm | T_F32 | 0 | 1 | Lpm | 539 | outlet flow, averaged over irr_out_avg_ms | what the drain verdict integrates |
-| cli_window1_tgt | T_F32 | 0.00 | 2 | - | 540 | window 1 commanded position, 0 to 1 | what the arbitration asked for; 0 with nothing driving, which is where the roof parks on the way out |
-| cli_window1_pos | T_F32 | 0 | 2 | - | 541 | window 1 position, 0 to 1 | estimated from travel time; only a seating stroke proves 0 |
-| cli_window2_tgt | T_F32 | 0.00 | 2 | - | 542 | window 2 commanded position, 0 to 1 | what the arbitration asked for; 0 with nothing driving, which is where the roof parks on the way out |
-| cli_window2_pos | T_F32 | 0 | 2 | - | 543 | window 2 position, 0 to 1 | estimated from travel time; only a seating stroke proves 0 |
-| cli_window3_tgt | T_F32 | 0.00 | 2 | - | 544 | window 3 commanded position, 0 to 1 | what the arbitration asked for; 0 with nothing driving, which is where the roof parks on the way out |
-| cli_window3_pos | T_F32 | 0 | 2 | - | 545 | window 3 position, 0 to 1 | estimated from travel time; only a seating stroke proves 0 |
-| cli_window4_tgt | T_F32 | 0.00 | 2 | - | 546 | window 4 commanded position, 0 to 1 | what the arbitration asked for; 0 with nothing driving, which is where the roof parks on the way out |
-| cli_window4_pos | T_F32 | 0 | 2 | - | 547 | window 4 position, 0 to 1 | estimated from travel time; only a seating stroke proves 0 |
+| cli_window_tgt1 | T_F32 | 0.00 | 2 | - | 540 | window 1 commanded position, 0 to 1 | what the arbitration asked for; 0 with nothing driving, which is where the roof parks on the way out |
+| cli_window_pos1 | T_F32 | 0 | 2 | - | 541 | window 1 position, 0 to 1 | estimated from travel time; only a seating stroke proves 0 |
+| cli_window_tgt2 | T_F32 | 0.00 | 2 | - | 542 | window 2 commanded position, 0 to 1 | what the arbitration asked for; 0 with nothing driving, which is where the roof parks on the way out |
+| cli_window_pos2 | T_F32 | 0 | 2 | - | 543 | window 2 position, 0 to 1 | estimated from travel time; only a seating stroke proves 0 |
+| cli_window_tgt3 | T_F32 | 0.00 | 2 | - | 544 | window 3 commanded position, 0 to 1 | what the arbitration asked for; 0 with nothing driving, which is where the roof parks on the way out |
+| cli_window_pos3 | T_F32 | 0 | 2 | - | 545 | window 3 position, 0 to 1 | estimated from travel time; only a seating stroke proves 0 |
+| cli_window_tgt4 | T_F32 | 0.00 | 2 | - | 546 | window 4 commanded position, 0 to 1 | what the arbitration asked for; 0 with nothing driving, which is where the roof parks on the way out |
+| cli_window_pos4 | T_F32 | 0 | 2 | - | 547 | window 4 position, 0 to 1 | estimated from travel time; only a seating stroke proves 0 |
 | cli_rainLockout | T_BOOL | 0 | 0 | - | 548 | rain holds the windows shut | and for cli_rainLockout_sec after it stops |
 | cli_windLockout | T_BOOL | 0 | 0 | - | 549 | wind holds the windows shut | gusting over cli_windShutEnd_mps |
 | cli_windowLockout | T_BOOL | 0 | 0 | - | 596 | the roof is held shut, whatever the ladder wants | stage one of the arbitration: rain, wind or the supply. Force it to hold the roof shut by hand |
@@ -390,10 +390,10 @@ One section per kind, in the order `Vars::Kind` declares them.
 | cli_irrad_Wpm2 | T_F32 | 0 | 1 | Wpm2 | 606 | solar irradiance, voted | the MEAN: nothing controls on it, so the worst case has no meaning here |
 | cli_sinceRain_h | T_F32 | 0 | 2 | h | 595 | hours since the gauge last read wet | held until the first shower of this run: a reboot does not know when it last rained |
 | cli_screenMoving | T_BOOL | 0 | 0 | - | 550 | thermal screen travelling | cuts the destratification fans while it moves |
-| cli_window1_drift | T_F32 | 0 | 1 | - | 692 | window 1 travel since its last datum | the only wear signal there is: no ram reports a fault |
-| cli_window2_drift | T_F32 | 0 | 1 | - | 693 | window 2 travel since its last datum | the only wear signal there is: no ram reports a fault |
-| cli_window3_drift | T_F32 | 0 | 1 | - | 694 | window 3 travel since its last datum | the only wear signal there is: no ram reports a fault |
-| cli_window4_drift | T_F32 | 0 | 1 | - | 695 | window 4 travel since its last datum | the only wear signal there is: no ram reports a fault |
+| cli_window_drift1 | T_F32 | 0 | 1 | - | 692 | window 1 travel since its last datum | the only wear signal there is: no ram reports a fault |
+| cli_window_drift2 | T_F32 | 0 | 1 | - | 693 | window 2 travel since its last datum | the only wear signal there is: no ram reports a fault |
+| cli_window_drift3 | T_F32 | 0 | 1 | - | 694 | window 3 travel since its last datum | the only wear signal there is: no ram reports a fault |
+| cli_window_drift4 | T_F32 | 0 | 1 | - | 695 | window 4 travel since its last datum | the only wear signal there is: no ram reports a fault |
 | cli_screen_drift | T_F32 | 0 | 1 | - | 696 | screen travel since its last datum | the only wear signal there is: no drive reports a fault |
 | cli_rotLockout | T_BOOL | 1 | 0 | - | 551 | rot risk: nothing may humidify | cuts the skirt valve whatever the humidity demand |
 | cli_rotVentDem | T_F32 | 0.30 | 2 | - | 552 | anti-rot ventilation demand, 0 to 1 | one of the three the intractors take the max of |
@@ -414,8 +414,8 @@ One section per kind, in the order `Vars::Kind` declares them.
 | sys_local_W | T_F32 | 0 | 0 | W | 561 | local AC active power | deadbanded mirror of the meter |
 | sys_local_Hz | T_F32 | 0 | 2 | Hz | 562 | local AC frequency | deadbanded mirror of the meter |
 | sys_local_ok | T_BOOL | 0 | 0 | - | 563 | local AC supply within its bands | volts AND frequency; false is what alarms |
-| sys_dc1_V | T_F32 | 0 | 1 | V | 564 | DC PS1 volts | deadbanded mirror of the divider |
-| sys_dc2_V | T_F32 | 0 | 1 | V | 565 | DC PS2 volts | deadbanded mirror of the divider |
+| sys_dc_V1 | T_F32 | 0 | 1 | V | 564 | DC PS1 volts | deadbanded mirror of the divider |
+| sys_dc_V2 | T_F32 | 0 | 1 | V | 565 | DC PS2 volts | deadbanded mirror of the divider |
 | sys_upsBat_V | T_F32 | 0 | 1 | V | 566 | UPS battery volts | deadbanded mirror of the divider |
 | sys_genBat_V | T_F32 | 0 | 1 | V | 567 | generator start battery volts | deadbanded mirror of the divider |
 | sys_dc_ok | T_BOOL | 0 | 0 | - | 568 | every DC rail above its floor, and the UPS off its low-battery contact | - |
@@ -501,18 +501,18 @@ One section per kind, in the order `Vars::Kind` declares them.
 | cli_rh_hi2 | T_F32 | 51 | 4 | 2 | 2 | % | high level humidity 2 | temp/RH sensor 0x0002 |
 | cli_temp_hi3 | T_F32 | 52 | 4 | 0 | 2 | C | high level temperature 3 | temp/RH sensor 0x0000 |
 | cli_rh_hi3 | T_F32 | 52 | 4 | 2 | 2 | % | high level humidity 3 | temp/RH sensor 0x0002 |
-| cli_wind1_mps | T_F32 | 21 | 4 | 0 | 2 | mps | wind speed at station 1 | TODO confirm against the device datasheet: address, register and word order |
-| cli_windGust1_mps | T_F32 | 21 | 4 | 2 | 2 | mps | peak gust at station 1 | over the station's own window; TODO confirm against the device datasheet: address, register and word order |
-| cli_rain1_mmph | T_F32 | 21 | 4 | 4 | 2 | mmph | rainfall rate at station 1 | TODO confirm against the device datasheet: address, register and word order |
-| cli_irrad1_Wpm2 | T_F32 | 21 | 4 | 6 | 2 | Wpm2 | solar irradiance at station 1 | TODO confirm against the device datasheet: address, register and word order |
-| cli_wind2_mps | T_F32 | 22 | 4 | 0 | 2 | mps | wind speed at station 2 | TODO confirm against the device datasheet: address, register and word order |
-| cli_windGust2_mps | T_F32 | 22 | 4 | 2 | 2 | mps | peak gust at station 2 | over the station's own window; TODO confirm against the device datasheet: address, register and word order |
-| cli_rain2_mmph | T_F32 | 22 | 4 | 4 | 2 | mmph | rainfall rate at station 2 | TODO confirm against the device datasheet: address, register and word order |
-| cli_irrad2_Wpm2 | T_F32 | 22 | 4 | 6 | 2 | Wpm2 | solar irradiance at station 2 | TODO confirm against the device datasheet: address, register and word order |
+| cli_wind_mps1 | T_F32 | 21 | 4 | 0 | 2 | mps | wind speed at station 1 | TODO confirm against the device datasheet: address, register and word order |
+| cli_windGust_mps1 | T_F32 | 21 | 4 | 2 | 2 | mps | peak gust at station 1 | over the station's own window; TODO confirm against the device datasheet: address, register and word order |
+| cli_rain_mmph1 | T_F32 | 21 | 4 | 4 | 2 | mmph | rainfall rate at station 1 | TODO confirm against the device datasheet: address, register and word order |
+| cli_irrad_Wpm21 | T_F32 | 21 | 4 | 6 | 2 | Wpm2 | solar irradiance at station 1 | TODO confirm against the device datasheet: address, register and word order |
+| cli_wind_mps2 | T_F32 | 22 | 4 | 0 | 2 | mps | wind speed at station 2 | TODO confirm against the device datasheet: address, register and word order |
+| cli_windGust_mps2 | T_F32 | 22 | 4 | 2 | 2 | mps | peak gust at station 2 | over the station's own window; TODO confirm against the device datasheet: address, register and word order |
+| cli_rain_mmph2 | T_F32 | 22 | 4 | 4 | 2 | mmph | rainfall rate at station 2 | TODO confirm against the device datasheet: address, register and word order |
+| cli_irrad_Wpm22 | T_F32 | 22 | 4 | 6 | 2 | Wpm2 | solar irradiance at station 2 | TODO confirm against the device datasheet: address, register and word order |
 | pwr_genBat_V | T_F32 | 11 | 4 | 0 | 1 | V | generator start battery | - |
 | pwr_upsBat_V | T_F32 | 11 | 4 | 1 | 1 | V | UPS battery voltage | - |
-| pwr_dc1_V | T_F32 | 11 | 4 | 2 | 1 | V | DC PS1 bus voltage | - |
-| pwr_dc2_V | T_F32 | 11 | 4 | 3 | 1 | V | DC PS2 bus voltage | - |
+| pwr_dc_V1 | T_F32 | 11 | 4 | 2 | 1 | V | DC PS1 bus voltage | - |
+| pwr_dc_V2 | T_F32 | 11 | 4 | 3 | 1 | V | DC PS2 bus voltage | - |
 | irr_out_Lpm | T_F32 | 11 | 4 | 4 | 1 | Lpm | irrigation output flow | Hall turbine through a 4-20 mA transmitter: the loop, not the pulse train, is what is wired. 4 mA = no flow |
 | pwr_upsLowBat | T_BOOL | 0 | 2 | IN1 | - | - | UPS low battery contact | closed = the UPS is about to drop; holds every actuator. Fails ASSERTED: an unreadable terminal is not a healthy supply |
 | irr_inCount | T_U32 | - | - | - | - | - | inlet meter edge count since boot | raw pulses, as the interrupt counter has them; the meter law turns them into litres and carries the 32-bit wrap |
@@ -525,28 +525,28 @@ One section per kind, in the order `Vars::Kind` declares them.
 |---|---|---|---|---|---|---|---|
 | cli_intr1 | T_F32 | 16 | 6 | 0 | 0.15f | intractor 1 speed | safe is 15%, not stopped: some air is always wanted |
 | cli_intr2 | T_F32 | 16 | 6 | 1 | 0.15f | intractor 2 speed | safe is 15%, not stopped: some air is always wanted |
-| cli_window1_opn | T_BOOL | 31 | - | - | false | window 1 open | - |
-| cli_window1_clo | T_BOOL | 31 | - | - | false | window 1 close | - |
+| cli_window_opn1 | T_BOOL | 31 | - | - | false | window 1 open | - |
+| cli_window_clo1 | T_BOOL | 31 | - | - | false | window 1 close | - |
 | irr_input_ro1 | T_BOOL | 31 | - | - | false | irrigation input valve 1 | - |
 | irr_output_ro1 | T_BOOL | 31 | - | - | true | irrigation output valve 1 | - |
 | irr_tray1 | T_BOOL | 31 | - | - | true | tray 1 valve | - |
 | irr_tray2 | T_BOOL | 31 | - | - | true | tray 2 valve | - |
-| cli_window2_opn | T_BOOL | 32 | - | - | false | window 2 open | - |
-| cli_window2_clo | T_BOOL | 32 | - | - | false | window 2 close | - |
+| cli_window_opn2 | T_BOOL | 32 | - | - | false | window 2 open | - |
+| cli_window_clo2 | T_BOOL | 32 | - | - | false | window 2 close | - |
 | irr_input_ro2 | T_BOOL | 32 | - | - | false | irrigation input valve 2 | - |
 | irr_output_ro2 | T_BOOL | 32 | - | - | true | irrigation output valve 2 | - |
 | irr_tray3 | T_BOOL | 32 | - | - | true | tray 3 valve | - |
 | irr_tray4 | T_BOOL | 32 | - | - | true | tray 4 valve | - |
-| cli_window3_opn | T_BOOL | 33 | - | - | false | window 3 open | - |
-| cli_window3_clo | T_BOOL | 33 | - | - | false | window 3 close | - |
+| cli_window_opn3 | T_BOOL | 33 | - | - | false | window 3 open | - |
+| cli_window_clo3 | T_BOOL | 33 | - | - | false | window 3 close | - |
 | cli_destrat1_speed1 | T_BOOL | 33 | - | - | true | destratification fan 1 speed 1 | SAFE IS RUNNING, not off: still air is itself a rot risk, and low speed costs little. The only actuator here whose safe state is energised |
 | cli_destrat1_speed2 | T_BOOL | 33 | - | - | false | destratification fan 1 speed 2 | off at the safe state; speed 1 carries it |
 | cli_destrat1_speed3 | T_BOOL | 33 | - | - | false | destratification fan 1 speed 3 | off at the safe state; speed 1 carries it |
 | cli_screen | T_BOOL | 33 | - | - | true | thermal screen | deploys on a de-energised coil (safe+invert) so a dead PLC leaves it out |
 | irr_tray5 | T_BOOL | 33 | - | - | true | tray 5 valve | - |
 | irr_tray6 | T_BOOL | 33 | - | - | true | tray 6 valve | - |
-| cli_window4_opn | T_BOOL | 34 | - | - | false | window 4 open | - |
-| cli_window4_clo | T_BOOL | 34 | - | - | false | window 4 close | - |
+| cli_window_opn4 | T_BOOL | 34 | - | - | false | window 4 open | - |
+| cli_window_clo4 | T_BOOL | 34 | - | - | false | window 4 close | - |
 | cli_destrat2_speed1 | T_BOOL | 34 | - | - | true | destratification fan 2 speed 1 | SAFE IS RUNNING, not off: still air is itself a rot risk, and low speed costs little. The only actuator here whose safe state is energised |
 | cli_destrat2_speed2 | T_BOOL | 34 | - | - | false | destratification fan 2 speed 2 | off at the safe state; speed 1 carries it |
 | cli_destrat2_speed3 | T_BOOL | 34 | - | - | false | destratification fan 2 speed 3 | off at the safe state; speed 1 carries it |
@@ -599,8 +599,8 @@ One section per kind, in the order `Vars::Kind` declares them.
 | sys_local_W_qlt | 1036 | quality of sys_local_W |
 | sys_local_Hz_qlt | 1037 | quality of sys_local_Hz |
 | sys_local_ok_qlt | 1038 | quality of sys_local_ok |
-| sys_dc1_V_qlt | 1039 | quality of sys_dc1_V |
-| sys_dc2_V_qlt | 1040 | quality of sys_dc2_V |
+| sys_dc_V1_qlt | 1039 | quality of sys_dc_V1 |
+| sys_dc_V2_qlt | 1040 | quality of sys_dc_V2 |
 | sys_upsBat_V_qlt | 1041 | quality of sys_upsBat_V |
 | sys_genBat_V_qlt | 1042 | quality of sys_genBat_V |
 | sys_dc_ok_qlt | 1043 | quality of sys_dc_ok |
@@ -672,18 +672,18 @@ One section per kind, in the order `Vars::Kind` declares them.
 | cli_rh_hi2_qlt | 1109 | quality of cli_rh_hi2 |
 | cli_temp_hi3_qlt | 1110 | quality of cli_temp_hi3 |
 | cli_rh_hi3_qlt | 1111 | quality of cli_rh_hi3 |
-| cli_wind1_mps_qlt | 1112 | quality of cli_wind1_mps |
-| cli_windGust1_mps_qlt | 1113 | quality of cli_windGust1_mps |
-| cli_rain1_mmph_qlt | 1114 | quality of cli_rain1_mmph |
-| cli_irrad1_Wpm2_qlt | 1115 | quality of cli_irrad1_Wpm2 |
-| cli_wind2_mps_qlt | 1116 | quality of cli_wind2_mps |
-| cli_windGust2_mps_qlt | 1117 | quality of cli_windGust2_mps |
-| cli_rain2_mmph_qlt | 1118 | quality of cli_rain2_mmph |
-| cli_irrad2_Wpm2_qlt | 1119 | quality of cli_irrad2_Wpm2 |
+| cli_wind_mps1_qlt | 1112 | quality of cli_wind_mps1 |
+| cli_windGust_mps1_qlt | 1113 | quality of cli_windGust_mps1 |
+| cli_rain_mmph1_qlt | 1114 | quality of cli_rain_mmph1 |
+| cli_irrad_Wpm21_qlt | 1115 | quality of cli_irrad_Wpm21 |
+| cli_wind_mps2_qlt | 1116 | quality of cli_wind_mps2 |
+| cli_windGust_mps2_qlt | 1117 | quality of cli_windGust_mps2 |
+| cli_rain_mmph2_qlt | 1118 | quality of cli_rain_mmph2 |
+| cli_irrad_Wpm22_qlt | 1119 | quality of cli_irrad_Wpm22 |
 | pwr_genBat_V_qlt | 1120 | quality of pwr_genBat_V |
 | pwr_upsBat_V_qlt | 1121 | quality of pwr_upsBat_V |
-| pwr_dc1_V_qlt | 1122 | quality of pwr_dc1_V |
-| pwr_dc2_V_qlt | 1123 | quality of pwr_dc2_V |
+| pwr_dc_V1_qlt | 1122 | quality of pwr_dc_V1 |
+| pwr_dc_V2_qlt | 1123 | quality of pwr_dc_V2 |
 | irr_out_Lpm_qlt | 1124 | quality of irr_out_Lpm |
 | pwr_upsLowBat_qlt | 1125 | quality of pwr_upsLowBat |
 | irr_inCount_qlt | 1126 | quality of irr_inCount |
@@ -767,8 +767,8 @@ between them.
 
 | direction | rows |
 |---|---|
-| reads | `pwr_dc1..2_V`, `pwr_dc1..2_V_qlt`, `pwr_upsBat_V`, `pwr_upsBat_V_qlt`, `pwr_genBat_V`, `pwr_genBat_V_qlt`, `pwr_dc1..2Lo_V`, `pwr_upsBatLo_V`, `pwr_genBatLo_V`, `pwr_dc1..2_avg_ms`, `pwr_upsBat_avg_ms`, `pwr_genBat_avg_ms`, `pwr_upsLowBat`, `pwr_upsLowBat_qlt`, `sys_now_ms` |
-| writes | `sys_dc1..2_V`, `sys_dc1..2_V_qlt`, `sys_upsBat_V`, `sys_upsBat_V_qlt`, `sys_genBat_V`, `sys_genBat_V_qlt`, `sys_dc_ok`, `sys_dc_ok_qlt`, `sys_supply_lockout`, `sys_supply_lockout_qlt`, `alarm_dc_ps1..2`, `alarm_dc_ups`, `alarm_generator_battery` |
+| reads | `pwr_dc_V1..2`, `pwr_dc_V1..2_qlt`, `pwr_upsBat_V`, `pwr_upsBat_V_qlt`, `pwr_genBat_V`, `pwr_genBat_V_qlt`, `pwr_dcLo_V1..2`, `pwr_upsBatLo_V`, `pwr_genBatLo_V`, `pwr_dc_avg_ms1..2`, `pwr_upsBat_avg_ms`, `pwr_genBat_avg_ms`, `pwr_upsLowBat`, `pwr_upsLowBat_qlt`, `sys_now_ms` |
+| writes | `sys_dc_V1..2`, `sys_dc_V1..2_qlt`, `sys_upsBat_V`, `sys_upsBat_V_qlt`, `sys_genBat_V`, `sys_genBat_V_qlt`, `sys_dc_ok`, `sys_dc_ok_qlt`, `sys_supply_lockout`, `sys_supply_lockout_qlt`, `alarm_dc_ps1..2`, `alarm_dc_ups`, `alarm_generator_battery` |
 
 ### temp_rh_sensors
 
@@ -785,7 +785,7 @@ between them.
 
 | direction | rows |
 |---|---|
-| reads | `cli_wind1..2_mps`, `cli_wind1..2_mps_qlt`, `cli_windGust1..2_mps`, `cli_windGust1..2_mps_qlt`, `cli_rain1..2_mmph`, `cli_rain1..2_mmph_qlt`, `cli_irrad1..2_Wpm2`, `cli_irrad1..2_Wpm2_qlt`, `cli_wxTau_ms`, `sys_now_ms` |
+| reads | `cli_wind_mps1..2`, `cli_wind_mps1..2_qlt`, `cli_windGust_mps1..2`, `cli_windGust_mps1..2_qlt`, `cli_rain_mmph1..2`, `cli_rain_mmph1..2_qlt`, `cli_irrad_Wpm21..22`, `cli_irrad_Wpm21..22_qlt`, `cli_wxTau_ms`, `sys_now_ms` |
 | writes | `cli_wind_mps`, `cli_wind_mps_qlt`, `cli_windGust_mps`, `cli_windGust_mps_qlt`, `cli_rain_mmph`, `cli_rain_mmph_qlt`, `cli_irrad_Wpm2`, `cli_irrad_Wpm2_qlt`, `alarm_wx_station` |
 
 ### strat
@@ -939,7 +939,7 @@ between them.
 | direction | rows |
 |---|---|
 | reads | `cli_windowDem`, `cli_windowLockout`, `cli_windowCap`, `cli_windowTravel_sec`, `cli_windowTmo_sec`, `cli_windowMinRun_ms`, `cli_windowReverse_ms`, `cli_windowDeadband`, `cli_windowRedatum`, `prog_windows_park`, `sys_now_ms` |
-| writes | `prog_windows_parked`, `cli_window1..4_opn`, `cli_window1..4_clo`, `cli_window1..4_tgt`, `cli_window1..4_pos`, `cli_window1..4_drift` |
+| writes | `prog_windows_parked`, `cli_window_opn1..4`, `cli_window_clo1..4`, `cli_window_tgt1..4`, `cli_window_pos1..4`, `cli_window_drift1..4` |
 
 ### irr_modulation
 

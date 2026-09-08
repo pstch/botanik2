@@ -178,7 +178,7 @@ TEST_CASE("control: a parking program travels to its safe state before it is dro
 
     const uint16_t park   = f.ref("prog_windows_park");
     const uint16_t parked = f.ref("prog_windows_parked");
-    const uint16_t opn    = f.ref("cli_window1_opn");
+    const uint16_t opn    = f.ref("cli_window_opn1");
     REQUIRE(park != Vars::VAR_NONE);
 
     // Open, so the park has somewhere to travel FROM. The rams datum by
@@ -188,7 +188,7 @@ TEST_CASE("control: a parking program travels to its safe state before it is dro
     force(f, "cli_windowLockout", false);
     uint64_t t = 0;
     for (uint32_t i = 0; i < 900; i++) st.scan(windows, t += 100);
-    REQUIRE(TestScan::ref_of<float>(f, "cli_window1_pos").get() > 0.9f);
+    REQUIRE(TestScan::ref_of<float>(f, "cli_window_pos1").get() > 0.9f);
 
     st.set_enabled(windows, false);
     st.scan(windows, t += 100);
@@ -203,23 +203,23 @@ TEST_CASE("control: a parking program travels to its safe state before it is dro
     bool moved = false;
     for (uint32_t i = 0; i < 40 && !moved; i++) {
         st.scan(windows, t += 100);
-        if (f.bank.var(f.ref("cli_window1_clo")).as_bool()) moved = true;
+        if (f.bank.var(f.ref("cli_window_clo1")).as_bool()) moved = true;
     }
     CHECK(moved);
 
     for (uint32_t i = 0; i < 900 && st.parking(); i++) st.scan(windows, t += 100);
     INFO("the roof reaches SHUT - which is the point: the declared value of "
-         "cli_window1_tgt is a part-open park for a house nobody can see, and "
+         "cli_window_tgt1 is a part-open park for a house nobody can see, and "
          "arriving there without travelling would leave the roof wherever the "
          "last scan had it");
     CHECK_FALSE(st.parking());
-    CHECK(f.bank.var(f.ref("cli_window1_pos")).as_f32() < 0.05f);
+    CHECK(f.bank.var(f.ref("cli_window_pos1")).as_f32() < 0.05f);
     INFO("...and only then do the rows go to their declared values, with the "
          "coils off and the park released");
     CHECK_FALSE(f.bank.var(park).as_bool());
     CHECK_FALSE(f.bank.var(parked).as_bool());
     CHECK_FALSE(f.bank.var(opn).as_bool());
-    CHECK_FALSE(f.bank.var(f.ref("cli_window1_clo")).as_bool());
+    CHECK_FALSE(f.bank.var(f.ref("cli_window_clo1")).as_bool());
 }
 
 TEST_CASE_FIXTURE(StRig, "quality: a block that HOLDS says so, rather than 'no data'") {
@@ -227,7 +227,7 @@ TEST_CASE_FIXTURE(StRig, "quality: a block that HOLDS says so, rather than 'no d
     // which is what the filter is for. Published as Q_NONE, Ref::get() hands a
     // law the declared value and throws the held reading away, so QUAL() asks
     // for SEEDED at every site.
-    const uint16_t dc  = live.ref("sys_dc1_V");
+    const uint16_t dc  = live.ref("sys_dc_V1");
     const uint16_t wind = live.ref("cli_wind_mps");
 
     INFO("nothing has ever answered: there is no held value to stand behind");
@@ -237,9 +237,9 @@ TEST_CASE_FIXTURE(StRig, "quality: a block that HOLDS says so, rather than 'no d
 
     uint64_t t = 2000;
     for (uint32_t i = 0; i < 200; i++) {
-        live.bank.var(live.ref("pwr_dc1_V")).publish(from_f32(T_F32, 24.0f), t);
-        live.bank.var(live.ref("cli_wind1_mps")).publish(from_f32(T_F32, 6.0f), t);
-        live.bank.var(live.ref("cli_wind2_mps")).publish(from_f32(T_F32, 6.0f), t);
+        live.bank.var(live.ref("pwr_dc_V1")).publish(from_f32(T_F32, 24.0f), t);
+        live.bank.var(live.ref("cli_wind_mps1")).publish(from_f32(T_F32, 6.0f), t);
+        live.bank.var(live.ref("cli_wind_mps2")).publish(from_f32(T_F32, 6.0f), t);
         d.step(t += 100);
     }
     REQUIRE(live.bank.var(dc).valid());
@@ -252,14 +252,14 @@ TEST_CASE_FIXTURE(StRig, "quality: a block that HOLDS says so, rather than 'no d
     INFO("...and now they stop. The rows are not believed, but they are still "
          "holding a reading, and a law reading one gets THAT and not the "
          "declared value");
-    live.bank.var(live.ref("pwr_dc1_V")).set_quality(Q_NONE);
-    live.bank.var(live.ref("cli_wind1_mps")).set_quality(Q_NONE);
-    live.bank.var(live.ref("cli_wind2_mps")).set_quality(Q_NONE);
+    live.bank.var(live.ref("pwr_dc_V1")).set_quality(Q_NONE);
+    live.bank.var(live.ref("cli_wind_mps1")).set_quality(Q_NONE);
+    live.bank.var(live.ref("cli_wind_mps2")).set_quality(Q_NONE);
     for (uint32_t i = 0; i < 40; i++) d.step(t += 100);
 
     CHECK_FALSE(live.bank.var(dc).valid());
     CHECK(live.bank.var(dc).quality() == Q_HELD);
-    CHECK(TestScan::ref_of<float>(live, "sys_dc1_V").get()
+    CHECK(TestScan::ref_of<float>(live, "sys_dc_V1").get()
           == doctest::Approx(held_dc).epsilon(0.05));
 
     CHECK_FALSE(live.bank.var(wind).valid());
@@ -294,7 +294,7 @@ TEST_CASE("control: a program that never parks is dropped anyway, and says so") 
          "regardless: the way out is not allowed to depend on an actuator");
     CHECK_FALSE(st.parking());
     CHECK_FALSE(f.bank.var(f.ref("prog_windows_park")).as_bool());
-    CHECK_FALSE(f.bank.var(f.ref("cli_window1_opn")).as_bool());
+    CHECK_FALSE(f.bank.var(f.ref("cli_window_opn1")).as_bool());
 }
 
 TEST_CASE("control: sys_control off stops every law, whatever its own gate says") {
@@ -755,7 +755,7 @@ TEST_CASE("cooling: an unknown demand puts every actuator at its own safe state"
 
     INFO("each one substitutes ITS OWN safe state for the input it cannot read, "
          "and not one of the five is simply OFF");
-    CHECK(TestScan::ref_of<float>(f, "cli_window1_tgt").get() ==
+    CHECK(TestScan::ref_of<float>(f, "cli_window_tgt1").get() ==
           doctest::Approx(safe_open(f)));                         // part open
     CHECK(TestScan::ref_of<float>(f, "cli_intr1").get() ==
           doctest::Approx(0.15f));                                // some air
@@ -980,13 +980,13 @@ TEST_CASE_FIXTURE(StRig,
     // Nothing controls on irradiance, but the field rows are SCOPE_MI and so
     // have no TCP register: without the voted row a historian on the plant
     // network cannot poll the one reading that says how much sun the glass got.
-    const uint16_t raw = live.ref("cli_irrad1_Wpm2");
+    const uint16_t raw = live.ref("cli_irrad_Wpm21");
     const uint16_t pub = live.ref("cli_irrad_Wpm2");
     REQUIRE(Vars::mapped(live.bank.var(pub).meta()));
     REQUIRE_FALSE(Vars::mapped(live.bank.var(raw).meta()));
 
-    field(live, "cli_irrad1_Wpm2", 800.0f);
-    field(live, "cli_irrad2_Wpm2", 840.0f);
+    field(live, "cli_irrad_Wpm21", 800.0f);
+    field(live, "cli_irrad_Wpm22", 840.0f);
     d.step(100);
     INFO("the MEAN, because nothing controls on it and a worst case would "
          "mean nothing");

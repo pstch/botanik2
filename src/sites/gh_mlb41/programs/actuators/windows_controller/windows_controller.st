@@ -17,26 +17,26 @@ VAR_EXTERNAL CONSTANT
 END_VAR
 VAR_EXTERNAL
   prog_windows_parked : BOOL;
-  cli_window1_opn : BOOL;
-  cli_window2_opn : BOOL;
-  cli_window3_opn : BOOL;
-  cli_window4_opn : BOOL;
-  cli_window1_clo : BOOL;
-  cli_window2_clo : BOOL;
-  cli_window3_clo : BOOL;
-  cli_window4_clo : BOOL;
-  cli_window1_tgt : REAL;
-  cli_window2_tgt : REAL;
-  cli_window3_tgt : REAL;
-  cli_window4_tgt : REAL;
-  cli_window1_pos : REAL;
-  cli_window2_pos : REAL;
-  cli_window3_pos : REAL;
-  cli_window4_pos : REAL;
-  cli_window1_drift : REAL;
-  cli_window2_drift : REAL;
-  cli_window3_drift : REAL;
-  cli_window4_drift : REAL;
+  cli_window_opn1 : BOOL;
+  cli_window_opn2 : BOOL;
+  cli_window_opn3 : BOOL;
+  cli_window_opn4 : BOOL;
+  cli_window_clo1 : BOOL;
+  cli_window_clo2 : BOOL;
+  cli_window_clo3 : BOOL;
+  cli_window_clo4 : BOOL;
+  cli_window_tgt1 : REAL;
+  cli_window_tgt2 : REAL;
+  cli_window_tgt3 : REAL;
+  cli_window_tgt4 : REAL;
+  cli_window_pos1 : REAL;
+  cli_window_pos2 : REAL;
+  cli_window_pos3 : REAL;
+  cli_window_pos4 : REAL;
+  cli_window_drift1 : REAL;
+  cli_window_drift2 : REAL;
+  cli_window_drift3 : REAL;
+  cli_window_drift4 : REAL;
 END_VAR
 VAR
   ram1 : ACTUATOR;
@@ -176,33 +176,33 @@ END_VAR
   ram4.NOW          := sys_now_ms;
   ram4();
 
-  cli_window1_opn := ram1.OPEN_CMD;
-  cli_window1_clo := ram1.CLOSE_CMD;
-  cli_window2_opn := ram2.OPEN_CMD;
-  cli_window2_clo := ram2.CLOSE_CMD;
-  cli_window3_opn := ram3.OPEN_CMD;
-  cli_window3_clo := ram3.CLOSE_CMD;
-  cli_window4_opn := ram4.OPEN_CMD;
-  cli_window4_clo := ram4.CLOSE_CMD;
+  cli_window_opn1 := ram1.OPEN_CMD;
+  cli_window_clo1 := ram1.CLOSE_CMD;
+  cli_window_opn2 := ram2.OPEN_CMD;
+  cli_window_clo2 := ram2.CLOSE_CMD;
+  cli_window_opn3 := ram3.OPEN_CMD;
+  cli_window_clo3 := ram3.CLOSE_CMD;
+  cli_window_opn4 := ram4.OPEN_CMD;
+  cli_window_clo4 := ram4.CLOSE_CMD;
 
   (* One target for all four - they are one roof - against each ram's own
      position estimate, which is what says how far behind the sequence is. A
      ram that does not know where it is publishes nothing rather than a zero. *)
-  cli_window1_tgt := aim;
-  cli_window2_tgt := aim;
-  cli_window3_tgt := aim;
-  cli_window4_tgt := aim;
+  cli_window_tgt1 := aim;
+  cli_window_tgt2 := aim;
+  cli_window_tgt3 := aim;
+  cli_window_tgt4 := aim;
   (* Travel since each ram last reached a stop. No ram reports a fault - they
      have limit switches and no contact back - so a drift that climbs while its
      three siblings reset is the only sign of a linkage going. *)
-  cli_window1_drift := ram1.DRIFT;
-  cli_window2_drift := ram2.DRIFT;
-  cli_window3_drift := ram3.DRIFT;
-  cli_window4_drift := ram4.DRIFT;
-  IF ram1.KNOWN THEN cli_window1_pos := ram1.POS; END_IF;
-  IF ram2.KNOWN THEN cli_window2_pos := ram2.POS; END_IF;
-  IF ram3.KNOWN THEN cli_window3_pos := ram3.POS; END_IF;
-  IF ram4.KNOWN THEN cli_window4_pos := ram4.POS; END_IF;
+  cli_window_drift1 := ram1.DRIFT;
+  cli_window_drift2 := ram2.DRIFT;
+  cli_window_drift3 := ram3.DRIFT;
+  cli_window_drift4 := ram4.DRIFT;
+  IF ram1.KNOWN THEN cli_window_pos1 := ram1.POS; END_IF;
+  IF ram2.KNOWN THEN cli_window_pos2 := ram2.POS; END_IF;
+  IF ram3.KNOWN THEN cli_window_pos3 := ram3.POS; END_IF;
+  IF ram4.KNOWN THEN cli_window_pos4 := ram4.POS; END_IF;
 
   (* PARKED is `owner = 0`, and that is not a shortcut: the selection above
      hands the bus to any ram that is moving, does not know where it is, or is

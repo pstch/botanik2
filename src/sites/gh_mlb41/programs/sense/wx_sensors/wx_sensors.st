@@ -3,22 +3,22 @@
 
 PROGRAM wx_sensors
 VAR_EXTERNAL CONSTANT
-  cli_wind1_mps         : REAL;
-  cli_wind1_mps_qlt     : QUALITY;
-  cli_wind2_mps         : REAL;
-  cli_wind2_mps_qlt     : QUALITY;
-  cli_windGust1_mps     : REAL;
-  cli_windGust1_mps_qlt : QUALITY;
-  cli_windGust2_mps     : REAL;
-  cli_windGust2_mps_qlt : QUALITY;
-  cli_rain1_mmph        : REAL;
-  cli_rain1_mmph_qlt    : QUALITY;
-  cli_rain2_mmph        : REAL;
-  cli_rain2_mmph_qlt    : QUALITY;
-  cli_irrad1_Wpm2       : REAL;
-  cli_irrad1_Wpm2_qlt   : QUALITY;
-  cli_irrad2_Wpm2       : REAL;
-  cli_irrad2_Wpm2_qlt   : QUALITY;
+  cli_wind_mps1         : REAL;
+  cli_wind_mps1_qlt     : QUALITY;
+  cli_wind_mps2         : REAL;
+  cli_wind_mps2_qlt     : QUALITY;
+  cli_windGust_mps1     : REAL;
+  cli_windGust_mps1_qlt : QUALITY;
+  cli_windGust_mps2     : REAL;
+  cli_windGust_mps2_qlt : QUALITY;
+  cli_rain_mmph1        : REAL;
+  cli_rain_mmph1_qlt    : QUALITY;
+  cli_rain_mmph2        : REAL;
+  cli_rain_mmph2_qlt    : QUALITY;
+  cli_irrad_Wpm21       : REAL;
+  cli_irrad_Wpm21_qlt   : QUALITY;
+  cli_irrad_Wpm22       : REAL;
+  cli_irrad_Wpm22_qlt   : QUALITY;
   cli_wxTau_ms          : UINT;
   sys_now_ms            : UDINT;
 END_VAR
@@ -54,25 +54,25 @@ END_VAR
 
   (* Three of the four take the worse reading, because three of the four are
      read by an interlock. Irradiance is not. *)
-  wind_vote.A    := cli_wind1_mps;
-  wind_vote.A_Q  := cli_wind1_mps_qlt;
-  wind_vote.B    := cli_wind2_mps;
-  wind_vote.B_Q  := cli_wind2_mps_qlt;
+  wind_vote.A    := cli_wind_mps1;
+  wind_vote.A_Q  := cli_wind_mps1_qlt;
+  wind_vote.B    := cli_wind_mps2;
+  wind_vote.B_Q  := cli_wind_mps2_qlt;
   wind_vote();
-  gust_vote.A    := cli_windGust1_mps;
-  gust_vote.A_Q  := cli_windGust1_mps_qlt;
-  gust_vote.B    := cli_windGust2_mps;
-  gust_vote.B_Q  := cli_windGust2_mps_qlt;
+  gust_vote.A    := cli_windGust_mps1;
+  gust_vote.A_Q  := cli_windGust_mps1_qlt;
+  gust_vote.B    := cli_windGust_mps2;
+  gust_vote.B_Q  := cli_windGust_mps2_qlt;
   gust_vote();
-  rain_vote.A    := cli_rain1_mmph;
-  rain_vote.A_Q  := cli_rain1_mmph_qlt;
-  rain_vote.B    := cli_rain2_mmph;
-  rain_vote.B_Q  := cli_rain2_mmph_qlt;
+  rain_vote.A    := cli_rain_mmph1;
+  rain_vote.A_Q  := cli_rain_mmph1_qlt;
+  rain_vote.B    := cli_rain_mmph2;
+  rain_vote.B_Q  := cli_rain_mmph2_qlt;
   rain_vote();
-  sun_vote.A    := cli_irrad1_Wpm2;
-  sun_vote.A_Q  := cli_irrad1_Wpm2_qlt;
-  sun_vote.B    := cli_irrad2_Wpm2;
-  sun_vote.B_Q  := cli_irrad2_Wpm2_qlt;
+  sun_vote.A    := cli_irrad_Wpm21;
+  sun_vote.A_Q  := cli_irrad_Wpm21_qlt;
+  sun_vote.B    := cli_irrad_Wpm22;
+  sun_vote.B_Q  := cli_irrad_Wpm22_qlt;
   sun_vote();
 
   (* The rails are the rows' own declared bands. *)

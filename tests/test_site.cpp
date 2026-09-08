@@ -280,8 +280,8 @@ TEST_CASE("site: the two DC rails share one calibration") {
     // edit and not two that can drift apart. Sharing the BLOCK is what shares
     // the parameters: the six tunables name rows, and the rows are the same.
     SiteBank f;
-    const uint16_t dc1 = f.bank.find("pwr_dc1_V");
-    const uint16_t dc2 = f.bank.find("pwr_dc2_V");
+    const uint16_t dc1 = f.bank.find("pwr_dc_V1");
+    const uint16_t dc2 = f.bank.find("pwr_dc_V2");
     REQUIRE(dc1 != Vars::VAR_NONE);
     REQUIRE(dc2 != Vars::VAR_NONE);
 

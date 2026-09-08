@@ -3,20 +3,20 @@
 
 PROGRAM dc_watch
 VAR_EXTERNAL CONSTANT
-  pwr_dc1_V         : REAL;
-  pwr_dc1_V_qlt     : QUALITY;
-  pwr_dc2_V         : REAL;
-  pwr_dc2_V_qlt     : QUALITY;
+  pwr_dc_V1         : REAL;
+  pwr_dc_V1_qlt     : QUALITY;
+  pwr_dc_V2         : REAL;
+  pwr_dc_V2_qlt     : QUALITY;
   pwr_upsBat_V      : REAL;
   pwr_upsBat_V_qlt  : QUALITY;
   pwr_genBat_V      : REAL;
   pwr_genBat_V_qlt  : QUALITY;
-  pwr_dc1Lo_V       : REAL;
-  pwr_dc2Lo_V       : REAL;
+  pwr_dcLo_V1       : REAL;
+  pwr_dcLo_V2       : REAL;
   pwr_upsBatLo_V    : REAL;
   pwr_genBatLo_V    : REAL;
-  pwr_dc1_avg_ms    : UINT;
-  pwr_dc2_avg_ms    : UINT;
+  pwr_dc_avg_ms1    : UINT;
+  pwr_dc_avg_ms2    : UINT;
   pwr_upsBat_avg_ms : UINT;
   pwr_genBat_avg_ms : UINT;
   pwr_upsLowBat     : BOOL;
@@ -24,10 +24,10 @@ VAR_EXTERNAL CONSTANT
   sys_now_ms        : UDINT;
 END_VAR
 VAR_EXTERNAL
-  sys_dc1_V               : REAL;
-  sys_dc1_V_qlt           : QUALITY;
-  sys_dc2_V               : REAL;
-  sys_dc2_V_qlt           : QUALITY;
+  sys_dc_V1               : REAL;
+  sys_dc_V1_qlt           : QUALITY;
+  sys_dc_V2               : REAL;
+  sys_dc_V2_qlt           : QUALITY;
   sys_upsBat_V            : REAL;
   sys_upsBat_V_qlt        : QUALITY;
   sys_genBat_V            : REAL;
@@ -53,17 +53,17 @@ VAR_TEMP
 END_VAR
   (* 0.5 V is the same publish deadband the AC supplies use: it is about the
      METER's last digit and not about the plant. *)
-  ps1.V      := pwr_dc1_V;
-  ps1.V_Q    := pwr_dc1_V_qlt;
-  ps1.LO     := pwr_dc1Lo_V;
-  ps1.AVG_MS := pwr_dc1_avg_ms;
+  ps1.V      := pwr_dc_V1;
+  ps1.V_Q    := pwr_dc_V1_qlt;
+  ps1.LO     := pwr_dcLo_V1;
+  ps1.AVG_MS := pwr_dc_avg_ms1;
   ps1.BAND   := 0.5;
   ps1.NOW    := sys_now_ms;
   ps1();
-  ps2.V      := pwr_dc2_V;
-  ps2.V_Q    := pwr_dc2_V_qlt;
-  ps2.LO     := pwr_dc2Lo_V;
-  ps2.AVG_MS := pwr_dc2_avg_ms;
+  ps2.V      := pwr_dc_V2;
+  ps2.V_Q    := pwr_dc_V2_qlt;
+  ps2.LO     := pwr_dcLo_V2;
+  ps2.AVG_MS := pwr_dc_avg_ms2;
   ps2.BAND   := 0.5;
   ps2.NOW    := sys_now_ms;
   ps2();
@@ -82,10 +82,10 @@ END_VAR
   gen.NOW    := sys_now_ms;
   gen();
 
-  sys_dc1_V        := ps1.Y;
-  sys_dc1_V_qlt    := ps1.Q;
-  sys_dc2_V        := ps2.Y;
-  sys_dc2_V_qlt    := ps2.Q;
+  sys_dc_V1        := ps1.Y;
+  sys_dc_V1_qlt    := ps1.Q;
+  sys_dc_V2        := ps2.Y;
+  sys_dc_V2_qlt    := ps2.Q;
   sys_upsBat_V     := ups.Y;
   sys_upsBat_V_qlt := ups.Q;
   sys_genBat_V     := gen.Y;

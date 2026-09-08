@@ -105,13 +105,13 @@ TEST_CASE("text: a listing pattern is a prefix until it has a wildcard") {
 
     // With a wildcard the pattern is anchored at BOTH ends, so a bare group
     // name stops matching and `*` is how you say "the rest".
-    CHECK(m("cli_window1_pos", "cli_win*_pos"));
-    CHECK(m("cli_window1_pos", "*_pos"));
-    CHECK(m("cli_window1_pos", "cli_*"));
-    CHECK(m("cli_window1_pos", "*"));
-    CHECK(m("cli_window1_pos", "*win*pos"));
-    CHECK_FALSE(m("cli_window1_tgt", "*_pos"));
-    CHECK_FALSE(m("cli_window1_pos", "cli_win*_tgt"));
+    CHECK(m("cli_window_pos1", "cli_win*_pos1"));
+    CHECK(m("cli_window_pos1", "*_pos1"));
+    CHECK(m("cli_window_pos1", "cli_*"));
+    CHECK(m("cli_window_pos1", "*"));
+    CHECK(m("cli_window_pos1", "*win*pos1"));
+    CHECK_FALSE(m("cli_window_tgt1", "*_pos1"));
+    CHECK_FALSE(m("cli_window_pos1", "cli_win*_tgt1"));
 
     // ? is exactly one character.
     CHECK(m("cli_intr1", "cli_intr?"));
@@ -140,13 +140,13 @@ TEST_CASE("text: a table filter is a substring until it has a wildcard") {
 
     // With a wildcard it is anchored at both ends, so a fragment that matched
     // anywhere stops matching.
-    CHECK(m("cli_window1_pos", "cli_*"));
-    CHECK(m("cli_window1_pos", "*_POS"));
-    CHECK(m("cli_window1_pos", "cli_win*_pos"));
-    CHECK(m("cli_window1_pos", "cli_window?_pos"));
-    CHECK(m("cli_window1_pos", "window"));         // no wildcard: still anywhere
-    CHECK_FALSE(m("cli_window1_pos", "window*"));  // one: anchored at the start
-    CHECK_FALSE(m("cli_window1_pos", "*_tgt"));
+    CHECK(m("cli_window_pos1", "cli_*"));
+    CHECK(m("cli_window_pos1", "*_POS1"));
+    CHECK(m("cli_window_pos1", "cli_win*_pos1"));
+    CHECK(m("cli_window_pos1", "cli_window_pos?"));
+    CHECK(m("cli_window_pos1", "window"));         // no wildcard: still anywhere
+    CHECK_FALSE(m("cli_window_pos1", "window*"));  // one: anchored at the start
+    CHECK_FALSE(m("cli_window_pos1", "*_tgt1"));
 
     // Null and empty: no filter narrows nothing, a null name matches nothing.
     CHECK(m("anything", ""));

@@ -7,7 +7,7 @@ Local      ,sys_local_ok
 Local V    ,sys_local_V
 Local A    ,sys_local_A
 Local Hz   ,sys_local_Hz
-DC1 V      ,sys_dc1_V
-DC2 V      ,sys_dc2_V
+DC1 V      ,sys_dc_V1
+DC2 V      ,sys_dc_V2
 UPS batt   ,sys_upsBat_V
 Lockout    ,sys_supply_lockout
