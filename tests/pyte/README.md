@@ -1,4 +1,4 @@
-# pyte screen-assertion tests
+# pyte screen-assertion tests {#dev_pyte}
 
 These drive the real `botanik_sim` over a PTY and replay its ANSI output
 through [pyte](https://github.com/selectel/pyte) to reconstruct the 80x24

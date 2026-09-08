@@ -3,5 +3,8 @@
 <!-- scope: how the tree is built, how it is checked, and what the image costs -->
 
 - @subpage dev_build
+- @subpage dev_sim
+- @subpage dev_fw
 - @subpage dev_testing
+- @subpage dev_pyte
 - @subpage dev_footprint

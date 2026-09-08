@@ -1,8 +1,8 @@
-# botanik_sim - Linux simulator
+# botanik_sim - Linux simulator {#dev_sim}
 
 Runs `libbotanik` as an ordinary Linux process so the full terminal UI, logging,
 scheduler, and scan cycle can be exercised without hardware. The hardware
-counterpart is [botanik_fw](../botanik_fw/README.md), which builds the same library
+counterpart is @ref dev_fw, which builds the same library
 into a flashable OPTA image.
 
 ## Layout
@@ -42,7 +42,7 @@ differing only in who moves it.
 `manual` hands it to a harness: the sim runs one beat per `RUN n` command on
 `BOTANIK_SIM_CONTROL_FD` and stands still between them, so a run is bounded in
 beats rather than seconds and repeats identically. That is what the pyte suite
-drives; see [tests/pyte/README.md](../../tests/pyte/README.md) and
+drives; see @ref dev_pyte and
 `botanik_sim/clockctl.h`.
 
 `fast` has the sim move it: one beat per iteration, held to `BOTANIK_SIM_SPEED`

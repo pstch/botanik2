@@ -1,6 +1,6 @@
-# botanik_fw - OPTA entry point
+# botanik_fw - OPTA entry point {#dev_fw}
 
-Hardware counterpart of [botanik_sim](../botanik_sim/README.md). Where the simulator
+Hardware counterpart of @ref dev_sim. Where the simulator
 runs the library as a Linux process, this builds the same library and the same site
 into a flashable image for the OPTA's M7 core.
 
