@@ -52,7 +52,7 @@ PAGES = [('home',    keys.ALT_1, '1:HOME'),
          ('system',  keys.ALT_8, '8:SYSTEM'),
          ('notes',   keys.ALT_9, '9:NOTES')]
 
-OUT = os.path.join(ROOT, 'docs', 'user', 'pages', 'screens')
+OUT = os.path.join(ROOT, 'docs', 'user', 'screens')
 SCN_OUT = os.path.join(ROOT, 'docs', 'gh_mlb41', 'screens')
 TABLE = os.path.join(HERE, 'scenarios.tsv')
 
