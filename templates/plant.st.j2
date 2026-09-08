@@ -1,0 +1,30 @@
+{{ banner }}
+
+(* The enumerated codes a law compares against are enums.st, which is
+   generated beside this and compiled ahead of it. *)
+
+(* NO PROGRAM IS BOUND TO A TASK. plant.cpp calls each body itself, at
+   the period programs.csv states, so a program keeps its own registry
+   entry: its health row, its cost and missed counts, and its writer
+   roster.
+
+   The TASK below is a formality - matiec refuses a RESOURCE without a
+   periodic one. Nothing binds to it and nothing reads its interval. *)
+
+CONFIGURATION {{ config_name }}
+
+  VAR_GLOBAL
+{% for n, ty in globals_ %}
+    {{ n.ljust(w_row) }} : {{ ty }};
+{% endfor %}
+  END_VAR
+
+  RESOURCE plc ON OPTA
+    TASK unbound (INTERVAL := T#100ms, PRIORITY := 1);
+
+{% for p in programs %}
+    PROGRAM {{ p.instance.ljust(w_inst) }} : {{ p.pou }};
+{% endfor %}
+  END_RESOURCE
+
+END_CONFIGURATION

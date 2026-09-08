@@ -171,6 +171,17 @@ endif()
 # override tables.py itself honours; then PATH. Skipped where neither it nor
 # python3 is present.
 find_program(_python3 python3)
+# The generators render through Jinja templates, so it is as much a
+# prerequisite as the compiler is. Absent, both targets are simply not
+# declared, the way they are without python3 or iec2c.
+if(_python3)
+    execute_process(COMMAND ${_python3} -c "import jinja2"
+                    RESULT_VARIABLE _jinja_rc OUTPUT_QUIET ERROR_QUIET)
+    if(NOT _jinja_rc EQUAL 0)
+        message(STATUS "check-full: no python3 jinja2 - `pip install jinja2`")
+        set(_python3 "")
+    endif()
+endif()
 if(BOTANIK_PINNED_IEC2C)
     set(_iec2c "${BOTANIK_PINNED_IEC2C}")
 elseif(DEFINED ENV{IEC2C} AND EXISTS "$ENV{IEC2C}")
@@ -207,9 +218,10 @@ if(_python3 AND _iec2c)
         COMMAND ${CMAKE_COMMAND} -E rm -rf ${_gen}
         # The generator's inputs only: copying the source root would recurse
         # into this build directory and drag every object file with it.
-        COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_SOURCE_DIR}/scripts ${_gen}/scripts
-        COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_SOURCE_DIR}/src     ${_gen}/src
-        COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_SOURCE_DIR}/docs    ${_gen}/docs
+        COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_SOURCE_DIR}/scripts   ${_gen}/scripts
+        COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_SOURCE_DIR}/templates ${_gen}/templates
+        COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_SOURCE_DIR}/src       ${_gen}/src
+        COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_SOURCE_DIR}/docs      ${_gen}/docs
         COMMAND ${CMAKE_COMMAND} -E env IEC2C=${_iec2c} ${CMAKE_COMMAND} -E chdir ${_gen}
                 ${_python3} scripts/tables.py generate ${BOTANIK_SITE}
         COMMAND ${CMAKE_COMMAND} -E env IEC2C=${_iec2c} ${CMAKE_COMMAND} -E chdir ${_gen}

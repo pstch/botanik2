@@ -1,0 +1,98 @@
+{{ banner }}
+
+
+#include "libbotanik.h"
+
+// Outside the namespace: it opens its own, and the ST binding in it
+// is not a site-scoped thing.
+#include "enums.gen.h"
+
+namespace Site {
+
+using namespace Botanik;
+using namespace Botanik::Vars;
+
+// Inside the namespace and after the usings: the header names every
+// type unqualified, because it is only ever included here and by site.h.
+#include "vars.gen.h"
+
+{% for line in cal_lines %}
+{{ line }}
+{% endfor %}
+// ONE table: the library's rows merged into the site's, parameters
+// first and contiguous, each quality companion directly after the row
+// it speaks for, the program rows last.
+const Descriptor rows[] = {
+    // parameters, first and contiguous
+{% for r in rows %}
+{% if loop.index0 == param_count %}
+    // ...and everything else
+{% endif %}
+{% for l in r.lead %}
+{{ l }}
+{% endfor %}
+{{ r.text }}
+{% endfor %}
+};
+
+// Row numbers in NAME order, so Bank::find() binary-searches a const
+// array and nothing is built at boot. Case-folded, which is the order
+// the lookup compares in.
+const uint16_t row_order[] = {
+{% for chunk in order_chunks %}
+    {{ chunk }}
+{% endfor %}
+};
+
+{% for m in models %}
+const Modbus::DeviceModel {{ m.symbol }} = Modbus::{{ m.kind }}({{ m.args }});
+{% endfor %}
+
+const Modbus::Device g_devices[] = {
+{% for d in devices %}
+    { {{ d.addr }}, &{{ d.model }}, "{{ d.tag }}" },
+{% endfor %}
+};
+
+const Modbus::DeviceTable g_device_table = {
+    g_devices, (uint8_t)(sizeof(g_devices) / sizeof(g_devices[0]))
+};
+
+// Home-screen readings: label + row. A caption is a person's choice
+// and nothing in a row's name says it belongs on the landing page, so
+// it is the one table no rule derives.
+const HomeVar g_home_fields[] = {
+{% for h in home %}
+    { "{{ h.label }}", Row::{{ h.var }} },
+{% endfor %}
+};
+
+// The SYSTEM band's site half: rows about the UNIT rather than the
+// plant - its supplies, its rails - which no rule tells from a
+// greenhouse reading either.
+const HomeVar g_system_fields[] = {
+{% if system %}
+{% for h in system %}
+    { "{{ h.label }}", Row::{{ h.var }} },
+{% endfor %}
+{% else %}
+    { nullptr, 0 },
+{% endif %}
+};
+
+/** @brief The site's shell commands: none. A site table is matched
+ *  BEFORE the library built-ins, so a name reused there shadows one. */
+const Botanik::Shell::ShellCommand* const g_commands = nullptr;
+const uint8_t g_command_count = 0;
+
+// Field order matches Botanik::SiteDescriptor; any table may be null.
+const Botanik::SiteDescriptor g_site = {
+    Botanik::Config::SITE_NAME,
+    g_commands,    g_command_count,
+    g_home_fields, g_home_field_count,
+    g_system_fields, g_system_field_count,
+    &g_device_table,
+    rows,          row_order, ROWS_COUNT, PARAM_FIRST, PARAM_COUNT,
+};
+
+}  // namespace Site

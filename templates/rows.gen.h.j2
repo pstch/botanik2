@@ -1,0 +1,25 @@
+{{ banner }}
+
+/**
+ * @file rows.gen.h
+ * @brief One index per row, library and site, in ONE namespace.
+ *
+ * What everything but the console addresses a row through. A name no
+ * table declares is a COMPILE error here, rather than a reference that
+ * resolves to the sink for the life of the run.
+ */
+
+#ifndef {{ guard }}_ROWS_GEN_H
+#define {{ guard }}_ROWS_GEN_H
+
+#include <cstdint>
+
+namespace Botanik { namespace Vars { namespace Row {
+
+{% for r in rows %}
+    const uint16_t {{ r.name.ljust(width) }} = {{ r.index }};
+{% endfor %}
+
+}}}  // namespace Botanik::Vars::Row
+
+#endif  // {{ guard }}_ROWS_GEN_H

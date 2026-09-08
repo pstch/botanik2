@@ -1,6 +1,6 @@
 # The ST toolchain {#dev_st}
 
-<!-- source of truth: vendor/matiec, cmake/matiec.cmake, scripts/st_plant.py -->
+<!-- source of truth: vendor/matiec, cmake/matiec.cmake, scripts/sitegen/st.py -->
 
 ## matiec, pinned
 

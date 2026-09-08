@@ -673,8 +673,13 @@ endif()
 # surprise.
 find_package(Python3 COMPONENTS Interpreter QUIET)
 if(Python3_Interpreter_FOUND)
+    execute_process(COMMAND ${Python3_EXECUTABLE} -c "import jinja2"
+                    RESULT_VARIABLE _docs_jinja_rc OUTPUT_QUIET ERROR_QUIET)
+endif()
+if(Python3_Interpreter_FOUND AND _docs_jinja_rc EQUAL 0)
     # The site's variables page. Reads the tables and the ST directly, so it
-    # needs no compiler - unlike the rest of `regen-site`.
+    # needs no compiler - unlike the rest of `regen-site`. It renders through a
+    # Jinja template, so it needs that.
     add_custom_target(docs-variables
         COMMAND ${CMAKE_COMMAND} -E chdir ${CMAKE_SOURCE_DIR}
                 ${Python3_EXECUTABLE} scripts/tables.py points ${BOTANIK_SITE}

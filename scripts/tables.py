@@ -20,10 +20,11 @@ import os, re, sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from points_md import points
-from site_tables import (AUX, H, KIND, as_int, build, check, config_defaults,
+from sitegen import render
+from sitegen.reference import points
+from sitegen.model import (AUX, H, KIND, as_int, build, check, config_defaults,
                          emit_cals, emit_row, read_table, site_dir, site_guard)
-from st_plant import enums, plant, quality_block
+from sitegen.st import enums, plant, quality_block
 
 def generate(site):
     enums(site)
@@ -34,150 +35,44 @@ def generate(site):
 
     order = sorted(range(len(table)), key=lambda i: table[i]['name'].lower())
 
-    L = [H, '', '#include "libbotanik.h"', '',
-         '// Outside the namespace: it opens its own, and the ST binding in it',
-         '// is not a site-scoped thing.',
-         '#include "enums.gen.h"', '',
-         'namespace Site {', '',
-         'using namespace Botanik;', 'using namespace Botanik::Vars;', '',
-         '// Inside the namespace and after the usings: the header names every',
-         '// type unqualified, because it is only ever included here and by site.h.',
-         '#include "vars.gen.h"', '']
-    L += emit_cals(t['cal'])
-    L += ['// ONE table: the library\'s rows merged into the site\'s, parameters',
-          '// first and contiguous, each quality companion directly after the row',
-          '// it speaks for, the program rows last.',
-          'const Descriptor rows[] = {',
-          '    // parameters, first and contiguous']
-    for i, r in enumerate(table):
-        if i == t['param_count']: L.append('    // ...and everything else')
-        for ln in (r.get('lead') or '').split('\n'):
-            if not ln: continue
-            L.append('    ' + ln if ln.startswith('/*') else
-                     '     ' + ln if ln.startswith('*') else ln)
-        L.append(emit_row(r))
-    L += ['};', '',
-          '// Row numbers in NAME order, so Bank::find() binary-searches a const',
-          '// array and nothing is built at boot. Case-folded, which is the order',
-          '// the lookup compares in.',
-          'const uint16_t row_order[] = {']
-    for i in range(0, len(order), 12):
-        L.append('    ' + ' '.join('%d,' % k for k in order[i:i + 12]))
-    L += ['};', '']
-
     mdl = read_table(os.path.join(site, 'tables', 'modbus_models.csv'),
                      AUX['modbus_models'].split())
     dev = read_table(os.path.join(site, 'tables', 'modbus_devices.csv'),
                      AUX['modbus_devices'].split())
-    for m in mdl:
-        args = '"%s", %s' % (m['model_name'], m['regs']) + (', %s' % m['words'] if m['words'] else '')
-        L += ['const Modbus::DeviceModel %s = Modbus::%s(%s);' % (m['symbol'], m['kind'], args)]
-    L += ['', 'const Modbus::Device g_devices[] = {']
-    L += ['    { %s, &%s, "%s" },' % (d['addr'], d['model'], d['tag']) for d in dev]
-    L += ['};', '', 'const Modbus::DeviceTable g_device_table = {',
-          '    g_devices, (uint8_t)(sizeof(g_devices) / sizeof(g_devices[0]))', '};', '',
-          '// Home-screen readings: label + row. A caption is a person\'s choice',
-          '// and nothing in a row\'s name says it belongs on the landing page, so',
-          '// it is the one table no rule derives.',
-          'const HomeVar g_home_fields[] = {']
-    L += ['    { "%s", Row::%s },' % (h['label'], h['var']) for h in t['home']]
-    L += ['};', '',
-          '// The SYSTEM band\'s site half: rows about the UNIT rather than the',
-          '// plant - its supplies, its rails - which no rule tells from a',
-          '// greenhouse reading either.',
-          'const HomeVar g_system_fields[] = {']
-    L += (['    { "%s", Row::%s },' % (h['label'], h['var']) for h in t['system']]
-          or ['    { nullptr, 0 },'])
-    L += ['};', '',
-          '/** @brief The site\'s shell commands: none. A site table is matched',
-          ' *  BEFORE the library built-ins, so a name reused there shadows one. */',
-          'const Botanik::Shell::ShellCommand* const g_commands = nullptr;',
-          'const uint8_t g_command_count = 0;', '',
-          '// Field order matches Botanik::SiteDescriptor; any table may be null.',
-          'const Botanik::SiteDescriptor g_site = {',
-          '    Botanik::Config::SITE_NAME,',
-          '    g_commands,    g_command_count,',
-          '    g_home_fields, g_home_field_count,',
-          '    g_system_fields, g_system_field_count,',
-          '    &g_device_table,',
-          '    rows,          row_order, ROWS_COUNT, PARAM_FIRST, PARAM_COUNT,',
-          '};', '',
-          '}  // namespace Site', '']
-    open(os.path.join(site, 'generated', 'vars.gen.cpp'), 'w').write('\n'.join(L))
 
-    # ---- vars.gen.h
-    G = [H, '// Included from INSIDE namespace Site, so it opens none of its own.',
-         '// The guard is named for the SITE: every site generates a file by this',
-         '// name, and a shared symbol would silently skip the second one.',
-         '//',
-         '// The site\'s ENUMERATIONS are enums.gen.h, which the ST side needs',
-         '// too and which therefore opens its own namespace.', '',
-         '#ifndef %s_VARS_GEN_H' % guard, '#define %s_VARS_GEN_H' % guard, '']
-    G += ['// The build this table was cut for. The row indices in rows.gen.h are',
-          '// this profile\'s, so a build with one of these OFF would address the',
-          '// wrong rows. @see BOTANIK_SITE_ASSERT_FEATURES',
-          '#if !(BOTANIK_SITE_ASSERT_FEATURES)',
-          '#  error "this site assumes every optional feature it declares is enabled"',
-          '#endif', '']
-    G += ['extern const AnalogCal %s;' % c['cal'] for c in t['cal']]
-    G += ['',
-          '// The whole table, library rows merged in, and the name order beside it.',
-          'extern const Descriptor rows[];',
-          'extern const uint16_t   row_order[];',
-          'const uint16_t ROWS_COUNT  = %d;' % len(table),
-          'const uint16_t PARAM_FIRST = %d;' % t['param_first'],
-          'const uint16_t PARAM_COUNT = %d;' % t['param_count'], '',
-          'static_assert(ROWS_COUNT == Config::VAR_MAX,',
-          '              "the table and the bank\'s arrays are generated together");', '']
-    G += ['extern const Modbus::DeviceModel %s;' % m['symbol'] for m in mdl]
-    G += ['extern const Modbus::Device g_devices[];',
-          'extern const Modbus::DeviceTable g_device_table;', '',
-          '// The one table no rule derives: a caption is a person\'s choice, and',
-          '// nothing in a row\'s name says it belongs on the landing page.',
-          'extern const HomeVar g_home_fields[];',
-          'const uint8_t g_home_field_count = %d;' % len(t['home']),
-          '// The home screen silently ignores fields past its columns.',
-          'static_assert(g_home_field_count <= Config::HOME_FIELDS_MAX,',
-          '              "too many home fields: the HomePage would drop the tail");', '',
-          '// The SYSTEM band\'s site half, the same shape. 0 for a site that',
-          '// adds nothing to the library\'s own rows.',
-          'extern const HomeVar g_system_fields[];',
-          'const uint8_t g_system_field_count = %d;' % len(t['system']),
-          'static_assert(g_system_field_count <= Config::SYSTEM_FIELDS_MAX,',
-          '              "too many system fields: the SYSTEM page would drop the tail");', '',
-          '// The whole handoff to the library: this site, as data.',
-          'extern const Botanik::SiteDescriptor g_site;', '',
-          '/** @brief The firmware, bound to this site. A FUNCTION-LOCAL static,',
-          ' *  so it is constructed on first use and not during static init: on',
-          ' *  the OPTA that has to be after the Arduino core\'s init() has brought',
-          ' *  up the UARTs, and a file-scope object would run before it.',
-          ' *  @note There is no subclass. A site that needs an extra page or a',
-          ' *  component of its own derives BotanikFirmware and overrides a hook;',
-          ' *  one that is only data, like this one, just names the descriptor. */',
-          'inline Botanik::BotanikFirmware& firmware() {',
-          '    static Botanik::BotanikFirmware fw(g_site);',
-          '    return fw;',
-          '}', '']
-    G += ['#endif  // %s_VARS_GEN_H' % guard, '']
-    open(os.path.join(site, 'generated', 'vars.gen.h'), 'w').write('\n'.join(G))
+    # The lead comment a row may carry is already formatted; the template only
+    # decides where it goes.
+    def lead_of(r):
+        out = []
+        for ln in (r.get('lead') or '').split('\n'):
+            if not ln: continue
+            out.append('    ' + ln if ln.startswith('/*') else
+                       '     ' + ln if ln.startswith('*') else ln)
+        return out
 
-    # ---- rows.gen.h
-    w = max(len(r['name']) for r in table)
-    R = [H, '/**', ' * @file rows.gen.h',
-         ' * @brief One index per row, library and site, in ONE namespace.',
-         ' *',
-         ' * What everything but the console addresses a row through. A name no',
-         ' * table declares is a COMPILE error here, rather than a reference that',
-         ' * resolves to the sink for the life of the run.',
-         ' */', '',
-         '#ifndef %s_ROWS_GEN_H' % guard, '#define %s_ROWS_GEN_H' % guard, '',
-         '#include <cstdint>', '',
-         'namespace Botanik { namespace Vars { namespace Row {', '']
-    for r in table:
-        R.append('    const uint16_t %-*s = %d;' % (w, r['name'], r['_i']))
-    R += ['', '}}}  // namespace Botanik::Vars::Row', '',
-          '#endif  // %s_ROWS_GEN_H' % guard, '']
-    open(os.path.join(site, 'generated', 'rows.gen.h'), 'w').write('\n'.join(R))
+    rows = [{'lead': lead_of(r), 'text': emit_row(r)} for r in table]
+    chunks = [' '.join('%d,' % k for k in order[i:i + 12])
+              for i in range(0, len(order), 12)]
+    models = [{'symbol': m['symbol'], 'kind': m['kind'],
+               'args': '"%s", %s' % (m['model_name'], m['regs'])
+                       + (', %s' % m['words'] if m['words'] else '')} for m in mdl]
+
+    render.write(os.path.join(site, 'generated', 'vars.gen.cpp'), 'vars.gen.cpp.j2',
+                 banner=H.rstrip('\n'), cal_lines=emit_cals(t['cal']), rows=rows,
+                 param_count=t['param_count'], order_chunks=chunks, models=models,
+                 devices=dev, home=t['home'], system=t['system'])
+
+    render.write(os.path.join(site, 'generated', 'vars.gen.h'), 'vars.gen.h.j2',
+                 banner=H.rstrip('\n'), guard=guard,
+                 cals=[c['cal'] for c in t['cal']], rows_count=len(table),
+                 param_first=t['param_first'], param_count=t['param_count'],
+                 models=[m['symbol'] for m in mdl],
+                 home_count=len(t['home']), system_count=len(t['system']))
+
+    render.write(os.path.join(site, 'generated', 'rows.gen.h'), 'rows.gen.h.j2',
+                 banner=H.rstrip('\n'), guard=guard,
+                 width=max(len(r['name']) for r in table),
+                 rows=[{'name': r['name'], 'index': r['_i']} for r in table])
 
     print('  vars.gen.cpp   %d rows (%d params), %d quality, %d order'
           % (len(table), t['param_count'],
@@ -225,35 +120,16 @@ def config(site):
            ('MODBUS_BAUD', tom['fieldbus']['baud'])]
     if tom.get('build', {}).get('pin_sizes'): val.append(('PIN_SIZES', 1))
 
-    L = ['// GENERATED by scripts/tables.py from site.toml. Do not edit.', '',
-         '#ifndef %s_CONFIG_GEN_H' % guard, '#define %s_CONFIG_GEN_H' % guard, '']
-    for k, v in val:
-        L += ['#ifndef BOTANIK_%s' % k, '#  define BOTANIK_%s %s' % (k, v), '#endif']
-    L.append('')
-    L += ['// Every flag this site turns on, each under the prerequisites the LIBRARY',
-          '// declares. The guard is "unless explicitly turned off", so precedence',
-          '// stays command line > site > header default.']
     on = [f for f, v in tom['features'].items() if v]
+    features = []
     for f in on:
+        # VARS is dropped: every one of these needs it, and nesting it round
+        # each would say so eighteen times.
         need = [d for d in dep.get(f, []) if d not in ('VARS',)]
-        ind = '  ' * len(need)
-        for i, d in enumerate(need):
-            L.append('%s#if !defined(BOTANIK_FEATURE_%s) || BOTANIK_FEATURE_%s' % ('  ' * i, d, d))
-        L += ['%s#ifndef BOTANIK_FEATURE_%s' % (ind, f),
-              '%s#  define BOTANIK_FEATURE_%s 1' % (ind, f),
-              '%s#endif' % ind]
-        L += ['%s#endif' % ('  ' * i) for i in range(len(need) - 1, -1, -1)]
-    L += ['',
-          '// This site turns every optional feature ON, and its table is CUT for',
-          '// that: a guarded library row the build leaves out shifts every index',
-          '// after it, and the indices are generated constants. So refuse rather',
-          '// than drift. Here rather than in a header the site hand-writes,',
-          '// because the flags have their defaults by the time this is read again.',
-          '#define BOTANIK_SITE_ASSERT_FEATURES \\']
-    L += ['    BOTANIK_FEATURE_%s && \\' % f for f in on]
-    L += ['    1', '']
-    L += ['', '#endif', '']
-    open(os.path.join(site, 'generated', 'config.gen.h'), 'w').write('\n'.join(L))
+        features.append({'name': f, 'needs': need, 'indent': '  ' * len(need)})
+
+    render.write(os.path.join(site, 'generated', 'config.gen.h'),
+                 'config.gen.h.j2', guard=guard, values=val, features=features)
     print('  config.gen.h   %d values, %d features' % (len(val), len(on)))
 
 

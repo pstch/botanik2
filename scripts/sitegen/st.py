@@ -7,7 +7,8 @@ checks that belong to a law live here rather than beside the table's."""
 
 import os, re, sys
 
-from site_tables import (AUX, H, KIND, _opted_in, build, read_table, site_guard,
+from . import render
+from .model import (AUX, H, KIND, _opted_in, build, read_table, site_guard,
                          st_files, toml, var_externals)
 
 # ---- the site's enumerations, on both sides ---------------------------------
@@ -39,76 +40,16 @@ def enums(site):
         for b in bad: print('  ' + b, file=sys.stderr)
         sys.exit('%d enumeration(s) ST cannot spell' % len(bad))
 
-    L = [H.replace('//', '(*').rstrip() + ' *)', '',
-         "(* The site's enumerated codes, so a law compares against the WORD.",
-         '   matiec numbers these in declaration order and the C++ side is the',
-         '   SAME type, so the order IS the wire contract: a member may be',
-         '   appended, never moved. *)', '', 'TYPE', '']
-    for n, mem in groups:
-        w = max(len(e['symbol']) for e in mem)
-        L.append('  %s : (' % n)
-        for i, e in enumerate(mem):
-            L.append('    %-*s%s%s' % (w, e['symbol'],
-                                       ',' if i + 1 < len(mem) else '',
-                                       '   (* %s *)' % e['desc'] if e['desc'] else ''))
-        L += ['  );', '']
-    L += ['END_TYPE', '']
-    open(os.path.join(site, 'generated', 'enums.st'), 'w').write('\n'.join(L))
+    ctx = [{'name': n, 'upper': n.upper(), 'ctype': mem[0]['ctype'],
+            'width': max(len(e['symbol']) for e in mem),
+            'members': mem} for n, mem in groups]
+
+    render.write(os.path.join(site, 'generated', 'enums.st'), 'enums.st.j2',
+                 banner=H.replace('//', '(*').rstrip() + ' *)', groups=ctx)
 
     guard = site_guard(toml(os.path.join(site, 'site.toml')))
-    G = [H, '/**', ' * @file enums.gen.h',
-         " * @brief The site's enumerated codes: the C++ enum, the word for each",
-         ' *        code, and the ST binding.',
-         ' *',
-         ' * Included OUTSIDE namespace Site (it opens its own), and before the',
-         ' * generated POUs: the `BOTANIK_ST_TYPE_*` blocks below are what',
-         " * `__DECLARE_ENUMERATED_TYPE` expands to, so matiec's own member list",
-         ' * is discarded and ST compares against these constants.',
-         ' */', '',
-         '#ifndef %s_ENUMS_GEN_H' % guard, '#define %s_ENUMS_GEN_H' % guard, '',
-         '#include <cstdint>', '',
-         '#include "libbotanik/vars/model.h"', '',
-         'namespace Site {', '']
-    for n, mem in groups:
-        w = max(len(e['symbol']) for e in mem)
-        G.append('enum %s : %s {' % (n, mem[0]['ctype']))
-        G += ['    %-*s = %s,%s' % (w, e['symbol'], e['value'],
-                                    '   ///< ' + e['desc'] if e['desc'] else '')
-              for e in mem]
-        G += ['};', '',
-              '/** @brief A %s as the word an operator reads and types.' % n,
-              ' *  Null for an unmapped code, which is what refuses it. */',
-              'inline const char* %s_label(uint64_t code) {' % n,
-              '    switch (code) {']
-        G += ['        case %s: return "%s";' % (e['value'], e['label']) for e in mem]
-        G += ['        default: return nullptr;', '    }', '}', '']
-    G += ['}  // namespace Site', '',
-          '// matiec upper-cases every identifier, so this is the spelling its',
-          '// generated C uses for the type and for each member.']
-    for n, mem in groups:
-        u = n.upper()
-        w = max(len(e['symbol']) for e in mem)
-        G += ['', 'typedef ::Site::%s %s;' % (n, u),
-              '#define BOTANIK_ST_TYPE_%s \\' % u]
-        G += ['    static const %s %s__%-*s = ::Site::%-*s;%s'
-              % (u, u, w, e['symbol'], w, e['symbol'],
-                 ' \\' if i + 1 < len(mem) else '')
-              for i, e in enumerate(mem)]
-    G += ['', '// ...and how a Ref of one reaches the row, which is a T_ENUM: the',
-          '// code is what sits in storage and in a master\'s register.',
-          'namespace Botanik { namespace Vars {', '']
-    for n, _mem in groups:
-        G += ['    template <> struct RefIo< ::Site::%s > {' % n,
-              '        static ::Site::%s read(Var h) { return (::Site::%s)h.as<uint8_t>(); }' % (n, n),
-              '        static ::Site::%s of(Value v) { return (::Site::%s)v.as<uint8_t>(); }' % (n, n),
-              '        static void write(Var h, ::Site::%s v) { h.set_i((int64_t)v); }' % n,
-              '        static SetResult edit(Var h, ::Site::%s v) {' % n,
-              '            return h.param_set(from_i64(h.type(), (int64_t)v));',
-              '        }',
-              '    };', '']
-    G += ['}}  // namespace Botanik::Vars', '',
-          '#endif  // %s_ENUMS_GEN_H' % guard, '']
-    open(os.path.join(site, 'generated', 'enums.gen.h'), 'w').write('\n'.join(G))
+    render.write(os.path.join(site, 'generated', 'enums.gen.h'), 'enums.gen.h.j2',
+                 banner=H.rstrip('\n'), guard=guard, groups=ctx)
     print('  enums.gen.h    %d enumeration(s), %d code(s)' % (len(groups), len(en)))
 
 
@@ -162,91 +103,31 @@ def emit_plant_cpp(site, t, prog, writes):
     wi = max(len(e['instance'].upper()) for e in prog)
     wn = max(len(e['name']) for e in prog)
     index = t['index']
-    L = ['/**', ' * @file plant.cpp',
-         ' * @brief GENERATED by scripts/tables.py from tables/programs.csv.',
-         ' *',
-         ' * The only translation unit that compiles matiec\'s resource, because the',
-         ' * generated bodies are static in it. That is why the trampolines are here:',
-         ' * a table of function pointers needs one wrapper per POU.',
-         ' */', '',
-         '#include "libbotanik/plc/runtime/program.h"',
-         '#include "libbotanik/plc/runtime/runtime.h"',
-         '#include "libbotanik/vars/rows.h"', '',
-         '/* Before the POUs: the site\'s enumerated types, which matiec\'s',
-         ' * generated C names and whose member list it leaves to us. */',
-         '#include "enums.gen.h"', '',
-         '/* Every row an ST body names, as matiec spells it. `accessor.h` binds',
-         ' * each external to Ref<type>{ ROW_<NAME> }, so a name no table declares',
-         ' * fails to compile rather than resolving to the sink at bring-up. */',
-         'enum {']
     ext = sorted({n for e in prog for n, _t, _ro in var_externals(e['path'])})
-    we = max(len(n) for n in ext)
-    for n in ext:
-        row = _home(index, n)
-        L.append('    ROW_%-*s = ::Botanik::Vars::Row::%s,' % (we, n.upper(), row))
-    L += ['};', '',
-          '#pragma GCC diagnostic push',
-          '#pragma GCC diagnostic ignored "-Wunused-parameter"',
-          '#pragma GCC diagnostic ignored "-Wunused-function"',
-          '#pragma GCC diagnostic ignored "-Wunused-but-set-variable"',
-          '#pragma GCC diagnostic ignored "-Wshadow"',
-          '#include "plc.c"',
-          '#pragma GCC diagnostic pop', '',
-          'namespace Botanik { namespace Plc { namespace Runtime {', '',
-          '#define PLANT_PROGRAM_LIST(X) \\']
-    for i, e in enumerate(prog):
-        L.append('    X(%-*s %-*s %-*s BOTANIK_SITE_%s_MS)%s' % (
-            wn + 1, e['name'] + ',', w + 1, e['pou'] + ',', wi + 1,
-            e['instance'].upper() + ',', e['rate'].upper(),
-            ' \\' if i + 1 < len(prog) else ''))
-    L += ['', '/* The roster index, so a handler knows which entry it is. */', 'enum {',
-          '#define X(name, POU, INST, PERIOD) IDX_##INST,',
-          '    PLANT_PROGRAM_LIST(X)', '#undef X', '};', '',
-          '#define X(name, POU, INST, PERIOD)                                             \\',
-          '    static void _init_##INST() { POU##_init__(&INST, 0); }                     \\',
-          '    static void _run_##INST()  { POU##_body__(&INST); }                        \\',
-          '    static void _task_##INST(Component* self, const Tasks::Tick& t) {          \\',
-          '        static_cast<Plant*>(self)->scan(IDX_##INST, t.now_ms);                 \\',
-          '    }',
-          'PLANT_PROGRAM_LIST(X)', '#undef X', '',
-          '/* What each program DRIVES: its plain VAR_EXTERNAL rows, the ones it',
-          ' * is the author of. `VAR_EXTERNAL CONSTANT` is a read and is not here.',
-          ' * Taking a program out of the scan drops exactly these to their',
-          ' * declared safe state, so the list has to be the ST\'s own. */']
+    externals = [{'upper': n.upper(), 'row': _home(index, n)} for n in ext]
+
+    programs = []
     for e in prog:
+        inst = e['instance'].upper()
         wr = set(writes.get(e['pou'], ()))
-        wr = [n for n, _t, ro in var_externals(e['path']) if not ro and n.upper() in wr]
-        L.append('static const uint16_t _writes_%s[] = {%s};'
-                 % (e['instance'].upper(),
-                    ''.join(' Vars::Row::%s,' % _home(index, n) for n in wr) or ' 0'))
-    L.append('')
-    L.append('// The parking pair, or VAR_NONE for a program that is simply dropped.')
-    for e in prog:
-        pk = ('Vars::Row::prog_%s_park' % e['name'],
-              'Vars::Row::prog_%s_parked' % e['name']) \
-             if _opted_in(e, 'park') else ('Vars::VAR_NONE', 'Vars::VAR_NONE')
-        L.append('static const uint16_t _park_%s   = %s;' % (e['instance'].upper(), pk[0]))
-        L.append('static const uint16_t _parked_%s = %s;' % (e['instance'].upper(), pk[1]))
-    L += ['',
-          '// The health row of a program that opted in, or VAR_NONE. The LAW',
-          '// writes it; Plant only reads it back for the TASKS page.']
-    for e in prog:
-        L.append('static const uint16_t _health_%s = %s;'
-                 % (e['instance'].upper(),
-                    ('Vars::Row::prog_%s_health' % e['name'])
-                    if _opted_in(e, 'health') else 'Vars::VAR_NONE'))
-    L += ['',
-          'const Program programs[] = {',
-          '#define X(name, POU, INST, PERIOD)                                             \\',
-          '    { #name, PERIOD, &_init_##INST, &_run_##INST, &_task_##INST,               \\',
-          '      _writes_##INST,                                                          \\',
-          '      (uint8_t)(sizeof _writes_##INST / sizeof _writes_##INST[0]),             \\',
-          '      _park_##INST, _parked_##INST, _health_##INST },',
-          '    PLANT_PROGRAM_LIST(X)', '#undef X', '};', '',
-          'const uint8_t PROGRAM_COUNT =',
-          '    (uint8_t)(sizeof(programs) / sizeof(programs[0]));', '',
-          '}}}  // namespace Botanik::Plc::Runtime', '']
-    open(os.path.join(site, 'generated', 'plant.cpp'), 'w').write('\n'.join(L))
+        mine = [n for n, _t, ro in var_externals(e['path']) if not ro and n.upper() in wr]
+        park = ('Vars::Row::prog_%s_park' % e['name'],
+                'Vars::Row::prog_%s_parked' % e['name']) if _opted_in(e, 'park') \
+            else ('Vars::VAR_NONE', 'Vars::VAR_NONE')
+        programs.append({
+            'name': e['name'], 'pou': e['pou'], 'inst': inst,
+            'rate': e['rate'].upper(),
+            'writes': ''.join(' Vars::Row::%s,' % _home(index, n) for n in mine) or ' 0',
+            'park': park[0], 'parked': park[1],
+            'health': ('Vars::Row::prog_%s_health' % e['name'])
+                      if _opted_in(e, 'health') else 'Vars::VAR_NONE'})
+
+    render.write(os.path.join(site, 'generated', 'plant.cpp'), 'plant.cpp.j2',
+                 externals=externals, ext_width=max(len(n) for n in ext),
+                 programs=programs,
+                 w_name=max(len(e['name']) for e in prog),
+                 w_pou=max(len(e['pou']) for e in prog),
+                 w_inst=max(len(e['instance'].upper()) for e in prog))
 
 
 def _home(index, n):
@@ -379,24 +260,14 @@ def plant(site):
 
     w = max(len(n) for n in rows)
     wi = max(len(e['instance']) for e in prog)
-    L = [H.replace('//', '(*').rstrip() + ' *)', '',
-         '(* The enumerated codes a law compares against are enums.st, which is',
-         '   generated beside this and compiled ahead of it. *)', '',
-         '(* NO PROGRAM IS BOUND TO A TASK. plant.cpp calls each body itself, at',
-         '   the period programs.csv states, so a program keeps its own registry',
-         '   entry: its health row, its cost and missed counts, and its writer',
-         '   roster.',
-         '',
-         '   The TASK below is a formality - matiec refuses a RESOURCE without a',
-         '   periodic one. Nothing binds to it and nothing reads its interval. *)',
-         '', 'CONFIGURATION gh_mlb41', '', '  VAR_GLOBAL']
-    L += ['    %-*s : %s;' % (w, n, ty) for n, ty in sorted(rows.items())]
-    L += ['  END_VAR', '', '  RESOURCE plc ON OPTA',
-          '    TASK unbound (INTERVAL := T#100ms, PRIORITY := 1);', '']
-    L += ['    PROGRAM %-*s : %s;' % (wi, e['instance'], e['pou'].lower()) for e in prog]
-    L += ['  END_RESOURCE', '', 'END_CONFIGURATION', '']
+    render.write(os.path.join(site, 'generated', 'plant.st'), 'plant.st.j2',
+                 banner=H.replace('//', '(*').rstrip() + ' *)',
+                 config_name=os.path.basename(site.rstrip(os.sep)),
+                 globals_=sorted(rows.items()), w_row=max(len(n) for n in rows),
+                 programs=[{'instance': e['instance'], 'pou': e['pou'].lower()}
+                           for e in prog],
+                 w_inst=max(len(e['instance']) for e in prog))
     pl = os.path.join(site, 'generated', 'plant.st')
-    open(pl, 'w').write('\n'.join(L))
 
     # matiec FIRST: plant.cpp's write rosters are read out of the POUS.c it
     # emits, so the compiler's own answer is what they are built from.
@@ -456,19 +327,11 @@ def _lib_enum(st, header, decl, spell, member):
     if not m: sys.exit('%s: no `%s`' % (header, decl))
     codes = re.findall(member, m.group(1), re.M)
     if not codes: sys.exit('%s: no members for %s' % (header, st))
-    guard = 'BOTANIK_PLC_RUNTIME_%s_GEN_H' % st
-    w = max(len(c) for c in codes)
-    L = ['/* GENERATED by scripts/tables.py from %s. Do not edit. */' % header,
-         '#ifndef %s' % guard, '#define %s' % guard, '',
-         '/* matiec discards its own member list for this type: the ST enumeration',
-         ' * and the C++ one must be the SAME type, not two with equal values. */',
-         '#define BOTANIK_ST_TYPE_%s \\' % st]
-    for i, c in enumerate(codes):
-        L.append('    static const %s %s__%-*s = %s;%s'
-                 % (st, st, w, c, spell % c, ' \\' if i + 1 < len(codes) else ''))
-    L += ['', '#endif', '']
     out = 'src/libbotanik/plc/runtime/%s.gen.h' % st.lower()
-    open(out, 'w').write('\n'.join(L))
+    render.write(out, 'lib_enum.gen.h.j2', header=header, st=st,
+                 guard='BOTANIK_PLC_RUNTIME_%s_GEN_H' % st,
+                 width=max(len(c) for c in codes),
+                 codes=[{'name': c, 'spelt': spell % c} for c in codes])
     return st.lower(), len(codes)
 
 

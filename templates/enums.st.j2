@@ -1,0 +1,18 @@
+{{ banner }}
+
+(* The site's enumerated codes, so a law compares against the WORD.
+   matiec numbers these in declaration order and the C++ side is the
+   SAME type, so the order IS the wire contract: a member may be
+   appended, never moved. *)
+
+TYPE
+
+{% for g in groups %}
+  {{ g.name }} : (
+{% for e in g.members %}
+    {{ e.symbol.ljust(g.width) }}{{ "," if not loop.last }}{{ "   (* %s *)" | format(e.desc) if e.desc }}
+{% endfor %}
+  );
+
+{% endfor %}
+END_TYPE

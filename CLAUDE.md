@@ -388,6 +388,13 @@ regen-site` after editing a table or an ST file, and commit what comes out. It i
 the four `scripts/tables.py` commands in one, against the pinned compiler, in the
 source tree; `make check-generated` catches you if you forget.
 
+The generator is `scripts/sitegen/`, driven by `scripts/tables.py`: `model.py`
+reads and checks the tables, `st.py` is the ST half, `reference.py` the
+variables page, and `render.py` the Jinja environment they emit through. Every
+generated file has a template of its own in `templates/`, so the shape of the
+output is separate from the model that fills it. Regeneration needs `jinja2`;
+without it the targets are not declared, as they are not without `iec2c`.
+
 **The generator owns the checks.** It is the one thing that sees the whole table,
 so it refuses at generate time what a runtime test cannot: names unique
 under case folding, registers unique and inside their block, a mapped kind with

@@ -1,0 +1,72 @@
+{{ banner }}
+
+/**
+ * @file enums.gen.h
+ * @brief The site's enumerated codes: the C++ enum, the word for each
+ *        code, and the ST binding.
+ *
+ * Included OUTSIDE namespace Site (it opens its own), and before the
+ * generated POUs: the `BOTANIK_ST_TYPE_*` blocks below are what
+ * `__DECLARE_ENUMERATED_TYPE` expands to, so matiec's own member list
+ * is discarded and ST compares against these constants.
+ */
+
+#ifndef {{ guard }}_ENUMS_GEN_H
+#define {{ guard }}_ENUMS_GEN_H
+
+#include <cstdint>
+
+#include "libbotanik/vars/model.h"
+
+namespace Site {
+
+{% for g in groups %}
+enum {{ g.name }} : {{ g.ctype }} {
+{% for e in g.members %}
+    {{ e.symbol.ljust(g.width) }} = {{ e.value }},{{ "   ///< " ~ e.desc if e.desc }}
+{% endfor %}
+};
+
+/** @brief A {{ g.name }} as the word an operator reads and types.
+ *  Null for an unmapped code, which is what refuses it. */
+inline const char* {{ g.name }}_label(uint64_t code) {
+    switch (code) {
+{% for e in g.members %}
+        case {{ e.value }}: return "{{ e.label }}";
+{% endfor %}
+        default: return nullptr;
+    }
+}
+
+{% endfor %}
+}  // namespace Site
+
+// matiec upper-cases every identifier, so this is the spelling its
+// generated C uses for the type and for each member.
+{% for g in groups %}
+
+typedef ::Site::{{ g.name }} {{ g.upper }};
+#define BOTANIK_ST_TYPE_{{ g.upper }} \
+{% for e in g.members %}
+    static const {{ g.upper }} {{ g.upper }}__{{ e.symbol.ljust(g.width) }} = ::Site::{{ e.symbol.ljust(g.width) }};{{ " \\" if not loop.last }}
+{% endfor %}
+{% endfor %}
+
+// ...and how a Ref of one reaches the row, which is a T_ENUM: the
+// code is what sits in storage and in a master's register.
+namespace Botanik { namespace Vars {
+
+{% for g in groups %}
+    template <> struct RefIo< ::Site::{{ g.name }} > {
+        static ::Site::{{ g.name }} read(Var h) { return (::Site::{{ g.name }})h.as<uint8_t>(); }
+        static ::Site::{{ g.name }} of(Value v) { return (::Site::{{ g.name }})v.as<uint8_t>(); }
+        static void write(Var h, ::Site::{{ g.name }} v) { h.set_i((int64_t)v); }
+        static SetResult edit(Var h, ::Site::{{ g.name }} v) {
+            return h.param_set(from_i64(h.type(), (int64_t)v));
+        }
+    };
+
+{% endfor %}
+}}  // namespace Botanik::Vars
+
+#endif  // {{ guard }}_ENUMS_GEN_H
