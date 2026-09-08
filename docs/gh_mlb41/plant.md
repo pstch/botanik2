@@ -6,35 +6,35 @@
 
 ## The house
 
-| | |
-|---|---|
-| Floor area | TODO m x TODO m = TODO m2 |
-| Height, maximum / mean | TODO m / TODO m |
-| Interior volume | TODO m3 |
+|                        |                           |
+|------------------------|---------------------------|
+| Floor area             | TODO m x TODO m = TODO m2 |
+| Height, maximum / mean | TODO m / TODO m           |
+| Interior volume        | TODO m3                   |
 
 The volume is what gives the thermal mass of the air and its renewal rate.
 
 ## Envelope
 
-| | |
-|---|---|
-| Glazed area | TODO m2 |
-| Glazing | single glass, TODO mm |
-| Opaque walls | TODO m2, cob - insulating and thermal mass at once |
-| Summer whitening, in place | TODO to TODO |
-| Irradiance cut by the whitening | TODO |
+|                                 |                                                    |
+|---------------------------------|----------------------------------------------------|
+| Glazed area                     | TODO m2                                            |
+| Glazing                         | single glass, TODO mm                              |
+| Opaque walls                    | TODO m2, cob - insulating and thermal mass at once |
+| Summer whitening, in place      | TODO to TODO                                       |
+| Irradiance cut by the whitening | TODO                                               |
 
 ## Openings and ventilation
 
-| | |
-|---|---|
-| Free area, windows fully open | TODO m2 |
-| Where the openings are | the sloped roof panels only |
-| Travel time, one window | TODO s |
-| Intake fans | 2 x 1800 m3/h nominal |
-| Air renewal rate | TODO volumes/h |
-| Circulation fans, nominal at full speed | TODO m3/h |
-| Thermal screen travel, deployed to stowed | TODO s |
+|                                           |                             |
+|-------------------------------------------|-----------------------------|
+| Free area, windows fully open             | TODO m2                     |
+| Where the openings are                    | the sloped roof panels only |
+| Travel time, one window                   | TODO s                      |
+| Intake fans                               | 2 x 1800 m3/h nominal       |
+| Air renewal rate                          | TODO volumes/h              |
+| Circulation fans, nominal at full speed   | TODO m3/h                   |
+| Thermal screen travel, deployed to stowed | TODO s                      |
 
 ## Thermal mass
 
@@ -48,26 +48,26 @@ straw-clay, about TODO kg.
 A few days of watching gives these directly, and they are enough to size the
 process gain and the time constants the PID needs.
 
-| | |
-|---|---|
-| Peak interior temperature, hot day, shut | TODO degC |
-| Interior minus exterior, shut, full sun | TODO degC |
-| Interior minus exterior, open, full sun | TODO degC |
-| Rate of rise, clear morning, no cooling | TODO degC/h |
-| Settling time, intake fans at 100% | TODO min |
+|                                          |             |
+|------------------------------------------|-------------|
+| Peak interior temperature, hot day, shut | TODO degC   |
+| Interior minus exterior, shut, full sun  | TODO degC   |
+| Interior minus exterior, open, full sun  | TODO degC   |
+| Rate of rise, clear morning, no cooling  | TODO degC/h |
+| Settling time, intake fans at 100%       | TODO min    |
 
 The initial slope gives the air's time constant; the settling time gives the
 ventilation's.
 
 ## Where it stands
 
-| | |
-|---|---|
-| Latitude, longitude | TODO |
-| Nearby shade | TODO - describe the shading from the nearby trees |
-| Prevailing wind and exposure | TODO |
-| Irrigation water source and temperature | TODO degC |
-| Crawlspace temperature, summer / winter | TODO degC / TODO degC |
+|                                         |                                                   |
+|-----------------------------------------|---------------------------------------------------|
+| Latitude, longitude                     | TODO                                              |
+| Nearby shade                            | TODO - describe the shading from the nearby trees |
+| Prevailing wind and exposure            | TODO                                              |
+| Irrigation water source and temperature | TODO degC                                         |
+| Crawlspace temperature, summer / winter | TODO degC / TODO degC                             |
 
 ## Power
 

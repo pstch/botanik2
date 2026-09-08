@@ -74,11 +74,11 @@ already is has nothing to travel to.
 
 ## Control programs
 
-| program | every | what it does |
-|---|---|---|
-| `windows` | control | The four roof windows: one target from the cooling ladder, and one moving at a time. |
-| `roof_lockout` | control | What forbids the roof being open at all, whatever the ladder asks. |
-| `screen` | control | The thermal screen: one coil, deployed when the greenhouse is losing heat rather than gaining it. |
-| `fans` | control | The two destratification fans: three relayed speeds, driven by whichever of three demands wants the most. |
-| `intractors` | control | The two intractors: variable-speed fans drawing air from under the floor, driven by whichever of three demands wants the most. |
-| `skirt` | control | The wet skirt: one valve pulsed against two demands. |
+| program        | every   | what it does                                                                                                                   |
+|----------------|---------|--------------------------------------------------------------------------------------------------------------------------------|
+| `windows`      | control | The four roof windows: one target from the cooling ladder, and one moving at a time.                                           |
+| `roof_lockout` | control | What forbids the roof being open at all, whatever the ladder asks.                                                             |
+| `screen`       | control | The thermal screen: one coil, deployed when the greenhouse is losing heat rather than gaining it.                              |
+| `fans`         | control | The two destratification fans: three relayed speeds, driven by whichever of three demands wants the most.                      |
+| `intractors`   | control | The two intractors: variable-speed fans drawing air from under the floor, driven by whichever of three demands wants the most. |
+| `skirt`        | control | The wet skirt: one valve pulsed against two demands.                                                                           |

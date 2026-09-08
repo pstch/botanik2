@@ -9,11 +9,11 @@ Three ladders shape the climate, and they share a form: each reduces its
 quantity to a demand, and the actuators arrange themselves along it. A phase of
 the day sets the target and arms the ladder; the ladder decides how hard.
 
-| ladder | acts on | measure | regulator |
-|---|---|---|---|
-| cooling | warming and cooling | dT degC, signed | PID plus trigger thresholds |
-| destratification | stratification | dTstrat degC | 3-band hysteresis |
-| humidity | condensation, or extreme dryness | dew-point margin degC | 4-band hysteresis with a dead zone |
+| ladder           | acts on                          | measure               | regulator                          |
+|------------------|----------------------------------|-----------------------|------------------------------------|
+| cooling          | warming and cooling              | dT degC, signed       | PID plus trigger thresholds        |
+| destratification | stratification                   | dTstrat degC          | 3-band hysteresis                  |
+| humidity         | condensation, or extreme dryness | dew-point margin degC | 4-band hysteresis with a dead zone |
 
 Each rung normalises the same way:
 
@@ -36,14 +36,14 @@ in the early morning, a light breeze blows for a few minutes. The day runs. Afte
 a cold night, the late afternoon is allowed to gain a little, then before sunset
 a light breeze blows again, and the night runs.
 
-| | phase | when | target | why |
-|---|---|---|---|---|
-| P1 | `PHASE_NIGHT` | after sunset | 20 degC | normal operation |
-| P2 | `PHASE_COLD_BANK` | shortly before sunrise, only if the previous day was hot | 14 degC | pre-cool at the end of the night, so a typically hot day starts cooler |
-| P3 | `PHASE_DAWN_BREEZE` | from sunrise to a few minutes after | 20 degC | the morning breeze, helping the plants cross from night to day |
-| P4 | `PHASE_DAY` | until late afternoon | 20 degC | normal operation |
-| P5 | `PHASE_HEAT_BANK` | late in the day, until shortly before sunset | 27 degC | bank heat at the end of the day, so a typically cold night starts warmer |
-| P6 | `PHASE_DUSK_BREEZE` | until sunset | 20 degC | the evening breeze, from day to night |
+|    | phase               | when                                                     | target  | why                                                                      |
+|----|---------------------|----------------------------------------------------------|---------|--------------------------------------------------------------------------|
+| P1 | `PHASE_NIGHT`       | after sunset                                             | 20 degC | normal operation                                                         |
+| P2 | `PHASE_COLD_BANK`   | shortly before sunrise, only if the previous day was hot | 14 degC | pre-cool at the end of the night, so a typically hot day starts cooler   |
+| P3 | `PHASE_DAWN_BREEZE` | from sunrise to a few minutes after                      | 20 degC | the morning breeze, helping the plants cross from night to day           |
+| P4 | `PHASE_DAY`         | until late afternoon                                     | 20 degC | normal operation                                                         |
+| P5 | `PHASE_HEAT_BANK`   | late in the day, until shortly before sunset             | 27 degC | bank heat at the end of the day, so a typically cold night starts warmer |
+| P6 | `PHASE_DUSK_BREEZE` | until sunset                                             | 20 degC | the evening breeze, from day to night                                    |
 
 `COLD_BANK` and `HEAT_BANK` are conditional, and each has parameters for its
 length, its trigger and its effect on the target.
@@ -82,10 +82,10 @@ The screen is driven by negative cooling demand, past
 `cli_thermalScreenDem` (-0.2), but whether it may move at all depends on the
 phase. The phase gives permission; the demand decides the wanted movement.
 
-| phase | the screen may |
-|---|---|
-| `NIGHT`, `DUSK_BREEZE`, `HEAT_BANK` | **deploy** |
-| `DAY`, `DAWN_BREEZE`, `COLD_BANK` | **retract** |
+| phase                               | the screen may |
+|-------------------------------------|----------------|
+| `NIGHT`, `DUSK_BREEZE`, `HEAT_BANK` | **deploy**     |
+| `DAY`, `DAWN_BREEZE`, `COLD_BANK`   | **retract**    |
 
 The rule follows the direction of the day: the screen may deploy when the night
 is coming or heat is being kept, and retract when the day is coming or the house
@@ -110,18 +110,18 @@ thermal screen is allowed to deploy.
 A PID sets the cooling effort from the conditions, and the equipment arranges
 itself along it. In the shipped configuration:
 
-| demand | what happens |
-|---|---|
-| below `cli_thermalScreenDem` (-0.2) | the thermal screen deploys, at night or with the sun low |
-| below `cli_groundHeatDem` (-0.1) | intake fans run slow with the windows shut, only if the crawlspace air is warmer than the greenhouse |
-| above `cli_windowStartDem` (0.1) | the windows begin to open |
-| above `cli_fanLowDem` (0.2) | the circulation fans start at speed 1 |
-| above `cli_intakeStartDem` (0.3) | the intake fans start, only if the crawlspace air is cooler than the greenhouse |
-| above `cli_fanMedDem` (0.4) | the circulation fans go to speed 2 |
-| above `cli_windowFullDem` (0.5) | the windows are fully open |
-| above `cli_skirtCoolDem` (0.7) | the crawlspace skirt is wetted - in practice a little above, because the valve has a minimum command interval |
-| above `cli_fanHighDem` (0.8) | the circulation fans go to speed 3 |
-| above `cli_intakeFullDem` (0.9) | the intake fans reach full speed |
+| demand                              | what happens                                                                                                  |
+|-------------------------------------|---------------------------------------------------------------------------------------------------------------|
+| below `cli_thermalScreenDem` (-0.2) | the thermal screen deploys, at night or with the sun low                                                      |
+| below `cli_groundHeatDem` (-0.1)    | intake fans run slow with the windows shut, only if the crawlspace air is warmer than the greenhouse          |
+| above `cli_windowStartDem` (0.1)    | the windows begin to open                                                                                     |
+| above `cli_fanLowDem` (0.2)         | the circulation fans start at speed 1                                                                         |
+| above `cli_intakeStartDem` (0.3)    | the intake fans start, only if the crawlspace air is cooler than the greenhouse                               |
+| above `cli_fanMedDem` (0.4)         | the circulation fans go to speed 2                                                                            |
+| above `cli_windowFullDem` (0.5)     | the windows are fully open                                                                                    |
+| above `cli_skirtCoolDem` (0.7)      | the crawlspace skirt is wetted - in practice a little above, because the valve has a minimum command interval |
+| above `cli_fanHighDem` (0.8)        | the circulation fans go to speed 3                                                                            |
+| above `cli_intakeFullDem` (0.9)     | the intake fans reach full speed                                                                              |
 
 Every threshold is a parameter and can be moved without reprogramming, though a
 good deal of modelling went into them. The estimate is that outside temperatures
@@ -189,12 +189,12 @@ The ladder itself is a four-band regulator with hysteresis and a dead zone,
 aiming at a range of dew-point margin in which the plants are comfortable
 without developing rot:
 
-| dew-point margin | what happens |
-|---|---|
-| below `cli_dehumFull_degC` (3 degC) | dehumidifying at full - fans at full power |
-| below `cli_dehumStart_degC` (4.5 degC) | dehumidifying starts - fans at low power |
-| above `cli_humidStart_degC` (18 degC) | humidifying starts - the skirt is wetted, air comes in at low rate |
-| above `cli_humidFull_degC` (28 degC) | humidifying at full - air at full rate through the wetted skirt |
+| dew-point margin                       | what happens                                                       |
+|----------------------------------------|--------------------------------------------------------------------|
+| below `cli_dehumFull_degC` (3 degC)    | dehumidifying at full - fans at full power                         |
+| below `cli_dehumStart_degC` (4.5 degC) | dehumidifying starts - fans at low power                           |
+| above `cli_humidStart_degC` (18 degC)  | humidifying starts - the skirt is wetted, air comes in at low rate |
+| above `cli_humidFull_degC` (28 degC)   | humidifying at full - air at full rate through the wetted skirt    |
 
 `cli_rotMargin_degC` (1 degC) is the margin below which the rot lockout takes
 hold, and `cli_rotRelease_sec` (300 s) how long it runs on past the condition.
@@ -219,12 +219,12 @@ skirt is a guard against extreme dryness, not a precision adjustment.
 
 ## Control programs
 
-| program | every | what it does |
-|---|---|---|
-| `day_phase` | control | The day's phase, and the temperature target it puts in force. |
-| `target_temp` | control | The temperature the greenhouse is being held to: the base setting, shifted by whichever bank phase is both in force and armed. |
-| `cooling` | sense | The cooling ladder: a PID on the interior temperature against the phase's target, published as one signed demand. |
-| `humidity` | control | The humidity ladder: four bands and a dead zone on the dew-point margin, published as one signed demand - and the rot guard under it. |
-| `destrat` | control | The destratification ladder: three bands with hysteresis on the ceiling-to-floor gap, published as a demand. |
-| `intake_gates` | control | The two intake gates: whether crawlspace air is worth drawing, for cooling and for ground heat. |
-| `intake_dry` | control | The intake dry gate: whether the air outside is drier than the air in. |
+| program        | every   | what it does                                                                                                                          |
+|----------------|---------|---------------------------------------------------------------------------------------------------------------------------------------|
+| `day_phase`    | control | The day's phase, and the temperature target it puts in force.                                                                         |
+| `target_temp`  | control | The temperature the greenhouse is being held to: the base setting, shifted by whichever bank phase is both in force and armed.        |
+| `cooling`      | sense   | The cooling ladder: a PID on the interior temperature against the phase's target, published as one signed demand.                     |
+| `humidity`     | control | The humidity ladder: four bands and a dead zone on the dew-point margin, published as one signed demand - and the rot guard under it. |
+| `destrat`      | control | The destratification ladder: three bands with hysteresis on the ceiling-to-floor gap, published as a demand.                          |
+| `intake_gates` | control | The two intake gates: whether crawlspace air is worth drawing, for cooling and for ground heat.                                       |
+| `intake_dry`   | control | The intake dry gate: whether the air outside is drier than the air in.                                                                |

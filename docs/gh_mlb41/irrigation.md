@@ -110,11 +110,11 @@ shut, which is the one thing a leak detector must not be told.
 
 ## Control programs
 
-| program | every | what it does |
-|---|---|---|
-| `irr_schedule` | control | Which tray is owed water, and whether the climate will allow a cycle to start. |
-| `irr_modulation` | control | The irrigation ladder: how thirsty the air has been, as one factor. |
-| `irrigation` | control | Irrigation: one tray at a time, filled to a dose, steeped, and drained. |
-| `irr_valves` | control | The irrigation manifold: which valves each state of the cycle opens. |
-| `irr_mtr_input` | control | The inlet meter, and the two supply faults it alone can see. |
-| `irr_mtr_output` | control | The outlet meter: what came back off the trays. |
+| program          | every   | what it does                                                                   |
+|------------------|---------|--------------------------------------------------------------------------------|
+| `irr_schedule`   | control | Which tray is owed water, and whether the climate will allow a cycle to start. |
+| `irr_modulation` | control | The irrigation ladder: how thirsty the air has been, as one factor.            |
+| `irrigation`     | control | Irrigation: one tray at a time, filled to a dose, steeped, and drained.        |
+| `irr_valves`     | control | The irrigation manifold: which valves each state of the cycle opens.           |
+| `irr_mtr_input`  | control | The inlet meter, and the two supply faults it alone can see.                   |
+| `irr_mtr_output` | control | The outlet meter: what came back off the trays.                                |
