@@ -1,19 +1,27 @@
 # PARAMS: editing parameters {#user_params}
 
-<!-- source of truth: pages/params.h, vars/param_check -->
-
-## The screen
+The parameters page is the fifth page, it shows a table of parameters. 
+They may be edited, and the change may be persisted to memory. 
+The table is scrollable, it supports searching, by typing texty directly in the parameters page.
 
 @verbinclude params.txt
 
-## The list
+## Keyboard shortcuts
 
-## Editing a value
+| key                  | what it does                               |
+|----------------------|--------------------------------------------|
+| `Up`, `Ctrl+P`       | move the selection up                      |
+| `Down`, `Ctrl+N`     | move the selection down                    |
+| `PageUp`, `PageDown` | a screenful at a time                      |
+| `End`                | the last row                               |
+| `Left`, `Right`      | cycle the view shown in the legend         |
+| any text             | filter on it; the legend shows the pattern |
+| `Backspace`          | edit the filter                            |
+| `Esc`                | clear the filter                           |
+| `Alt+W`              | copy the selected cell to the kill ring    |
+| `Enter`              | start editing the selected parameter       |
+| `Ctrl+O`             | save every unsaved edit                    |
 
-## What a band allows
-
-## Committing
-
-## What survives a reboot
-
-## Read-only parameters
+While editing a value, `Enter` commits it and `Esc` abandons it. A committed
+edit is live at once and unsaved: it is lost on the next reboot unless
+`Ctrl+O` here, or `params save`, writes it to storage.

@@ -11,17 +11,18 @@ Botanik provides an interactive serial console that multiplexes multiple distinc
 The console intercepts these itself, before the active page sees them. Every
 other key reaches the page directly.
 
-TODO: visually align this table so that it's easier to edit
+| key                        | what it does                                     |
+|----------------------------|--------------------------------------------------|
+| `Alt+1` .. `Alt+9`         | go to that page                                  |
+| `Alt+0`                    | go to the tenth page, where a site registers one |
+| `Home`                     | go to the first page                             |
+| `Tab`, `Ctrl+PageDown`     | the next page                                    |
+| `Shift+Tab`, `Ctrl+PageUp` | the previous page                                |
+| `Ctrl+L`                   | repaint everything: the two bars, then the page  |
+| `Ctrl+C`                   | if the page does not take it: exit the simulator |
 
-| key | what it does |
-|---|---|
-| `Alt+1` .. `Alt+9` | go to that page |
-| `Alt+0` | go to the tenth page, where a site registers one |
-| `Home` | go to the first page |
-| `Tab`, `Ctrl+PageDown` | the next page |
-| `Shift+Tab`, `Ctrl+PageUp` | the previous page |
-| `Ctrl+L` | repaint everything: the two bars, then the page |
-| `Ctrl+C` | if not handled by the page : exit the simulator|
+@note `Home` is taken here, so it never reaches a page. A table's last row is
+`End`; there is no key for its first.
 
 ## The pages {#user_pages}
 
@@ -66,4 +67,3 @@ a fan stops rather than holding the last thing they were told.
 The exception is a program that parks. Those keep being called on the way out,
 so a roof finishes shutting before the unit halts instead of being dropped
 half open.
-
