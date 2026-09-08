@@ -1,4 +1,4 @@
-# Actuators, and who gets them {#gh_mlb41_actuators}
+# Actuators {#gh_mlb41_actuators}
 
 <!-- source of truth: src/sites/gh_mlb41/programs/actuators/, rates in
      tables/programs.csv. The arbitration prose is the spec's "Logique
@@ -44,43 +44,41 @@ That principle - **maximum for intensities, priority for directions** - is what
 guarantees two subsystems never drive the same actuator in opposite directions
 within one scan.
 
-## windows_controller
+## What each one is
 
-The four roof windows. Each is a 24 V linear actuator with built-in limits,
-driven by reversing polarity, so position is estimated from travel time and only
-a seating stroke against a limit proves 0 or 1. `cli_window_pos1..4` is that
-estimate, `cli_window_tgt1..4` what the arbitration asked for.
+**The windows.** Four 24 V linear actuators with built-in limits, driven by
+reversing polarity, so position is estimated from travel time and only a seating
+stroke against a limit proves 0 or 1. `cli_window_pos1..4` is that estimate,
+`cli_window_tgt1..4` what the arbitration asked for. One moves at a time.
 
-It is one of the site's two parking programs: on the way out of service it keeps
-being called until the roof has finished shutting, rather than being dropped
-wherever it stood.
+**The thermal screen.** One coil, deployed on negative cooling demand and only
+where the phase permits - see @ref gh_mlb41_climate.
 
-## roof_lockout
+**The ceiling fans.** Three relayed speeds. `cli_fanDemHyst` is the demand change
+needed before a speed switch, so they do not hunt at a band edge.
 
-The safety that outranks everything on the windows: rain, or wind past the
-shut threshold, closes them and holds them closed.
+**The intake fans.** A 0-10 V command, gated on whether the crawlspace air is
+actually on the right side of the greenhouse temperature.
 
-## screen_controller
+**The skirt valve.** All-or-nothing, duty-cycled to approximate a proportional
+command, with the anti-rot lockout able to force it shut.
 
-The thermal screen, deployed on negative cooling demand and permitted only by
-the phase - see @ref gh_mlb41_climate.
+## Parking
 
-It deliberately does not park. An actuator whose safe state is where it already
-is has nothing to travel to, and a screen left as it stands harms nothing.
+Two of these finish what they were doing on the way out of service rather than
+being dropped where they stood: the windows, so the roof is shut before the unit
+halts, and the irrigation manifold, so no tray is stranded with its inlet open.
 
-## fan_controller
+The screen deliberately does not. An actuator whose safe state is where it
+already is has nothing to travel to.
 
-The four ceiling fans, three speeds each, driven by the arbitration above.
-`cli_fanDemHyst` is the demand change needed before a speed switch, so the fans
-do not hunt at a band edge.
+## Control programs
 
-## intractor_controller
-
-The two intake fans, on a 0-10 V command, from the maximum of the three demands
-that want incoming air - and gated on whether the crawlspace air is actually on
-the right side of the greenhouse temperature.
-
-## skirt_controller
-
-The skirt valve, duty-cycled to approximate a proportional command from an
-all-or-nothing valve, with the anti-rot lockout able to force it shut.
+| program | every | what it does |
+|---|---|---|
+| `windows` | control | The four roof windows: one target from the cooling ladder, and one moving at a time. |
+| `roof_lockout` | control | What forbids the roof being open at all, whatever the ladder asks. |
+| `screen` | control | The thermal screen: one coil, deployed when the greenhouse is losing heat rather than gaining it. |
+| `fans` | control | The two destratification fans: three relayed speeds, driven by whichever of three demands wants the most. |
+| `intractors` | control | The two intractors: variable-speed fans drawing air from under the floor, driven by whichever of three demands wants the most. |
+| `skirt` | control | The wet skirt: one valve pulsed against two demands. |

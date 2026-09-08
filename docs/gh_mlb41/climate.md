@@ -26,7 +26,7 @@ demand between -1 and 1.
 Irrigation has no ladder; it is modulated by a continuous measure of evaporative
 power instead. See @ref gh_mlb41_irrigation.
 
-## day_phase_controller
+## The day's phases
 
 The day is cut into 6 phases, each defined as an interval in minutes before or
 after sunrise or sunset.
@@ -48,7 +48,7 @@ a light breeze blows again, and the night runs.
 `COLD_BANK` and `HEAT_BANK` are conditional, and each has parameters for its
 length, its trigger and its effect on the target.
 
-## target_temp_controller
+## The temperature target
 
 In normal operation - NIGHT, DAY, DAWN_BREEZE, DUSK_BREEZE - the cooling target
 is the base value, `cli_coolSet_degC`, 20 degC by default, and the ladder works
@@ -97,7 +97,7 @@ When the demand asks for a movement the phase forbids, the screen stays where it
 is and the thermal need is met, if at all, by drawing warm air from the ground
 through the intake fans.
 
-## cooling_controller
+## Cooling
 
 ![](cooling.svg)
 
@@ -136,7 +136,7 @@ left the margins it is allowed, not that a ladder is working hard.
 are set during commissioning. They are hard to determine and need a rigorous
 approach: real tests, then Ziegler-Nichols or Lambda-T.
 
-## destrat_controller
+## Destratification
 
 ![](destratification.svg)
 
@@ -161,7 +161,7 @@ shape right would properly need a dynamic simulation; that costs more than this
 project can carry, so intuition it is. Papier mache under resin is the current
 thought, and not yet settled.
 
-## humidity_controller
+## Humidity and rot
 
 ![](humidity.svg)
 
@@ -217,12 +217,14 @@ minimum-on over period, the valve stays shut rather than produce a micro-pulse.
 That small dead zone at the bottom of the range does not matter: wetting the
 skirt is a guard against extreme dryness, not a precision adjustment.
 
-## intake_gates
+## Control programs
 
-The permissions the intake fans answer to: whether the crawlspace air is
-actually cooler than the greenhouse before drawing it in for cooling, and
-whether it is warmer before drawing it in for heat.
-
-## intake_dry_gate
-
-The lockout that forbids wetting the skirt when the air is already too humid.
+| program | every | what it does |
+|---|---|---|
+| `day_phase` | control | The day's phase, and the temperature target it puts in force. |
+| `target_temp` | control | The temperature the greenhouse is being held to: the base setting, shifted by whichever bank phase is both in force and armed. |
+| `cooling` | sense | The cooling ladder: a PID on the interior temperature against the phase's target, published as one signed demand. |
+| `humidity` | control | The humidity ladder: four bands and a dead zone on the dew-point margin, published as one signed demand - and the rot guard under it. |
+| `destrat` | control | The destratification ladder: three bands with hysteresis on the ceiling-to-floor gap, published as a demand. |
+| `intake_gates` | control | The two intake gates: whether crawlspace air is worth drawing, for cooling and for ground heat. |
+| `intake_dry` | control | The intake dry gate: whether the air outside is drier than the air in. |

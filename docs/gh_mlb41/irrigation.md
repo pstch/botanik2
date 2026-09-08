@@ -32,9 +32,7 @@ The frequency and volume given are **summer** values: hot, dry. Both are
 modulated automatically as the air gets more humid, from the tracked vapour
 pressure deficit.
 
-## irrigation_schedule
-
-Which tray is due, and whether now is a moment to water at all.
+## Scheduling
 
 Beyond the per-tray settings, a few parameters govern the whole cycle:
 
@@ -57,7 +55,7 @@ every scan - too frequent, and the filter would freeze numerically - and not
 once a day, where the result would depend on the hour the measurement was taken.
 That interval is not a parameter, to keep the moving average simple.
 
-## irrigation_modulation
+## Modulation
 
 Volume and frequency, configured per tray, are summer values. As the air gets
 more humid the system cuts watering back, on a normalised demand from the mean
@@ -87,27 +85,36 @@ For safety, `irr_modGamma` >= 1 guarantees that watering climbs toward its
 maximum only once dryness is properly established. The modulation always fails
 to the dry side - less water - never toward excess.
 
-## irrigation_cycle
+## The cycle
 
-The state machine that runs one tray: fill, soak, drain, flush. It judges the
-fill against what the inlet meter reports and the drain against the outlet, and
-raises `alarm_irr_fill_tray1..8` or `alarm_irr_drain_tray1..8` for a tray that
-would not fill or would not empty in its window.
+One tray at a time: fill, soak, drain, flush. The fill is judged against what
+the inlet meter reports and the drain against the outlet, and a tray that will
+not fill or will not empty inside its window raises `alarm_irr_fill_tray1..8`
+or `alarm_irr_drain_tray1..8`.
 
-## irr_valves
+The manifold is one of the site's two parking programs. Leaving the scan
+mid-cycle would strand a tray with its inlet open, so it keeps being called
+until the valves are where they are safe to leave.
 
-The inlet, outlet and per-tray valves, driven from the state the cycle is in.
+## The meters
 
-It is the other parking program: leaving the scan mid-cycle would strand a tray
-with its inlet open, so it keeps being called until the valves are where they
-are safe to leave.
+The inlet is a pulse train, one pulse per whole litre, differentiated into a
+rate and totalised into a volume. The outlet is a 4-20 mA Hall-effect flow
+meter, so the pipework answers with a rate directly; it is averaged and then
+deadbanded.
 
-## irr_mtr_input
+A rate that is deadbanded only writes when it moves more than the band, so a
+flow decaying toward zero would otherwise leave the row parked on the last
+figure it reported - a drain meter saying water is moving with every valve
+shut, which is the one thing a leak detector must not be told.
 
-The inlet meter: a pulse train, one pulse per whole litre. The count is
-differentiated into a rate and totalised into a volume.
+## Control programs
 
-## irr_mtr_output
-
-The outlet meter: a 4-20 mA Hall-effect flow meter, so the pipework answers with
-a rate directly. It is averaged and then deadbanded.
+| program | every | what it does |
+|---|---|---|
+| `irr_schedule` | control | Which tray is owed water, and whether the climate will allow a cycle to start. |
+| `irr_modulation` | control | The irrigation ladder: how thirsty the air has been, as one factor. |
+| `irrigation` | control | Irrigation: one tray at a time, filled to a dose, steeped, and drained. |
+| `irr_valves` | control | The irrigation manifold: which valves each state of the cycle opens. |
+| `irr_mtr_input` | control | The inlet meter, and the two supply faults it alone can see. |
+| `irr_mtr_output` | control | The outlet meter: what came back off the trays. |

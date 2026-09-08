@@ -54,7 +54,6 @@ own, provided by a 4G modem.
 - @subpage gh_mlb41_irrigation
 - @subpage gh_mlb41_actuators
 - @subpage gh_mlb41_blocks
-- @subpage gh_mlb41_parameters
 - @subpage gh_mlb41_alarms
 - @subpage gh_mlb41_scenarios
 - @subpage gh_mlb41_maintenance
