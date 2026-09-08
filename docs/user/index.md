@@ -42,17 +42,19 @@ hardware does nothing.
 Two things decide whether a control program drives anything, and the stricter
 of them wins:
 
-- the operator, through `control stop` and `control start` for every program at
-  once, or `programs disable <pat>` for one of them, or a glob of them.
-  `control` writes the `sys_control` setting, live but unsaved until
-  `params save sys_control`; `programs` holds its choice in memory, so a
-  disabled program comes back on the next reboot;
+- the operator, in either of two ways. `programs disable <pat>` takes one
+  program out of the scan, or a glob of them, or `all`; it holds that choice in
+  memory, so a disabled program comes back on the next reboot. The
+  `sys_control` setting is the same choice for every program at once, and being
+  a parameter it can be saved to survive one: `params set sys_control 0`, then
+  `params save sys_control`;
 - the unit, through its run state: the laws run in RUN only, never while it is
   starting up, shutting down or halted. The header bar carries it, and the
   SYSTEM page spells it out.
 
-`control status` reports both at once, and says which of the two is holding
-the plant when nothing is moving.
+`programs status` reports both at once, so it is what to read when nothing is
+moving: it counts what is running, names what is disabled, and says whether
+`sys_control` is on.
 
 A program's own health is not a third gate. It is what the program says about
 its last answer, shown per program on the TASKS page, and a FAULTED one keeps

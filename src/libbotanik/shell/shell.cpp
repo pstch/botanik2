@@ -133,14 +133,6 @@ namespace Botanik { namespace Shell {
                            "save <name>|all",                     G_TAB, false,
                                                                &CommandShell::_cmd_overrides  },
 #endif
-#if BOTANIK_FEATURE_VARS
-            { "control",   "...",       "whether the control programs drive at all",
-                           "status               sys_control, and the run state beside it\n"
-                           "start                let the laws drive\n"
-                           "stop                 stop every law, drop what they drive safe",
-                                                                     G_SYS, true,
-                                                               &CommandShell::_cmd_control    },
-#endif
 #if BOTANIK_FEATURE_PLC
             { "programs",  "...",       "the control programs in the scan",
                            "status               how many, and which cannot run\n"
