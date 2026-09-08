@@ -1,10 +1,9 @@
 # NOTES: the notepad {#user_notes}
 
-<!-- source of truth: pages/notes.h; a full-screen editor over one stored note -->
+@verbinclude notes.txt
 
 The notes page is the ninth page of the console, it provides a persistent scratch buffer that can be used to store notes about the deployment.
 
-@verbinclude notes.txt
 
 ## Keyboard shortcuts
 
@@ -29,6 +28,7 @@ The notes page is the ninth page of the console, it provides a persistent scratc
 | `Ctrl+K`               | kill to the end of the line                    |
 | `Ctrl+Y`               | yank the last kill back                        |
 
-The kill ring is the console's, not this page's: a line cut here yanks at the
-shell prompt, and the other way about. The footer shows how much of the note is
-used, and whether it is saved.
+The kill ring is stored at the console-level, not per page : a line cut here 
+yanks at the shell prompt, and the other way about.
+
+The footer displays how much of the note is used, and whether it is saved.

@@ -1,12 +1,14 @@
 # ALARMS: the alarm list {#user_alarms}
 
+@verbinclude alarms.txt
+
 The alarms page is the fourth page and it shows a table of alarms, and can be used to monitor alarm state & acknowledge alarms. It can be filtered to show only active alarms, and it supports searching, just by typing text while the page is open.
+
 For each alarm, the table shows :
  - the alarm's short code and name
  - the current status, the acknowledgeent state and alarm overrides
  - the timestamp of the last evente
 
-@verbinclude alarms.txt
 
 ## Keyboard shortcuts
 
@@ -32,9 +34,7 @@ and all of them.
 
 ## Alarm mechanics
 
-Each alarm carries four times, and they do two different jobs. Two decide what
-is **said**, one decides what is **true**, and one decides how long it is
-**remembered**.
+Each alarm carries four times :
 
 | time       | what it governs                                                                                           |
 |------------|-----------------------------------------------------------------------------------------------------------|
@@ -43,22 +43,8 @@ is **said**, one decides what is **true**, and one decides how long it is
 | `hold_s`   | how long the alarm stays ACTIVE past the last moment the condition was true, re-armed every beat it is up |
 | `recent_s` | how long a cleared alarm stays in the RECENT view. 0 is the configured default, negative is forever       |
 
-`on_s` and `off_s` gate the log line and the notifier only. Neither touches
-whether the alarm is active, so a dwell cannot hide a live condition from the
-alarm bar.
-
-`hold_s` is the opposite: it is the anti-flicker. It bridges a chattering
-signal into one episode, and it keeps a pulse too short to see on screen there
-long enough to be seen. With `hold_s` at 0 the alarm follows the raw condition
-exactly.
-
-An alarm that comes and goes faster than its `on_s` never announces a START at
-all; it is logged as a FLAP instead, so the churn is visible without filling
-the log with pairs.
-
-Acknowledging goes with the **episode**, not the raw condition. An alarm held up
-by `hold_s` has not stopped, so acknowledging it stays acknowledged for as long
-as the episode lasts; a new episode raises it unacknowledged again.
+`on_s` and `off_s` gate the log line and the notifier only : they do not affect whether the alarm is shown on the alarm bar.
+`hold_s` is used to prevent flickers : its bridges a chattering signal into one episode, and it lengthens short pulses
 
 ## Library alarms
 

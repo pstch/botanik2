@@ -34,32 +34,15 @@ other key reaches the page directly.
 
 ## Control authority
 
-Two things decide whether a control program drives anything, and the stricter
-of them wins:
+The control programs can be disabled either globally (using `control start|stop`)
+ or per-program (`programs start|stop name`). 
+ 
+These settings can be made persistent using using `enable`/`disable` instead of `start`/`stop`.
 
-- the operator, through `control` for every program at once or `programs` for
-  one of them, and both spell the difference the same way. `start` and `stop`
-  last until the next reboot; `enable` and `disable` save the choice, so the
-  unit comes up that way. `programs` has no saved form: the roster decides
-  which programs exist, and a unit coming up with one silently out of the scan
-  is a plant nobody can explain;
-- the unit, through its run state: the laws run in RUN only, never while it is
-  starting up, shutting down or halted. The header bar carries it, and the
-  SYSTEM page spells it out.
-
-`control status` is what to read when nothing is moving. It reports both gates
-at once, counts how many programs that leaves running, and says so when control
-is on but the unit has not reached RUN. `programs status` names the ones that
-are stopped.
-
-A program's own health is not a third gate. It is what the program says about
-its last answer, shown per program on the TASKS page, and a FAULTED one keeps
-running: what it writes when it cannot answer is its safe state.
+Also, the programs only run when the unit is in the RUN state, they are not ran while the unit is starting up or shutting down.
 
 A program that stops running does not leave what it was driving where it stood.
-Its rows go to their declared safe state on the next beat, so a valve closes and
-a fan stops rather than holding the last thing they were told.
-
-The exception is a program that parks. Those keep being called on the way out,
-so a roof finishes shutting before the unit halts instead of being dropped
-half open.
+By default, its rows go to their declared safe state on the next beat, so a valve closes and
+a fan stops rather than holding the last thing they were told. However some programs
+also have a "parking phase" : they keep being called on thw way out so that we can finish
+moving actuators to their target position before we drop to the safe output state.half open.

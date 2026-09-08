@@ -1,10 +1,11 @@
 # PARAMS: editing parameters {#user_params}
 
+@verbinclude params.txt
+
 The parameters page is the fifth page, it shows a table of parameters. 
 They may be edited, and the change may be persisted to memory. 
 The table is scrollable, it supports searching, by typing texty directly in the parameters page.
 
-@verbinclude params.txt
 
 ## Keyboard shortcuts
 

@@ -2,8 +2,8 @@
 
 This documentation contains the manual of the Botanik PLC firmware and its reference site ("gh_mlb41").
 
-Botanik is a library that supports the writing of PLC control firmwares on STM32 platforms (the reference site uses an Arduino OTPA)
-It was written because the Arduino PLC IDE and the Axel PLC runtime it uses are not sufficient for a real PLC design :
+Botanik is a library that supports the writing of PLC control firmwares on STM32 platforms (the reference site uses an Arduino OTPA).
+It was written because the Arduino PLC IDE and the Axel PLC runtime we planned to use initially are not sufficient for a real PLC design :
  - the shared memory between the runtime and the user-provided C code is only 512 bytes
  - interaction between the C side and the runtime is generally not easy and requires a lot of boilerplate even for simple things
  - the Axel PLC runtime is proprietary, and the Arduino PLC IDE only runs on Windows

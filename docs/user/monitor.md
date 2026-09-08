@@ -1,7 +1,9 @@
 # MONITOR: watching and forcing rows {#user_monitor}
 
-The monitor page is the sixth page, it shows a table of input, output and computed variables. It can be filtered to show only invalid or overriden variables, and it supports searching variable names, just by typing text while the page is open.
 @verbinclude monitor.txt
+
+The monitor page is the sixth page, it shows a table of input, output and computed variables. It can be filtered to show only invalid or overriden variables, and it supports searching variable names, just by typing text while the page is open. It can also be used to set/clear overrides on variables.
+
 
 ## Keyboard shortcuts
 
@@ -21,7 +23,3 @@ The monitor page is the sixth page, it shows a table of input, output and comput
 | `Ctrl+V`             | toggle the forced quality between good and failed |
 | `Ctrl+R`             | clear the force                                   |
 | `Ctrl+S`             | save the force, so it survives a reboot           |
-
-While editing, `Enter` commits and `Esc` abandons. A force shadows the live
-value: the row keeps being written by whatever drives it, and the force is what
-is read until it is cleared.

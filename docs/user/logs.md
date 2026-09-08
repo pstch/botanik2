@@ -1,12 +1,13 @@
 # LOGS: the log tail {#user_logs}
 
+@verbinclude logs.txt
+
 The logs page is the third page and it shows log entries published by the firmare, in a scrollable view. Log entries have :
  - a timestamp, a log topic and a log level
  - an associated text message
 
 The view supports scrolling back to see older messages, and SPACE can be used to write a log mark.
 
-@verbinclude logs.txt
 
 ## Keyboard shortcuts
 

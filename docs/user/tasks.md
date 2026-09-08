@@ -1,5 +1,7 @@
 # TASKS: the task table {#user_tasks}
 
+@verbinclude tasks.txt
+
 The tasks page is the seventh page, it shows the list of components and programs registered in the firmware's scheduler. 
 It supports search like other pages, and can be filtered to show only faulted or healthy tasks. For each task, we show :
  - the task name
@@ -9,7 +11,6 @@ It supports search like other pages, and can be filtered to show only faulted or
  - the mean runtime, in microseconds
  - the amount of missed activations
  
-@verbinclude tasks.txt
 
 ## Keyboard shortcuts
 
@@ -26,5 +27,4 @@ It supports search like other pages, and can be filtered to show only faulted or
 | `Esc`                | clear the filter                           |
 | `Alt+W`              | copy the selected cell to the kill ring    |
 
-The page has no verbs of its own: it reports. `Left` and `Right` cycle the
-health filter between FAULTED, ALL and HEALTHY.
+`Left` and `Right` cycle the health filter between FAULTED, ALL and HEALTHY.

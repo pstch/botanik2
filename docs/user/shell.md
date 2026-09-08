@@ -1,8 +1,9 @@
 # SHELL: the command line {#user_shell}
 
+@verbinclude shell.txt
+
 The shell page is the second page in the console, it's used to monitor the state of the runtime and interact with variables, parameters, alarms, etc.
 
-@verbinclude shell.txt
 
 ## Keyboard shortcuts
 
