@@ -659,10 +659,52 @@ elseif(BOTANIK_TARGET STREQUAL "OPTA")
 
 endif()
 
-# Doxygen documentation
+# Documentation
 # ============================================================================
-# `make -C build docs` regenerates the HTML API docs from the root Doxyfile,
-# into docs/doxygen/html/.
+# `make -C build docs` regenerates the site's variables page, then renders the
+# manual into docs/doxygen/html/.
+#
+# `docs-screens` is NOT one of its dependencies. Recapturing the screenshots
+# means booting a simulator per scenario and is a minute and a half, which is
+# too much to pay for every render; run it when a screen has actually moved.
+#
+# Both targets WRITE INTO THE SOURCE TREE, as `regen-site` does: what they
+# produce is committed, and a diff afterwards is the point rather than a
+# surprise.
+find_package(Python3 COMPONENTS Interpreter QUIET)
+if(Python3_Interpreter_FOUND)
+    # The site's variables page. Reads the tables and the ST directly, so it
+    # needs no compiler - unlike the rest of `regen-site`.
+    add_custom_target(docs-variables
+        COMMAND ${CMAKE_COMMAND} -E chdir ${CMAKE_SOURCE_DIR}
+                ${Python3_EXECUTABLE} scripts/tables.py points ${BOTANIK_SITE}
+        COMMENT "Regenerating the site's variables page"
+        VERBATIM)
+
+    # The console screenshots, which drive the real simulator through the pyte
+    # harness: a built sim, and pyte importable. Skipped rather than failed
+    # where either is absent, the way the screen tests are.
+    if(TARGET botanik_sim)
+        execute_process(COMMAND ${Python3_EXECUTABLE} -c "import pytest, pyte"
+                        RESULT_VARIABLE _screens_rc OUTPUT_QUIET ERROR_QUIET)
+        if(_screens_rc EQUAL 0)
+            add_custom_target(docs-screens
+                COMMAND ${CMAKE_COMMAND} -E chdir ${CMAKE_SOURCE_DIR}
+                        ${Python3_EXECUTABLE} scripts/screens.py
+                        $<TARGET_FILE:botanik_sim>
+                COMMAND ${CMAKE_COMMAND} -E chdir ${CMAKE_SOURCE_DIR}
+                        ${Python3_EXECUTABLE} scripts/screens.py --scenarios
+                        $<TARGET_FILE:botanik_sim>
+                DEPENDS botanik_sim
+                USES_TERMINAL
+                COMMENT "Recapturing the console screenshots (a minute or two)"
+                VERBATIM)
+        else()
+            message(STATUS "docs: pyte not importable - screenshots stay as committed")
+        endif()
+    endif()
+endif()
+
 find_program(DOXYGEN doxygen)
 if(DOXYGEN)
     add_custom_target(docs
@@ -671,6 +713,10 @@ if(DOXYGEN)
         COMMENT "Generating API documentation with Doxygen"
         VERBATIM
     )
+    # Refreshed first, so doxygen renders what was just produced.
+    if(TARGET docs-variables)
+        add_dependencies(docs docs-variables)
+    endif()
 
     # `make clean` wipes the output (CMake 3.15+). Doxygen never deletes stale
     # pages, so without this a removed page lingers until a manual rm.

@@ -21,6 +21,7 @@ a unit that has been up a while rather than one three seconds old.
 
 import calendar
 import os
+import re
 import shutil
 import sys
 import tempfile
@@ -97,9 +98,21 @@ def store_for(tmp):
     return os.path.join(tmp, 'config')
 
 
+# Two cells move for reasons that are not the firmware's: the git hash is
+# stamped in at build time, and TPS is measured off host timing. Left alone they
+# would rewrite a committed screen on every commit, so a reader learns to ignore
+# the diff. Everything else is deterministic under the virtual clock.
+MASKS = [(re.compile(r'(Commit\s*\.+\s*: ).*$'),        r'\1<COMMIT>'),
+         (re.compile(r'(Task period\s+\d+ ms \()\d+( TPS\))'), r'\1<N>\2')]
+
+
 def capture(term, path):
     """The raw grid, right-trimmed, with the trailing blank rows dropped."""
-    rows = [r.rstrip() for r in term.screen.display]
+    rows = []
+    for r in term.screen.display:
+        for pat, sub in MASKS:
+            r = pat.sub(sub, r)
+        rows.append(r.rstrip())
     while rows and not rows[-1]:
         rows.pop()
     open(path, 'w').write('\n'.join(rows) + '\n')
