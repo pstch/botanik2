@@ -1,15 +1,8 @@
 # HOME: the overview screen {#user_home}
 
-<!-- source of truth: pages/home.h; the site supplies the field table, the page owns the geometry -->
-
-## The screen
+The home page is the first page of the console, and it's the page visible by default when the unit starts. It shows :
+ - a logo, the name of the site, and the current code version.
+ - a set of fields that can be defined at the site-level
+ - a small region with the last log lines
 
 @verbinclude home.txt
-
-## The identity block
-
-## Uptime and version
-
-## The site fields
-
-## The log tail along the bottom

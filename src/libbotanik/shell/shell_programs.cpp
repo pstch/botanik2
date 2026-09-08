@@ -4,7 +4,7 @@
  *        of the scan without rebuilding.
  *
  * A program's gate is the operator's, beside the system's control authority,
- * and the stricter wins - so `programs enable` on a unit whose control is
+ * and the stricter wins - so `programs start` on a unit whose control is
  * inhibited changes nothing visible, which is why `programs status` reports
  * sys_control beside the counts.
  */

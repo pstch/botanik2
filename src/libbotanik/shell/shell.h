@@ -344,7 +344,7 @@ namespace Botanik { namespace Shell {
         /** @brief Force @p r's `_qlt` companion. False when it has none -
          *  a parameter, or a row no law qualifies. */
         bool _force_quality(uint16_t r, bool valid);
-        /** @brief `programs enable|disable <name>|all`. @p on is which. */
+        /** @brief `programs start|stop <name>|all`. @p on is which. */
         void _programs_gate(const char* nm, uint16_t wn, bool on);
         /** @brief `programs status`: a tally per health, and who is in the ones
          *  worth naming. */

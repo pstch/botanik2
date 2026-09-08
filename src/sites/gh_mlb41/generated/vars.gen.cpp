@@ -94,7 +94,7 @@ const Descriptor rows[] = {
     P("sys_jitter_pct", T_U8, 50, 1, 100, VAR_NONE, VAR_NONE, 0, "%", 971, "CPU_JITT alarm threshold", "percent of the task period"),
     P("sys_stack_pct", T_U8, 75, 1, 100, VAR_NONE, VAR_NONE, 0, "%", 972, "STACK alarm threshold", "percent of the stack in use"),
     P("sys_startup_sec", T_U16, BOTANIK_STARTUP_HOLD_MS / 1000.0, 0, 600, VAR_NONE, VAR_NONE, 0, "sec", 973, "control held after boot, seconds", "nothing runs a law on a field that has not answered yet; 0 runs from the first beat"),
-    P("sys_control", T_BOOL, 1, 0, 1, VAR_NONE, VAR_NONE, 0, "", 976, "let the control programs drive", "off stops every law and drops what they were driving to its declared safe state; per-program is `programs disable`"),
+    P("sys_control", T_BOOL, 1, 0, 1, VAR_NONE, VAR_NONE, 0, "", 976, "let the control programs drive", "off stops every law and drops what they were driving to its declared safe state; per-program is `programs stop`"),
     P("sys_shutdown_sec", T_U16, BOTANIK_SHUTDOWN_HOLD_MS / 1000.0, 0, 600, VAR_NONE, VAR_NONE, 0, "sec", 975, "laws stopped before the ending, seconds", "the mirror of sys_startup_sec: time for the record to reach flash before a reset"),
     P("sys_retain_sec", T_U32, 300, 0, 86400, VAR_NONE, VAR_NONE, 0, "sec", 974, "how often retained values reach flash", "0 leaves only `save` and the way down; wear vs loss"),
     P("plc_parkTimeout_sec", T_U16, 300, 0, 900, VAR_NONE, VAR_NONE, 0, "sec", 947, "how long a program may take to park, seconds", "the cap on the STOP hold: a ram that has not finished travelling is dropped safe and the log names it"),
