@@ -39,16 +39,24 @@ hardware does nothing.
 
 ## Control authority
 
-Three things decide whether a control program drives anything, and the strictest
+Two things decide whether a control program drives anything, and the stricter
 of them wins:
 
-- the operator, through `sys_control` for every program at once, or
-  `programs disable <pat>` for one of them, or a glob of them;
+- the operator, through `control stop` and `control start` for every program at
+  once, or `programs disable <pat>` for one of them, or a glob of them.
+  `control` writes the `sys_control` setting, live but unsaved until
+  `params save sys_control`; `programs` holds its choice in memory, so a
+  disabled program comes back on the next reboot;
 - the unit, through its run state: the laws run in RUN only, never while it is
   starting up, shutting down or halted. The header bar carries it, and the
-  SYSTEM page spells it out;
-- the program itself, through the health it reports. The TASKS page shows that
-  per program.
+  SYSTEM page spells it out.
+
+`control status` reports both at once, and says which of the two is holding
+the plant when nothing is moving.
+
+A program's own health is not a third gate. It is what the program says about
+its last answer, shown per program on the TASKS page, and a FAULTED one keeps
+running: what it writes when it cannot answer is its safe state.
 
 A program that stops running does not leave what it was driving where it stood.
 Its rows go to their declared safe state on the next beat, so a valve closes and

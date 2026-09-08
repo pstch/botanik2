@@ -300,6 +300,9 @@ namespace Botanik { namespace Shell {
         void _cmd_params(const char* args, uint16_t alen);
         /** @brief `programs list|enable|disable|save` - the control programs. */
         void _cmd_programs(const char* args, uint16_t alen);
+        /** @brief `control start|stop|status` - sys_control, the operator's
+         *  standing choice about whether the laws drive at all. */
+        void _cmd_control(const char* args, uint16_t alen);
         /** @brief `overrides list|get|set|clear|save` - the forced rows. */
         void _cmd_overrides(const char* args, uint16_t alen);
         /** @brief `vars list|get|info` - every row, whatever its scope. */
@@ -346,6 +349,8 @@ namespace Botanik { namespace Shell {
         /** @brief `programs status`: a tally per health, and who is in the ones
          *  worth naming. */
         void _programs_status();
+        void _control_set(bool on);
+        void _control_status();
         /** @} */
 
         /** @name Shared verb bodies

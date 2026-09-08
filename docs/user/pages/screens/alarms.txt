@@ -1,0 +1,24 @@
+ 1 2 3 4:ALARMS 5 6 7 8 9           00:01:10        run:  RUN cpu:100% stk:  1%
+
+  | CODE     | VARIABLE                    | ON | ACK | OVR | LAST EVENT     |
+  +----------+-----------------------------+----+-----+-----+----------------+
+  | SYS_RST  | alarm_system_reset          | ON |     |     | 26/01/01 00:00 |
+
+
+
+
+
+
+
+
+
+
+  +----------+-----------------------------+----+-----+-----+----------------+
+
+ Description  : unit reset recently
+ Remediation  : -
+ Acknowledged : -
+
+ unmasked <  [recent]     > all    1-1 / 1                  1 active  ENTER ack
+
+ ALARMS : SYS_RST

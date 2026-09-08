@@ -126,8 +126,11 @@ namespace Botanik { namespace Plc { namespace Runtime {
         /** @brief Put @p i in or out of the scan. Taking it out drops what it
          *  drives to its safe state on the next beat. */
         void        set_enabled(uint8_t i, bool on);
-        /** @brief Whether @p i would run right now: the operator's gate, the
-         *  system's hold and its own health, strictest first. */
+        /** @brief Whether @p i would run right now: the operator's gate and
+         *  the system's hold, stricter first.
+         *  @note Health is NOT one of them. A FAULTED program keeps being
+         *  scanned, because what it writes when it cannot answer IS its safe
+         *  state; dropping it would leave its rows wherever they stood. */
         bool        running(uint8_t i) const;
         /** @brief sys_control, or true where the row is absent. */
         bool        control_allowed() const;

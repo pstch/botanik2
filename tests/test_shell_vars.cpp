@@ -332,6 +332,35 @@ TEST_CASE("shell programs: disable takes a law out of the scan and list says so"
     CHECK(f.run("programs list irrigation").find("running") != std::string::npos);
 }
 
+TEST_CASE("shell control: stop takes every law out of the scan, start puts them back") {
+    Rig f;
+    CHECK(f.run("control status").find("28 of 28 running") != std::string::npos);
+
+    f.run("control stop");
+    CHECK(f.said("control STOPPED"));
+    CHECK_FALSE(f.var("sys_control").as_bool());
+    CHECK(f.run("control status").find("0 of 28 running") != std::string::npos);
+
+    f.run("control start");
+    CHECK(f.said("control started"));
+    CHECK(f.var("sys_control").as_bool());
+    CHECK(f.run("control status").find("28 of 28 running") != std::string::npos);
+}
+
+TEST_CASE("shell control: the two gates are independent, and status says which holds") {
+    Rig f;
+    // The operator's half alone is not enough: a unit outside RUN drives
+    // nothing whatever sys_control says, and an operator who has just started
+    // control needs telling that. The firmware hands the plant the run state;
+    // the rig does not, and a plant without one reads every beat as RUN.
+    f.plant.set_run_state(&f.sched.run_state);
+    f.sched.run_state = Scheduler::RunState::START;
+    const std::string got = f.run("control start");
+    CHECK(got.find("control started") != std::string::npos);
+    CHECK(got.find("not in RUN") != std::string::npos);
+    CHECK(got.find("0 of 28 running") != std::string::npos);
+}
+
 TEST_CASE("shell programs: the gate is the operator's, and it takes a glob") {
     Rig f;
     f.run("programs disable irr*");
