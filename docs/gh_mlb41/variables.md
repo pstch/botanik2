@@ -714,33 +714,33 @@ between them.
 
 | # | program | rate | reads | writes | what it does |
 |---|---|---|---|---|---|
-| 1 | ac_grid_watch | control | 12 | 11 | The utility feed, watched. |
-| 2 | ac_local_watch | control | 15 | 12 | The generator-backed side of the transfer switch, watched. |
-| 3 | dc_watch | control | 19 | 16 | The DC rails and the two batteries, watched - and the plant-wide lockout they raise. |
-| 4 | temp_rh_sensors | sense | 50 | 20 | The four measurement locations, each voted down to one reading and filtered: what the greenhouse IS, before any law is set in it. |
-| 5 | wx_sensors | sense | 18 | 9 | The two weather stations, voted down to one reading per quantity: the worse of them, because two cannot say which is lying. |
-| 6 | strat | sense | 5 | 2 | The stratification gap: how much warmer the ceiling is than the floor, unsigned. |
-| 7 | temp_rh_zone | sense | 9 | 13 | The psychrometrics every other law is set in, off the two interior levels: one temperature for the house, and the worst case per quantity. |
-| 8 | climate_watch | control | 14 | 5 | The interior conditions, watched: the alarms that are a READING crossing a line rather than a law failing to hold one. |
-| 9 | weather_watch | control | 6 | 2 | The weather station, watched: whether it is answering, and whether what it says is a storm. |
-| 10 | day_phase | control | 13 | 11 | The day's phase, and the temperature target it puts in force. |
-| 11 | target_temp | control | 11 | 1 | The temperature the greenhouse is being held to: the base setting, shifted by whichever bank phase is both IN FORCE and ARMED. |
-| 12 | cooling | sense | 10 | 4 | The cooling ladder: a PID on the interior temperature against the phase's target, published as one signed demand. |
-| 13 | humidity | control | 10 | 3 | The humidity ladder: four bands and a dead zone on the dew-point margin, published as one signed demand - and the rot guard under it. |
-| 14 | intake_dry | control | 10 | 1 | The intake dry gate: whether the air outside is drier than the air in. |
-| 15 | intake_gates | control | 10 | 2 | The two intake gates: whether crawlspace air is worth drawing, for cooling and for ground heat. |
+| 1 | ac_grid_watch | control | 8 | 6 | The utility feed, watched. |
+| 2 | ac_local_watch | control | 11 | 7 | The generator-backed side of the transfer switch, watched. |
+| 3 | dc_watch | control | 14 | 10 | The DC rails and the two batteries, watched - and the plant-wide lockout they raise. |
+| 4 | temp_rh_sensors | sense | 26 | 12 | The four measurement locations, each voted down to one reading and filtered: what the greenhouse IS, before any law is set in it. |
+| 5 | wx_sensors | sense | 10 | 5 | The two weather stations, voted down to one reading per quantity: the worse of them, because two cannot say which is lying. |
+| 6 | strat | sense | 3 | 1 | The stratification gap: how much warmer the ceiling is than the floor, unsigned. |
+| 7 | temp_rh_zone | sense | 6 | 8 | The psychrometrics every other law is set in, off the two interior levels: one temperature for the house, and the worst case per quantity. |
+| 8 | climate_watch | control | 11 | 5 | The interior conditions, watched: the alarms that are a READING crossing a line rather than a law failing to hold one. |
+| 9 | weather_watch | control | 4 | 2 | The weather station, watched: whether it is answering, and whether what it says is a storm. |
+| 10 | day_phase | control | 12 | 6 | The day's phase, and the temperature target it puts in force. |
+| 11 | target_temp | control | 10 | 1 | The temperature the greenhouse is being held to: the base setting, shifted by whichever bank phase is both IN FORCE and ARMED. |
+| 12 | cooling | sense | 9 | 2 | The cooling ladder: a PID on the interior temperature against the phase's target, published as one signed demand. |
+| 13 | humidity | control | 9 | 3 | The humidity ladder: four bands and a dead zone on the dew-point margin, published as one signed demand - and the rot guard under it. |
+| 14 | intake_dry | control | 6 | 1 | The intake dry gate: whether the air outside is drier than the air in. |
+| 15 | intake_gates | control | 7 | 2 | The two intake gates: whether crawlspace air is worth drawing, for cooling and for ground heat. |
 | 16 | destrat | control | 8 | 1 | The destratification ladder: three bands with hysteresis on the ceiling-to- floor gap, published as a demand. |
-| 17 | roof_lockout | control | 11 | 4 | What forbids the roof being open at all, whatever the ladder asks. |
+| 17 | roof_lockout | control | 9 | 4 | What forbids the roof being open at all, whatever the ladder asks. |
 | 18 | intractors | control | 10 | 2 | The two intractors: variable-speed fans drawing air from under the floor, driven by whichever of three demands wants the most. |
 | 19 | fans | control | 10 | 7 | The two destratification fans: three relayed speeds, driven by whichever of three demands wants the most. |
-| 20 | skirt | control | 11 | 2 | The wet skirt: one valve pulsed against two demands. |
-| 21 | screen | control | 10 | 3 | The thermal screen: one coil, deployed when the greenhouse is losing heat rather than gaining it. |
+| 20 | skirt | control | 9 | 2 | The wet skirt: one valve pulsed against two demands. |
+| 21 | screen | control | 9 | 3 | The thermal screen: one coil, deployed when the greenhouse is losing heat rather than gaining it. |
 | 22 | windows | control | 11 | 21 | The four roof windows: one target from the cooling ladder, and ONE MOVING AT A TIME. |
-| 23 | irr_modulation | control | 8 | 4 | The irrigation ladder: how thirsty the air has been, as one factor. |
+| 23 | irr_modulation | control | 7 | 2 | The irrigation ladder: how thirsty the air has been, as one factor. |
 | 24 | irr_mtr_input | control | 7 | 5 | The inlet meter, and the two supply faults it alone can see. |
-| 25 | irr_mtr_output | control | 6 | 4 | The outlet meter: what came back off the trays. |
-| 26 | irr_schedule | control | 30 | 21 | Which tray is owed water, and whether the climate will allow a cycle to start. |
-| 27 | irrigation | control | 23 | 41 | Irrigation: one tray at a time, filled to a dose, steeped, and drained. |
+| 25 | irr_mtr_output | control | 5 | 2 | The outlet meter: what came back off the trays. |
+| 26 | irr_schedule | control | 28 | 21 | Which tray is owed water, and whether the climate will allow a cycle to start. |
+| 27 | irrigation | control | 21 | 41 | Irrigation: one tray at a time, filled to a dose, steeped, and drained. |
 | 28 | irr_valves | control | 5 | 13 | The irrigation manifold: which valves each state of the cycle opens. |
 
 ### ac_grid_watch
@@ -749,8 +749,8 @@ between them.
 
 | direction | rows |
 |---|---|
-| reads | `grid_LN_V`, `grid_LN_V_qlt`, `grid_total_A`, `grid_total_A_qlt`, `grid_total_W`, `grid_total_W_qlt`, `grid_Hz`, `grid_Hz_qlt`, `pwr_gridLo_V`, `pwr_gridHi_V`, `pwr_gridLo_Hz`, `pwr_gridHi_Hz` |
-| writes | `sys_grid_V`, `sys_grid_V_qlt`, `sys_grid_A`, `sys_grid_A_qlt`, `sys_grid_W`, `sys_grid_W_qlt`, `sys_grid_Hz`, `sys_grid_Hz_qlt`, `sys_grid_ok`, `sys_grid_ok_qlt`, `alarm_ac_grid` |
+| reads | `grid_LN_V`, `grid_total_A`, `grid_total_W`, `grid_Hz`, `pwr_gridLo_V`, `pwr_gridHi_V`, `pwr_gridLo_Hz`, `pwr_gridHi_Hz` |
+| writes | `sys_grid_V`, `sys_grid_A`, `sys_grid_W`, `sys_grid_Hz`, `sys_grid_ok`, `alarm_ac_grid` |
 
 ### ac_local_watch
 
@@ -758,8 +758,8 @@ between them.
 
 | direction | rows |
 |---|---|
-| reads | `ats_V`, `ats_V_qlt`, `ats_A`, `ats_A_qlt`, `ats_W`, `ats_W_qlt`, `ats_Hz`, `ats_Hz_qlt`, `pwr_localLo_V`, `pwr_localHi_V`, `pwr_localLo_Hz`, `pwr_localHi_Hz`, `sys_grid_ok`, `pwr_genStart_sec`, `sys_now_ms` |
-| writes | `sys_local_V`, `sys_local_V_qlt`, `sys_local_A`, `sys_local_A_qlt`, `sys_local_W`, `sys_local_W_qlt`, `sys_local_Hz`, `sys_local_Hz_qlt`, `sys_local_ok`, `sys_local_ok_qlt`, `alarm_ac_local`, `alarm_gen` |
+| reads | `ats_V`, `ats_A`, `ats_W`, `ats_Hz`, `pwr_localLo_V`, `pwr_localHi_V`, `pwr_localLo_Hz`, `pwr_localHi_Hz`, `sys_grid_ok`, `pwr_genStart_sec`, `sys_now_ms` |
+| writes | `sys_local_V`, `sys_local_A`, `sys_local_W`, `sys_local_Hz`, `sys_local_ok`, `alarm_ac_local`, `alarm_gen` |
 
 ### dc_watch
 
@@ -767,8 +767,8 @@ between them.
 
 | direction | rows |
 |---|---|
-| reads | `pwr_dc_V1..2`, `pwr_dc_V1..2_qlt`, `pwr_upsBat_V`, `pwr_upsBat_V_qlt`, `pwr_genBat_V`, `pwr_genBat_V_qlt`, `pwr_dcLo_V1..2`, `pwr_upsBatLo_V`, `pwr_genBatLo_V`, `pwr_dc_avg_ms1..2`, `pwr_upsBat_avg_ms`, `pwr_genBat_avg_ms`, `pwr_upsLowBat`, `pwr_upsLowBat_qlt`, `sys_now_ms` |
-| writes | `sys_dc_V1..2`, `sys_dc_V1..2_qlt`, `sys_upsBat_V`, `sys_upsBat_V_qlt`, `sys_genBat_V`, `sys_genBat_V_qlt`, `sys_dc_ok`, `sys_dc_ok_qlt`, `sys_supply_lockout`, `sys_supply_lockout_qlt`, `alarm_dc_ps1..2`, `alarm_dc_ups`, `alarm_generator_battery` |
+| reads | `pwr_dc_V1..2`, `pwr_upsBat_V`, `pwr_genBat_V`, `pwr_dcLo_V1..2`, `pwr_upsBatLo_V`, `pwr_genBatLo_V`, `pwr_dc_avg_ms1..2`, `pwr_upsBat_avg_ms`, `pwr_genBat_avg_ms`, `pwr_upsLowBat`, `sys_now_ms` |
+| writes | `sys_dc_V1..2`, `sys_upsBat_V`, `sys_genBat_V`, `sys_dc_ok`, `sys_supply_lockout`, `alarm_dc_ps1..2`, `alarm_dc_ups`, `alarm_generator_battery` |
 
 ### temp_rh_sensors
 
@@ -776,8 +776,8 @@ between them.
 
 | direction | rows |
 |---|---|
-| reads | `cli_sensorTau_ms`, `sys_now_ms`, `cli_temp_hi1..3`, `cli_temp_hi1..3_qlt`, `cli_rh_hi1..3`, `cli_rh_hi1..3_qlt`, `cli_temp_lo1..3`, `cli_temp_lo1..3_qlt`, `cli_rh_lo1..3`, `cli_rh_lo1..3_qlt`, `cli_temp_cs1..3`, `cli_temp_cs1..3_qlt`, `cli_rh_cs1..3`, `cli_rh_cs1..3_qlt`, `cli_temp_ext1..3`, `cli_temp_ext1..3_qlt`, `cli_rh_ext1..3`, `cli_rh_ext1..3_qlt` |
-| writes | `cli_temp_hi`, `cli_rh_hi`, `alarm_sns_ceiling`, `cli_temp_lo`, `cli_rh_lo`, `alarm_sns_floor`, `cli_temp_cs`, `cli_rh_cs`, `alarm_sns_crawlspace`, `cli_temp_ext`, `cli_rh_ext`, `alarm_sns_exterior`, `cli_temp_hi_qlt`, `cli_temp_lo_qlt`, `cli_temp_cs_qlt`, `cli_temp_ext_qlt`, `cli_rh_hi_qlt`, `cli_rh_lo_qlt`, `cli_rh_cs_qlt`, `cli_rh_ext_qlt` |
+| reads | `cli_sensorTau_ms`, `sys_now_ms`, `cli_temp_hi1..3`, `cli_rh_hi1..3`, `cli_temp_lo1..3`, `cli_rh_lo1..3`, `cli_temp_cs1..3`, `cli_rh_cs1..3`, `cli_temp_ext1..3`, `cli_rh_ext1..3` |
+| writes | `cli_temp_hi`, `cli_rh_hi`, `alarm_sns_ceiling`, `cli_temp_lo`, `cli_rh_lo`, `alarm_sns_floor`, `cli_temp_cs`, `cli_rh_cs`, `alarm_sns_crawlspace`, `cli_temp_ext`, `cli_rh_ext`, `alarm_sns_exterior` |
 
 ### wx_sensors
 
@@ -785,8 +785,8 @@ between them.
 
 | direction | rows |
 |---|---|
-| reads | `cli_wind_mps1..2`, `cli_wind_mps1..2_qlt`, `cli_windGust_mps1..2`, `cli_windGust_mps1..2_qlt`, `cli_rain_mmph1..2`, `cli_rain_mmph1..2_qlt`, `cli_irrad_Wpm21..22`, `cli_irrad_Wpm21..22_qlt`, `cli_wxTau_ms`, `sys_now_ms` |
-| writes | `cli_wind_mps`, `cli_wind_mps_qlt`, `cli_windGust_mps`, `cli_windGust_mps_qlt`, `cli_rain_mmph`, `cli_rain_mmph_qlt`, `cli_irrad_Wpm2`, `cli_irrad_Wpm2_qlt`, `alarm_wx_station` |
+| reads | `cli_wind_mps1..2`, `cli_windGust_mps1..2`, `cli_rain_mmph1..2`, `cli_irrad_Wpm21..22`, `cli_wxTau_ms`, `sys_now_ms` |
+| writes | `cli_wind_mps`, `cli_windGust_mps`, `cli_rain_mmph`, `cli_irrad_Wpm2`, `alarm_wx_station` |
 
 ### strat
 
@@ -794,8 +794,8 @@ between them.
 
 | direction | rows |
 |---|---|
-| reads | `cli_temp_hi`, `cli_temp_lo`, `cli_temp_hi_qlt`, `cli_temp_lo_qlt`, `cli_dTStratLow_degC` |
-| writes | `cli_dTStrat_degC`, `cli_dTStrat_degC_qlt` |
+| reads | `cli_temp_hi`, `cli_temp_lo`, `cli_dTStratLow_degC` |
+| writes | `cli_dTStrat_degC` |
 
 ### temp_rh_zone
 
@@ -803,8 +803,8 @@ between them.
 
 | direction | rows |
 |---|---|
-| reads | `cli_temp_hi`, `cli_rh_hi`, `cli_temp_lo`, `cli_rh_lo`, `cli_temp_hi_qlt`, `cli_temp_lo_qlt`, `cli_temp_ext`, `cli_temp_ext_qlt`, `cli_rotMargin_degC` |
-| writes | `cli_temp_in`, `cli_temp_in_qlt`, `cli_dewPoint_degC`, `cli_dewPoint_degC_qlt`, `cli_dpMargin_degC`, `cli_dpMargin_degC_qlt`, `cli_satPress_kPa`, `cli_satPress_kPa_qlt`, `cli_vpd_kPa`, `cli_vpd_kPa_qlt`, `alarm_rot`, `alarm_zone_blind`, `prog_temp_rh_zone_health` |
+| reads | `cli_temp_hi`, `cli_rh_hi`, `cli_temp_lo`, `cli_rh_lo`, `cli_temp_ext`, `cli_rotMargin_degC` |
+| writes | `cli_temp_in`, `cli_dewPoint_degC`, `cli_dpMargin_degC`, `cli_satPress_kPa`, `cli_vpd_kPa`, `alarm_rot`, `alarm_zone_blind`, `prog_temp_rh_zone_health` |
 
 ### climate_watch
 
@@ -812,7 +812,7 @@ between them.
 
 | direction | rows |
 |---|---|
-| reads | `cli_temp_hi`, `cli_dpMargin_degC`, `cli_temp_hi_qlt`, `cli_dpMargin_degC_qlt`, `cli_dTStrat_degC`, `cli_dTStrat_degC_qlt`, `cli_tooHot_degC`, `cli_tooCold_degC`, `cli_dehumFull_degC`, `cli_dTStratHigh_degC`, `alarm_sns_ceiling`, `alarm_sns_floor`, `alarm_sns_crawlspace`, `alarm_sns_exterior` |
+| reads | `cli_temp_hi`, `cli_dpMargin_degC`, `cli_dTStrat_degC`, `cli_tooHot_degC`, `cli_tooCold_degC`, `cli_dehumFull_degC`, `cli_dTStratHigh_degC`, `alarm_sns_ceiling`, `alarm_sns_floor`, `alarm_sns_crawlspace`, `alarm_sns_exterior` |
 | writes | `alarm_too_hot`, `alarm_too_cold`, `alarm_too_humid`, `alarm_strat`, `alarm_sensor_fault` |
 
 ### weather_watch
@@ -821,7 +821,7 @@ between them.
 
 | direction | rows |
 |---|---|
-| reads | `cli_wind_mps`, `cli_rain_mmph`, `cli_wind_mps_qlt`, `cli_rain_mmph_qlt`, `cli_windShutEnd_mps`, `sys_now_ms` |
+| reads | `cli_wind_mps`, `cli_rain_mmph`, `cli_windShutEnd_mps`, `sys_now_ms` |
 | writes | `alarm_weather_storm`, `cli_sinceRain_h` |
 
 ### day_phase
@@ -830,8 +830,8 @@ between them.
 
 | direction | rows |
 |---|---|
-| reads | `cli_temp_in`, `cli_temp_in_qlt`, `sol_ready`, `sol_fromRise_min`, `sol_fromSet_min`, `cli_coldBankTrg_degC`, `cli_heatBankTrg_degC`, `sol_coldBankRise_min`, `sol_breezeRise_min`, `sol_dayRise_min`, `sol_heatBankSet_min`, `sol_duskSet_min`, `sol_nightSet_min` |
-| writes | `cli_phase`, `cli_phase_qlt`, `cli_coldBankArm`, `cli_coldBankArm_qlt`, `cli_heatBankArm`, `cli_heatBankArm_qlt`, `cli_prevDayMax_degC`, `cli_prevDayMax_degC_qlt`, `cli_prevNightMin_degC`, `cli_prevNightMin_degC_qlt`, `prog_day_phase_health` |
+| reads | `cli_temp_in`, `sol_ready`, `sol_fromRise_min`, `sol_fromSet_min`, `cli_coldBankTrg_degC`, `cli_heatBankTrg_degC`, `sol_coldBankRise_min`, `sol_breezeRise_min`, `sol_dayRise_min`, `sol_heatBankSet_min`, `sol_duskSet_min`, `sol_nightSet_min` |
+| writes | `cli_phase`, `cli_coldBankArm`, `cli_heatBankArm`, `cli_prevDayMax_degC`, `cli_prevNightMin_degC`, `prog_day_phase_health` |
 
 ### target_temp
 
@@ -839,7 +839,7 @@ between them.
 
 | direction | rows |
 |---|---|
-| reads | `cli_targetMin_degC`, `cli_targetMax_degC`, `cli_phase`, `cli_phase_qlt`, `cli_coldBankArm`, `cli_heatBankArm`, `cli_coolSet_degC`, `cli_coldBankOfs_degC`, `cli_heatBankOfs_degC`, `cli_targetTau_s`, `sys_now_ms` |
+| reads | `cli_targetMin_degC`, `cli_targetMax_degC`, `cli_phase`, `cli_coldBankArm`, `cli_heatBankArm`, `cli_coolSet_degC`, `cli_coldBankOfs_degC`, `cli_heatBankOfs_degC`, `cli_targetTau_s`, `sys_now_ms` |
 | writes | `cli_targetTemp_degC` |
 
 ### cooling
@@ -848,8 +848,8 @@ between them.
 
 | direction | rows |
 |---|---|
-| reads | `cli_temp_in`, `cli_temp_in_qlt`, `cli_targetTemp_degC`, `cli_windowStartDem`, `cli_windowFullDem`, `cli_windowPark`, `cli_coolKp`, `cli_coolTi_sec`, `cli_coolTd_sec`, `sys_now_ms` |
-| writes | `cli_coolDem`, `cli_coolDem_qlt`, `cli_windowDem`, `cli_windowDem_qlt` |
+| reads | `cli_temp_in`, `cli_targetTemp_degC`, `cli_windowStartDem`, `cli_windowFullDem`, `cli_windowPark`, `cli_coolKp`, `cli_coolTi_sec`, `cli_coolTd_sec`, `sys_now_ms` |
+| writes | `cli_coolDem`, `cli_windowDem` |
 
 ### humidity
 
@@ -857,7 +857,7 @@ between them.
 
 | direction | rows |
 |---|---|
-| reads | `cli_rotRelease_sec`, `cli_dpMargin_degC`, `cli_dpMargin_degC_qlt`, `cli_dehumFull_degC`, `cli_dehumStart_degC`, `cli_humidStart_degC`, `cli_humidFull_degC`, `cli_rotMargin_degC`, `alarm_rot`, `sys_now_ms` |
+| reads | `cli_rotRelease_sec`, `cli_dpMargin_degC`, `cli_dehumFull_degC`, `cli_dehumStart_degC`, `cli_humidStart_degC`, `cli_humidFull_degC`, `cli_rotMargin_degC`, `alarm_rot`, `sys_now_ms` |
 | writes | `cli_humidDem`, `cli_rotLockout`, `cli_rotVentDem` |
 
 ### intake_dry
@@ -866,7 +866,7 @@ between them.
 
 | direction | rows |
 |---|---|
-| reads | `cli_temp_hi`, `cli_rh_hi`, `cli_temp_ext`, `cli_rh_ext`, `cli_temp_hi_qlt`, `cli_rh_hi_qlt`, `cli_temp_ext_qlt`, `cli_rh_ext_qlt`, `cli_ventDryMgn_degC`, `cli_ventHyst_degC` |
+| reads | `cli_temp_hi`, `cli_rh_hi`, `cli_temp_ext`, `cli_rh_ext`, `cli_ventDryMgn_degC`, `cli_ventHyst_degC` |
 | writes | `cli_intakeDryOk` |
 
 ### intake_gates
@@ -875,7 +875,7 @@ between them.
 
 | direction | rows |
 |---|---|
-| reads | `cli_temp_in`, `cli_temp_cs`, `cli_coolDem`, `cli_temp_in_qlt`, `cli_temp_cs_qlt`, `cli_coolDem_qlt`, `cli_ventTempMgn_degC`, `cli_ventHyst_degC`, `cli_groundHeatDem`, `cli_groundDemHyst` |
+| reads | `cli_temp_in`, `cli_temp_cs`, `cli_coolDem`, `cli_ventTempMgn_degC`, `cli_ventHyst_degC`, `cli_groundHeatDem`, `cli_groundDemHyst` |
 | writes | `cli_intakeCoolOk`, `cli_groundHeatOk` |
 
 ### destrat
@@ -893,7 +893,7 @@ between them.
 
 | direction | rows |
 |---|---|
-| reads | `cli_rain_mmph`, `cli_rain_mmph_qlt`, `cli_wind_mps`, `cli_wind_mps_qlt`, `cli_windGust_mps`, `cli_windShutBegin_mps`, `cli_windShutEnd_mps`, `cli_windShutMax`, `cli_rainLockout_sec`, `sys_supply_lockout`, `sys_now_ms` |
+| reads | `cli_rain_mmph`, `cli_wind_mps`, `cli_windGust_mps`, `cli_windShutBegin_mps`, `cli_windShutEnd_mps`, `cli_windShutMax`, `cli_rainLockout_sec`, `sys_supply_lockout`, `sys_now_ms` |
 | writes | `cli_rainLockout`, `cli_windLockout`, `cli_windowLockout`, `cli_windowCap` |
 
 ### intractors
@@ -920,7 +920,7 @@ between them.
 
 | direction | rows |
 |---|---|
-| reads | `cli_coolDem`, `cli_coolDem_qlt`, `cli_humidDem`, `cli_skirtCoolDem`, `cli_skirtDryMin_degC`, `cli_dpMargin_degC`, `cli_dpMargin_degC_qlt`, `cli_rotLockout`, `cli_skirtPeriod_sec`, `cli_skirtMinOn_sec`, `sys_now_ms` |
+| reads | `cli_coolDem`, `cli_humidDem`, `cli_skirtCoolDem`, `cli_skirtDryMin_degC`, `cli_dpMargin_degC`, `cli_rotLockout`, `cli_skirtPeriod_sec`, `cli_skirtMinOn_sec`, `sys_now_ms` |
 | writes | `cli_skirtValve`, `cli_skirtDuty` |
 
 ### screen
@@ -929,7 +929,7 @@ between them.
 
 | direction | rows |
 |---|---|
-| reads | `cli_coolDem`, `cli_coolDem_qlt`, `cli_thermalScreenDem`, `cli_phase`, `cli_screenTravel_sec`, `cli_screenTmo_sec`, `cli_screenMinRun_ms`, `cli_screenDeadband`, `cli_screenRedatum`, `sys_now_ms` |
+| reads | `cli_coolDem`, `cli_thermalScreenDem`, `cli_phase`, `cli_screenTravel_sec`, `cli_screenTmo_sec`, `cli_screenMinRun_ms`, `cli_screenDeadband`, `cli_screenRedatum`, `sys_now_ms` |
 | writes | `cli_screen`, `cli_screenMoving`, `cli_screen_drift` |
 
 ### windows
@@ -947,8 +947,8 @@ between them.
 
 | direction | rows |
 |---|---|
-| reads | `cli_vpd_kPa`, `cli_dpMargin_degC_qlt`, `irr_dryEwmaDays`, `irr_dryLo_kPa`, `irr_dryHi_kPa`, `irr_modMin`, `irr_modGamma`, `sys_now_ms` |
-| writes | `irr_vpdAvg_kPa`, `irr_vpdAvg_kPa_qlt`, `irr_mod`, `irr_mod_qlt` |
+| reads | `cli_vpd_kPa`, `irr_dryEwmaDays`, `irr_dryLo_kPa`, `irr_dryHi_kPa`, `irr_modMin`, `irr_modGamma`, `sys_now_ms` |
+| writes | `irr_vpdAvg_kPa`, `irr_mod` |
 
 ### irr_mtr_input
 
@@ -965,8 +965,8 @@ between them.
 
 | direction | rows |
 |---|---|
-| reads | `irr_out_Lpm`, `irr_out_Lpm_qlt`, `irr_out_avg_ms`, `irr_flowBand_Lpm`, `irr_flowCutoff_Lpm`, `sys_now_ms` |
-| writes | `irr_outFlow_Lpm`, `irr_outFlow_Lpm_qlt`, `irr_outTotal_L`, `irr_outTotal_L_qlt` |
+| reads | `irr_out_Lpm`, `irr_out_avg_ms`, `irr_flowBand_Lpm`, `irr_flowCutoff_Lpm`, `sys_now_ms` |
+| writes | `irr_outFlow_Lpm`, `irr_outTotal_L` |
 
 ### irr_schedule
 
@@ -974,7 +974,7 @@ between them.
 
 | direction | rows |
 |---|---|
-| reads | `irr_forceNow`, `irr_forceOn_tray1..8`, `irr_mod`, `irr_volFreqSplit`, `irr_traysPerDay`, `cli_temp_ext`, `cli_temp_ext_qlt`, `irr_dawnGate_degC`, `cli_phase`, `cli_phase_qlt`, `sol_ready`, `sol_fromRise_min`, `sol_dayRise_min`, `irr_morningWin_min`, `sys_today`, `irr_days_tray1..8` |
+| reads | `irr_forceNow`, `irr_forceOn_tray1..8`, `irr_mod`, `irr_volFreqSplit`, `irr_traysPerDay`, `cli_temp_ext`, `irr_dawnGate_degC`, `cli_phase`, `sol_ready`, `sol_fromRise_min`, `sol_dayRise_min`, `irr_morningWin_min`, `sys_today`, `irr_days_tray1..8` |
 | writes | `irr_dueTray`, `irr_slotOpen`, `irr_period_days`, `irr_today`, `irr_servedToday`, `irr_last_tray1..8`, `irr_forceOff_tray1..8` |
 
 ### irrigation
@@ -983,7 +983,7 @@ between them.
 
 | direction | rows |
 |---|---|
-| reads | `irr_today`, `irr_dueTray`, `irr_mod`, `irr_mod_qlt`, `irr_inTotal_L`, `irr_outTotal_L`, `irr_outFlow_Lpm_qlt`, `irr_volFreqSplit`, `irr_maxFill_sec`, `irr_soak_sec`, `irr_drainWindow_sec`, `irr_flush_sec`, `irr_expDrainFrac`, `irr_drainMargin`, `sys_now_ms`, `irr_liters_tray1..8` |
+| reads | `irr_today`, `irr_dueTray`, `irr_mod`, `irr_inTotal_L`, `irr_outTotal_L`, `irr_volFreqSplit`, `irr_maxFill_sec`, `irr_soak_sec`, `irr_drainWindow_sec`, `irr_flush_sec`, `irr_expDrainFrac`, `irr_drainMargin`, `sys_now_ms`, `irr_liters_tray1..8` |
 | writes | `irr_volume_L`, `irr_state`, `irr_activeTray`, `irr_delivered_L`, `irr_drained_L`, `irr_servedToday`, `irr_forceNow`, `alarm_irr_fill`, `alarm_irr_drain`, `irr_last_tray1..8`, `irr_forceOn_tray1..8`, `alarm_irr_fill_tray1..8`, `alarm_irr_drain_tray1..8` |
 
 ### irr_valves

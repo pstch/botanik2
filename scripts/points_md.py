@@ -166,6 +166,10 @@ def points(site):
     iface = {}
     for i, e in enumerate(prog, 1):
         ext = var_externals(os.path.join(site, e['source']))
+        # Quality companions are left out. A law reads and writes them beside
+        # the rows they speak for, so listing both says nothing the pairing does
+        # not, and doubles the table.
+        ext = [x for x in ext if not x[0].endswith('_qlt')]
         iface[e['name']] = ([n for n, _t, ro in ext if ro],
                             [n for n, _t, ro in ext if not ro])
         L.append('| %d | %s | %s | %d | %d | %s |'
