@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """The site, from its tables.
 
-    tables.py generate [site]   library.csv + tables/*.csv -> vars.gen.{h,cpp}, rows.gen.h
-    tables.py config   [site]   site.toml + the tables     -> config.gen.h
-    tables.py plant    [site]   programs.csv + ST          -> plant.st, plant.cpp, matiec
-    tables.py points   [site]   the lot                    -> docs/<site>/reference/variables.md
+    sitegen/tables.py generate [site]   library.csv + tables/*.csv -> vars.gen.{h,cpp}, rows.gen.h
+    sitegen/tables.py config   [site]   site.toml + the tables     -> config.gen.h
+    sitegen/tables.py plant    [site]   programs.csv + ST          -> plant.st, plant.cpp, matiec
+    sitegen/tables.py points   [site]   the lot                    -> docs/<site>/reference/variables.md
 
 `site` is a name under src/sites/, or a path. BOTANIK_SITE_DIR overrides it.
 
@@ -18,7 +18,9 @@ it checks is checked again at runtime."""
 
 import os, re, sys
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+# Runnable as a path (`python3 .../sitegen/tables.py`), so the package's parent
+# has to be importable before the package is.
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from sitegen import render
 from sitegen.reference import points

@@ -108,7 +108,7 @@ cannot drift. Halves are skipped where their tool is absent.
 
 The compiler `check-generated` diffs against is pinned: `vendor/matiec`, one
 upstream commit, built by `make -C build matiec` into `build/matiec/iec2c`.
-`scripts/tables.py` finds it by itself; `IEC2C=` points it elsewhere. Without
+`scripts/sitegen/tables.py` finds it by itself; `IEC2C=` points it elsewhere. Without
 flex, bison and the autotools the `matiec` target is not declared and the check
 falls back to PATH.
 
@@ -387,7 +387,7 @@ an ST program. The site is chosen at configure time with `-DBOTANIK_SITE=<name>`
 
 A site is data plus ST. Its rows, enums, home screen, field devices and
 `SiteDescriptor` are generated from `tables/*.csv` and `site.toml` by
-`scripts/tables.py`; its laws are the ST under `programs/`, compiled by matiec.
+`scripts/sitegen/tables.py`; its laws are the ST under `programs/`, compiled by matiec.
 Its enumerated codes are generated on both sides from `tables/enums.csv` - a C++
 enum and an ST one that are the same type - so a law compares a phase against
 `PHASE_DAY` rather than against 3. The library declares its own rows the same
@@ -403,7 +403,7 @@ are one file each, `blocks/<name>/<name>.st`. Its RS-485 field devices are
 
 **The generated files are committed and never built.** Run `make -C build
 regen-site` after editing a table or an ST file, and commit what comes out. It is
-the `scripts/tables.py` commands in one, against the pinned compiler, in the
+the `scripts/sitegen/tables.py` commands in one, against the pinned compiler, in the
 source tree; `make check-generated` catches you if you forget.
 
 It regenerates EVERY site, not the selected one: `vars/tables/library.csv` and
@@ -414,7 +414,7 @@ one runs for `BOTANIK_SITE` alone. `plant` is a no-op on a site that declares no
 programs: an ST resource with no program in it is not valid ST, so matiec is
 never called for one.
 
-The generator is `scripts/sitegen/`, driven by `scripts/tables.py`: `model.py`
+The generator is `scripts/sitegen/`, driven by `scripts/sitegen/tables.py`: `model.py`
 reads and checks the tables, `st.py` is the ST half, `reference.py` the
 variables page, and `render.py` the Jinja environment they emit through. Every
 generated file has a template of its own in `templates/`, so the shape of the

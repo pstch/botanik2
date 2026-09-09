@@ -1,12 +1,22 @@
-cmake_minimum_required(VERSION 3.10)
+# 3.21 for PROJECT_IS_TOP_LEVEL: botanik is add_subdirectory()'d by a site's
+# own repository, and the dev-only half of this file must not run there.
+cmake_minimum_required(VERSION 3.21)
 
 # The toolchain must be chosen before project() runs compiler detection.
-# BOTANIK_TARGET arrives via -D, so it is already in the cache here.
-if("${BOTANIK_TARGET}" STREQUAL "OPTA")
+# BOTANIK_TARGET arrives via -D, so it is already in the cache here. An EMBEDDED
+# build cannot reach this in time - the site repo's own project() has already
+# run - so it includes cmake/preamble.cmake before its project() instead.
+if("${BOTANIK_TARGET}" STREQUAL "OPTA" AND NOT CMAKE_TOOLCHAIN_FILE)
     set(CMAKE_TOOLCHAIN_FILE "${CMAKE_CURRENT_SOURCE_DIR}/cmake/opta-toolchain.cmake")
 endif()
 
 project(Botanik CXX C)
+
+# Where the botanik checkout is, whether it is the top-level project or a
+# subdirectory of a site's repository. CMAKE_SOURCE_DIR is the SITE's root in
+# the embedded build, so nothing below may use it to mean "here".
+set(BOTANIK_ROOT "${CMAKE_CURRENT_SOURCE_DIR}"
+    CACHE INTERNAL "The botanik checkout root")
 
 set(CMAKE_CXX_USE_RESPONSE_FILE_FOR_INCLUDES ON)
 set(CMAKE_C_USE_RESPONSE_FILE_FOR_INCLUDES ON)
@@ -86,7 +96,7 @@ if(_build_type_upper STREQUAL "DEBUG")
     execute_process(
         COMMAND ${CMAKE_COMMAND} -E create_symlink
             ${CMAKE_BINARY_DIR}/compile_commands.json
-            ${CMAKE_SOURCE_DIR}/compile_commands.json
+            ${BOTANIK_ROOT}/compile_commands.json
     )
 endif()
 
@@ -290,7 +300,7 @@ if(BOTANIK_TARGET STREQUAL "SIMULATOR")
         file(MAKE_DIRECTORY "${_tidy_stamp_dir}")
         set(_tidy_stamps "")
         foreach(_tidy_src IN LISTS _tidy_sources)
-            file(RELATIVE_PATH _tidy_rel "${CMAKE_SOURCE_DIR}" "${_tidy_src}")
+            file(RELATIVE_PATH _tidy_rel "${BOTANIK_ROOT}" "${_tidy_src}")
             string(REPLACE "/" "_" _tidy_stamp "${_tidy_rel}")
             set(_tidy_stamp "${_tidy_stamp_dir}/${_tidy_stamp}.stamp")
             add_custom_command(
@@ -300,7 +310,7 @@ if(BOTANIK_TARGET STREQUAL "SIMULATOR")
                 COMMAND ${CMAKE_COMMAND} -E make_directory "${_tidy_stamp_dir}"
                 COMMAND ${CLANG_TIDY} -p ${CMAKE_BINARY_DIR} --quiet "${_tidy_src}"
                 COMMAND ${CMAKE_COMMAND} -E touch "${_tidy_stamp}"
-                DEPENDS "${_tidy_src}" "${CMAKE_SOURCE_DIR}/.clang-tidy"
+                DEPENDS "${_tidy_src}" "${BOTANIK_ROOT}/.clang-tidy"
                         "${CMAKE_BINARY_DIR}/compile_commands.json"
                 IMPLICIT_DEPENDS CXX "${_tidy_src}"
                 COMMENT "clang-tidy ${_tidy_rel}"
@@ -320,12 +330,21 @@ if(BOTANIK_TARGET STREQUAL "SIMULATOR")
     endif()
 
     # The pinned matiec: a host tool, not in ALL, absent where flex/bison are.
-    # Before tests/, which builds check-generated against it.
+    # Before generate.cmake, which diffs against it.
     include(cmake/matiec.cmake)
 
-    # Tests are host-only. The suites and `make check` are defined in tests/.
-    enable_testing()
-    add_subdirectory(tests)
+    # regen-site and check-generated. In EVERY simulator build, embedded or not:
+    # a site repository needs both and never builds tests/.
+    include(cmake/generate.cmake)
+
+    # The suite, `make check` and the sweeps are botanik's own. A site repo
+    # embedding botanik tests its site, not this library, so none of it is
+    # declared there - and enable_testing() outside the top level would put
+    # CTestTestfile.cmake somewhere ctest never looks.
+    if(PROJECT_IS_TOP_LEVEL)
+        enable_testing()
+        add_subdirectory(tests)
+    endif()
 
 elseif(BOTANIK_TARGET STREQUAL "OPTA")
     message(STATUS "Configuring for OPTA (Arduino/Mbed) sanity check")
@@ -654,79 +673,83 @@ elseif(BOTANIK_TARGET STREQUAL "OPTA")
                 "-DFLASH_MAX=${BOTANIK_FLASH_MAX_BYTES}"
                 "-DRAM_MAX=${BOTANIK_STATIC_RAM_MAX_BYTES}"
                 "-DOUT=${CMAKE_BINARY_DIR}/footprint.json"
-                -P "${CMAKE_SOURCE_DIR}/cmake/footprint.cmake"
+                -P "${BOTANIK_ROOT}/cmake/footprint.cmake"
         VERBATIM)
 
 endif()
 
 # Documentation
 # ============================================================================
-# `make -C build docs` regenerates the site's variables page, then renders the
-# manual into docs/doxygen/html/.
-#
-# `docs-screens` is NOT one of its dependencies. Recapturing the screenshots
-# means booting a simulator per scenario and is a minute and a half, which is
-# too much to pay for every render; run it when a screen has actually moved.
-#
-# Both targets WRITE INTO THE SOURCE TREE, as `regen-site` does: what they
-# produce is committed, and a diff afterwards is the point rather than a
-# surprise.
-find_package(Python3 COMPONENTS Interpreter QUIET)
-if(Python3_Interpreter_FOUND)
-    execute_process(COMMAND ${Python3_EXECUTABLE} -c "import jinja2"
-                    RESULT_VARIABLE _docs_jinja_rc OUTPUT_QUIET ERROR_QUIET)
-endif()
-if(Python3_Interpreter_FOUND AND _docs_jinja_rc EQUAL 0)
-    # The site's variables page. Reads the tables and the ST directly, so it
-    # needs no compiler - unlike the rest of `regen-site`. It renders through a
-    # Jinja template, so it needs that.
-    add_custom_target(docs-variables
-        COMMAND ${CMAKE_COMMAND} -E chdir ${CMAKE_SOURCE_DIR}
-                ${Python3_EXECUTABLE} scripts/tables.py points ${BOTANIK_SITE}
-        COMMENT "Regenerating the site's variables page"
-        VERBATIM)
+# botanik's own manual. Top-level only: a site repository renders its own docs,
+# and these targets write into THIS tree.
+if(PROJECT_IS_TOP_LEVEL)
+    # `make -C build docs` regenerates the site's variables page, then renders the
+    # manual into docs/doxygen/html/.
+    #
+    # `docs-screens` is NOT one of its dependencies. Recapturing the screenshots
+    # means booting a simulator per scenario and is a minute and a half, which is
+    # too much to pay for every render; run it when a screen has actually moved.
+    #
+    # Both targets WRITE INTO THE SOURCE TREE, as `regen-site` does: what they
+    # produce is committed, and a diff afterwards is the point rather than a
+    # surprise.
+    find_package(Python3 COMPONENTS Interpreter QUIET)
+    if(Python3_Interpreter_FOUND)
+        execute_process(COMMAND ${Python3_EXECUTABLE} -c "import jinja2"
+                        RESULT_VARIABLE _docs_jinja_rc OUTPUT_QUIET ERROR_QUIET)
+    endif()
+    if(Python3_Interpreter_FOUND AND _docs_jinja_rc EQUAL 0)
+        # The site's variables page. Reads the tables and the ST directly, so it
+        # needs no compiler - unlike the rest of `regen-site`. It renders through a
+        # Jinja template, so it needs that.
+        add_custom_target(docs-variables
+            COMMAND ${CMAKE_COMMAND} -E chdir ${BOTANIK_ROOT}
+                    ${Python3_EXECUTABLE} scripts/sitegen/tables.py points ${BOTANIK_SITE}
+            COMMENT "Regenerating the site's variables page"
+            VERBATIM)
 
-    # The console screenshots, which drive the real simulator through the pyte
-    # harness: a built sim, and pyte importable. Skipped rather than failed
-    # where either is absent, the way the screen tests are.
-    if(TARGET botanik_sim)
-        execute_process(COMMAND ${Python3_EXECUTABLE} -c "import pytest, pyte"
-                        RESULT_VARIABLE _screens_rc OUTPUT_QUIET ERROR_QUIET)
-        if(_screens_rc EQUAL 0)
-            add_custom_target(docs-screens
-                COMMAND ${CMAKE_COMMAND} -E chdir ${CMAKE_SOURCE_DIR}
-                        ${Python3_EXECUTABLE} scripts/screens.py
-                        $<TARGET_FILE:botanik_sim>
-                COMMAND ${CMAKE_COMMAND} -E chdir ${CMAKE_SOURCE_DIR}
-                        ${Python3_EXECUTABLE} scripts/screens.py --scenarios
-                        $<TARGET_FILE:botanik_sim>
-                DEPENDS botanik_sim
-                USES_TERMINAL
-                COMMENT "Recapturing the console screenshots (a minute or two)"
-                VERBATIM)
-        else()
-            message(STATUS "docs: pyte not importable - screenshots stay as committed")
+        # The console screenshots, which drive the real simulator through the pyte
+        # harness: a built sim, and pyte importable. Skipped rather than failed
+        # where either is absent, the way the screen tests are.
+        if(TARGET botanik_sim)
+            execute_process(COMMAND ${Python3_EXECUTABLE} -c "import pytest, pyte"
+                            RESULT_VARIABLE _screens_rc OUTPUT_QUIET ERROR_QUIET)
+            if(_screens_rc EQUAL 0)
+                add_custom_target(docs-screens
+                    COMMAND ${CMAKE_COMMAND} -E chdir ${BOTANIK_ROOT}
+                            ${Python3_EXECUTABLE} scripts/screens.py
+                            $<TARGET_FILE:botanik_sim>
+                    COMMAND ${CMAKE_COMMAND} -E chdir ${BOTANIK_ROOT}
+                            ${Python3_EXECUTABLE} scripts/screens.py --scenarios
+                            $<TARGET_FILE:botanik_sim>
+                    DEPENDS botanik_sim
+                    USES_TERMINAL
+                    COMMENT "Recapturing the console screenshots (a minute or two)"
+                    VERBATIM)
+            else()
+                message(STATUS "docs: pyte not importable - screenshots stay as committed")
+            endif()
         endif()
     endif()
-endif()
 
-find_program(DOXYGEN doxygen)
-if(DOXYGEN)
-    add_custom_target(docs
-        COMMAND ${DOXYGEN} ${CMAKE_SOURCE_DIR}/Doxyfile
-        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
-        COMMENT "Generating API documentation with Doxygen"
-        VERBATIM
-    )
-    # Refreshed first, so doxygen renders what was just produced.
-    if(TARGET docs-variables)
-        add_dependencies(docs docs-variables)
+    find_program(DOXYGEN doxygen)
+    if(DOXYGEN)
+        add_custom_target(docs
+            COMMAND ${DOXYGEN} ${BOTANIK_ROOT}/Doxyfile
+            WORKING_DIRECTORY ${BOTANIK_ROOT}
+            COMMENT "Generating API documentation with Doxygen"
+            VERBATIM
+        )
+        # Refreshed first, so doxygen renders what was just produced.
+        if(TARGET docs-variables)
+            add_dependencies(docs docs-variables)
+        endif()
+
+        # `make clean` wipes the output (CMake 3.15+). Doxygen never deletes stale
+        # pages, so without this a removed page lingers until a manual rm.
+        set_property(DIRECTORY APPEND PROPERTY ADDITIONAL_CLEAN_FILES
+            "${BOTANIK_ROOT}/docs/doxygen")
+    else()
+        message(STATUS "doxygen not found - skipping docs target")
     endif()
-
-    # `make clean` wipes the output (CMake 3.15+). Doxygen never deletes stale
-    # pages, so without this a removed page lingers until a manual rm.
-    set_property(DIRECTORY APPEND PROPERTY ADDITIONAL_CLEAN_FILES
-        "${CMAKE_SOURCE_DIR}/docs/doxygen")
-else()
-    message(STATUS "doxygen not found - skipping docs target")
 endif()

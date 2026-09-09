@@ -20,7 +20,7 @@ The reference Botanik **site**: everything specific to one physical greenhouse.
 | `site.h` | hand-written | includes the generated tables and `sim.h`. No class, no hook, no override |
 | `sim.h` | hand-written | the simulated field: it writes the variable tables the way a Modbus driver will. Its whole body is `#ifdef TARGET_SIMULATOR`, so it drops out of the hardware build |
 
-Regenerate with `scripts/tables.py` - `generate`, `config`, `points` (which
+Regenerate with `scripts/sitegen/tables.py` - `generate`, `config`, `points` (which
 writes `docs/gh_mlb41/reference/variables.md`) and `plant` (which needs `IEC2C=` pointing
 at a built matiec). The output is COMMITTED and is never a build step.
 

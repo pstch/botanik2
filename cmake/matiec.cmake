@@ -17,7 +17,7 @@
 # (src/libbotanik/plc/functions/ieclib.txt, passed as -I). vendor/matiec carries
 # no lib/ at all.
 
-set(BOTANIK_MATIEC_SRC "${CMAKE_SOURCE_DIR}/vendor/matiec" CACHE PATH
+set(BOTANIK_MATIEC_SRC "${BOTANIK_ROOT}/vendor/matiec" CACHE PATH
     "matiec source tree (default: the pinned copy under vendor/)")
 
 set(_matiec_bin   "${CMAKE_BINARY_DIR}/matiec")
@@ -46,8 +46,8 @@ else()
         COMMAND ${CMAKE_COMMAND}
                 "-DSRC=${BOTANIK_MATIEC_SRC}" "-DBIN=${_matiec_bin}"
                 "-DJOBS=${_nproc}"
-                -P "${CMAKE_SOURCE_DIR}/cmake/matiec-build.cmake"
-        DEPENDS "${CMAKE_SOURCE_DIR}/cmake/matiec-build.cmake"
+                -P "${BOTANIK_ROOT}/cmake/matiec-build.cmake"
+        DEPENDS "${BOTANIK_ROOT}/cmake/matiec-build.cmake"
                 "${BOTANIK_MATIEC_SRC}/configure.ac"
         COMMENT "Building the pinned matiec (rm -rf ${_matiec_bin} to force)"
         USES_TERMINAL VERBATIM)
