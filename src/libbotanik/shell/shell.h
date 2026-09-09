@@ -298,7 +298,8 @@ namespace Botanik { namespace Shell {
         void _cmd_ntpsync(const char* args, uint16_t alen);
         /** @brief `params list|get|set|clear|save` - the editable rows. */
         void _cmd_params(const char* args, uint16_t alen);
-        /** @brief `programs list|start|stop|status` - the control programs. */
+        /** @brief `programs list|start|stop|enable|disable|status` - the
+         *  control programs. */
         void _cmd_programs(const char* args, uint16_t alen);
         /** @brief `control start|stop|enable|disable|status` - sys_control, the
          *  operator's standing choice about whether the laws drive at all. */
@@ -344,8 +345,10 @@ namespace Botanik { namespace Shell {
         /** @brief Force @p r's `_qlt` companion. False when it has none -
          *  a parameter, or a row no law qualifies. */
         bool _force_quality(uint16_t r, bool valid);
-        /** @brief `programs start|stop <name>|all`. @p on is which. */
-        void _programs_gate(const char* nm, uint16_t wn, bool on);
+        /** @brief `programs start|stop|enable|disable <name>|all`.
+         *  @param on      whether the programs @p nm globs are to drive
+         *  @param persist false leaves the edit unsaved, so a reboot undoes it */
+        void _programs_gate(const char* nm, uint16_t wn, bool on, bool persist);
         /** @brief `programs status`: a tally per health, and who is in the ones
          *  worth naming. */
         void _programs_status();

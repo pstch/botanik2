@@ -655,12 +655,44 @@ static const uint16_t _health_IRRSCHED = Vars::VAR_NONE;
 static const uint16_t _health_IRRCYCLE = Vars::VAR_NONE;
 static const uint16_t _health_IRRVALVES = Vars::VAR_NONE;
 
+// The operator's gate, one parameter per program. A row rather than a
+// bit in RAM so `programs disable` can save it, and so a unit that
+// comes up with a law out of the scan says which on the PARAMS page.
+static const uint16_t _gate_ACGRID = Vars::Row::prog_ac_grid_watch_run;
+static const uint16_t _gate_ACLOCAL = Vars::Row::prog_ac_local_watch_run;
+static const uint16_t _gate_DCWATCH = Vars::Row::prog_dc_watch_run;
+static const uint16_t _gate_SENSORS = Vars::Row::prog_temp_rh_sensors_run;
+static const uint16_t _gate_WX = Vars::Row::prog_wx_sensors_run;
+static const uint16_t _gate_STRAT = Vars::Row::prog_strat_run;
+static const uint16_t _gate_ZONE = Vars::Row::prog_temp_rh_zone_run;
+static const uint16_t _gate_CLIMWATCH = Vars::Row::prog_climate_watch_run;
+static const uint16_t _gate_WXWATCH = Vars::Row::prog_weather_watch_run;
+static const uint16_t _gate_PHASECTL = Vars::Row::prog_day_phase_run;
+static const uint16_t _gate_TARGET = Vars::Row::prog_target_temp_run;
+static const uint16_t _gate_COOLING = Vars::Row::prog_cooling_run;
+static const uint16_t _gate_HUMIDITY = Vars::Row::prog_humidity_run;
+static const uint16_t _gate_DRYGATE = Vars::Row::prog_intake_dry_run;
+static const uint16_t _gate_GATES = Vars::Row::prog_intake_gates_run;
+static const uint16_t _gate_DESTRAT = Vars::Row::prog_destrat_run;
+static const uint16_t _gate_ROOF = Vars::Row::prog_roof_lockout_run;
+static const uint16_t _gate_INTRACTORS = Vars::Row::prog_intractors_run;
+static const uint16_t _gate_FANS = Vars::Row::prog_fans_run;
+static const uint16_t _gate_SKIRT = Vars::Row::prog_skirt_run;
+static const uint16_t _gate_SCREEN = Vars::Row::prog_screen_run;
+static const uint16_t _gate_WINDOWS = Vars::Row::prog_windows_run;
+static const uint16_t _gate_IRRMOD = Vars::Row::prog_irr_modulation_run;
+static const uint16_t _gate_IRRIN = Vars::Row::prog_irr_mtr_input_run;
+static const uint16_t _gate_IRROUT = Vars::Row::prog_irr_mtr_output_run;
+static const uint16_t _gate_IRRSCHED = Vars::Row::prog_irr_schedule_run;
+static const uint16_t _gate_IRRCYCLE = Vars::Row::prog_irrigation_run;
+static const uint16_t _gate_IRRVALVES = Vars::Row::prog_irr_valves_run;
+
 const Program programs[] = {
 #define X(name, POU, INST, PERIOD)                                             \
     { #name, PERIOD, &_init_##INST, &_run_##INST, &_task_##INST,               \
       _writes_##INST,                                                          \
       (uint8_t)(sizeof _writes_##INST / sizeof _writes_##INST[0]),             \
-      _park_##INST, _parked_##INST, _health_##INST },
+      _park_##INST, _parked_##INST, _health_##INST, _gate_##INST },
     PLANT_PROGRAM_LIST(X)
 #undef X
 };

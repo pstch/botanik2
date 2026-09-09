@@ -148,7 +148,9 @@ namespace Botanik { namespace Shell {
                            "status               how many, and which cannot run\n"
                            "list [<pat>]         name, or a glob\n"
                            "start <pat|all>      put back in the scan, this run\n"
-                           "stop  <pat|all>      take out, and drop what it drives safe",
+                           "stop  <pat|all>      take out, and drop what it drives safe\n"
+                           "enable  <pat|all>    start, and save it for the next boot\n"
+                           "disable <pat|all>    stop, and save it for the next boot",
                                                                      G_TAB, false,
                                                                &CommandShell::_cmd_programs   },
 #endif

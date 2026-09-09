@@ -8,12 +8,12 @@ site's, and a site overrides one by redeclaring the name.
 
 One section per kind, in the order `Vars::Kind` declares them.
 
-627 rows: 554 declared by the site, 73 by the library.
+655 rows: 582 declared by the site, 73 by the library.
 
 | kind | what it is | rows |
 |---|---|---|
 | Alarms | the boolean an AlarmCondition reads | 53 |
-| Parameters | persisted, editable | 233 |
+| Parameters | persisted, editable | 261 |
 | Status values | computed by a law; published when it has a register | 102 |
 | Inputs | read from the field; each has a quality companion | 82 |
 | Outputs | driven to the field | 30 |
@@ -128,7 +128,7 @@ One section per kind, in the order `Vars::Kind` declares them.
 | sys_jitter_pct | T_U8 | 50 | 1 .. 100 | % | RW | 971 | CPU_JITT alarm threshold | percent of the task period |
 | sys_stack_pct | T_U8 | 75 | 1 .. 100 | % | RW | 972 | STACK alarm threshold | percent of the stack in use |
 | sys_startup_sec | T_U16 | BOTANIK_STARTUP_HOLD_MS / 1000.0 | 0 .. 600 | sec | RW | 973 | control held after boot, seconds | nothing runs a law on a field that has not answered yet; 0 runs from the first beat |
-| sys_control | T_BOOL | 1 | 0 .. 1 | - | RW | 976 | let the control programs drive | off stops every law and drops what they were driving to its declared safe state; per-program is `programs stop` |
+| sys_control | T_BOOL | 1 | 0 .. 1 | - | RW | 976 | let the control programs drive | off stops every law and drops what they were driving to its declared safe state; per-program is `programs stop` or `programs disable` |
 | sys_shutdown_sec | T_U16 | BOTANIK_SHUTDOWN_HOLD_MS / 1000.0 | 0 .. 600 | sec | RW | 975 | laws stopped before the ending, seconds | the mirror of sys_startup_sec: time for the record to reach flash before a reset |
 | sys_retain_sec | T_U32 | 300 | 0 .. 86400 | sec | RW | 974 | how often retained values reach flash | 0 leaves only `save` and the way down; wear vs loss |
 | plc_parkTimeout_sec | T_U16 | 300 | 0 .. 900 | sec | RW | 947 | how long a program may take to park, seconds | the cap on the STOP hold: a ram that has not finished travelling is dropped safe and the log names it |
@@ -318,6 +318,34 @@ One section per kind, in the order `Vars::Kind` declares them.
 | irr_flowBand_Lpm | T_F32 | 0.1 | 0.0 .. 5.0 | Lpm | RW | 157 | outlet flow change worth a status write | - |
 | irr_flowCutoff_Lpm | T_F32 | 0.2 | 0.0 .. 5.0 | Lpm | RW | 158 | below this the outlet counts no litres | - |
 | irr_rateWin_ms | T_U16 | 5000 | 500 .. 60000 | ms | RW | 159 | window the inlet rate is differenced over | - |
+| prog_ac_grid_watch_run | T_BOOL | 1 | 0 .. 1 | - | RW | 1400 | let the ac_grid_watch law drive | off takes it out of the scan and drops what it drives to its declared safe state |
+| prog_ac_local_watch_run | T_BOOL | 1 | 0 .. 1 | - | RW | 1401 | let the ac_local_watch law drive | off takes it out of the scan and drops what it drives to its declared safe state |
+| prog_dc_watch_run | T_BOOL | 1 | 0 .. 1 | - | RW | 1402 | let the dc_watch law drive | off takes it out of the scan and drops what it drives to its declared safe state |
+| prog_temp_rh_sensors_run | T_BOOL | 1 | 0 .. 1 | - | RW | 1403 | let the temp_rh_sensors law drive | off takes it out of the scan and drops what it drives to its declared safe state |
+| prog_wx_sensors_run | T_BOOL | 1 | 0 .. 1 | - | RW | 1404 | let the wx_sensors law drive | off takes it out of the scan and drops what it drives to its declared safe state |
+| prog_strat_run | T_BOOL | 1 | 0 .. 1 | - | RW | 1405 | let the strat law drive | off takes it out of the scan and drops what it drives to its declared safe state |
+| prog_temp_rh_zone_run | T_BOOL | 1 | 0 .. 1 | - | RW | 1406 | let the temp_rh_zone law drive | off takes it out of the scan and drops what it drives to its declared safe state |
+| prog_climate_watch_run | T_BOOL | 1 | 0 .. 1 | - | RW | 1407 | let the climate_watch law drive | off takes it out of the scan and drops what it drives to its declared safe state |
+| prog_weather_watch_run | T_BOOL | 1 | 0 .. 1 | - | RW | 1408 | let the weather_watch law drive | off takes it out of the scan and drops what it drives to its declared safe state |
+| prog_day_phase_run | T_BOOL | 1 | 0 .. 1 | - | RW | 1409 | let the day_phase law drive | off takes it out of the scan and drops what it drives to its declared safe state |
+| prog_target_temp_run | T_BOOL | 1 | 0 .. 1 | - | RW | 1410 | let the target_temp law drive | off takes it out of the scan and drops what it drives to its declared safe state |
+| prog_cooling_run | T_BOOL | 1 | 0 .. 1 | - | RW | 1411 | let the cooling law drive | off takes it out of the scan and drops what it drives to its declared safe state |
+| prog_humidity_run | T_BOOL | 1 | 0 .. 1 | - | RW | 1412 | let the humidity law drive | off takes it out of the scan and drops what it drives to its declared safe state |
+| prog_intake_dry_run | T_BOOL | 1 | 0 .. 1 | - | RW | 1413 | let the intake_dry law drive | off takes it out of the scan and drops what it drives to its declared safe state |
+| prog_intake_gates_run | T_BOOL | 1 | 0 .. 1 | - | RW | 1414 | let the intake_gates law drive | off takes it out of the scan and drops what it drives to its declared safe state |
+| prog_destrat_run | T_BOOL | 1 | 0 .. 1 | - | RW | 1415 | let the destrat law drive | off takes it out of the scan and drops what it drives to its declared safe state |
+| prog_roof_lockout_run | T_BOOL | 1 | 0 .. 1 | - | RW | 1416 | let the roof_lockout law drive | off takes it out of the scan and drops what it drives to its declared safe state |
+| prog_intractors_run | T_BOOL | 1 | 0 .. 1 | - | RW | 1417 | let the intractors law drive | off takes it out of the scan and drops what it drives to its declared safe state |
+| prog_fans_run | T_BOOL | 1 | 0 .. 1 | - | RW | 1418 | let the fans law drive | off takes it out of the scan and drops what it drives to its declared safe state |
+| prog_skirt_run | T_BOOL | 1 | 0 .. 1 | - | RW | 1419 | let the skirt law drive | off takes it out of the scan and drops what it drives to its declared safe state |
+| prog_screen_run | T_BOOL | 1 | 0 .. 1 | - | RW | 1420 | let the screen law drive | off takes it out of the scan and drops what it drives to its declared safe state |
+| prog_windows_run | T_BOOL | 1 | 0 .. 1 | - | RW | 1421 | let the windows law drive | off takes it out of the scan and drops what it drives to its declared safe state |
+| prog_irr_modulation_run | T_BOOL | 1 | 0 .. 1 | - | RW | 1422 | let the irr_modulation law drive | off takes it out of the scan and drops what it drives to its declared safe state |
+| prog_irr_mtr_input_run | T_BOOL | 1 | 0 .. 1 | - | RW | 1423 | let the irr_mtr_input law drive | off takes it out of the scan and drops what it drives to its declared safe state |
+| prog_irr_mtr_output_run | T_BOOL | 1 | 0 .. 1 | - | RW | 1424 | let the irr_mtr_output law drive | off takes it out of the scan and drops what it drives to its declared safe state |
+| prog_irr_schedule_run | T_BOOL | 1 | 0 .. 1 | - | RW | 1425 | let the irr_schedule law drive | off takes it out of the scan and drops what it drives to its declared safe state |
+| prog_irrigation_run | T_BOOL | 1 | 0 .. 1 | - | RW | 1426 | let the irrigation law drive | off takes it out of the scan and drops what it drives to its declared safe state |
+| prog_irr_valves_run | T_BOOL | 1 | 0 .. 1 | - | RW | 1427 | let the irr_valves law drive | off takes it out of the scan and drops what it drives to its declared safe state |
 
 ## Status values
 

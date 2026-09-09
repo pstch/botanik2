@@ -2,7 +2,9 @@
 
 This is the manual written for operating a Botanik deployed unit and its human-machine interface.
 
-Botanik provides an interactive serial console that multiplexes multiple distinct pages. All pages share a header bar (with the active page, a timestamp, and some status information) and an alarm bar (with the active alarms that have not been acknowledged).
+Botanik provides an interactive serial console that multiplexes multiple distinct pages. All pages share :
+ - a header bar (with the active page, a timestamp, and some status information)
+  - an alarm bar (with the active alarms that have not been acknowledged).
 
 @verbinclude home.txt
 
@@ -34,12 +36,16 @@ other key reaches the page directly.
 
 ## Control authority
 
-The control programs can be disabled either globally (using `control start|stop`)
- or per-program (`programs start|stop name`). 
- 
-These settings can be made persistent using using `enable`/`disable` instead of `start`/`stop`.
+The control programs can be disabled :
+ - globally
+   + using `control start|stop` for a volatile change
+   + using `control enable|disable` for a persistent change
+ - per-program
+   + using `programs start|stop name` for a volatile change
+   + using `programs enable|disable name` for a persistent change
 
-Also, the programs only run when the unit is in the RUN state, they are not ran while the unit is starting up or shutting down.
+Also, the programs only run when the unit is in the RUN state, they are not ran while the unit 
+is starting up or shutting down : during these phases their outputs are kept at their safe state.
 
 A program that stops running does not leave what it was driving where it stood.
 By default, its rows go to their declared safe state on the next beat, so a valve closes and

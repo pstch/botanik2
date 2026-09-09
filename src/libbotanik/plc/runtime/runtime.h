@@ -39,10 +39,6 @@ namespace Botanik { namespace Plc { namespace Runtime {
              *  opt in, so nothing here has an opinion, and its task entry gets
              *  a null pointer rather than this. */
             Health   health  = Health::HEALTHY;
-            /** @brief The OPERATOR's gate, beside the system's. Not retained: a
-             *  program left out of the scan by a maintenance session must not
-             *  come back silently disabled after a power cut. */
-            bool     enabled = true;
             /** @brief Whether the body ran last beat, so the drop to safe
              *  happens on the EDGE rather than every beat of an outage. */
             bool     ran     = false;
@@ -124,8 +120,13 @@ namespace Botanik { namespace Plc { namespace Runtime {
          *  the system's. @see running() */
         bool        enabled(uint8_t i) const;
         /** @brief Put @p i in or out of the scan. Taking it out drops what it
-         *  drives to its safe state on the next beat. */
+         *  drives to its safe state on the next beat. Live at once; durable
+         *  only once gate(i) is saved. */
         void        set_enabled(uint8_t i, bool on);
+        /** @brief `prog_<name>_run`, the parameter the gate IS. What
+         *  `programs disable` hands to Vars::Persist. The sink for an index
+         *  off the roster. */
+        Vars::Var   gate(uint8_t i) const;
         /** @brief Whether @p i would run right now: the operator's gate and
          *  the system's hold, stricter first.
          *  @note Health is NOT one of them. A FAULTED program keeps being

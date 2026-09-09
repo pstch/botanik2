@@ -401,6 +401,49 @@ TEST_CASE("shell programs: the gate is the operator's, and it takes a glob") {
     CHECK(f.run("programs status").find("0 STOPPED") != std::string::npos);
 }
 
+TEST_CASE("shell programs: disable is the same gate, committed") {
+    Rig f;
+    RamStore store;
+    f.persist.set_store(&store);
+
+    f.run("programs disable windows");
+    CHECK(f.said("1 program(s) DISABLED and saved"));
+    CHECK(store.stored("prog_windows_run"));
+    CHECK_FALSE(f.var("prog_windows_run").as_bool());
+    CHECK(f.run("programs list windows").find("STOPPED") != std::string::npos);
+
+    f.run("programs enable windows");
+    CHECK(f.said("1 program(s) ENABLED and saved"));
+    CHECK(f.var("prog_windows_run").as_bool());
+
+    // ...and what a reboot actually does: the gate comes back off the store,
+    // which is the whole of what `disable` promises over `stop`.
+    f.run("programs disable windows");
+    f.var("prog_windows_run").param_set(Vars::Scalar::B(true));
+    f.persist.setup(0);
+    CHECK_FALSE(f.var("prog_windows_run").as_bool());
+}
+
+TEST_CASE("shell programs: stop leaves the gate unsaved, so a reboot undoes it") {
+    Rig f;
+    RamStore store;
+    f.persist.set_store(&store);
+
+    f.run("programs stop windows");
+    CHECK(f.said("this run only"));
+    INFO("start/stop is the volatile half: live at once, nothing committed");
+    CHECK_FALSE(store.stored("prog_windows_run"));
+    CHECK(f.var("prog_windows_run").param_unsaved());
+}
+
+TEST_CASE("shell programs: a refused save is reported, not reported as saved") {
+    Rig f;                                  // no store bound
+    f.run("programs disable windows");
+    CHECK(f.said("storage REFUSED 1 of the saves"));
+    INFO("the RAM half still happened: only the durable half had nowhere to go");
+    CHECK_FALSE(f.var("prog_windows_run").as_bool());
+}
+
 TEST_CASE("shell programs: enabling under an inhibited sys_control says it changes nothing") {
     Rig f;
     // The operator's gate is one of two and the stricter wins; an enabled

@@ -25,6 +25,9 @@ quality_base = 1000
 park_base = 1200
 # ...and the per-program health row, one per entry in programs.csv.
 prog_base = 1300
+# ...and the per-program gate `prog_<name>_run`, which is a PARAMETER: one per
+# entry in programs.csv, so `programs disable` has something to save.
+prog_run_base = 1400
 
 [fieldbus]
 # RS-485. Every device on the segment has to agree.

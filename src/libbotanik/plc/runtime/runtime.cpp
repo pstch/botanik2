@@ -181,13 +181,14 @@ namespace Botanik { namespace Plc { namespace Runtime {
         return (i < PROGRAM_COUNT) ? programs[i].name : "";
     }
 
-    bool Plant::enabled(uint8_t i) const {
-        return (i < PROGRAM_COUNT) && _slot[i].enabled;
+    Vars::Var Plant::gate(uint8_t i) const {
+        return _io.var((i < PROGRAM_COUNT) ? programs[i].enable_row
+                                           : Vars::VAR_NONE);
     }
 
-    void Plant::set_enabled(uint8_t i, bool on) {
-        if (i < PROGRAM_COUNT) _slot[i].enabled = on;
-    }
+    bool Plant::enabled(uint8_t i) const { return gate(i).as_bool(); }
+
+    void Plant::set_enabled(uint8_t i, bool on) { gate(i).param_set(on); }
 
     bool Plant::control_allowed() const {
         return _io.var(Vars::Row::sys_control).as_bool();
@@ -205,7 +206,7 @@ namespace Botanik { namespace Plc { namespace Runtime {
     // system's hold (the lifecycle).
     bool Plant::running(uint8_t i) const {
         if (i >= PROGRAM_COUNT) return false;
-        if (!_slot[i].enabled) return false;
+        if (!enabled(i)) return false;
         if (!control_allowed()) return false;
         return _state == nullptr || *_state == Scheduler::RunState::RUN;
     }

@@ -7,6 +7,10 @@
  * and the stricter wins - so `programs start` on a unit whose control is
  * inhibited changes nothing visible, which is why `programs status` reports
  * sys_control beside the counts.
+ *
+ * start/stop are this run's; enable/disable are the same edit made durable.
+ * The gate IS a parameter, `prog_<name>_run`, so a law left out of the scan is
+ * a row an operator can read on the PARAMS page rather than a bit in RAM.
  */
 #include "libbotanik/plc/health.h"
 #include "libbotanik/shell/shell.h"
@@ -24,6 +28,7 @@
 #include "libbotanik/plc/runtime/runtime.h"
 #include "libbotanik/tasks/tasks.h"
 #include "libbotanik/utils/text.h"
+#include "libbotanik/vars/persist.h"
 
 namespace Botanik { namespace Shell {
 
@@ -55,9 +60,11 @@ namespace Botanik { namespace Shell {
             return;
         }
 
-        if (arg_eq(verb, wv, "start")) { _programs_gate(nm, wn, true);  return; }
-        if (arg_eq(verb, wv, "stop"))  { _programs_gate(nm, wn, false); return; }
-        if (arg_eq(verb, wv, "status"))  { _programs_status();            return; }
+        if (arg_eq(verb, wv, "start"))   { _programs_gate(nm, wn, true,  false); return; }
+        if (arg_eq(verb, wv, "stop"))    { _programs_gate(nm, wn, false, false); return; }
+        if (arg_eq(verb, wv, "enable"))  { _programs_gate(nm, wn, true,  true);  return; }
+        if (arg_eq(verb, wv, "disable")) { _programs_gate(nm, wn, false, true);  return; }
+        if (arg_eq(verb, wv, "status"))  { _programs_status();                   return; }
 
         _verb_usage("programs");
     }
@@ -65,10 +72,9 @@ namespace Botanik { namespace Shell {
     /** @brief Put the programs @p nm globs in or out of the scan. A stopped
      *  one drops what it drives to its declared safe state on the next beat,
      *  which is the whole point of the verb - a coil left energised by a law
-     *  nobody is running is what this exists to prevent.
-     *  @note start/stop, never enable/disable: this choice lives in RAM and a
-     *  reboot forgets it. `control` is the half that has a durable form. */
-    void CommandShell::_programs_gate(const char* nm, uint16_t wn, bool on) {
+     *  nobody is running is what this exists to prevent. */
+    void CommandShell::_programs_gate(const char* nm, uint16_t wn, bool on,
+                                      bool persist) {
         Plc::Runtime::Plant* pl = (_sys != nullptr) ? _sys->plant : nullptr;
         char out[128];
         if (pl == nullptr) { _println("programs: no plant"); return; }
@@ -76,15 +82,28 @@ namespace Botanik { namespace Shell {
             _println("programs: name it, or `all`");
             return;
         }
+        Vars::Persist* st = persist ? _store() : nullptr;
         const bool all = arg_eq(nm, wn, "all");
-        uint8_t hit = 0;
+        uint8_t hit = 0, kept = 0;
         for (uint8_t i = 0; i < pl->count(); i++) {
             if (!all && !Utils::glob_bounded(pl->name(i), nm, wn)) continue;
             pl->set_enabled(i, on);
             hit++;
+            if (st != nullptr && st->save(pl->gate(i)) == Vars::SET_OK) kept++;
         }
         if (hit == 0) { _println("programs: no such program"); return; }
-        _emitf(out, sizeof(out), "%u program(s) %s", hit, on ? "started" : "STOPPED");
+        const char* what = on ? (persist ? "ENABLED" : "started")
+                              : (persist ? "DISABLED" : "STOPPED");
+        if (!persist)
+            _emitf(out, sizeof(out), "%u program(s) %s  (this run only)", hit, what);
+        else if (st == nullptr)
+            _emitf(out, sizeof(out), "%u program(s) %s, but there is nowhere "
+                   "to save it", hit, what);
+        else if (kept == hit)
+            _emitf(out, sizeof(out), "%u program(s) %s and saved", hit, what);
+        else
+            _emitf(out, sizeof(out), "%u program(s) %s, but storage REFUSED "
+                   "%u of the saves", hit, what, (unsigned)(hit - kept));
         // The operator's gate is one of two, and saying so here is cheaper than
         // an operator wondering why an enabled program is not running.
         if (on && !pl->control_allowed())

@@ -52,6 +52,10 @@ namespace Botanik { namespace Plc { namespace Runtime {
         /** @brief `prog_<name>_health`, or VAR_NONE where the program did not
           *  opt in. The LAW writes it; nothing here does. */
         uint16_t health_row;
+        /** @brief `prog_<name>_run`, the operator's gate. A PARAMETER, so
+         *  `programs disable` is an edit and a save, and a law left out of the
+         *  scan is a row an operator can read rather than a bit in RAM. */
+        uint16_t enable_row;
     };
 
     extern const Program programs[];

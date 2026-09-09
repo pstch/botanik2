@@ -239,26 +239,30 @@ deliberate: forcing a signal to chase a fault should not outlive the session,
 while a failed sensor bypassed until the spare arrives is exactly what wants
 committing.
 
-#### programs status|list|start|stop
+#### programs status|list|start|stop|enable|disable
 
 The control programs in the scan.
 
-| verb                   | what it does                                        |
-|------------------------|-----------------------------------------------------|
-| `status`               | the counts, `sys_control`, and which cannot run     |
-| `list [<pat>]`         | one line per program: name, health, whether it runs |
-| `start <pat>` or `all` | put it back in the scan                             |
-| `stop <pat>` or `all`  | take it out, and drop what it drives to safe        |
+| verb                     | what it does                                        |
+|--------------------------|-----------------------------------------------------|
+| `status`                 | the counts, `sys_control`, and which cannot run     |
+| `list [<pat>]`           | one line per program: name, health, whether it runs |
+| `start <pat>` or `all`   | put it back in the scan                             |
+| `stop <pat>` or `all`    | take it out, and drop what it drives to safe        |
+| `enable <pat>` or `all`  | start, and save it for the next boot                |
+| `disable <pat>` or `all` | stop, and save it for the next boot                 |
 
 A stopped program's rows go to their declared safe state on the next beat, which
 is the point of the verb: a coil left energised by a law nobody is running is
 what it exists to prevent. Programs that park are the exception, and finish
 travelling first.
 
-`start` and `stop`, never enable and disable: this choice lives in RAM and a
-reboot forgets it. There is no durable form, because a unit coming up with one
-program silently out of the scan is a plant nobody can explain. `control` is the
-half that does persist.
+`start` and `stop` are this run's; `enable` and `disable` are the same edit made
+durable, exactly as under `control`. The gate a program is behind is a parameter
+of its own, `prog_<name>_run`, so a unit that comes up with a law out of the
+scan says which one on the PARAMS page. `stop` leaves that parameter edited and
+unsaved, which the page marks with a trailing `*`, so `params save` commits it
+and `params clear` puts it back.
 
 The listing separates the two gates. A program reads `running`, `STOPPED` when
 the operator took it out, or `held` when it is in the scan and something else is

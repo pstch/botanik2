@@ -4,7 +4,8 @@
   context
     externals   every row an ST body names: { upper, row }
     programs    one per law, in roster order:
-                { name, pou, inst, rate, writes, park, parked, health }
+                { name, pou, inst, rate, writes, park, parked, health,
+                  gate }
 -#}
 {% set w_ext  = externals | width('upper') %}
 {% set w_name = programs  | width('name')  %}
@@ -90,12 +91,19 @@ static const uint16_t _parked_{{ p.inst }} = {{ p.parked }};
 static const uint16_t _health_{{ p.inst }} = {{ p.health }};
 {% endfor %}
 
+// The operator's gate, one parameter per program. A row rather than a
+// bit in RAM so `programs disable` can save it, and so a unit that
+// comes up with a law out of the scan says which on the PARAMS page.
+{% for p in programs %}
+static const uint16_t _gate_{{ p.inst }} = {{ p.gate }};
+{% endfor %}
+
 const Program programs[] = {
 #define X(name, POU, INST, PERIOD)                                             \
     { #name, PERIOD, &_init_##INST, &_run_##INST, &_task_##INST,               \
       _writes_##INST,                                                          \
       (uint8_t)(sizeof _writes_##INST / sizeof _writes_##INST[0]),             \
-      _park_##INST, _parked_##INST, _health_##INST },
+      _park_##INST, _parked_##INST, _health_##INST, _gate_##INST },
     PLANT_PROGRAM_LIST(X)
 #undef X
 };

@@ -119,7 +119,8 @@ def emit_plant_cpp(site, t, prog, writes):
             'writes': ''.join(' Vars::Row::%s,' % _home(index, n) for n in mine) or ' 0',
             'park': park[0], 'parked': park[1],
             'health': ('Vars::Row::prog_%s_health' % e['name'])
-                      if _opted_in(e, 'health') else 'Vars::VAR_NONE'})
+                      if _opted_in(e, 'health') else 'Vars::VAR_NONE',
+            'gate': 'Vars::Row::prog_%s_run' % e['name']})
 
     render.write(os.path.join(site, 'generated', 'plant.cpp'), 'plant.cpp.j2',
                  externals=externals, programs=programs)

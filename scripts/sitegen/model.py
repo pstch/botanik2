@@ -325,6 +325,18 @@ def build(site):
     def is_param(r): return KIND[r['_fac']] == 'PARAM'
 
     table = [r for r in lib if is_param(r)] + [r for r in own if is_param(r)]
+    # The operator's per-program gate, one row each, INSIDE the K_PARAM run:
+    # `programs disable` is a parameter edit and a save, which is the whole of
+    # what makes the choice survive a reboot.
+    rreg = int(tom['registers']['prog_run_base'])
+    for e in prog:
+        table.append(_gen_row('P', name='prog_%s_run' % e['name'],
+                              type='T_BOOL', lo='0', hi='1', **{
+            'def': '1', 'digits': '0', 'unit': '', 'reg': str(rreg),
+            'desc': 'let the %s law drive' % e['name'],
+            'notes': 'off takes it out of the scan and drops what it drives '
+                     'to its declared safe state'}))
+        rreg += 1
     n_param = len(table)
 
     qreg = int(tom['registers']['quality_base'])
@@ -403,7 +415,8 @@ def check(t):
     # not published.
     regs = {}
     gen_base = min(int(t['toml']['registers'][k])
-                   for k in ('quality_base', 'park_base', 'prog_base'))
+                   for k in ('quality_base', 'park_base', 'prog_base',
+                             'prog_run_base'))
     for r in table:
         kind = KIND[r['_fac']]
         if kind in ('INPUT', 'OUTPUT'): continue

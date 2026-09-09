@@ -253,6 +253,13 @@ Subsystems under `src/libbotanik/`; the header is the API.
   declared value, so it is what the row reads before the first scan. `Plant` only
   reads it back for the TASKS page. The ST type is `plc/functions/health.st`,
   generated onto the C++ enum by `health.gen.h` as `QUALITY` is.
+- **The program gate is a row.** Every entry in `programs.csv` gets
+  `prog_<name>_run`, a `T_BOOL` parameter defaulting on, generated into the
+  `K_PARAM` run. `Plant::enabled()` reads it and `programs start|stop` writes
+  it; `programs enable|disable` is the same write plus the save, which is the
+  whole of what makes it durable. No opt-in: the gate is Plant's, not the law's,
+  and a unit that comes up with a law out of the scan says which on the PARAMS
+  page.
 - **Parking.** A program may opt in with `park` in `programs.csv` and get
   `prog_<name>_park` (Plant writes, the law reads) and `prog_<name>_parked` (the
   law writes). Such a program is not dropped when it leaves the scan: `park` goes
