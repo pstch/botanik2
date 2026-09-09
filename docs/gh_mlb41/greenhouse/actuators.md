@@ -28,12 +28,42 @@ command, with the anti-rot lockout able to force it shut.
 
 ## Parking
 
-Two of these finish what they were doing on the way out of service rather than
-being dropped where they stood: the windows, so the roof is shut before the unit
-halts, and the irrigation manifold, so no tray is stranded with its inlet open.
+Most of these need nothing on the way out of service, because the wiring
+already puts them where they belong. A de-energised coil is the only thing a
+dead PLC can guarantee, so an actuator that must fail to an asserted position is
+wired active-low and declared that way.
 
-The screen deliberately does not. An actuator whose safe state is where it
-already is has nothing to travel to.
+Everything except the windows takes a single module relay driving an external
+two-contact changeover relay, so one coil decides the position:
+
+| coil de-energised  | leaves it  |
+|--------------------|------------|
+| `cli_screen`       | deployed   |
+| `irr_input_ro1/2`  | inlet shut |
+| `irr_output_ro1/2` | drain open |
+| `irr_tray1` .. `8` | tray open  |
+| `cli_skirtValve`   | shut       |
+
+So the manifold empties itself with no firmware involved: the inlet shuts, the
+drain opens, every tray opens, and what is in them runs to the buried drain.
+
+The circulation fans are the exception to the pattern. Their safe state is
+speed 1 RUNNING, because still air is itself a rot risk, and that is the one
+state here that needs the coil energised - so it is a safe state the firmware
+asserts, not one the wiring falls into.
+
+The windows are why `windows` parks. They take two coils, open and close, and
+both de-energised means the motor stopped wherever it stood: there is no
+position a dead PLC leaves them in. The program keeps being called while the
+roof travels, and the unit holds in STOP until it answers.
+
+`irr_valves` parks too, though for sequence rather than for safety. It shuts the
+inlet at once, then holds the drain and the active tray open for
+`irr_parkDrain_sec` (60 s) so that tray and the shared manifold empty before the
+other seven valves open with them.
+
+The thermal screen deliberately does not park. An actuator whose safe state is
+where the wiring already puts it has nothing to travel to.
 
 ## Control programs
 
