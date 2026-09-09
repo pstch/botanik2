@@ -8,7 +8,7 @@
                         > Running on : x86-64 POSIX simulator
 26/01/01 00:00:00.000 [-] MODBUS: 110 rows, 24 blocks, 22 devices
                         > 24.9% of the bus at 38400 baud
-26/01/01 00:00:00.000 [-] HEALTH: POST ok (site gh_mlb41)
+26/01/01 00:00:00.000 [-] HEALTH: POST ok (site demo)
 26/01/01 00:00:00.000 [-] NETWORK: modbus slave on port 502
 26/01/01 00:00:00.000 [~] BOOT: setup done, outputs are safe, starting...
 26/01/01 00:00:00.000 [~] BOOT: boot complete

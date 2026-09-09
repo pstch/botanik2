@@ -102,50 +102,37 @@ add_custom_target(check
     VERBATIM
 )
 
-# `make check-bare` compiles the feature profiles nothing else builds, starting
-# with sites/bare: every optional flag off. Compile-only, and it builds
-# botanik_sim rather than the suite, since the tests are written against the
-# reference site's table rather than the library rows bare carries.
-# `make check-nosite` builds the library with NO SITE and links a consumer that
-# reuses one component - the console and its editor - configured through that
-# component's own set_config(). It is what keeps "a component is reusable
-# without a variable table" true rather than asserted: the claim is only worth
-# anything while something compiles it.
+# `make check-nosite` is the two profiles nothing else builds.
 #
-# A nested project rather than a target here: a site is chosen once per build.
+# examples/nosite: the library with NO site, and a consumer that reuses the
+# console, its shell and the task view - each constructed directly and
+# configured through its own set_config(). It is what keeps "a component is
+# reusable without a variable table" true rather than asserted.
+#
+# ...and the same library with every optional feature off, which is the only
+# thing that compiles the file-level guards. It used to need a site declaring
+# nothing (sites/bare); a build can name no site at all now, so it is the same
+# library with the flags turned off and no directory behind it.
+#
+# Nested projects rather than targets here: a site is chosen once per build.
 add_custom_target(check-nosite
     COMMAND ${CMAKE_COMMAND} -G ${CMAKE_GENERATOR}
-            -S ${BOTANIK_ROOT}/tests/nosite
+            -S ${BOTANIK_ROOT}/examples/nosite
             -B ${BOTANIK_ROOT}/build-nosite
             -DBOTANIK_TARGET=SIMULATOR
     COMMAND ${CMAKE_COMMAND} --build ${BOTANIK_ROOT}/build-nosite
-            --target consumer --parallel ${_nproc}
-    COMMAND ${BOTANIK_ROOT}/build-nosite/consumer
-    USES_TERMINAL
-    COMMENT "Sweep: the library with no site, and a component reused without one"
-    VERBATIM
-)
-
-add_custom_target(check-bare
+            --target nosite --parallel ${_nproc}
+    COMMAND ${BOTANIK_ROOT}/build-nosite/nosite
     COMMAND ${CMAKE_COMMAND} -G ${CMAKE_GENERATOR} -S ${BOTANIK_ROOT}
-            -B ${BOTANIK_ROOT}/build-bare -DBOTANIK_TARGET=SIMULATOR
-            -DBOTANIK_SITE=bare
-    COMMAND ${CMAKE_COMMAND} --build ${BOTANIK_ROOT}/build-bare
-            --target botanik_sim --parallel ${_nproc}
-    # A console, a shell and its log/task views on top of a site that declares
-    # nothing of its own: the pages and the shell compiled against the library
-    # rows alone, which is the only build where a page meets an absent row.
-    COMMAND ${CMAKE_COMMAND} -G ${CMAKE_GENERATOR} -S ${BOTANIK_ROOT}
-            -B ${BOTANIK_ROOT}/build-bare-ui -DBOTANIK_TARGET=SIMULATOR
-            -DBOTANIK_SITE=bare
-            -DBOTANIK_FEATURE_CONSOLE=ON -DBOTANIK_FEATURE_LOGGING=ON
-            -DBOTANIK_FEATURE_SHELL_PAGE=ON -DBOTANIK_FEATURE_LOGS_PAGE=ON
-            -DBOTANIK_FEATURE_TASKS_PAGE=ON
-            -DBOTANIK_FEATURE_SYSTEM_PAGE=ON
-    COMMAND ${CMAKE_COMMAND} --build ${BOTANIK_ROOT}/build-bare-ui
-            --target botanik_sim --parallel ${_nproc}
+            -B ${BOTANIK_ROOT}/build-alloff -DBOTANIK_TARGET=SIMULATOR
+            -DBOTANIK_SITE=NONE
+            -DBOTANIK_FEATURE_CONSOLE=OFF -DBOTANIK_FEATURE_LOGGING=OFF
+            -DBOTANIK_FEATURE_PLC=OFF -DBOTANIK_FEATURE_HOME_PAGE=OFF
+            -DBOTANIK_FEATURE_SHELL_PAGE=OFF
+    COMMAND ${CMAKE_COMMAND} --build ${BOTANIK_ROOT}/build-alloff
+            --target botanik --parallel ${_nproc}
     USES_TERMINAL
-    COMMENT "Sweep: libbotanik with every optional feature off (build-bare/)"
+    COMMENT "Sweep: the library with no site, reused as components and with every feature off"
     VERBATIM
 )
 
@@ -197,7 +184,6 @@ else()
     message(STATUS "check-full: no arm-none-eabi-g++, skipping the OPTA cross build")
 endif()
 
-add_dependencies(check-full check-bare)
 add_dependencies(check-full check-nosite)
 
 # `make coverage` builds a third tree, instrumented for gcov, runs both suites
@@ -208,7 +194,7 @@ add_dependencies(check-full check-nosite)
 # Both suites: the doctest binary never exercises network/, and the pyte screen
 # tests are the only thing driving the shell over a real PTY.
 #
-# Its own tree, like check-bare's: --coverage changes every object, and folding
+# Its own tree, like check-nosite's: --coverage changes every object, and folding
 # it into build/ would make an ordinary `make check` pay for instrumentation.
 find_program(GCOV_EXE NAMES gcov)
 if(GCOV_EXE AND _python3 AND CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")

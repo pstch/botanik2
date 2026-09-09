@@ -10,7 +10,7 @@ into a flashable OPTA image.
 This directory is just a thin harness: `main.cpp` is the entry point that wires the
 library together (the equivalent of an Arduino sketch's `setup()` + `loop()`) and owns
 the main loop. The site's variable tables and the simulated field that animates
-them live under `src/sites/<name>/`, shared verbatim by the simulator and the OPTA
+them live under `examples/<name>/`, shared verbatim by the simulator and the OPTA
 firmware - the sim writes the same variables the Modbus driver will.
 
 Where the OPTA reads real hardware, the simulator calls the site's `simulate()`

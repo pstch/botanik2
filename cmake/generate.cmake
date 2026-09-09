@@ -5,7 +5,7 @@
 # every simulator build, whether botanik is the project or a subdirectory of a
 # site's.
 #
-# `_all_sites` is every site with a site.toml under src/sites/. An out-of-tree
+# `_all_sites` is every site with a site.toml under examples/. An out-of-tree
 # site is added to it by the build that names it, so BOTANIK_SITE_DIR is
 # regenerated too.
 
@@ -40,20 +40,23 @@ endif()
 # EVERY site in the tree, not just the selected one: the library's own rows
 # (vars/tables/library.csv) and the templates feed all of them, so a table edit
 # regenerated for one site leaves the others stale and committed.
-file(GLOB _site_tomls ${BOTANIK_ROOT}/src/sites/*/site.toml)
+file(GLOB _site_tomls ${BOTANIK_ROOT}/examples/*/src/site.toml)
 set(_all_sites "")
 foreach(_t ${_site_tomls})
+    # .../examples/<name>/src/site.toml -> <name>: the example is the project,
+    # and src/ inside it is the site, exactly as a site repository is laid out.
     get_filename_component(_d ${_t} DIRECTORY)
+    get_filename_component(_d ${_d} DIRECTORY)
     get_filename_component(_n ${_d} NAME)
     list(APPEND _all_sites ${_n})
 endforeach()
 
 # A site OUT of this tree is named by its path rather than by a directory under
-# src/sites/, and it is the one the embedding build actually cares about. The
+# examples/, and it is the one the embedding build actually cares about. The
 # generator takes either, so both go through the same loop.
 set(_extern_site "")
 if(_site_dir AND EXISTS "${_site_dir}/site.toml")
-    string(FIND "${_site_dir}" "${BOTANIK_ROOT}/src/sites/" _in_tree)
+    string(FIND "${_site_dir}" "${BOTANIK_ROOT}/examples/" _in_tree)
     if(NOT _in_tree EQUAL 0)
         set(_extern_site "${_site_dir}")
     endif()
@@ -96,10 +99,10 @@ if(_python3 AND _iec2c)
                     ${BOTANIK_ROOT} ${_python3} scripts/sitegen/tables.py plant ${_s}
             VERBATIM)
     endforeach()
-    # The variables page is a per-site DOC, and only a site that is documented
-    # has one. `points` is therefore the selected site's alone, and a build that
-    # named no site has none to write.
-    if(NOT BOTANIK_SITE_NONE)
+    # The variables page belongs to whoever owns the site, and botanik owns
+    # none: its examples are examples. Written only for a site a CONSUMING
+    # project named, under that project's own root.
+    if(NOT BOTANIK_SITE_NONE AND _extern_site)
         add_custom_command(TARGET regen-site POST_BUILD
             COMMAND ${CMAKE_COMMAND} -E env IEC2C=${_iec2c} ${CMAKE_COMMAND} -E chdir
                     ${_points_root} ${_python3}
@@ -131,12 +134,16 @@ if(_python3 AND _iec2c)
     # stopped being generated would silently stop being checked.
     foreach(_s ${_all_sites})
         add_custom_command(TARGET check-generated POST_BUILD
+            # Per site, not the whole of examples/: each one symlinks the
+            # repository root at extern/botanik, and copy_directory follows it.
+            COMMAND ${CMAKE_COMMAND} -E copy_directory
+                    ${BOTANIK_ROOT}/examples/${_s}/src ${_gen}/examples/${_s}/src
             COMMAND ${CMAKE_COMMAND} -E chdir ${_gen}
                     ${_python3} scripts/sitegen/tables.py library
             # The scratch tree is a COPY of src/, so a file that is committed
             # but no longer generated would compare equal to itself. Clear the
             # site's generated/ first and let the regeneration refill it.
-            COMMAND ${CMAKE_COMMAND} -E rm -rf ${_gen}/src/sites/${_s}/generated
+            COMMAND ${CMAKE_COMMAND} -E rm -rf ${_gen}/examples/${_s}/src/generated
             COMMAND ${CMAKE_COMMAND} -E env IEC2C=${_iec2c} ${CMAKE_COMMAND} -E chdir ${_gen}
                     ${_python3} scripts/sitegen/tables.py generate ${_s}
             COMMAND ${CMAKE_COMMAND} -E env IEC2C=${_iec2c} ${CMAKE_COMMAND} -E chdir ${_gen}
@@ -144,7 +151,7 @@ if(_python3 AND _iec2c)
             COMMAND ${CMAKE_COMMAND} -E env IEC2C=${_iec2c} ${CMAKE_COMMAND} -E chdir ${_gen}
                     ${_python3} scripts/sitegen/tables.py plant ${_s}
             VERBATIM)
-        file(GLOB _committed ${BOTANIK_ROOT}/src/sites/${_s}/generated/*)
+        file(GLOB _committed ${BOTANIK_ROOT}/examples/${_s}/src/generated/*)
         foreach(_f ${_committed})
             file(RELATIVE_PATH _rel ${BOTANIK_ROOT} ${_f})
             add_custom_command(TARGET check-generated POST_BUILD
@@ -170,13 +177,14 @@ if(_python3 AND _iec2c)
 
     # ...and the selected site's variables page, which a build with no site has
     # no equivalent of.
+    # `points` writes no page in this tree, so there is nothing to diff. Run it
+    # into the scratch copy anyway: it is the only thing that compiles
+    # reference.py, and a generator that crashes for every site repository at
+    # once should not wait for a site repository to find out.
     if(NOT BOTANIK_SITE_NONE AND NOT _extern_site)
         add_custom_command(TARGET check-generated POST_BUILD
             COMMAND ${CMAKE_COMMAND} -E env IEC2C=${_iec2c} ${CMAKE_COMMAND} -E chdir ${_gen}
                     ${_python3} scripts/sitegen/tables.py points ${BOTANIK_SITE}
-            COMMAND ${CMAKE_COMMAND} -E compare_files
-                    ${BOTANIK_ROOT}/docs/${BOTANIK_SITE}/reference/variables.md
-                    ${_gen}/docs/${BOTANIK_SITE}/reference/variables.md
             VERBATIM)
     endif()
 

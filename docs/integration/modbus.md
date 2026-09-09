@@ -1,6 +1,6 @@
 # The TCP register map {#int_modbus}
 
-<!-- source of truth: modbus/tcp/slave.h; the map itself is @ref gh_mlb41_variables -->
+<!-- source of truth: modbus/tcp/slave.h; the map itself is @ref demo_variables -->
 
 ## What an external master sees
 

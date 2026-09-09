@@ -1,6 +1,6 @@
 # Creating a site {#int_site}
 
-<!-- source of truth: src/sites/, scripts/sitegen/tables.py -->
+<!-- source of truth: examples/, scripts/sitegen/tables.py -->
 
 ## What a site is
 

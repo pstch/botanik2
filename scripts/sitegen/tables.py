@@ -7,7 +7,7 @@
     sitegen/tables.py points   [site]   the lot                    -> docs/<site>/reference/variables.md
     sitegen/tables.py library           library.csv + lib headers  -> quality/health/rows_none.gen.h
 
-`site` is a name under src/sites/, or a path. BOTANIK_SITE_DIR overrides it.
+`site` is a name under examples/, or a path. BOTANIK_SITE_DIR overrides it.
 
 Runs from anywhere: what it reads out of the LIBRARY is anchored to this
 checkout, what it writes for a SITE goes beside that site, and the variables

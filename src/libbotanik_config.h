@@ -10,7 +10,7 @@
  *  MQTT keep-alive has no business recompiling the PID block.
  *
  *  @note Every parameter is overridable per site. The site selected by the build
- *        tools may ship `src/sites/<name>/config.h` and `#define` overrides. The
+ *        tools may ship `examples/<name>/config.h` and `#define` overrides. The
  *        path of the selected site is passed by CMake in BOTANIK_SITE_CONFIG,
  *        and `config/base.h` pulls it in ahead of every default, so precedence
  *        is: command line > site config > the `#ifndef` default here.

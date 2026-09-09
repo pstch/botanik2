@@ -40,7 +40,7 @@ def test_a_bare_lifecycle_verb_refuses(spawn):
     # The console is still here, which is the actual assertion: `halt` stops the
     # cycle, so a screen that answers at all is a plant that was not parked.
     term.send(b"version" + keys.ENTER)
-    assert term.wait_screen("site gh_mlb41"), \
+    assert term.wait_screen("site demo"), \
         "the shell stopped answering after a bare halt\n%s" % term.snapshot()
 
 

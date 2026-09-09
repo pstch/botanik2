@@ -1,7 +1,7 @@
 # The ST toolchain
 # =============================================================================
 # Included from the root, SIMULATOR side. matiec is a developer tool and never a
-# build step: its output is committed under src/sites/<site>/generated/. What is
+# build step: its output is committed under examples/<site>/src/generated/. What is
 # pinned here is the compiler, so two machines regenerating produce the same
 # bytes; a different matiec silently rewrites every POU.
 #

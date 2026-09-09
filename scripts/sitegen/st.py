@@ -220,7 +220,7 @@ def plant(site):
     enums(site)
     t = build(site)
     prog = t['prog']
-    # A site may declare no laws at all (sites/bare). There is no plant to
+    # A site may declare no laws at all. There is no plant to
     # compile then, and an ST resource with no program in it is not valid ST -
     # matiec refuses it. Nothing consumes plant.cpp either: the scan is
     # BOTANIK_FEATURE_PLC's, and a site with no programs has it off.
@@ -260,7 +260,10 @@ def plant(site):
     wi = max((len(e['instance']) for e in prog), default=0)
     render.write(os.path.join(site, 'generated', 'plant.st'), 'plant.st.j2',
                  banner=H.replace('//', '(*').rstrip() + ' *)',
-                 config_name=os.path.basename(site.rstrip(os.sep)),
+                 # The DECLARED name: matiec names its output after the ST
+                 # CONFIGURATION, and a site repository keeps its site under
+                 # src/, which would make every one of them src.c.
+                 config_name=t['toml']['site']['name'],
                  globals_=sorted(rows.items()),
                  programs=[{'instance': e['instance'], 'pou': e['pou'].lower()}
                            for e in prog])

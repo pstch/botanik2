@@ -27,11 +27,11 @@ set(CMAKE_C_USE_RESPONSE_FILE_FOR_INCLUDES ON)
 set(BOTANIK_TARGET "SIMULATOR" CACHE STRING "Target platform: SIMULATOR or OPTA")
 
 # Greenhouse site to build, named either way:
-#   -DBOTANIK_SITE=<name>     a site under src/sites/
+#   -DBOTANIK_SITE=<name>     a site under examples/
 #   -DBOTANIK_SITE_DIR=<path> any directory on disk, possibly out of tree
 # BOTANIK_SITE_DIR wins when both are given. One site per build; both targets
 # run the same one. See the site resolution block further down.
-set(BOTANIK_SITE "gh_mlb41" CACHE STRING "Greenhouse site under src/sites/")
+set(BOTANIK_SITE "demo" CACHE STRING "Greenhouse site under examples/")
 set(BOTANIK_SITE_DIR "" CACHE PATH "Site directory (overrides BOTANIK_SITE; may be out of tree)")
 
 # -DBOTANIK_SITE=NONE builds the LIBRARY and nothing else: no table, no laws, no
@@ -155,7 +155,7 @@ elseif(BOTANIK_SITE_DIR)
     get_filename_component(_site_dir "${BOTANIK_SITE_DIR}" ABSOLUTE
                            BASE_DIR "${CMAKE_CURRENT_SOURCE_DIR}")
 else()
-    set(_site_dir "${CMAKE_CURRENT_SOURCE_DIR}/src/sites/${BOTANIK_SITE}")
+    set(_site_dir "${CMAKE_CURRENT_SOURCE_DIR}/examples/${BOTANIK_SITE}/src")
 endif()
 # The ST runtime headers matiec names bare (accessor.h, iec_std_lib.h). Every
 # target needs them: st_runtime.cpp is a site source, so it builds into the
@@ -171,7 +171,7 @@ if(BOTANIK_SITE_NONE)
 elseif(NOT EXISTS "${_site_dir}/site.h")
     message(FATAL_ERROR "Site directory '${_site_dir}' has no site.h; "
         "every site must ship one. Point -DBOTANIK_SITE_DIR=<path> at a site "
-        "directory, or -DBOTANIK_SITE=<name> at one under src/sites/.")
+        "directory, or -DBOTANIK_SITE=<name> at one under examples/.")
 endif()
 # The config a table-driven site GENERATES, or the one it hand-writes. A site
 # whose site.toml produces config.gen.h needs no shim over it.
@@ -715,8 +715,7 @@ endif()
 # botanik's own manual. Top-level only: a site repository renders its own docs,
 # and these targets write into THIS tree.
 if(PROJECT_IS_TOP_LEVEL)
-    # `make -C build docs` regenerates the site's variables page, then renders the
-    # manual into docs/doxygen/html/.
+    # `make -C build docs` renders the manual into docs/doxygen/html/.
     #
     # `docs-screens` is NOT one of its dependencies. Recapturing the screenshots
     # means booting a simulator per scenario and is a minute and a half, which is
@@ -731,17 +730,6 @@ if(PROJECT_IS_TOP_LEVEL)
                         RESULT_VARIABLE _docs_jinja_rc OUTPUT_QUIET ERROR_QUIET)
     endif()
     if(Python3_Interpreter_FOUND AND _docs_jinja_rc EQUAL 0)
-        # The site's variables page. Reads the tables and the ST directly, so it
-        # needs no compiler - unlike the rest of `regen-site`. It renders through a
-        # Jinja template, so it needs that.
-        if(NOT BOTANIK_SITE_NONE)
-            add_custom_target(docs-variables
-                COMMAND ${CMAKE_COMMAND} -E chdir ${BOTANIK_ROOT}
-                        ${Python3_EXECUTABLE} scripts/sitegen/tables.py points ${BOTANIK_SITE}
-                COMMENT "Regenerating the site's variables page"
-                VERBATIM)
-        endif()
-
         # The console screenshots, which drive the real simulator through the pyte
         # harness: a built sim, and pyte importable. Skipped rather than failed
         # where either is absent, the way the screen tests are.
@@ -774,11 +762,6 @@ if(PROJECT_IS_TOP_LEVEL)
             COMMENT "Generating API documentation with Doxygen"
             VERBATIM
         )
-        # Refreshed first, so doxygen renders what was just produced.
-        if(TARGET docs-variables)
-            add_dependencies(docs docs-variables)
-        endif()
-
         # `make clean` wipes the output (CMake 3.15+). Doxygen never deletes stale
         # pages, so without this a removed page lingers until a manual rm.
         set_property(DIRECTORY APPEND PROPERTY ADDITIONAL_CLEAN_FILES

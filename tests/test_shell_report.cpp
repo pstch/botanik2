@@ -147,7 +147,7 @@ TEST_CASE("shell version: the build, the site and the platform in one line") {
     // What an operator reads out down a phone: which firmware, which
     // greenhouse, which kind of machine.
     CHECK(said.find("Botanik") != std::string::npos);
-    CHECK(said.find("gh_mlb41") != std::string::npos);
+    CHECK(said.find("demo") != std::string::npos);
     CHECK(said.find("simulator") != std::string::npos);
 }
 

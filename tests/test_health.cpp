@@ -13,9 +13,13 @@
 #include "libbotanik/logs/logger.h"
 #include "libbotanik/scheduler/scheduler.h"
 #include "libbotanik/vars/model.h"
+#include "libbotanik_site.h"
 #include "recording_writer.h"
-#include "sites/gh_mlb41/site.h"
 #include "site_bank.h"
+
+// The selected site, wherever it lives: a site is a directory the BUILD names,
+// not a path under src/.
+#include BOTANIK_SITE_HEADER
 
 namespace tests { namespace health {
 

@@ -6,7 +6,7 @@ matiec, the IEC 61131-3 compiler that turns this project's ST into C.
     vendored  2026-09-03
 
 WHY A COPY, AND WHY PINNED
-matiec's output is COMMITTED under src/sites/<site>/generated/, and nothing
+matiec's output is COMMITTED under examples/<site>/src/generated/, and nothing
 pinned the compiler that produced it: two developers with different matiec
 builds would produce different POUS.c and neither would notice. The pin is what
 makes `make -C build check-st` - regenerate, then diff - a meaningful check.

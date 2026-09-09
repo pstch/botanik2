@@ -18,6 +18,7 @@ tests/botanik_tests_include-*.cmake
 
 build/
 build-*/
+examples/*/build/
 
 nohup.out
 *.log
@@ -26,7 +27,7 @@ nohup.out
 docs/doxygen/
 
 # The build's own stamp directory. Anchored: an unanchored rule also hides
-# src/sites/*/st/generated/, which is matiec's output and is committed.
+# examples/*/src/generated/, which is matiec's output and is committed.
 /generated/
 
 # Design plans: working notes, not part of the built manual

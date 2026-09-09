@@ -33,7 +33,6 @@ RECURSIVE              = YES
 # page references yet.
 IMAGE_PATH             = images \
                          images/logic \
-                         docs/gh_mlb41/diagrams \
                          docs/integration/diagrams \
                          docs/dev/foundations \
                          docs/dev/runtime \
@@ -43,8 +42,7 @@ IMAGE_PATH             = images \
 # Where \verbinclude looks. The console screenshots in the user manual are
 # captured by scripts/screens.py and kept beside the pages that show them,
 # so the generator only ever writes .txt and never touches a page's prose.
-EXAMPLE_PATH           = docs/user/screens \
-                         docs/gh_mlb41/screens
+EXAMPLE_PATH           = docs/user/screens
 
 # Working notes, if any: excluded so a plan never renders beside the manual.
 EXCLUDE                = docs/design

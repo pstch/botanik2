@@ -56,7 +56,7 @@
 // Minimal core, opt in: a build that sets nothing gets a console with a home
 // screen and a shell, logging, and the scan cycle. Everything else - the other
 // pages, the network, the field bus, the block library - is something a site
-// asks for. src/sites/gh_mlb41/config.h is the worked full profile.
+// asks for. examples/demo/src/config.h is the worked full profile.
 
 /** @brief Interactive ANSI console: the terminal, the console UART, and the
  *  register_pages() / register_commands() hooks. Off -> headless. */
@@ -174,11 +174,15 @@
 /** @brief The PLC proper: control authority, the scan cycle, and the site's
  *  control programs registered and run at their declared rates.
  *
+ *  Off by default: `Plc::Runtime::programs[]` and `PROGRAM_COUNT` are link-time
+ *  symbols a SITE's generated plant.cpp defines, so a build with no site cannot
+ *  link this. A site that has laws turns it on.
+ *
  *  Off does not remove the Bank's enable/disable latch, which has consumers of
  *  its own (the `control` command, the health withdrawal) that outlive the
  *  scan. */
 #ifndef BOTANIK_FEATURE_PLC
-#  define BOTANIK_FEATURE_PLC 1
+#  define BOTANIK_FEATURE_PLC 0
 #endif
 
 // --- Field bus -----------------------------------------------------------
