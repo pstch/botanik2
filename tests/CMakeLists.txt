@@ -255,8 +255,8 @@ if(_python3 AND _iec2c)
                 ${CMAKE_SOURCE_DIR}/src/libbotanik/plc/runtime/health.gen.h
                 ${_gen}/src/libbotanik/plc/runtime/health.gen.h
         COMMAND ${CMAKE_COMMAND} -E compare_files
-                ${CMAKE_SOURCE_DIR}/docs/${BOTANIK_SITE}/variables.md
-                ${_gen}/docs/${BOTANIK_SITE}/variables.md
+                ${CMAKE_SOURCE_DIR}/docs/${BOTANIK_SITE}/reference/variables.md
+                ${_gen}/docs/${BOTANIK_SITE}/reference/variables.md
         COMMAND ${CMAKE_COMMAND} -E rm -rf ${_gen}
         USES_TERMINAL
         COMMENT "Sweep: the committed generated sources still match the tables"

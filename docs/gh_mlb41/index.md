@@ -47,14 +47,9 @@ own, provided by a 4G modem.
   then left to drain (inlet shut, tray open, outlet open). That cycle is slow
   enough that only a few trays can be served in a day.
 
-- @subpage gh_mlb41_plant
+## The manual
+
+- @subpage gh_mlb41_greenhouse
 - @subpage gh_mlb41_principles
-- @subpage gh_mlb41_sense
-- @subpage gh_mlb41_climate
-- @subpage gh_mlb41_irrigation
-- @subpage gh_mlb41_actuators
-- @subpage gh_mlb41_blocks
-- @subpage gh_mlb41_alarms
-- @subpage gh_mlb41_scenarios
-- @subpage gh_mlb41_maintenance
-- @subpage gh_mlb41_variables
+- @subpage gh_mlb41_control
+- @subpage gh_mlb41_reference

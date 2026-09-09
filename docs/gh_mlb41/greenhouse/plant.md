@@ -110,7 +110,7 @@ use their own sensors. Their trigger points have to be set to agree with this
 system's configuration.
 
 The other four share sensors and actuators, and the rules that settle a conflict
-between them are in @ref gh_mlb41_actuators.
+between them are in @ref gh_mlb41_arbitration.
 
 ## Sensors
 

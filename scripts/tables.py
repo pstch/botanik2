@@ -4,7 +4,7 @@
     tables.py generate [site]   library.csv + tables/*.csv -> vars.gen.{h,cpp}, rows.gen.h
     tables.py config   [site]   site.toml + the tables     -> config.gen.h
     tables.py plant    [site]   programs.csv + ST          -> plant.st, plant.cpp, matiec
-    tables.py points   [site]   the lot                    -> docs/<site>/variables.md
+    tables.py points   [site]   the lot                    -> docs/<site>/reference/variables.md
 
 `site` is a name under src/sites/, or a path. BOTANIK_SITE_DIR overrides it.
 

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-"""docs/<site>/variables.md: every row the firmware exposes, from the tables
-and the ST itself."""
+"""docs/<site>/reference/variables.md: every row the firmware exposes, from
+the tables and the ST itself."""
 
 import os, re
 
@@ -168,7 +168,7 @@ def points(site):
             'reads': ', '.join('`%s`' % r for r in _collapse(reads)) or '-',
             'writes': ', '.join('`%s`' % w for w in _collapse(writes)) or '-'})
 
-    out = os.path.join('docs', slug, 'variables.md')
+    out = os.path.join('docs', slug, 'reference', 'variables.md')
     render.write(out, 'variables.md.j2', slug=slug, n_rows=len(table),
                  n_site=len(table) - n_lib, n_lib=n_lib, summary=summary,
                  sections=sections, cal=cal, programs=programs)
