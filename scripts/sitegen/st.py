@@ -8,7 +8,7 @@ checks that belong to a law live here rather than beside the table's."""
 import os, re, sys
 
 from . import render
-from .model import (AUX, H, KIND, _opted_in, build, read_table, site_guard,
+from .model import (AUX, H, KIND, LIB_CSV, _opted_in, build, read_table, site_guard,
                          st_files, toml, var_externals)
 
 # ---- the site's enumerations, on both sides ---------------------------------
@@ -336,8 +336,24 @@ def _lib_enum(st, header, decl, spell, member):
     return st.lower(), len(codes)
 
 
+def _rows_none():
+    """Every row library.csv declares, bound to VAR_NONE.
+
+    vars/rows.h falls back to this when the build names no site, so the library
+    compiles for a consumer that wants a component and no table. Emitted from
+    library.csv alone, which is why it is the LIBRARY's artifact and not a
+    site's."""
+    import csv
+    with open(LIB_CSV, newline='') as fh:
+        rows = [r['name'].strip() for r in csv.DictReader(fh)]
+    render.write('src/libbotanik/vars/rows_none.gen.h',
+                 'rows_none.gen.h.j2', rows=rows)
+    return len(rows)
+
+
 def quality_block():
     """The accessor blocks for every enumerated type the library owns."""
     for e in LIB_ENUMS:
         name, n = _lib_enum(*e)
         print('  %-14s %d codes' % (name + '.gen.h', n))
+    print('  %-14s %d rows' % ('rows_none.gen.h', _rows_none()))

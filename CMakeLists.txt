@@ -34,6 +34,15 @@ set(BOTANIK_TARGET "SIMULATOR" CACHE STRING "Target platform: SIMULATOR or OPTA"
 set(BOTANIK_SITE "gh_mlb41" CACHE STRING "Greenhouse site under src/sites/")
 set(BOTANIK_SITE_DIR "" CACHE PATH "Site directory (overrides BOTANIK_SITE; may be out of tree)")
 
+# -DBOTANIK_SITE=NONE builds the LIBRARY and nothing else: no table, no laws, no
+# simulator, no firmware image. For a consumer reusing a component - the console
+# and its editor, the logger - configured through that component's own
+# set_config() rather than from rows. Every library row name still resolves,
+# through vars/rows_none.gen.h, to VAR_NONE and so to the bank's inert sink.
+if("${BOTANIK_SITE}" STREQUAL "NONE" AND NOT BOTANIK_SITE_DIR)
+    set(BOTANIK_SITE_NONE ON)
+endif()
+
 set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
@@ -140,7 +149,9 @@ set_source_files_properties(
 # ABI guard: any TU including libbotanik_config.h MUST link `botanik` for these
 # PUBLIC defines, or it silently compiles against the un-overridden defaults.
 # Sizes in the PLC wire contract live in the site's payload.h for that reason.
-if(BOTANIK_SITE_DIR)
+if(BOTANIK_SITE_NONE)
+    set(_site_dir "")
+elseif(BOTANIK_SITE_DIR)
     get_filename_component(_site_dir "${BOTANIK_SITE_DIR}" ABSOLUTE
                            BASE_DIR "${CMAKE_CURRENT_SOURCE_DIR}")
 else()
@@ -150,10 +161,14 @@ endif()
 # target needs them: st_runtime.cpp is a site source, so it builds into the
 # sim, the suite and the firmware.
 target_include_directories(botanik PUBLIC
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/libbotanik/plc/runtime"
-    "${_site_dir}/generated")
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/libbotanik/plc/runtime")
+if(NOT BOTANIK_SITE_NONE)
+    target_include_directories(botanik PUBLIC "${_site_dir}/generated")
+endif()
 
-if(NOT EXISTS "${_site_dir}/site.h")
+if(BOTANIK_SITE_NONE)
+    message(STATUS "Site: none - building the library alone")
+elseif(NOT EXISTS "${_site_dir}/site.h")
     message(FATAL_ERROR "Site directory '${_site_dir}' has no site.h; "
         "every site must ship one. Point -DBOTANIK_SITE_DIR=<path> at a site "
         "directory, or -DBOTANIK_SITE=<name> at one under src/sites/.")
@@ -166,7 +181,11 @@ if(EXISTS "${_site_dir}/generated/config.gen.h" AND EXISTS "${_site_dir}/config.
         "generated one would win and edits to the hand-written one would go "
         "nowhere. Delete whichever is not the source of truth.")
 endif()
-if(EXISTS "${_site_dir}/generated/config.gen.h")
+if(BOTANIK_SITE_NONE)
+    # Nothing to define: libbotanik_site.h resolves neither macro and
+    # config/base.h skips the include, so every Config value takes its own
+    # #ifndef default.
+elseif(EXISTS "${_site_dir}/generated/config.gen.h")
     set(_site_config "${_site_dir}/generated/config.gen.h")
 elseif(EXISTS "${_site_dir}/config.h")
     set(_site_config "${_site_dir}/config.h")
@@ -175,19 +194,23 @@ else()
         "generated/config.gen.h nor config.h; one of them carries the "
         "build-wide BOTANIK_* overrides.")
 endif()
-target_compile_definitions(botanik PUBLIC
-    BOTANIK_SITE_CONFIG=\"${_site_config}\"
-    BOTANIK_SITE_HEADER=\"${_site_dir}/site.h\")
+if(NOT BOTANIK_SITE_NONE)
+    target_compile_definitions(botanik PUBLIC
+        BOTANIK_SITE_CONFIG=\"${_site_config}\"
+        BOTANIK_SITE_HEADER=\"${_site_dir}/site.h\")
+endif()
 # The row INDICES, the same way. A library consumer names a row through
 # Vars::Row::<name>, so a name no table declares is a compile error rather than
-# a reference that resolves to the sink for the life of the run. A site with no
-# generated table (sites/bare) leaves it unset, and vars/rows.h then declares
-# nothing - which is right: that build has no variable model either.
-if(EXISTS "${_site_dir}/generated/rows.gen.h")
+# a reference that resolves to the sink for the life of the run. Left unset by a
+# build that names no site, and vars/rows.h then falls back to the library's own
+# rows_none.gen.h, where every one of them is VAR_NONE.
+if(_site_dir AND EXISTS "${_site_dir}/generated/rows.gen.h")
     target_compile_definitions(botanik PUBLIC
         BOTANIK_SITE_ROWS=\"${_site_dir}/generated/rows.gen.h\")
 endif()
-message(STATUS "Site: ${_site_dir}")
+if(NOT BOTANIK_SITE_NONE)
+    message(STATUS "Site: ${_site_dir}")
+endif()
 
 # Optional-subsystem feature flags; defaults live in libbotanik_features.h.
 # -DBOTANIK_FEATURE_<X>=ON/OFF overrides, forwarded PUBLIC so the whole build
@@ -254,27 +277,35 @@ if(BOTANIK_TARGET STREQUAL "SIMULATOR")
     # `botanik` archive. Empty for a header-only site. Recursive: generated/
     # holds vars.gen.cpp, which defines the tables, and the control programs sit
     # one directory further down.
-    file(GLOB_RECURSE BOTANIK_SITE_SOURCES CONFIGURE_DEPENDS
-         "${_site_dir}/*.cpp")
+    # No simulator without a site: main.cpp includes BOTANIK_SITE_HEADER and
+    # runs Site::firmware(). The library alone is the whole product then.
+    if(NOT BOTANIK_SITE_NONE)
+        file(GLOB_RECURSE BOTANIK_SITE_SOURCES CONFIGURE_DEPENDS
+             "${_site_dir}/*.cpp")
 
-    # -Wshadow on the site's own sources only. A control program reads its
-    # variables as members, so a local of the same name takes over silently.
-    set_source_files_properties(${BOTANIK_SITE_SOURCES}
-                                PROPERTIES COMPILE_FLAGS "-Wshadow")
-    add_executable(botanik_sim
-        "src/botanik_sim/main.cpp"
-        ${BOTANIK_SITE_SOURCES})
-    target_link_libraries(botanik_sim botanik)
+        # -Wshadow on the site's own sources only. A control program reads its
+        # variables as members, so a local of the same name takes over silently.
+        set_source_files_properties(${BOTANIK_SITE_SOURCES}
+                                    PROPERTIES COMPILE_FLAGS "-Wshadow")
+        add_executable(botanik_sim
+            "src/botanik_sim/main.cpp"
+            ${BOTANIK_SITE_SOURCES})
+        target_link_libraries(botanik_sim botanik)
+    endif()
 
 
     # Release only, probed so a toolchain without LTO degrades to plain -O3.
     option(BOTANIK_LTO "Link-time optimization for RELEASE builds" ON)
+    set(_lto_targets "")
+    if(TARGET botanik_sim)
+        set(_lto_targets botanik_sim)
+    endif()
     include(CheckIPOSupported)
     check_ipo_supported(RESULT _ipo_ok OUTPUT _ipo_msg)
     if(NOT BOTANIK_LTO)
         message(STATUS "LTO disabled (BOTANIK_LTO=OFF), Release will use -O3 only")
     elseif(_ipo_ok)
-        set_property(TARGET botanik botanik_sim
+        set_property(TARGET botanik ${_lto_targets}
                      PROPERTY INTERPROCEDURAL_OPTIMIZATION_RELEASE ON)
     else()
         message(STATUS "IPO/LTO not supported, Release will use -O3 only: ${_ipo_msg}")
@@ -341,7 +372,8 @@ if(BOTANIK_TARGET STREQUAL "SIMULATOR")
     # embedding botanik tests its site, not this library, so none of it is
     # declared there - and enable_testing() outside the top level would put
     # CTestTestfile.cmake somewhere ctest never looks.
-    if(PROJECT_IS_TOP_LEVEL)
+    # ...and no suite either: every case is written against a site's table.
+    if(PROJECT_IS_TOP_LEVEL AND NOT BOTANIK_SITE_NONE)
         enable_testing()
         add_subdirectory(tests)
     endif()
@@ -702,11 +734,13 @@ if(PROJECT_IS_TOP_LEVEL)
         # The site's variables page. Reads the tables and the ST directly, so it
         # needs no compiler - unlike the rest of `regen-site`. It renders through a
         # Jinja template, so it needs that.
-        add_custom_target(docs-variables
-            COMMAND ${CMAKE_COMMAND} -E chdir ${BOTANIK_ROOT}
-                    ${Python3_EXECUTABLE} scripts/sitegen/tables.py points ${BOTANIK_SITE}
-            COMMENT "Regenerating the site's variables page"
-            VERBATIM)
+        if(NOT BOTANIK_SITE_NONE)
+            add_custom_target(docs-variables
+                COMMAND ${CMAKE_COMMAND} -E chdir ${BOTANIK_ROOT}
+                        ${Python3_EXECUTABLE} scripts/sitegen/tables.py points ${BOTANIK_SITE}
+                COMMENT "Regenerating the site's variables page"
+                VERBATIM)
+        endif()
 
         # The console screenshots, which drive the real simulator through the pyte
         # harness: a built sim, and pyte importable. Skipped rather than failed

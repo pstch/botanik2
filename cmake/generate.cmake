@@ -69,11 +69,14 @@ if(_python3 AND _iec2c)
             VERBATIM)
     endforeach()
     # The variables page is a per-site DOC, and only a site that is documented
-    # has one. `points` is therefore the selected site's alone.
-    add_custom_command(TARGET regen-site POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E env IEC2C=${_iec2c} ${CMAKE_COMMAND} -E chdir
-                ${BOTANIK_ROOT} ${_python3} scripts/sitegen/tables.py points ${BOTANIK_SITE}
-        VERBATIM)
+    # has one. `points` is therefore the selected site's alone, and a build that
+    # named no site has none to write.
+    if(NOT BOTANIK_SITE_NONE)
+        add_custom_command(TARGET regen-site POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E env IEC2C=${_iec2c} ${CMAKE_COMMAND} -E chdir
+                    ${BOTANIK_ROOT} ${_python3} scripts/sitegen/tables.py points ${BOTANIK_SITE}
+            VERBATIM)
+    endif()
     if(TARGET matiec)
         add_dependencies(regen-site matiec)
     endif()
@@ -121,6 +124,7 @@ if(_python3 AND _iec2c)
 
     # The two the generator writes into the LIBRARY rather than into a site,
     # and the selected site's variables page.
+    # The three the generator writes into the LIBRARY rather than into a site.
     add_custom_command(TARGET check-generated POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E compare_files
                 ${BOTANIK_ROOT}/src/libbotanik/plc/runtime/quality.gen.h
@@ -128,11 +132,24 @@ if(_python3 AND _iec2c)
         COMMAND ${CMAKE_COMMAND} -E compare_files
                 ${BOTANIK_ROOT}/src/libbotanik/plc/runtime/health.gen.h
                 ${_gen}/src/libbotanik/plc/runtime/health.gen.h
-        COMMAND ${CMAKE_COMMAND} -E env IEC2C=${_iec2c} ${CMAKE_COMMAND} -E chdir ${_gen}
-                ${_python3} scripts/sitegen/tables.py points ${BOTANIK_SITE}
         COMMAND ${CMAKE_COMMAND} -E compare_files
-                ${BOTANIK_ROOT}/docs/${BOTANIK_SITE}/reference/variables.md
-                ${_gen}/docs/${BOTANIK_SITE}/reference/variables.md
+                ${BOTANIK_ROOT}/src/libbotanik/vars/rows_none.gen.h
+                ${_gen}/src/libbotanik/vars/rows_none.gen.h
+        VERBATIM)
+
+    # ...and the selected site's variables page, which a build with no site has
+    # no equivalent of.
+    if(NOT BOTANIK_SITE_NONE)
+        add_custom_command(TARGET check-generated POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E env IEC2C=${_iec2c} ${CMAKE_COMMAND} -E chdir ${_gen}
+                    ${_python3} scripts/sitegen/tables.py points ${BOTANIK_SITE}
+            COMMAND ${CMAKE_COMMAND} -E compare_files
+                    ${BOTANIK_ROOT}/docs/${BOTANIK_SITE}/reference/variables.md
+                    ${_gen}/docs/${BOTANIK_SITE}/reference/variables.md
+            VERBATIM)
+    endif()
+
+    add_custom_command(TARGET check-generated POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E rm -rf ${_gen}
         VERBATIM)
 

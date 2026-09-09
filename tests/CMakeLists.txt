@@ -106,6 +106,26 @@ add_custom_target(check
 # with sites/bare: every optional flag off. Compile-only, and it builds
 # botanik_sim rather than the suite, since the tests are written against the
 # reference site's table rather than the library rows bare carries.
+# `make check-nosite` builds the library with NO SITE and links a consumer that
+# reuses one component - the console and its editor - configured through that
+# component's own set_config(). It is what keeps "a component is reusable
+# without a variable table" true rather than asserted: the claim is only worth
+# anything while something compiles it.
+#
+# A nested project rather than a target here: a site is chosen once per build.
+add_custom_target(check-nosite
+    COMMAND ${CMAKE_COMMAND} -G ${CMAKE_GENERATOR}
+            -S ${BOTANIK_ROOT}/tests/nosite
+            -B ${BOTANIK_ROOT}/build-nosite
+            -DBOTANIK_TARGET=SIMULATOR
+    COMMAND ${CMAKE_COMMAND} --build ${BOTANIK_ROOT}/build-nosite
+            --target consumer --parallel ${_nproc}
+    COMMAND ${BOTANIK_ROOT}/build-nosite/consumer
+    USES_TERMINAL
+    COMMENT "Sweep: the library with no site, and a component reused without one"
+    VERBATIM
+)
+
 add_custom_target(check-bare
     COMMAND ${CMAKE_COMMAND} -G ${CMAKE_GENERATOR} -S ${BOTANIK_ROOT}
             -B ${BOTANIK_ROOT}/build-bare -DBOTANIK_TARGET=SIMULATOR
@@ -178,6 +198,7 @@ else()
 endif()
 
 add_dependencies(check-full check-bare)
+add_dependencies(check-full check-nosite)
 
 # `make coverage` builds a third tree, instrumented for gcov, runs both suites
 # against it and prints the per-area line coverage; build/coverage.json is the

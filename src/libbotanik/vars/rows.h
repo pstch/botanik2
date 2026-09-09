@@ -18,6 +18,10 @@
 
 #if defined(BOTANIK_SITE_ROWS)
 #  include BOTANIK_SITE_ROWS
+#else
+// No site: every library row resolves to the bank's inert sink. A consumer
+// reusing a component without a variable table still compiles.
+#  include "libbotanik/vars/rows_none.gen.h"
 #endif
 
 #endif // VARS_ROWS_H
