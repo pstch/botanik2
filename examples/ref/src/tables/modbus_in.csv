@@ -1,0 +1,3 @@
+name,type,device,fc,reg,regs,lo,hi,lo_row,hi_row,def,timeout_ms,digits,unit,desc,notes,poll_ms,word_swap
+air_temp_hi1,T_F32,50,4,0,2,SF(-40.0f),SF(80.0f),,,SF(0.0f),5000,1,degC,air temperature high level 1,the sensor the law reads,,
+air_temp_hi2,T_F32,50,4,2,2,SF(-40.0f),SF(80.0f),,,SF(0.0f),5000,1,degC,air temperature high level 2,a second sensor on the same device,,

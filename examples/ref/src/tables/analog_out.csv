@@ -1,0 +1,2 @@
+name,cal,device,fc,reg,regs,wire,safe,digits,unit,desc,notes,word_swap
+vent_drive,&CAL_vent_drive,16,6,0,1,T_U16,0.0f,2,,vent actuator command,"safe is shut: an unattended vent closes",

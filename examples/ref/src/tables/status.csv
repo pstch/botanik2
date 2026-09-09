@@ -1,0 +1,4 @@
+name,type,def,digits,unit,reg,desc,notes,retained
+air_temp_in,T_F32,0.0,1,degC,500,air temperature the law controls on,the warmer of the two levels,
+vent_tgt,T_F32,0.0,1,degC,501,the target the law is working to,,
+vent_pos,T_F32,0.0,2,,502,commanded vent opening; 0 shut and 1 wide,,

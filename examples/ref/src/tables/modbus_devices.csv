@@ -1,0 +1,3 @@
+addr,model,tag
+50,MDL_SENSOR,air sensor
+16,MDL_ACTUATOR,vent actuator

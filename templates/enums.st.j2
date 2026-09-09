@@ -11,6 +11,7 @@
    matiec numbers these in declaration order and the C++ side is the
    SAME type, so the order IS the wire contract: a member may be
    appended, never moved. *)
+{% if groups %}
 
 TYPE
 
@@ -24,3 +25,8 @@ TYPE
 
 {% endfor %}
 END_TYPE
+{% else %}
+
+(* This site declares none. An empty TYPE ... END_TYPE is not valid ST and
+   matiec refuses it, so the block is omitted rather than emitted bare. *)
+{% endif %}

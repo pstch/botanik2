@@ -1,0 +1,50 @@
+# ref - the reference site, and the smallest one worth reading.
+#
+# A single vent driven off a single temperature: one field reading, one law,
+# one analog output. Small enough to hold in your head, and every optional
+# feature turned on, because this is what the suite compiles and runs.
+#
+# Copy this directory to start a site of your own.
+
+[site]
+name = "ref"
+
+[rates]
+# The law, and the conditioning chain under it, in ms.
+control = 100
+sense   = 10
+
+[registers]
+# Generated companions get their own blocks, above every hand-assigned
+# register, so adding a reading cannot renumber one.
+quality_base  = 1000
+park_base     = 1200
+prog_base     = 1300
+prog_run_base = 1400
+
+[fieldbus]
+# RS-485. Every device on the segment has to agree.
+baud = 38400
+
+[features]
+# Everything, which is the point: this is the site the suite is built against,
+# so a feature nothing compiles is a feature nothing tests.
+PLC               = true
+LOGS_PAGE         = true
+ALARMS_PAGE       = true
+PARAMS_PAGE       = true
+MONITOR_PAGE      = true
+TASKS_PAGE        = true
+SYSTEM_PAGE       = true
+NOTES_PAGE        = true
+LOGS_MONITOR      = true
+NETWORK           = true
+NTP               = true
+MQTT              = true
+LOGS_PUBLISH      = true
+ALARMS_PUBLISH    = true
+MODBUS_TCP_SERVER = true
+MODBUS_TCP_CLIENT = true
+MODBUS_RTU_CLIENT = true
+MODBUS_RTU_SERVER = true
+SUN_TRACKER       = true

@@ -1,0 +1,12 @@
+name,type,def,lo,hi,lo_row,hi_row,digits,unit,reg,desc,notes,writable,retained
+air_targetMin_degC,T_F32,18.0,5.0,40.0,,air_targetMax_degC,1,degC,100,coolest the vent is asked to hold,the floor of the pair; never above the ceiling,true,
+air_targetMax_degC,T_F32,26.0,5.0,40.0,air_targetMin_degC,,1,degC,101,warmest before the vent opens,the ceiling of the pair,true,
+air_ventFullDem,T_F32,4.0,0.5,20.0,,,1,degC,102,degrees over target at which the vent is wide,,true,
+vent_redatum,T_BOOL,0,0,1,,,0,,103,re-run the vent's datum on the next scan,cleared by the law once it has,true,
+run_liters,T_U32,0,0,999999,,,0,L,104,litres the plant has passed,"retained: the cadence writes it, not every scan",,true
+vent_rawMin_mV,T_F32,0.0,0.0,24000.0,,,0,mV,110,actuator raw value fully shut,per the actuator datasheet,true,
+vent_rawMax_mV,T_F32,10000.0,0.0,24000.0,,,0,mV,111,actuator raw value wide open,per the actuator datasheet,true,
+vent_engMin,T_F32,0.0,0.0,1.0,,,2,,112,opening at the low end,,true,
+vent_engMax,T_F32,1.0,0.0,1.0,,,2,,113,opening at the high end,,true,
+vent_min,T_F32,0.0,0.0,1.0,,,2,,114,lowest believable opening,under this the reading is not trusted,true,
+vent_max,T_F32,1.0,0.0,1.0,,,2,,115,highest believable opening,over this the reading is not trusted,true,

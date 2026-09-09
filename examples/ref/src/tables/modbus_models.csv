@@ -1,0 +1,3 @@
+symbol      ,kind       ,model_name         ,regs,words
+MDL_SENSOR  ,meter      ,Air temp sensor    ,8   ,2
+MDL_ACTUATOR,io_board   ,Vent actuator      ,4   ,
