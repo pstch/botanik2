@@ -113,7 +113,7 @@ TEST_CASE("shell tasks: list names the registered work and filters on a glob") {
     const std::string some = f.run("tasks list sys_*");
     CHECK(some.find("sys_persist") != std::string::npos);
     INFO("and it must actually filter");
-    CHECK(some.find("irrigation") == std::string::npos);
+    CHECK(some.find("vent") == std::string::npos);
     CHECK(f.run("tasks list zzz*").find("nothing matches") != std::string::npos);
 }
 
@@ -145,9 +145,9 @@ TEST_CASE("shell version: the build, the site and the platform in one line") {
     Rig f;
     const std::string said = f.run("version");
     // What an operator reads out down a phone: which firmware, which
-    // greenhouse, which kind of machine.
+    // site, which kind of machine.
     CHECK(said.find("Botanik") != std::string::npos);
-    CHECK(said.find("demo") != std::string::npos);
+    CHECK(said.find(Config::SITE_NAME) != std::string::npos);
     CHECK(said.find("simulator") != std::string::npos);
 }
 

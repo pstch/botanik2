@@ -9,7 +9,7 @@ from helpers import shell
 
 
 # The groups these cases list from. A row name, not the chrome around it.
-_GROUPS = ("cli_", "irr_")
+_GROUPS = ("air_", "tank_")
 
 
 def _listing(term):
@@ -25,11 +25,11 @@ def _listing(term):
 def test_star_matches_inside_a_name(spawn):
     """The case the wildcard exists for: a group of numbered actuators."""
     term = shell(spawn, quiet_logs=True)
-    term.send(b"vars list cli_win*_pos?" + keys.ENTER)
+    term.send(b"vars list vent_*?" + keys.ENTER)
     term.settle()
     rows = _listing(term)
     assert rows[-1] == "4 variable(s)", rows
-    assert all(r.startswith("cli_window_pos") for r in rows[:-1]), rows
+    assert all(r.startswith("vent_pos") for r in rows[:-1]), rows
 
 
 def test_star_anchors_the_tail(spawn):
@@ -45,17 +45,17 @@ def test_star_anchors_the_tail(spawn):
 def test_a_bare_prefix_still_means_prefix(spawn):
     """What every listing meant before wildcards, unchanged."""
     term = shell(spawn, quiet_logs=True)
-    term.send(b"vars list irr_liters_tray" + keys.ENTER)
+    term.send(b"vars list tank_inTotal_L" + keys.ENTER)
     term.settle()
     rows = _listing(term)
     assert rows[-1] == "8 variable(s)", rows
-    assert all(r.startswith("irr_liters_tray") for r in rows[:-1]), rows
+    assert all(r.startswith("tank_inTotal_L") for r in rows[:-1]), rows
 
 
 def test_question_mark_is_one_character(spawn):
-    """cli_intr? takes the two single-digit channels and no wider name."""
+    """vent_drive? takes the two single-digit channels and no wider name."""
     term = shell(spawn, quiet_logs=True)
-    term.send(b"vars list cli_intr?" + keys.ENTER)
+    term.send(b"vars list vent_drive?" + keys.ENTER)
     term.settle()
     rows = _listing(term)
     assert rows[-1] == "2 variable(s)", rows

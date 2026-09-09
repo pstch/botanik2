@@ -1,5 +1,5 @@
 /**
- * @file test_health.cpp
+ * @file health.cpp
  * @brief Platform-health alarms, POST, and the loop driver that feeds them.
  *
  * Wrong thresholds mean a silent fault, or a false one on a healthy plant.
@@ -299,7 +299,7 @@ TEST_CASE("quality: a row losing its validity is announced once, not per beat") 
     uint64_t t = SETTLED;
     for (uint16_t i = 0; i < 40; i++) reg.run_phase(Botanik::Tasks::PHASE_SERVICE, t += 100);
 
-    const uint16_t r = f.bank.find("cli_temp_hi1");
+    const uint16_t r = f.bank.find("air_temp_hi1");
     REQUIRE(r != Vars::VAR_NONE);
     f.bank.var(r).publish(Vars::from_f32(Vars::T_F32, 21.0f), t);
     for (uint16_t i = 0; i < 40; i++) reg.run_phase(Botanik::Tasks::PHASE_SERVICE, t += 100);
@@ -309,12 +309,12 @@ TEST_CASE("quality: a row losing its validity is announced once, not per beat") 
     for (uint16_t i = 0; i < 40; i++) reg.run_phase(Botanik::Tasks::PHASE_SERVICE, t += 100);
 
     int said = 0;
-    for (size_t at = f.writer.all_msgs.find("cli_temp_hi1");
+    for (size_t at = f.writer.all_msgs.find("air_temp_hi1");
          at != std::string::npos;
-         at = f.writer.all_msgs.find("cli_temp_hi1", at + 1)) said++;
+         at = f.writer.all_msgs.find("air_temp_hi1", at + 1)) said++;
     INFO("the CHANGE is the event; a row that is invalid for an hour is one line");
     CHECK(said == 1);
-    CHECK(f.writer.saw("cli_temp_hi1: invalid"));
+    CHECK(f.writer.saw("air_temp_hi1: invalid"));
     INFO("and it is a WARNING: something the plant is controlled on has stopped "
          "being measured, and an operator should not need debug on to see it");
     CHECK(f.writer.last_level == Logs::LOG_WARNING);
@@ -323,7 +323,7 @@ TEST_CASE("quality: a row losing its validity is announced once, not per beat") 
     f.writer.all_msgs.clear();
     f.bank.var(r).publish(Vars::from_f32(Vars::T_F32, 21.0f), t);
     for (uint16_t i = 0; i < 40; i++) reg.run_phase(Botanik::Tasks::PHASE_SERVICE, t += 100);
-    CHECK(f.writer.saw("cli_temp_hi1: valid"));
+    CHECK(f.writer.saw("air_temp_hi1: valid"));
     CHECK(f.writer.last_level == Logs::LOG_DEBUG);
 }
 
@@ -338,7 +338,7 @@ TEST_CASE("quality: bring-up is adopted in silence, not announced row by row") {
     h.register_tasks();
     reg.setup(0);
 
-    const uint16_t r = f.bank.find("cli_temp_hi1");
+    const uint16_t r = f.bank.find("air_temp_hi1");
     REQUIRE(r != Vars::VAR_NONE);
 
     // Inside the quiet window: the table is swept, the row goes valid, and
@@ -348,14 +348,14 @@ TEST_CASE("quality: bring-up is adopted in silence, not announced row by row") {
     f.bank.var(r).publish(Vars::from_f32(Vars::T_F32, 21.0f), t);
     for (uint16_t i = 0; i < 40; i++) reg.run_phase(Botanik::Tasks::PHASE_SERVICE, t += 100);
     REQUIRE(t < Config::HEALTH_QUIET_MS);
-    CHECK_FALSE(f.writer.saw("cli_temp_hi1"));
+    CHECK_FALSE(f.writer.saw("air_temp_hi1"));
 
     // ...and the row was ADOPTED rather than merely skipped, so the next change
     // is the one that speaks.
     t = (uint64_t)Config::HEALTH_QUIET_MS + 1000;
     f.bank.var(r).set_quality(Vars::Q_NONE);
     for (uint16_t i = 0; i < 40; i++) reg.run_phase(Botanik::Tasks::PHASE_SERVICE, t += 100);
-    CHECK(f.writer.saw("cli_temp_hi1: invalid"));
+    CHECK(f.writer.saw("air_temp_hi1: invalid"));
 }
 
 

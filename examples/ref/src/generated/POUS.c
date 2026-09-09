@@ -165,6 +165,8 @@ static void DERIVATIVE_init__(DERIVATIVE_data__ *data__, BOOL retain);
 static void DERIVATIVE_body__(DERIVATIVE_data__ *data__);
 static void VENT_CONTROL_init__(VENT_CONTROL_data__ *data__, BOOL retain);
 static void VENT_CONTROL_body__(VENT_CONTROL_data__ *data__);
+static void TANK_METER_init__(TANK_METER_data__ *data__, BOOL retain);
+static void TANK_METER_body__(TANK_METER_data__ *data__);
 
 static REAL ___ABS(
   BOOL EN, 
@@ -2146,7 +2148,17 @@ static void VENT_CONTROL_init__(VENT_CONTROL_data__ *data__, BOOL retain) {
   __INIT_EXTERNAL(REAL,VENT_POS,data__->VENT_POS,retain)
   __INIT_EXTERNAL(REAL,VENT_DRIVE,data__->VENT_DRIVE,retain)
   __INIT_EXTERNAL(REAL,VENT_DRIVE2,data__->VENT_DRIVE2,retain)
+  __INIT_EXTERNAL(BOOL,VENT_LOCK,data__->VENT_LOCK,retain)
+  __INIT_EXTERNAL(BOOL,AIR_TOOHOT,data__->AIR_TOOHOT,retain)
   __INIT_EXTERNAL(HEALTH,PROG_VENT_HEALTH,data__->PROG_VENT_HEALTH,retain)
+  __INIT_EXTERNAL(QUALITY,AIR_TEMP_IN_QLT,data__->AIR_TEMP_IN_QLT,retain)
+  __INIT_EXTERNAL(QUALITY,VENT_TGT_QLT,data__->VENT_TGT_QLT,retain)
+  __INIT_EXTERNAL(QUALITY,VENT_POS_QLT,data__->VENT_POS_QLT,retain)
+  __INIT_EXTERNAL(QUALITY,VENT_DRIVE_QLT,data__->VENT_DRIVE_QLT,retain)
+  __INIT_EXTERNAL(QUALITY,VENT_DRIVE2_QLT,data__->VENT_DRIVE2_QLT,retain)
+  __INIT_EXTERNAL(QUALITY,VENT_LOCK_QLT,data__->VENT_LOCK_QLT,retain)
+  __INIT_EXTERNAL(QUALITY,AIR_TEMP_HI1_QLT,data__->AIR_TEMP_HI1_QLT,retain)
+  __INIT_EXTERNAL(QUALITY,AIR_TEMP_HI2_QLT,data__->AIR_TEMP_HI2_QLT,retain)
 }
 
 // Code part
@@ -2171,6 +2183,18 @@ static void VENT_CONTROL_body__(VENT_CONTROL_data__ *data__) {
   };
   __SET_EXTERNAL(data__->,VENT_DRIVE,,__GET_EXTERNAL(data__->VENT_POS,));
   __SET_EXTERNAL(data__->,VENT_DRIVE2,,__GET_EXTERNAL(data__->VENT_POS,));
+  __SET_EXTERNAL(data__->,VENT_LOCK,,(__GET_EXTERNAL(data__->VENT_POS,) > __REAL_LITERAL(0.0)));
+  __SET_EXTERNAL(data__->,AIR_TOOHOT,,((__GET_EXTERNAL(data__->VENT_POS,) >= __REAL_LITERAL(1.0)) && (__GET_EXTERNAL(data__->AIR_TEMP_IN,) > __GET_EXTERNAL(data__->VENT_TGT,))));
+  if (((__GET_EXTERNAL(data__->AIR_TEMP_HI1_QLT,) == QUALITY__Q_GOOD) || (__GET_EXTERNAL(data__->AIR_TEMP_HI2_QLT,) == QUALITY__Q_GOOD))) {
+    __SET_EXTERNAL(data__->,AIR_TEMP_IN_QLT,,QUALITY__Q_GOOD);
+  } else {
+    __SET_EXTERNAL(data__->,AIR_TEMP_IN_QLT,,QUALITY__Q_NONE);
+  };
+  __SET_EXTERNAL(data__->,VENT_TGT_QLT,,__GET_EXTERNAL(data__->AIR_TEMP_IN_QLT,));
+  __SET_EXTERNAL(data__->,VENT_POS_QLT,,__GET_EXTERNAL(data__->AIR_TEMP_IN_QLT,));
+  __SET_EXTERNAL(data__->,VENT_DRIVE_QLT,,__GET_EXTERNAL(data__->AIR_TEMP_IN_QLT,));
+  __SET_EXTERNAL(data__->,VENT_DRIVE2_QLT,,__GET_EXTERNAL(data__->AIR_TEMP_IN_QLT,));
+  __SET_EXTERNAL(data__->,VENT_LOCK_QLT,,__GET_EXTERNAL(data__->AIR_TEMP_IN_QLT,));
   if ((___ABS(
     (BOOL)__BOOL_LITERAL(TRUE),
     NULL,
@@ -2185,6 +2209,32 @@ static void VENT_CONTROL_body__(VENT_CONTROL_data__ *data__) {
 __end:
   return;
 } // VENT_CONTROL_body__() 
+
+
+
+
+
+static void TANK_METER_init__(TANK_METER_data__ *data__, BOOL retain) {
+  __INIT_EXTERNAL(REAL,TANK_FLOW_LPM,data__->TANK_FLOW_LPM,retain)
+  __INIT_EXTERNAL(REAL,BUS_DC_V1,data__->BUS_DC_V1,retain)
+  __INIT_EXTERNAL(REAL,BUS_DC_V2,data__->BUS_DC_V2,retain)
+  __INIT_EXTERNAL(REAL,BUS_DC_MIN,data__->BUS_DC_MIN,retain)
+  __INIT_EXTERNAL(REAL,TANK_INTOTAL_L,data__->TANK_INTOTAL_L,retain)
+  __INIT_EXTERNAL(BOOL,BUS_DCLOW,data__->BUS_DCLOW,retain)
+}
+
+// Code part
+static void TANK_METER_body__(TANK_METER_data__ *data__) {
+  // Initialise TEMP variables
+
+  __SET_EXTERNAL(data__->,TANK_INTOTAL_L,,(__GET_EXTERNAL(data__->TANK_INTOTAL_L,) + (__GET_EXTERNAL(data__->TANK_FLOW_LPM,) / __REAL_LITERAL(600.0))));
+  __SET_EXTERNAL(data__->,BUS_DCLOW,,((__GET_EXTERNAL(data__->BUS_DC_V1,) < __GET_EXTERNAL(data__->BUS_DC_MIN,)) || (__GET_EXTERNAL(data__->BUS_DC_V2,) < __GET_EXTERNAL(data__->BUS_DC_MIN,))));
+
+  goto __end;
+
+__end:
+  return;
+} // TANK_METER_body__() 
 
 
 

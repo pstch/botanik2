@@ -1,5 +1,5 @@
 /**
- * @file test_vars.cpp
+ * @file vars.cpp
  * @brief The variable model: the conversions on their own, then what a
  *        reference that resolved to nothing does.
  */
@@ -14,6 +14,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <string>
 
 using namespace Botanik;
 
@@ -89,70 +90,6 @@ TEST_CASE("vars: retention is a flag on the factory, not a factory of its own") 
                 0, "", 900, "a retained param", "", true, true);
     CHECK(Vars::retained_param(pk));
     CHECK_FALSE(Vars::retained(pk));
-}
-
-TEST_CASE("text: a listing pattern is a prefix until it has a wildcard") {
-    auto m = [](const char* s, const char* pat) {
-        return Utils::glob_bounded(s, pat, (uint16_t)strlen(pat));
-    };
-
-    // What every shell listing meant before wildcards existed, unchanged.
-    CHECK(m("cli_temp_in", "cli_"));
-    CHECK(m("cli_temp_in", "cli_temp_in"));
-    CHECK_FALSE(m("cli_temp_in", "pwr_"));
-    // A prefix longer than the name is not a match.
-    CHECK_FALSE(m("cli_", "cli_temp_in"));
-
-    // With a wildcard the pattern is anchored at BOTH ends, so a bare group
-    // name stops matching and `*` is how you say "the rest".
-    CHECK(m("cli_window_pos1", "cli_win*_pos1"));
-    CHECK(m("cli_window_pos1", "*_pos1"));
-    CHECK(m("cli_window_pos1", "cli_*"));
-    CHECK(m("cli_window_pos1", "*"));
-    CHECK(m("cli_window_pos1", "*win*pos1"));
-    CHECK_FALSE(m("cli_window_tgt1", "*_pos1"));
-    CHECK_FALSE(m("cli_window_pos1", "cli_win*_tgt1"));
-
-    // ? is exactly one character.
-    CHECK(m("cli_intr1", "cli_intr?"));
-    CHECK_FALSE(m("cli_intr12", "cli_intr?"));
-
-    // The backtrack: the first star must give characters back for the tail.
-    CHECK(m("aaa_pos", "*a_pos"));
-    CHECK(m("abcabc", "*abc"));
-    CHECK_FALSE(m("abcabd", "*abc"));
-
-    // Null and empty: no pattern filters nothing, a null name matches nothing.
-    CHECK(Utils::glob_bounded("anything", nullptr, 0));
-    CHECK(Utils::glob_bounded("anything", "cli_", 0));
-    CHECK_FALSE(Utils::glob_bounded(nullptr, "cli_", 4));
-}
-
-TEST_CASE("text: a table filter is a substring until it has a wildcard") {
-    auto m = Utils::glob_ci;
-
-    // What every table filter meant before wildcards existed, unchanged: the
-    // typed text anywhere in the name, either case.
-    CHECK(m("cli_temp_in", "temp"));
-    CHECK(m("cli_temp_in", "TEMP"));
-    CHECK(m("CLI_TEMP_IN", "temp"));
-    CHECK_FALSE(m("cli_temp_in", "pwr"));
-
-    // With a wildcard it is anchored at both ends, so a fragment that matched
-    // anywhere stops matching.
-    CHECK(m("cli_window_pos1", "cli_*"));
-    CHECK(m("cli_window_pos1", "*_POS1"));
-    CHECK(m("cli_window_pos1", "cli_win*_pos1"));
-    CHECK(m("cli_window_pos1", "cli_window_pos?"));
-    CHECK(m("cli_window_pos1", "window"));         // no wildcard: still anywhere
-    CHECK_FALSE(m("cli_window_pos1", "window*"));  // one: anchored at the start
-    CHECK_FALSE(m("cli_window_pos1", "*_tgt1"));
-
-    // Null and empty: no filter narrows nothing, a null name matches nothing.
-    CHECK(m("anything", ""));
-    CHECK(m("anything", nullptr));
-    CHECK_FALSE(m(nullptr, "cli_"));
-    CHECK_FALSE(m(nullptr, "*"));
 }
 
 TEST_CASE("vars: a calibration with no span reads as implausible, not as a number") {

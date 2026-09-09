@@ -21,6 +21,11 @@ const AnalogCal CAL_vent_drive = {
     { Row::vent_rawMin_mV, Row::vent_rawMax_mV, Row::vent_engMin, Row::vent_engMax, Row::vent_min, Row::vent_max },
 };
 
+const AnalogCal CAL_bus_dc_V = {
+    SF(0.0), SF(10000.0), SF(0.0), SF(30.0), SF(20.0), SF(30.0),
+    { Row::bus_dc_rawMin_mV, Row::bus_dc_rawMax_mV, Row::bus_dc_engMin_V, Row::bus_dc_engMax_V, Row::bus_dc_min, Row::bus_dc_max },
+};
+
 // ONE table: the library's rows merged into the site's, parameters
 // first and contiguous, each quality companion directly after the row
 // it speaks for, the program rows last.
@@ -82,7 +87,7 @@ const Descriptor rows[] = {
     P("air_targetMin_degC", T_F32, 18.0, 5.0, 40.0, VAR_NONE, Row::air_targetMax_degC, 1, "degC", 100, "coolest the vent is asked to hold", "the floor of the pair; never above the ceiling"),
     P("air_targetMax_degC", T_F32, 26.0, 5.0, 40.0, Row::air_targetMin_degC, VAR_NONE, 1, "degC", 101, "warmest before the vent opens", "the ceiling of the pair"),
     P("air_ventFullDem", T_F32, 4.0, 0.5, 20.0, VAR_NONE, VAR_NONE, 1, "degC", 102, "degrees over target at which the vent is wide", ""),
-    P("vent_redatum", T_BOOL, 0, 0, 1, VAR_NONE, VAR_NONE, 0, "", 103, "re-run the vent's datum on the next scan", "cleared by the law once it has"),
+    P("vent_redatum", T_F32, 3.0, 0.0, 50.0, VAR_NONE, VAR_NONE, 1, "mm", 103, "how far the ram re-datums past the stop", "the ram drives this far past shut to find its zero"),
     P("run_liters", T_U32, 0, 0, 999999, VAR_NONE, VAR_NONE, 0, "L", 104, "litres the plant has passed", "retained: the cadence writes it, not every scan", true, true),
     P("vent_rawMin_mV", T_F32, 0.0, 0.0, 24000.0, VAR_NONE, VAR_NONE, 0, "mV", 110, "actuator raw value fully shut", "per the actuator datasheet"),
     P("vent_rawMax_mV", T_F32, 10000.0, 0.0, 24000.0, VAR_NONE, VAR_NONE, 0, "mV", 111, "actuator raw value wide open", "per the actuator datasheet"),
@@ -90,7 +95,20 @@ const Descriptor rows[] = {
     P("vent_engMax", T_F32, 1.0, 0.0, 1.0, VAR_NONE, VAR_NONE, 2, "", 113, "opening at the high end", ""),
     P("vent_min", T_F32, 0.0, 0.0, 1.0, VAR_NONE, VAR_NONE, 2, "", 114, "lowest believable opening", "under this the reading is not trusted"),
     P("vent_max", T_F32, 1.0, 0.0, 1.0, VAR_NONE, VAR_NONE, 2, "", 115, "highest believable opening", "over this the reading is not trusted"),
+    P("air_ventStartDem", T_F32, 0.5, 0.0, 20.0, VAR_NONE, VAR_NONE, 1, "degC", 105, "degrees over target at which the vent starts", ""),
+    P("air_nightOfs_degC", T_F32, 3.0, 0.0, 15.0, VAR_NONE, VAR_NONE, 1, "degC", 106, "how much cooler the target runs at night", ""),
+    P("air_fanStartDem", T_F32, 0.2, 0.0, 1.0, VAR_NONE, VAR_NONE, 2, "", 107, "demand at which the fan starts", ""),
+    P("air_fanFullDem", T_F32, 0.8, 0.0, 1.0, VAR_NONE, VAR_NONE, 2, "", 108, "demand at which the fan is flat out", ""),
+    P("tank_soak_sec", T_U16, 120, 0, 3600, VAR_NONE, VAR_NONE, 0, "sec", 120, "how long a fill is left to soak in", ""),
+    P("tank_lastFill", T_U32, 0, 0, 999999, VAR_NONE, VAR_NONE, 0, "sec", 121, "uptime seconds at the last fill", "retained: a power cut must not lose the date", true, true),
+    P("bus_dc_rawMin_mV", T_F32, 0.0, 0.0, 24000.0, VAR_NONE, VAR_NONE, 0, "mV", 130, "rail raw value at zero volts", "per the converter datasheet"),
+    P("bus_dc_rawMax_mV", T_F32, 10000.0, 0.0, 24000.0, VAR_NONE, VAR_NONE, 0, "mV", 131, "rail raw value at full scale", "per the converter datasheet"),
+    P("bus_dc_engMin_V", T_F32, 0.0, 0.0, 60.0, VAR_NONE, VAR_NONE, 1, "V", 132, "rail volts at the low end", ""),
+    P("bus_dc_engMax_V", T_F32, 30.0, 0.0, 60.0, VAR_NONE, VAR_NONE, 1, "V", 133, "rail volts at the high end", ""),
+    P("bus_dc_min", T_F32, 20.0, 0.0, 60.0, VAR_NONE, VAR_NONE, 1, "V", 134, "lowest believable rail volts", "under this: a dead sensor rather than a flat battery"),
+    P("bus_dc_max", T_F32, 30.0, 0.0, 60.0, VAR_NONE, VAR_NONE, 1, "V", 135, "highest believable rail volts", ""),
     P("prog_vent_run", T_BOOL, 1, 0, 1, VAR_NONE, VAR_NONE, 0, "", 1400, "let the vent law drive", "off takes it out of the scan and drops what it drives to its declared safe state"),
+    P("prog_tank_run", T_BOOL, 1, 0, 1, VAR_NONE, VAR_NONE, 0, "", 1401, "let the tank law drive", "off takes it out of the scan and drops what it drives to its declared safe state"),
     // ...and everything else
     A("alarm_net_fault", "NET_FLT", 5, 5, 0, 0, 986, "the network link is down", "bring-up failed or the link was lost; check the cable, the switch and net_ip"),
     A("alarm_ntp_timeout", "NTP_TIM", 5, 5, 0, 0, 987, "no NTP sync", "the wall clock is free-running: anything dated, scheduled or solar is adrift"),
@@ -133,15 +151,31 @@ const Descriptor rows[] = {
     SV("sol_fromRise_min", T_I16, 0, 0, "min", 944, "minutes since sunrise; negative before it", "what the sol_ phase offsets are measured against"),
     SV("sol_fromSet_min", T_I16, 0, 0, "min", 945, "minutes since sunset; negative before it", "held until the tracker has a location and a wall clock"),
     SV("sol_elev_deg", T_F32, 0, 1, "deg", 946, "the sun's elevation above the horizon", "negative below it; what the day's shape is anticipated from"),
-    SV("air_temp_in", T_F32, 0.0, 1, "degC", 500, "air temperature the law controls on", "the warmer of the two levels"),
-    SV("vent_tgt", T_F32, 0.0, 1, "degC", 501, "the target the law is working to", ""),
-    SV("vent_pos", T_F32, 0.0, 2, "", 502, "commanded vent opening; 0 shut and 1 wide", ""),
+    A("air_tooHot", "AIR_HOT", 30, 60, 3600, 0, 600, "air is over target with the vent wide", "the vent has nothing left to give"),
+    A("bus_dcLow", "DC_LOW", 5, 30, 3600, 0, 601, "a DC rail is under its floor", "either rail; the pair is one supply"),
+    SV("air_temp_in", T_F32, 0.0, 1, "degC", 500, "air temperature the law controls on", "the warmer of the two levels", false, true),
+    Q("air_temp_in_qlt", 1000, "quality of air_temp_in"),
+    SV("vent_tgt", T_F32, 0.0, 1, "degC", 501, "the target the law is working to", "", false, true),
+    Q("vent_tgt_qlt", 1001, "quality of vent_tgt"),
+    SV("vent_pos", T_F32, 0.0, 2, "", 502, "commanded vent opening; 0 shut and 1 wide", "", false, true),
+    Q("vent_pos_qlt", 1002, "quality of vent_pos"),
+    SV("tank_inTotal_L", T_F32, 0.0, 1, "L", 503, "litres the tank has taken in", "", true),
     MI("air_temp_hi1", T_F32, 50, 4, 0, 2, SF(-40.0f), SF(80.0f), VAR_NONE, VAR_NONE, SF(0.0f), 5000, 1, "degC", "air temperature high level 1", "the sensor the law reads"),
-    Q("air_temp_hi1_qlt", 1000, "quality of air_temp_hi1"),
+    Q("air_temp_hi1_qlt", 1003, "quality of air_temp_hi1"),
     MI("air_temp_hi2", T_F32, 50, 4, 2, 2, SF(-40.0f), SF(80.0f), VAR_NONE, VAR_NONE, SF(0.0f), 5000, 1, "degC", "air temperature high level 2", "a second sensor on the same device"),
-    Q("air_temp_hi2_qlt", 1001, "quality of air_temp_hi2"),
+    Q("air_temp_hi2_qlt", 1004, "quality of air_temp_hi2"),
+    MI("tank_flow_Lpm", T_F32, 50, 4, 4, 2, SF(0.0f), SF(200.0f), VAR_NONE, VAR_NONE, SF(0.0f), 5000, 1, "L/min", "tank inflow", ""),
+    Q("tank_flow_Lpm_qlt", 1005, "quality of tank_flow_Lpm"),
+    AI("bus_dc_V1", &CAL_bus_dc_V, 11, 4, 0, 1, T_U16, SF(0.0f), 5000, 1, "V", "DC supply 1 bus voltage", ""),
+    Q("bus_dc_V1_qlt", 1006, "quality of bus_dc_V1"),
+    AI("bus_dc_V2", &CAL_bus_dc_V, 11, 4, 1, 1, T_U16, SF(0.0f), 5000, 1, "V", "DC supply 2 bus voltage", "the two share one calibration: same rail"),
+    Q("bus_dc_V2_qlt", 1007, "quality of bus_dc_V2"),
     AO("vent_drive", &CAL_vent_drive, 16, 6, 0, 1, T_U16, false, 2, "", "vent actuator command", "safe is shut: an unattended vent closes"),
+    Q("vent_drive_qlt", 1008, "quality of vent_drive"),
     AO("vent_drive2", &CAL_vent_drive, 16, 6, 1, 1, T_U16, false, 2, "", "second vent actuator command", "shares the first one's calibration: same actuator type"),
+    Q("vent_drive2_qlt", 1009, "quality of vent_drive2"),
+    RO("vent_lock", 16, 0, true, true, "vent interlock relay", "wired normally-closed, so the row is inverted: safe is LOCKED"),
+    Q("vent_lock_qlt", 1010, "quality of vent_lock"),
     SVE("prog_vent_health", 2, &Plc::health_label, 1300, "what the vent law says about its own answer", "FAULTED until it has run: the law writes it, not Plant"),
 };
 
@@ -149,24 +183,28 @@ const Descriptor rows[] = {
 // array and nothing is built at boot. Case-folded, which is the order
 // the lookup compares in.
 const uint16_t row_order[] = {
-    54, 53, 90, 91, 92, 93, 87, 55, 72, 70, 69, 74,
-    76, 73, 77, 67, 65, 66, 75, 71, 68, 32, 34, 35,
-    31, 33, 25, 26, 24, 36, 38, 28, 29, 27, 30, 0,
-    1, 17, 18, 20, 23, 19, 22, 16, 21, 4, 8, 9,
-    3, 7, 5, 6, 2, 11, 12, 13, 10, 14, 15, 46,
-    96, 64, 50, 49, 48, 52, 47, 51, 57, 37, 86, 84,
-    85, 83, 43, 39, 79, 78, 80, 40, 81, 45, 44, 41,
-    42, 82, 94, 95, 61, 60, 63, 62, 89, 59, 58, 56,
-    88,
+    67, 66, 65, 54, 53, 109, 110, 111, 112, 102, 103, 100,
+    55, 64, 85, 83, 82, 87, 89, 86, 90, 80, 78, 79,
+    88, 84, 81, 73, 72, 75, 74, 71, 70, 115, 116, 117,
+    118, 101, 32, 34, 35, 31, 33, 25, 26, 24, 36, 38,
+    28, 29, 27, 30, 0, 1, 17, 18, 20, 23, 19, 22,
+    16, 21, 4, 8, 9, 3, 7, 5, 6, 2, 11, 12,
+    13, 10, 14, 15, 46, 77, 125, 76, 50, 49, 48, 52,
+    47, 51, 57, 37, 99, 97, 98, 96, 43, 39, 92, 91,
+    93, 40, 94, 45, 44, 41, 42, 95, 113, 114, 108, 69,
+    68, 119, 121, 122, 120, 61, 60, 123, 124, 63, 62, 106,
+    107, 59, 58, 56, 104, 105,
 };
 
 #if BOTANIK_FEATURE_MODBUS_RTU_CLIENT
 const Modbus::DeviceModel MDL_SENSOR = Modbus::meter("Air temp sensor", 8, 2);
 const Modbus::DeviceModel MDL_ACTUATOR = Modbus::io_board("Vent actuator", 4);
+const Modbus::DeviceModel MDL_RAIL = Modbus::meter("DC rail monitor", 4, 2);
 
 const Modbus::Device g_devices[] = {
     { 50, &MDL_SENSOR, "air sensor" },
     { 16, &MDL_ACTUATOR, "vent actuator" },
+    { 11, &MDL_RAIL, "dc rail monitor" },
 };
 
 const Modbus::DeviceTable g_device_table = {
@@ -187,7 +225,8 @@ const HomeVar g_home_fields[] = {
 // plant - its supplies, its rails - which no rule tells from a
 // greenhouse reading either.
 const HomeVar g_system_fields[] = {
-    { nullptr, 0 },
+    { "Rail 1", Row::bus_dc_V1 },
+    { "Rail 2", Row::bus_dc_V2 },
 };
 
 /** @brief The site's shell commands: none. A site table is matched

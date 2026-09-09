@@ -21,7 +21,6 @@ add_executable(botanik_tests
     test_editor_wire.cpp
     test_editor_fuzz.cpp
     test_shell_wire.cpp
-    test_health.cpp
     test_modbus.cpp
     test_modbus_framing.cpp
     test_modbus_tcp.cpp
@@ -37,11 +36,8 @@ add_executable(botanik_tests
     test_ntp.cpp
     test_pages.cpp
     test_shell.cpp
-    test_shell_vars.cpp
     test_shell_report.cpp
-    test_table_behaviour.cpp
     test_sun.cpp
-    test_vars.cpp
 )
 
 # vendor/ for doctest.h; src/ for the library and the simulator's site payloads.
@@ -66,6 +62,12 @@ target_compile_definitions(botanik_tests PRIVATE
 # The gate excludes `unit`: one process is the configuration that catches a case
 # corrupting state for the ones after it. A bare `ctest` runs both.
 add_test(NAME doctest COMMAND botanik_tests)
+
+# The selected example's own tests: the model with a real table under it,
+# which is the site's to provide. Nothing here names a site's rows.
+if(EXISTS "${_site_dir}/../tests/CMakeLists.txt")
+    add_subdirectory("${_site_dir}/../tests" site_tests)
+endif()
 
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/vendor)
 include(doctest)

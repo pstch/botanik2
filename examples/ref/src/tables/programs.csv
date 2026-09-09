@@ -1,2 +1,3 @@
 name           ,instance  ,source                                                            ,rate   ,desc,quality,park,health
-vent           ,vent      ,programs/climate/vent_control/vent_control.st                      ,control,"The whole site: pick the warmer level, work out a target, and open the vent in proportion to how far over it the air is.",,,true
+vent           ,vent      ,programs/climate/vent_control/vent_control.st                      ,control,"The whole site: pick the warmer level, work out a target, and open the vent in proportion to how far over it the air is.",true,,true
+tank           ,tank      ,programs/water/tank_meter/tank_meter.st                           ,control,"The tank's running total, integrated from its flow meter.",,,

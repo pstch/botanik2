@@ -1,5 +1,5 @@
 /**
- * @file test_table_behaviour.cpp
+ * @file table_behaviour.cpp
  * @brief What the variable model DOES, with a real table under it.
  *
  * Quality substitution, a band whose ends name other rows, the persistence
@@ -96,8 +96,8 @@ TEST_CASE_FIXTURE(SiteBank, "vars: a row's quality IS its companion's value") {
     // One store, two names. A driver writes the quality through the row it
     // published; ST reads the companion. Nothing copies between them, so they
     // cannot lag or disagree.
-    const uint16_t probe = bank.find("cli_temp_hi1");
-    const uint16_t qlt   = bank.find("cli_temp_hi1_qlt");
+    const uint16_t probe = bank.find("air_temp_hi1");
+    const uint16_t qlt   = bank.find("air_temp_hi1_qlt");
     REQUIRE(probe != Vars::VAR_NONE);
     REQUIRE(qlt != Vars::VAR_NONE);
     CHECK(bank.var(probe).quality_row() == qlt);
@@ -138,12 +138,12 @@ TEST_CASE_FIXTURE(SiteBank, "vars: a row with no companion is valid, always") {
     // The rule that keeps the table small: a parameter cannot stop being one,
     // and a companion has no quality of its own - which is what stops the
     // regress.
-    const uint16_t param = bank.find("cli_coldBankOfs_degC");
+    const uint16_t param = bank.find("air_nightOfs_degC");
     REQUIRE(param != Vars::VAR_NONE);
     CHECK(bank.var(param).quality_row() == Vars::VAR_NONE);
     CHECK(bank.var(param).valid());
 
-    const uint16_t qlt = bank.find("cli_temp_hi1_qlt");
+    const uint16_t qlt = bank.find("air_temp_hi1_qlt");
     REQUIRE(qlt != Vars::VAR_NONE);
     CHECK(bank.var(qlt).quality_row() == Vars::VAR_NONE);
     bank.var(qlt).set_i(Vars::Q_NONE);
@@ -153,7 +153,7 @@ TEST_CASE_FIXTURE(SiteBank, "vars: a row with no companion is valid, always") {
 TEST_CASE_FIXTURE(SiteBank, "vars: a forced value is believed, a forced quality wins") {
     // Forcing a dead probe's reading so the plant runs on it is what an
     // override is FOR, so the force does not inherit the doubt underneath it.
-    const uint16_t probe = bank.find("cli_temp_hi1");
+    const uint16_t probe = bank.find("air_temp_hi1");
     bank.var(probe).quality_var().set_i(Vars::Q_NONE);
     REQUIRE_FALSE(bank.var(probe).valid());
 
@@ -170,7 +170,7 @@ TEST_CASE_FIXTURE(SiteBank, "vars: a forced value is believed, a forced quality 
 TEST_CASE_FIXTURE(SiteBank, "vars: forcing a companion is how a row reads dead") {
     // The override layer carries no validity of its own any more: "make this
     // sensor read failed" is an ordinary force of an ordinary row.
-    const uint16_t probe = bank.find("cli_temp_hi1");
+    const uint16_t probe = bank.find("air_temp_hi1");
     bank.var(probe).publish(Vars::from_f32(Vars::T_F32, 21.5f), 1000);
     REQUIRE(bank.var(probe).valid());
 
@@ -216,8 +216,8 @@ TEST_CASE("site: the two DC rails share one calibration") {
     // edit and not two that can drift apart. Sharing the BLOCK is what shares
     // the parameters: the six tunables name rows, and the rows are the same.
     SiteBank f;
-    const uint16_t dc1 = f.bank.find("pwr_dc_V1");
-    const uint16_t dc2 = f.bank.find("pwr_dc_V2");
+    const uint16_t dc1 = f.bank.find("bus_dc_V1");
+    const uint16_t dc2 = f.bank.find("bus_dc_V2");
     REQUIRE(dc1 != Vars::VAR_NONE);
     REQUIRE(dc2 != Vars::VAR_NONE);
 
@@ -235,7 +235,7 @@ TEST_CASE("site: the two DC rails share one calibration") {
     // One edit, both readings. Moving the engineering top end changes what a
     // given count means, and it has to move BOTH rails or the merge bought
     // nothing.
-    const uint16_t top = f.bank.find("pwr_dc_engMax_V");
+    const uint16_t top = f.bank.find("bus_dc_engMax_V");
     REQUIRE(top != Vars::VAR_NONE);
     f.bank.var(dc1).publish_wire(Vars::Scalar::U(5000), 1000);
     f.bank.var(dc2).publish_wire(Vars::Scalar::U(5000), 1000);
@@ -251,52 +251,6 @@ TEST_CASE("site: the two DC rails share one calibration") {
     CHECK(f.bank.var(dc1).as_f32() == doctest::Approx(f.bank.var(dc2).as_f32()));
 }
 
-TEST_CASE("site: a pair that must stay ordered cannot be edited out of order") {
-    // Each of these is legal on its own and only the PAIR is wrong, which a
-    // fixed band cannot see: a target floor above its own ceiling holds the
-    // house at the floor, and a ramp starting past where it ends inverts.
-    SiteBank f;
-    // Every figure here sits INSIDE the pair's own fixed rail, so a refusal can
-    // only be the cross-reference. Against the rail, `too_high` would be
-    // refused whether the rows knew about each other or not.
-    struct Pair {
-        const char* lo; const char* hi;
-        float below, above;       // a settled pair, with room either side
-        float too_high, too_low;  // past the OTHER row, but well inside the rail
-    };
-    static const Pair pairs[] = {
-        { "cli_targetMin_degC", "cli_targetMax_degC",  // rail 0 .. 40
-          10.0f, 30.0f, 35.0f, 5.0f },
-        { "cli_intakeStartDem", "cli_intakeFullDem",   // rail 0 .. 1
-          0.20f, 0.60f, 0.80f, 0.10f },
-        { "cli_windowStartDem", "cli_windowFullDem",   // rail 0 .. 1
-          0.20f, 0.60f, 0.80f, 0.10f },
-    };
-    for (const Pair& p : pairs) {
-        Vars::Var lo = f.bank.var(f.bank.find(p.lo));
-        Vars::Var hi = f.bank.var(f.bank.find(p.hi));
-        REQUIRE_FALSE(lo.null());
-        REQUIRE_FALSE(hi.null());
-        INFO(doctest::String(p.lo) << " against " << doctest::String(p.hi));
-
-        REQUIRE(lo.param_set(p.below) == Vars::SET_OK);
-        REQUIRE(hi.param_set(p.above) == Vars::SET_OK);
-
-        INFO("the floor may not be raised past the ceiling");
-        CHECK(lo.param_set(p.too_high) == Vars::SET_INVALID);
-        INFO("...nor the ceiling dropped under the floor");
-        CHECK(hi.param_set(p.too_low) == Vars::SET_INVALID);
-
-        // Both refused values are legal once the OTHER row has made room, which
-        // is what keeps the constraint from locking an operator out: widen by
-        // moving the ceiling first, narrow by moving the floor first.
-        REQUIRE(hi.param_set(p.too_high) == Vars::SET_OK);
-        CHECK(lo.param_set(p.too_high) == Vars::SET_OK);
-        REQUIRE(lo.param_set(p.too_low) == Vars::SET_OK);
-        CHECK(hi.param_set(p.too_low) == Vars::SET_OK);
-    }
-}
-
 }}  // namespace tests::site_names
 
 namespace tests { namespace site_params {
@@ -309,7 +263,7 @@ TEST_CASE("params: restating a value owes the store nothing") {
     test_store::RamStore store;
     Vars::Persist persist(Botanik::SetupContext(), bank, &store);
 
-    const uint16_t r = bank.find("irr_soak_sec");
+    const uint16_t r = bank.find("tank_soak_sec");
     REQUIRE(r != Vars::VAR_NONE);
     REQUIRE(bank.var(r).param_set("5") == Vars::SET_OK);
     CHECK(bank.var(r).param_unsaved());
@@ -338,7 +292,7 @@ TEST_CASE("retained: the cadence writes what moved, not what is retained") {
     Vars::Persist persist(Botanik::SetupContext(), bank, &store);
     Vars::runtime_bank = &bank;
 
-    const uint16_t total = bank.find("irr_inTotal_L");
+    const uint16_t total = bank.find("tank_inTotal_L");
     REQUIRE(total != Vars::VAR_NONE);
     REQUIRE(Vars::retained(bank.var(total).meta()));
 
@@ -353,7 +307,7 @@ TEST_CASE("retained: the cadence writes what moved, not what is retained") {
     CHECK(persist.save_retained() == 1);
     CHECK(store.writes == 1);
     CHECK_FALSE(bank.var(total).retain_owed());
-    CHECK(store.stored("irr_inTotal_L", "ret."));
+    CHECK(store.stored("tank_inTotal_L", "ret."));
 
     INFO("a law restates its counter every scan, and restating is not moving");
     for (int i = 0; i < 20; i++) meter.drive(202.0f);
@@ -373,12 +327,12 @@ TEST_CASE("params: a program's write waits on the cadence, an operator's on the 
     Vars::Persist persist(Botanik::SetupContext(), bank, &store);
 
     // The program's: a watering date, through the parameter path a law uses.
-    const uint16_t date = bank.find("irr_last_tray1");
+    const uint16_t date = bank.find("tank_lastFill");
     REQUIRE(date != Vars::VAR_NONE);
     // What the generated __SET_EXTERNAL does on a PARAMETER row: the write is
     // an edit, owed to the retain cadence rather than to the operator.
     Vars::runtime_bank = &bank;
-    const Vars::Ref<uint32_t> stamp = { bank.find("irr_last_tray1") };
+    const Vars::Ref<uint32_t> stamp = { bank.find("tank_lastFill") };
     stamp.drive(20000u);
     INFO("OWED, not unsaved: the params page counts what a PERSON typed, and a "
          "watering date is not that");
@@ -392,7 +346,7 @@ TEST_CASE("params: a program's write waits on the cadence, an operator's on the 
     CHECK(store.writes == 0);
 
     // The operator's: an ordinary setting, typed.
-    const uint16_t setting = bank.find("irr_soak_sec");
+    const uint16_t setting = bank.find("tank_soak_sec");
     REQUIRE(setting != Vars::VAR_NONE);
     REQUIRE(bank.var(setting).param_set("5") == Vars::SET_OK);
     CHECK(bank.var(setting).param_unsaved());

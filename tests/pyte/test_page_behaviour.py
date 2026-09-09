@@ -53,14 +53,14 @@ def test_monitor_forces_a_row_and_releases_it(spawn):
     """
     term = boot(spawn)
     goto(term, keys.ALT_6, "VARIABLE")
-    term.send(keys.text("cli_temp_hi"))          # one row plus its three probes
-    assert term.wait_screen("[/cli_temp_hi]"), "the filter did not narrow the table"
+    term.send(keys.text("air_temp_hi"))          # one row plus its three probes
+    assert term.wait_screen("[/air_temp_hi]"), "the filter did not narrow the table"
     # The zone is unbelievable until the simulated field has answered its three
     # probes. ^V below is about taking a BELIEVED row away, so wait for one.
     assert term.wait_screen("Quality      : GOOD"), "the ceiling never came up"
 
     term.send(keys.CTRL_O)
-    assert term.wait_screen("cli_temp_hi ="), "^O did not open the override field"
+    assert term.wait_screen("air_temp_hi ="), "^O did not open the override field"
     term.send(keys.CTRL_U + b"33.5" + keys.ENTER)
     assert term.wait_screen("33.5"), "the override did not reach the OVERRIDE column"
     # TWO: the value, and the belief that came with it. Forcing a reading says
@@ -90,7 +90,7 @@ def test_a_wildcard_filter_narrows_a_table(spawn):
     """A `*`/`?` pattern narrows a table where a substring cannot.
 
     On MONITOR, where the names an operator knows come in groups:
-    `cli_window_pos?` is every window's position and none of its setpoints,
+    `vent_pos?` is every window's position and none of its setpoints,
     which no substring of those names selects.
     """
     term = boot(spawn)
@@ -103,11 +103,11 @@ def test_a_wildcard_filter_narrows_a_table(spawn):
 
     def narrowed():
         rows = names()
-        return len(rows) == 4 and all(n.startswith("cli_window_pos")
+        return len(rows) == 4 and all(n.startswith("vent_pos")
                                       for n in rows)
 
-    term.send(keys.text("cli_window_pos?"))
-    assert term.wait_screen("[/cli_window_pos?]"), "the filter did not reach the legend"
+    term.send(keys.text("vent_pos?"))
+    assert term.wait_screen("[/vent_pos?]"), "the filter did not reach the legend"
     # Waited on rather than asserted once: the legend is PRIO_CHROME and goes out
     # a frame ahead of the band it describes.
     assert term.until(narrowed), "the table did not narrow to the pattern: %s" % names()
@@ -292,7 +292,7 @@ def test_monitor_acts_on_the_row_it_drew(spawn):
     term = boot(spawn)
     goto(term, keys.ALT_6, "VARIABLE")
     # A group with no _qlt companion, so every row the filter leaves is a
-    # number the override field will take. Every cli_temp_* and cli_rh_* probe
+    # number the override field will take. Every air_temp_* and air_vent* probe
     # has one now: the conditioning chain is ST, and ST reads quality as rows.
     term.send(keys.text("grid_L1"))
     assert term.wait_screen("[/grid_L1]"), "the filter did not narrow the table"

@@ -18,13 +18,14 @@
 #endif
 
 extern const AnalogCal CAL_vent_drive;
+extern const AnalogCal CAL_bus_dc_V;
 
 // The whole table, library rows merged in, and the name order beside it.
 extern const Descriptor rows[];
 extern const uint16_t   row_order[];
-const uint16_t ROWS_COUNT  = 97;
+const uint16_t ROWS_COUNT  = 126;
 const uint16_t PARAM_FIRST = 0;
-const uint16_t PARAM_COUNT = 65;
+const uint16_t PARAM_COUNT = 78;
 
 static_assert(ROWS_COUNT == Config::VAR_MAX,
               "the table and the bank's arrays are generated together");
@@ -32,6 +33,7 @@ static_assert(ROWS_COUNT == Config::VAR_MAX,
 #if BOTANIK_FEATURE_MODBUS_RTU_CLIENT
 extern const Modbus::DeviceModel MDL_SENSOR;
 extern const Modbus::DeviceModel MDL_ACTUATOR;
+extern const Modbus::DeviceModel MDL_RAIL;
 extern const Modbus::Device g_devices[];
 extern const Modbus::DeviceTable g_device_table;
 #endif
@@ -47,7 +49,7 @@ static_assert(g_home_field_count <= Config::HOME_FIELDS_MAX,
 // The SYSTEM band's site half, the same shape. 0 for a site that
 // adds nothing to the library's own rows.
 extern const HomeVar g_system_fields[];
-const uint8_t g_system_field_count = 0;
+const uint8_t g_system_field_count = 2;
 static_assert(g_system_field_count <= Config::SYSTEM_FIELDS_MAX,
               "too many system fields: the SYSTEM page would drop the tail");
 

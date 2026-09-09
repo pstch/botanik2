@@ -1,22 +1,22 @@
  1:HOME 2 3 4 5 6 7 8 9             <TIME>        run:<R> cpu:<C> stk:<S>
     _           _              _ _
    | |__   ___ | |_ __ _ _ __ (_) | __
-   | '_ \ / _ \| __/ _` | '_ \| | |/ /  Site name ...... : demo
+   | '_ \ / _ \| __/ _` | '_ \| | |/ /  Site name ...... : ref
    | |_) | (_) | || (_| | | | | |   <  Version ........ : <VERSION>
    |_.__/ \___/ \__\__,_|_| |_|_|_|\_\  Commit ......... : <COMMIT>
 
-  Uptime     <UPTIME>  Cool dem   <HF>           Irrigation IDLE
-                            Strat dem  <HF>           Tray       <HF>
-  Interior   <HF>           Humid dem  <HF>           Since rain <HF>
-  Exterior   <HF>           Windows    <HF>           Wind       <HF>
-  Humidity   <HF>           Intractor  <HF>           Local V    <HF>
-  Dew margin <HF>           Fan speed  <HF>           Local A    <HF>
-  Target     <HF>           Screen     <HF>           Grid A     <HF>
-  Phase      NIGHT          Skirt      <HF>           Lockout    <HF>
+  Uptime     <UPTIME>
+
+  Air        0.0 degC
+  Target     <HF>
+  Vent       0.00
+
+
+
 
     LOGS
 
-<TS> [+] BOOT: 2 retained value(s) restored
+<TS> [-] NETWORK: modbus slave on port 502
 <TS> [-] NETWORK: network bring-up (static)
 <TS> [+] NETWORK: network up: 127.0.0.1
 <TS> [+] TIME: NTP synced

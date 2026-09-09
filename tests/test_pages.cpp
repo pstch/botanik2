@@ -155,8 +155,8 @@ TEST_CASE("pages: the SYSTEM band's site half carries labels, values AND units")
     sys.tasks     = &reg;
 
     static const Vars::HomeVar FIELDS[] = {
-        { "Grid V",  Vars::Row::sys_grid_V  },
-        { "Grid Hz", Vars::Row::sys_grid_Hz },
+        { "Rail 1",  Vars::Row::bus_dc_V1 },
+        { "Rail 2",  Vars::Row::bus_dc_V2 },
     };
     bank.var(FIELDS[0].row).set(231.5f);
     bank.var(FIELDS[1].row).set(50.0f);
@@ -169,7 +169,7 @@ TEST_CASE("pages: the SYSTEM band's site half carries labels, values AND units")
 
     bool saw_label = false, saw_value = false;
     for (const std::string& row : f.content()) {
-        if (row.find("Grid V") != std::string::npos) saw_label = true;
+        if (row.find("Rail 1") != std::string::npos) saw_label = true;
         // The unit is the half that went missing: the value alone rendered
         // fine and read as unitless.
         if (row.find("231.5 V") != std::string::npos) saw_value = true;

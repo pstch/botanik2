@@ -20,6 +20,8 @@ extern unsigned long long common_ticktime__;
 static BOOL UNBOUND;
 VENT_CONTROL_data__ PLC__VENT;
 #define VENT PLC__VENT
+TANK_METER_data__ PLC__TANK;
+#define TANK PLC__TANK
 
 void PLC_init__(void) {
   BOOL retain;
@@ -27,10 +29,12 @@ void PLC_init__(void) {
   
   UNBOUND = __BOOL_LITERAL(FALSE);
   VENT_CONTROL_init__(&VENT,retain);
+  TANK_METER_init__(&TANK,retain);
 }
 
 void PLC_run__(unsigned long tick) {
   UNBOUND = !(tick % 1);
   VENT_CONTROL_body__(&VENT);
+  TANK_METER_body__(&TANK);
 }
 

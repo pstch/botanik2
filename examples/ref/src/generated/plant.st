@@ -17,20 +17,37 @@ CONFIGURATION ref
     air_targetMax_degC : REAL;
     air_targetMin_degC : REAL;
     air_temp_hi1       : REAL;
+    air_temp_hi1_qlt   : QUALITY;
     air_temp_hi2       : REAL;
+    air_temp_hi2_qlt   : QUALITY;
     air_temp_in        : REAL;
+    air_temp_in_qlt    : QUALITY;
+    air_tooHot         : BOOL;
     air_ventFullDem    : REAL;
+    bus_dcLow          : BOOL;
+    bus_dc_V1          : REAL;
+    bus_dc_V2          : REAL;
+    bus_dc_min         : REAL;
     prog_vent_health   : HEALTH;
+    tank_flow_Lpm      : REAL;
+    tank_inTotal_L     : REAL;
     vent_drive         : REAL;
     vent_drive2        : REAL;
+    vent_drive2_qlt    : QUALITY;
+    vent_drive_qlt     : QUALITY;
+    vent_lock          : BOOL;
+    vent_lock_qlt      : QUALITY;
     vent_pos           : REAL;
+    vent_pos_qlt       : QUALITY;
     vent_tgt           : REAL;
+    vent_tgt_qlt       : QUALITY;
   END_VAR
 
   RESOURCE plc ON OPTA
     TASK unbound (INTERVAL := T#100ms, PRIORITY := 1);
 
     PROGRAM vent : vent_control;
+    PROGRAM tank : tank_meter;
   END_RESOURCE
 
 END_CONFIGURATION

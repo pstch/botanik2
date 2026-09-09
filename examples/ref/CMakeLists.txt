@@ -19,3 +19,10 @@ project(ref C CXX)
 set(BOTANIK_SITE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src)
 
 add_subdirectory(extern/botanik botanik-build)
+
+# This site's own tests, when it is the project rather than the selected
+# example of botanik's own build.
+if(TARGET botanik_testkit AND PROJECT_IS_TOP_LEVEL)
+    enable_testing()
+    add_subdirectory(tests)
+endif()
