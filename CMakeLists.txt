@@ -283,6 +283,12 @@ if(BOTANIK_TARGET STREQUAL "SIMULATOR")
         file(GLOB_RECURSE BOTANIK_SITE_SOURCES CONFIGURE_DEPENDS
              "${_site_dir}/*.cpp")
 
+        # Exported, like BOTANIK_TEST_MAIN beside it: a site repository builds
+        # its own targets from this, and add_subdirectory() puts a plain
+        # variable in a child scope its own CMakeLists cannot see.
+        set(BOTANIK_SITE_SOURCES "${BOTANIK_SITE_SOURCES}" CACHE INTERNAL
+            "The selected site's own sources, for a site repo's own targets")
+
         # -Wshadow on the site's own sources only. A control program reads its
         # variables as members, so a local of the same name takes over silently.
         set_source_files_properties(${BOTANIK_SITE_SOURCES}
@@ -291,6 +297,12 @@ if(BOTANIK_TARGET STREQUAL "SIMULATOR")
             "src/botanik_sim/main.cpp"
             ${BOTANIK_SITE_SOURCES})
         target_link_libraries(botanik_sim botanik)
+    else()
+        # A cache entry outlives the branch that set it: reconfiguring the same
+        # tree from a site to no site would otherwise leave the old site's
+        # sources behind, for clang-tidy to lint and a consumer to compile.
+        set(BOTANIK_SITE_SOURCES "" CACHE INTERNAL
+            "The selected site's own sources, for a site repo's own targets")
     endif()
 
 
@@ -610,6 +622,12 @@ elseif(BOTANIK_TARGET STREQUAL "OPTA")
     # site's control programs sit one directory further down still.
     file(GLOB_RECURSE BOTANIK_SITE_SOURCES CONFIGURE_DEPENDS
          "${_site_dir}/*.cpp")
+
+    # Exported, like BOTANIK_TEST_MAIN beside it: a site repository builds its
+    # own targets from this, and add_subdirectory() puts a plain variable in a
+    # child scope its own CMakeLists cannot see.
+    set(BOTANIK_SITE_SOURCES "${BOTANIK_SITE_SOURCES}" CACHE INTERNAL
+        "The selected site's own sources, for a site repo's own targets")
 
     # -Wshadow on the site's own sources only. A control program reads its
     # variables as members, so a local of the same name takes over silently.
