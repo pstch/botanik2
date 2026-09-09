@@ -90,6 +90,19 @@ if(_python3 AND _iec2c)
             VERBATIM)
     endif()
     foreach(_s ${_all_sites} ${_extern_site})
+        # An example that is its own repository - gh_mlb41, carried here as a
+        # submodule - is regenerated THERE. Writing into a submodule is what
+        # the generator was taught not to do, and its committed output belongs
+        # to whoever owns the pin. check-generated still checks it: that one
+        # regenerates into a scratch copy and only ever diffs, so a failure
+        # there says the pin needs bumping rather than that anything is wrong.
+        if(EXISTS "${BOTANIK_ROOT}/examples/${_s}/.git")
+            add_custom_command(TARGET regen-site POST_BUILD
+                COMMAND ${CMAKE_COMMAND} -E echo
+                        "  ${_s}: own repository, regenerate it there"
+                VERBATIM)
+            continue()
+        endif()
         add_custom_command(TARGET regen-site POST_BUILD
             COMMAND ${CMAKE_COMMAND} -E env IEC2C=${_iec2c} ${CMAKE_COMMAND} -E chdir
                     ${BOTANIK_ROOT} ${_python3} scripts/sitegen/tables.py generate ${_s}
