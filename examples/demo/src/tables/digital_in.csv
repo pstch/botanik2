@@ -1,2 +1,0 @@
-name         ,device,fc,reg,def  ,timeout_ms,invert,desc                              ,notes                             ,poll_ms
-pwr_upsLowBat,0     ,2 ,IN1,true ,0         ,false ,UPS low battery contact           ,closed = the UPS is about to drop; holds every actuator. Fails ASSERTED: an unreadable terminal is not a healthy supply,

@@ -9,7 +9,7 @@ from helpers import shell
 
 
 # The groups these cases list from. A row name, not the chrome around it.
-_GROUPS = ("air_", "tank_")
+_GROUPS = ("air_", "tank_", "vent_", "bus_")
 
 
 def _listing(term):
@@ -23,39 +23,40 @@ def _listing(term):
 
 
 def test_star_matches_inside_a_name(spawn):
-    """The case the wildcard exists for: a group of numbered actuators."""
+    """The case the wildcard exists for: a group named around its middle."""
     term = shell(spawn, quiet_logs=True)
-    term.send(b"vars list vent_*?" + keys.ENTER)
+    term.send(b"vars list air_*_degC" + keys.ENTER)
     term.settle()
     rows = _listing(term)
-    assert rows[-1] == "4 variable(s)", rows
-    assert all(r.startswith("vent_pos") for r in rows[:-1]), rows
+    assert rows[-1] == "3 variable(s)", rows
+    assert all(r.startswith("air_") and "_degC" in r for r in rows[:-1]), rows
 
 
 def test_star_anchors_the_tail(spawn):
     """A leading star is ends-with: nothing else could express it."""
     term = shell(spawn, quiet_logs=True)
-    term.send(b"vars list *_tgt?" + keys.ENTER)
+    term.send(b"vars list *_mV" + keys.ENTER)
     term.settle()
     rows = _listing(term)
     assert rows[-1] == "4 variable(s)", rows
-    assert all("_tgt" in r for r in rows[:-1]), rows
+    assert all(r.startswith(("vent_raw", "bus_dc_raw")) for r in rows[:-1]), rows
 
 
 def test_a_bare_prefix_still_means_prefix(spawn):
     """What every listing meant before wildcards, unchanged."""
     term = shell(spawn, quiet_logs=True)
-    term.send(b"vars list tank_inTotal_L" + keys.ENTER)
+    term.send(b"vars list air_temp" + keys.ENTER)
     term.settle()
     rows = _listing(term)
-    assert rows[-1] == "8 variable(s)", rows
-    assert all(r.startswith("tank_inTotal_L") for r in rows[:-1]), rows
+    assert rows[-1] == "6 variable(s)", rows
+    assert all(r.startswith("air_temp") for r in rows[:-1]), rows
 
 
 def test_question_mark_is_one_character(spawn):
-    """vent_drive? takes the two single-digit channels and no wider name."""
+    """vent_drive? takes the numbered channel and not the bare name."""
     term = shell(spawn, quiet_logs=True)
     term.send(b"vars list vent_drive?" + keys.ENTER)
     term.settle()
     rows = _listing(term)
-    assert rows[-1] == "2 variable(s)", rows
+    assert rows[-1] == "1 variable(s)", rows
+    assert rows[0].startswith("vent_drive2"), rows

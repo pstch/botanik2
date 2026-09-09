@@ -7,7 +7,7 @@ tests use, and writes the rendered 80x24 screen out.
     python3 scripts/screens.py              each console page, in tab order
                                             -> docs/user/pages/screens/
     python3 scripts/screens.py --scenarios  HOME under each simulated day
-                                            -> docs/demo/screens/
+                                            -> docs/<site>/screens/
 
 Not a build step and nothing checks its output: it writes a starting point,
 which is then edited by hand like any other page. Values come from the mock
@@ -54,7 +54,7 @@ PAGES = [('home',    keys.ALT_1, '1:HOME'),
          ('notes',   keys.ALT_9, '9:NOTES')]
 
 OUT = os.path.join(ROOT, 'docs', 'user', 'screens')
-SCN_OUT = os.path.join(ROOT, 'docs', 'demo', 'screens')
+SCN_OUT = os.path.join(ROOT, 'docs', 'ref', 'screens')
 TABLE = os.path.join(HERE, 'scenarios.tsv')
 
 WARMUP = int(os.environ.get('BOTANIK_SCREEN_WARMUP', '6000'))    # beats

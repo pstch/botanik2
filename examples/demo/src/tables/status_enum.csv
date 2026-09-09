@@ -1,3 +1,0 @@
-name                ,def        ,label             ,reg,desc,notes
-cli_phase           ,PHASE_NIGHT,&DayPhase_label   ,518,phase of the day in force,NIGHT COLD_BANK DAWN_BREEZE DAY HEAT_BANK DUSK_BREEZE
-irr_state           ,IRR_IDLE   ,&IrrState_label   ,537,what the irrigation cycle is doing,IDLE FILLING DRAINING FLUSHING

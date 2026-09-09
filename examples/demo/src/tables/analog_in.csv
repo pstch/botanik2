@@ -1,6 +1,0 @@
-name        ,cal              ,device,fc,reg,regs,wire ,def     ,timeout_ms,digits,unit,desc                   ,notes                             ,poll_ms,word_swap
-pwr_genBat_V,&CAL_pwr_genBat_V,11    ,4 ,0  ,1   ,T_U16,SF(0.0f),5000      ,1     ,V   ,generator start battery,                                  ,,
-pwr_upsBat_V,&CAL_pwr_upsBat_V,11    ,4 ,1  ,1   ,T_U16,SF(0.0f),5000      ,1     ,V   ,UPS battery voltage    ,                                  ,,
-pwr_dc_V1   ,&CAL_pwr_dc_V    ,11    ,4 ,2  ,1   ,T_U16,SF(0.0f),5000      ,1     ,V   ,DC PS1 bus voltage     ,                                  ,,
-pwr_dc_V2   ,&CAL_pwr_dc_V    ,11    ,4 ,3  ,1   ,T_U16,SF(0.0f),5000      ,1     ,V   ,DC PS2 bus voltage     ,                                  ,,
-irr_out_Lpm ,&CAL_irr_out_Lpm ,11    ,4 ,4  ,1   ,T_U16,SF(0.0f),5000      ,1     ,Lpm ,irrigation output flow ,"Hall turbine through a 4-20 mA transmitter: the loop, not the pulse train, is what is wired. 4 mA = no flow",,

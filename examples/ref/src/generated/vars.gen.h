@@ -23,7 +23,7 @@ extern const AnalogCal CAL_bus_dc_V;
 // The whole table, library rows merged in, and the name order beside it.
 extern const Descriptor rows[];
 extern const uint16_t   row_order[];
-const uint16_t ROWS_COUNT  = 126;
+const uint16_t ROWS_COUNT  = 127;
 const uint16_t PARAM_FIRST = 0;
 const uint16_t PARAM_COUNT = 78;
 

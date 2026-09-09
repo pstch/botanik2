@@ -3,3 +3,4 @@ air_temp_in,T_F32,0.0,1,degC,500,air temperature the law controls on,the warmer 
 vent_tgt,T_F32,0.0,1,degC,501,the target the law is working to,,
 vent_pos,T_F32,0.0,2,,502,commanded vent opening; 0 shut and 1 wide,,
 tank_inTotal_L,T_F32,0.0,1,L,503,litres the tank has taken in,,true
+tank_outTotal_L,T_F32,0.0,1,L,504,litres the tank has given out,,true

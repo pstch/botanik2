@@ -31,6 +31,7 @@ CONFIGURATION ref
     prog_vent_health   : HEALTH;
     tank_flow_Lpm      : REAL;
     tank_inTotal_L     : REAL;
+    tank_outTotal_L    : REAL;
     vent_drive         : REAL;
     vent_drive2        : REAL;
     vent_drive2_qlt    : QUALITY;
@@ -46,8 +47,8 @@ CONFIGURATION ref
   RESOURCE plc ON OPTA
     TASK unbound (INTERVAL := T#100ms, PRIORITY := 1);
 
-    PROGRAM vent : vent_control;
-    PROGRAM tank : tank_meter;
+    PROGRAM vent  : vent_control;
+    PROGRAM water : tank_meter;
   END_RESOURCE
 
 END_CONFIGURATION

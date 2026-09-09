@@ -93,7 +93,7 @@ namespace Botanik { namespace Vars { namespace Row {
     const uint16_t bus_dc_min          = 74;
     const uint16_t bus_dc_max          = 75;
     const uint16_t prog_vent_run       = 76;
-    const uint16_t prog_tank_run       = 77;
+    const uint16_t prog_water_run      = 77;
     const uint16_t alarm_net_fault     = 78;
     const uint16_t alarm_ntp_timeout   = 79;
     const uint16_t alarm_log_flood     = 80;
@@ -125,23 +125,24 @@ namespace Botanik { namespace Vars { namespace Row {
     const uint16_t vent_pos            = 106;
     const uint16_t vent_pos_qlt        = 107;
     const uint16_t tank_inTotal_L      = 108;
-    const uint16_t air_temp_hi1        = 109;
-    const uint16_t air_temp_hi1_qlt    = 110;
-    const uint16_t air_temp_hi2        = 111;
-    const uint16_t air_temp_hi2_qlt    = 112;
-    const uint16_t tank_flow_Lpm       = 113;
-    const uint16_t tank_flow_Lpm_qlt   = 114;
-    const uint16_t bus_dc_V1           = 115;
-    const uint16_t bus_dc_V1_qlt       = 116;
-    const uint16_t bus_dc_V2           = 117;
-    const uint16_t bus_dc_V2_qlt       = 118;
-    const uint16_t vent_drive          = 119;
-    const uint16_t vent_drive_qlt      = 120;
-    const uint16_t vent_drive2         = 121;
-    const uint16_t vent_drive2_qlt     = 122;
-    const uint16_t vent_lock           = 123;
-    const uint16_t vent_lock_qlt       = 124;
-    const uint16_t prog_vent_health    = 125;
+    const uint16_t tank_outTotal_L     = 109;
+    const uint16_t air_temp_hi1        = 110;
+    const uint16_t air_temp_hi1_qlt    = 111;
+    const uint16_t air_temp_hi2        = 112;
+    const uint16_t air_temp_hi2_qlt    = 113;
+    const uint16_t tank_flow_Lpm       = 114;
+    const uint16_t tank_flow_Lpm_qlt   = 115;
+    const uint16_t bus_dc_V1           = 116;
+    const uint16_t bus_dc_V1_qlt       = 117;
+    const uint16_t bus_dc_V2           = 118;
+    const uint16_t bus_dc_V2_qlt       = 119;
+    const uint16_t vent_drive          = 120;
+    const uint16_t vent_drive_qlt      = 121;
+    const uint16_t vent_drive2         = 122;
+    const uint16_t vent_drive2_qlt     = 123;
+    const uint16_t vent_lock           = 124;
+    const uint16_t vent_lock_qlt       = 125;
+    const uint16_t prog_vent_health    = 126;
 
 }}}  // namespace Botanik::Vars::Row
 

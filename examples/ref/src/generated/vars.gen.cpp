@@ -108,7 +108,7 @@ const Descriptor rows[] = {
     P("bus_dc_min", T_F32, 20.0, 0.0, 60.0, VAR_NONE, VAR_NONE, 1, "V", 134, "lowest believable rail volts", "under this: a dead sensor rather than a flat battery"),
     P("bus_dc_max", T_F32, 30.0, 0.0, 60.0, VAR_NONE, VAR_NONE, 1, "V", 135, "highest believable rail volts", ""),
     P("prog_vent_run", T_BOOL, 1, 0, 1, VAR_NONE, VAR_NONE, 0, "", 1400, "let the vent law drive", "off takes it out of the scan and drops what it drives to its declared safe state"),
-    P("prog_tank_run", T_BOOL, 1, 0, 1, VAR_NONE, VAR_NONE, 0, "", 1401, "let the tank law drive", "off takes it out of the scan and drops what it drives to its declared safe state"),
+    P("prog_water_run", T_BOOL, 1, 0, 1, VAR_NONE, VAR_NONE, 0, "", 1401, "let the water law drive", "off takes it out of the scan and drops what it drives to its declared safe state"),
     // ...and everything else
     A("alarm_net_fault", "NET_FLT", 5, 5, 0, 0, 986, "the network link is down", "bring-up failed or the link was lost; check the cable, the switch and net_ip"),
     A("alarm_ntp_timeout", "NTP_TIM", 5, 5, 0, 0, 987, "no NTP sync", "the wall clock is free-running: anything dated, scheduled or solar is adrift"),
@@ -160,6 +160,7 @@ const Descriptor rows[] = {
     SV("vent_pos", T_F32, 0.0, 2, "", 502, "commanded vent opening; 0 shut and 1 wide", "", false, true),
     Q("vent_pos_qlt", 1002, "quality of vent_pos"),
     SV("tank_inTotal_L", T_F32, 0.0, 1, "L", 503, "litres the tank has taken in", "", true),
+    SV("tank_outTotal_L", T_F32, 0.0, 1, "L", 504, "litres the tank has given out", "", true),
     MI("air_temp_hi1", T_F32, 50, 4, 0, 2, SF(-40.0f), SF(80.0f), VAR_NONE, VAR_NONE, SF(0.0f), 5000, 1, "degC", "air temperature high level 1", "the sensor the law reads"),
     Q("air_temp_hi1_qlt", 1003, "quality of air_temp_hi1"),
     MI("air_temp_hi2", T_F32, 50, 4, 2, 2, SF(-40.0f), SF(80.0f), VAR_NONE, VAR_NONE, SF(0.0f), 5000, 1, "degC", "air temperature high level 2", "a second sensor on the same device"),
@@ -183,17 +184,17 @@ const Descriptor rows[] = {
 // array and nothing is built at boot. Case-folded, which is the order
 // the lookup compares in.
 const uint16_t row_order[] = {
-    67, 66, 65, 54, 53, 109, 110, 111, 112, 102, 103, 100,
+    67, 66, 65, 54, 53, 110, 111, 112, 113, 102, 103, 100,
     55, 64, 85, 83, 82, 87, 89, 86, 90, 80, 78, 79,
-    88, 84, 81, 73, 72, 75, 74, 71, 70, 115, 116, 117,
-    118, 101, 32, 34, 35, 31, 33, 25, 26, 24, 36, 38,
+    88, 84, 81, 73, 72, 75, 74, 71, 70, 116, 117, 118,
+    119, 101, 32, 34, 35, 31, 33, 25, 26, 24, 36, 38,
     28, 29, 27, 30, 0, 1, 17, 18, 20, 23, 19, 22,
     16, 21, 4, 8, 9, 3, 7, 5, 6, 2, 11, 12,
-    13, 10, 14, 15, 46, 77, 125, 76, 50, 49, 48, 52,
+    13, 10, 14, 15, 46, 126, 76, 77, 50, 49, 48, 52,
     47, 51, 57, 37, 99, 97, 98, 96, 43, 39, 92, 91,
-    93, 40, 94, 45, 44, 41, 42, 95, 113, 114, 108, 69,
-    68, 119, 121, 122, 120, 61, 60, 123, 124, 63, 62, 106,
-    107, 59, 58, 56, 104, 105,
+    93, 40, 94, 45, 44, 41, 42, 95, 114, 115, 108, 69,
+    109, 68, 120, 122, 123, 121, 61, 60, 124, 125, 63, 62,
+    106, 107, 59, 58, 56, 104, 105,
 };
 
 #if BOTANIK_FEATURE_MODBUS_RTU_CLIENT

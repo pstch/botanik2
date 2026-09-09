@@ -2219,7 +2219,9 @@ static void TANK_METER_init__(TANK_METER_data__ *data__, BOOL retain) {
   __INIT_EXTERNAL(REAL,BUS_DC_V1,data__->BUS_DC_V1,retain)
   __INIT_EXTERNAL(REAL,BUS_DC_V2,data__->BUS_DC_V2,retain)
   __INIT_EXTERNAL(REAL,BUS_DC_MIN,data__->BUS_DC_MIN,retain)
+  __INIT_EXTERNAL(REAL,VENT_POS,data__->VENT_POS,retain)
   __INIT_EXTERNAL(REAL,TANK_INTOTAL_L,data__->TANK_INTOTAL_L,retain)
+  __INIT_EXTERNAL(REAL,TANK_OUTTOTAL_L,data__->TANK_OUTTOTAL_L,retain)
   __INIT_EXTERNAL(BOOL,BUS_DCLOW,data__->BUS_DCLOW,retain)
 }
 
@@ -2228,6 +2230,7 @@ static void TANK_METER_body__(TANK_METER_data__ *data__) {
   // Initialise TEMP variables
 
   __SET_EXTERNAL(data__->,TANK_INTOTAL_L,,(__GET_EXTERNAL(data__->TANK_INTOTAL_L,) + (__GET_EXTERNAL(data__->TANK_FLOW_LPM,) / __REAL_LITERAL(600.0))));
+  __SET_EXTERNAL(data__->,TANK_OUTTOTAL_L,,(__GET_EXTERNAL(data__->TANK_OUTTOTAL_L,) + (__GET_EXTERNAL(data__->VENT_POS,) / __REAL_LITERAL(6000.0))));
   __SET_EXTERNAL(data__->,BUS_DCLOW,,((__GET_EXTERNAL(data__->BUS_DC_V1,) < __GET_EXTERNAL(data__->BUS_DC_MIN,)) || (__GET_EXTERNAL(data__->BUS_DC_V2,) < __GET_EXTERNAL(data__->BUS_DC_MIN,))));
 
   goto __end;

@@ -2,8 +2,8 @@
 
 This documentation is the manual of the Botanik PLC firmware. A SITE's own
 documentation - what the greenhouse is, what its laws do, the variables it
-declares - belongs to the repository that owns that site; `examples/demo` is
-the worked full profile in this tree.
+declares - belongs to the repository that owns that site; `examples/ref` is
+the worked example in this tree, and the site the suite runs against.
 
 Botanik is a library that supports the writing of PLC control firmwares on STM32 platforms (the reference site uses an Arduino OTPA).
 It was written because the Arduino PLC IDE and the Axel PLC runtime we planned to use initially are not sufficient for a real PLC design :

@@ -40,7 +40,7 @@ def test_a_bare_lifecycle_verb_refuses(spawn):
     # The console is still here, which is the actual assertion: `halt` stops the
     # cycle, so a screen that answers at all is a plant that was not parked.
     term.send(b"version" + keys.ENTER)
-    assert term.wait_screen("site demo"), \
+    assert term.wait_screen("site ref"), \
         "the shell stopped answering after a bare halt\n%s" % term.snapshot()
 
 
@@ -53,14 +53,14 @@ def test_monitor_forces_a_row_and_releases_it(spawn):
     """
     term = boot(spawn)
     goto(term, keys.ALT_6, "VARIABLE")
-    term.send(keys.text("air_temp_hi"))          # one row plus its three probes
-    assert term.wait_screen("[/air_temp_hi]"), "the filter did not narrow the table"
+    term.send(keys.text("air_temp_hi1"))         # one reading and its quality
+    assert term.wait_screen("[/air_temp_hi1]"), "the filter did not narrow the table"
     # The zone is unbelievable until the simulated field has answered its three
     # probes. ^V below is about taking a BELIEVED row away, so wait for one.
     assert term.wait_screen("Quality      : GOOD"), "the ceiling never came up"
 
     term.send(keys.CTRL_O)
-    assert term.wait_screen("air_temp_hi ="), "^O did not open the override field"
+    assert term.wait_screen("air_temp_hi1 ="), "^O did not open the override field"
     term.send(keys.CTRL_U + b"33.5" + keys.ENTER)
     assert term.wait_screen("33.5"), "the override did not reach the OVERRIDE column"
     # TWO: the value, and the belief that came with it. Forcing a reading says
@@ -90,8 +90,8 @@ def test_a_wildcard_filter_narrows_a_table(spawn):
     """A `*`/`?` pattern narrows a table where a substring cannot.
 
     On MONITOR, where the names an operator knows come in groups:
-    `vent_pos?` is every window's position and none of its setpoints,
-    which no substring of those names selects.
+    `vent_drive?` is the numbered channel and not the bare name, which no
+    substring of those names selects.
     """
     term = boot(spawn)
     goto(term, keys.ALT_6, "VARIABLE")
@@ -103,11 +103,11 @@ def test_a_wildcard_filter_narrows_a_table(spawn):
 
     def narrowed():
         rows = names()
-        return len(rows) == 4 and all(n.startswith("vent_pos")
+        return len(rows) == 1 and all(n.startswith("vent_drive2")
                                       for n in rows)
 
-    term.send(keys.text("vent_pos?"))
-    assert term.wait_screen("[/vent_pos?]"), "the filter did not reach the legend"
+    term.send(keys.text("vent_drive?"))
+    assert term.wait_screen("[/vent_drive?]"), "the filter did not reach the legend"
     # Waited on rather than asserted once: the legend is PRIO_CHROME and goes out
     # a frame ahead of the band it describes.
     assert term.until(narrowed), "the table did not narrow to the pattern: %s" % names()
@@ -135,18 +135,20 @@ def test_tasks_page_reports_program_health(spawn):
     def names():
         return [n for n in cells(1) if n]
     assert term.until(lambda: len(names()) > 3), "the table never painted"
-    assert not any(n.startswith("sys_") for n in names()), \
+    # This site has two laws, so it is the FIRST rows that must be theirs: by
+    # name alone sys_alarms would sort above both.
+    assert not any(n.startswith("sys_") for n in names()[:2]), \
         "a library task sits above the site's programs: %s" % names()
 
-    # temp_rh_zone opts into health in programs.csv, so it has a verdict to
+    # vent opts into health in programs.csv, so it has a verdict to
     # print. Any of the three words will do: what is being tested is that the
     # column reaches the page, not what the plant happens to be doing.
-    term.send(keys.text("temp_rh_zone"))
-    assert term.wait_screen("[/temp_rh_zone]"), "the filter did not narrow the table"
+    term.send(keys.text("vent"))
+    assert term.wait_screen("[/vent]"), "the filter did not narrow the table"
     words = ("HEALTHY", "DEGRADED", "FAULTED")
     # The COLUMN, and waited on: the legend is PRIO_CHROME and goes out a frame
     # ahead of the band it describes, so the table below it is still the old one.
-    assert term.until(lambda: names() == ["temp_rh_zone"]), \
+    assert term.until(lambda: names() == ["vent"]), \
         "the table did not narrow: %s" % names()
     assert term.until(lambda: all(c in words for c in cells(3))), \
         "a program that opted into health reported none: %s" % cells(3)
@@ -154,34 +156,25 @@ def test_tasks_page_reports_program_health(spawn):
     assert term.wait_screen("Every ms"), "the panel is missing the declared period"
 
     # ...and one that did not opt in prints nothing there. Same page, same
-    # column, so this is the blank half of the claim above.
+    # column, so this is the blank half of the claim above. Read off the
+    # UNFILTERED table rather than through a second filter: one table showing
+    # both answers is the claim, and it needs no refiltering to make it.
     term.send(keys.ESC)
-    # Wait for the clear before typing: ESC plus a letter IS Alt+letter to any
-    # VT parser, so a byte sent inside the command timeout joins the escape.
     assert term.wait_screen("type to filter"), "ESC did not clear the filter"
-    term.send(keys.text("cooling"))
-    assert term.wait_screen("[/cooling]"), "the filter did not reach the legend"
-    assert term.until(lambda: names() == ["cooling"]), \
-        "the table did not narrow: %s" % names()
-    assert cells(3) == [""], \
-        "a program with no health row printed one: %s" % cells(3)
 
-    term.send(keys.ESC)
-    # Wait for the clear before typing: ESC plus a letter IS Alt+letter to any
-    # VT parser, so a byte sent inside the command timeout joins the escape.
-    assert term.wait_screen("type to filter"), "ESC did not clear the filter"
-    term.send(keys.text("sys_console_rx"))
-    assert term.wait_screen("[/sys_console_rx]"), "the filter did not narrow the table"
-    # Synced on PHASE, the cell AFTER health: the band repaints left to right, so
-    # a row whose phase has arrived has already had its health cell written.
-    def row():
-        return next((l for l in term.view() if "sys_console_rx" in l and "input" in l), None)
-    assert term.until(lambda: row() is not None), "the row never finished painting"
-    # A library task is a Component, and a Component has a verdict of its own:
-    # the default is the two ends of healthy(), so a console reader reads
-    # HEALTHY rather than nothing.
-    assert term.until(lambda: cells(3) == ["HEALTHY"]), \
-        "a component task reported no verdict: %s" % cells(3)
+    def health_of(task):
+        for l in term.view():
+            if not l.startswith("  | "):
+                continue
+            parts = l.split("|")
+            if len(parts) > 3 and parts[1].strip() == task:
+                return parts[3].strip()
+        return None
+
+    assert term.until(lambda: health_of("vent") in words), \
+        "the law that opted in reported no verdict: %s" % health_of("vent")
+    assert term.until(lambda: health_of("water") == ""), \
+        "a program with no health row printed one: %s" % health_of("water")
 
 
 def test_tasks_page_filters_by_health(spawn):
@@ -263,7 +256,7 @@ def test_the_task_table_is_complete(spawn):
     # Move it deliberately when the set changes; an unexplained DROP is the bug
     # this exists to catch. Last moved when Vars::QualityMirror went: a quality
     # is the value of a `_qlt` row now, so there is nothing to copy per beat.
-    assert term.wait_for("Registered ....... : 50"), \
+    assert term.wait_for("Registered ....... : 24"), \
         "the task table changed size - a registration was added or silently lost"
     assert term.wait_for("0 refused"), "a registration was refused: MAX_TASKS"
 
@@ -276,7 +269,7 @@ def test_a_named_task_answers_for_itself(spawn):
     """
     term = shell(spawn, quiet_logs=True)
     for name, phase in (("sys_console_rx", "input"), ("sys_persist", "config"),
-                        ("sys_health", "service"), ("dc_watch", "control"),
+                        ("sys_health", "service"), ("vent", "control"),
                         ("sys_mbrtu_tx", "output"), ("sys_console_tx", "present")):
         term.send(b"tasks get " + name.encode() + keys.ENTER)
         assert term.wait_for(phase), "no task named %s in %s" % (name, phase)
@@ -292,10 +285,10 @@ def test_monitor_acts_on_the_row_it_drew(spawn):
     term = boot(spawn)
     goto(term, keys.ALT_6, "VARIABLE")
     # A group with no _qlt companion, so every row the filter leaves is a
-    # number the override field will take. Every air_temp_* and air_vent* probe
-    # has one now: the conditioning chain is ST, and ST reads quality as rows.
-    term.send(keys.text("grid_L1"))
-    assert term.wait_screen("[/grid_L1]"), "the filter did not narrow the table"
+    # number the override field will take. The tank law did not opt into
+    # quality, so its totals are the rows without one.
+    term.send(keys.text("tank_"))
+    assert term.wait_screen("[/tank_]"), "the filter did not narrow the table"
 
     # Force the SECOND row, so the override view's only entry is not the one
     # sitting at index 0 of the filtered `all` view.

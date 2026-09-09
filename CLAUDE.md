@@ -72,7 +72,7 @@ for every render.
 
 `scripts/screens.py` is what that target runs. It drives `botanik_sim` through
 the pyte harness and writes rendered 80x24 screens into `docs/user/screens/` (one
-per console page) and `docs/demo/screens/` (HOME under each simulated day),
+per console page) and `docs/ref/screens/` (HOME under each simulated day),
 which the pages pull in with `@verbinclude`. It writes `.txt` only, so it can
 never touch a page's prose, and it masks the git hash and the measured TPS - the
 two cells that would otherwise rewrite a committed screen on every commit.
@@ -315,7 +315,7 @@ A build that sets nothing gets `CONSOLE` + `HOME_PAGE` + `SHELL_PAGE` +
 and `PROGRAM_COUNT` are link-time symbols a site's generated `plant.cpp`
 defines, so a build with no site cannot link it. A site with laws turns it on. A site states its whole profile in
 the `[features]` table of its `site.toml`, `true` and `false` both, and
-`tables.py config` generates `config.gen.h` from it. `demo` is the worked
+`tables.py config` generates `config.gen.h` from it. `ref` is the worked
 full profile, and because the test and pyte builds compile the selected site, it
 is also what keeps those suites exercising the whole surface. `sites/bare` is the
 other end: every optional flag off and nothing declared, existing to be compiled
@@ -330,7 +330,7 @@ nothing else - because there is no build without one.
 | transports | `LOGS_PUBLISH`, `ALARMS_PUBLISH` (both need `LOGGING`+`MQTT`), `LOGS_MONITOR` (needs `LOGGING`) | `LOGS_MONITOR` is the secondary serial log sink, not `MONITOR_PAGE` |
 | PLC | `PLC` | `PLC` off keeps `SiteDescriptor`'s program fields (removing trailing aggregate fields would break every site's initialiser) and does not remove control authority. The POU vocabulary is ST, compiled into the site, so there is nothing per-block to gate |
 | field bus | `MODBUS_TCP_SERVER`, `MODBUS_TCP_CLIENT`, `MODBUS_RTU_CLIENT`, `MODBUS_RTU_SERVER` | `RtuClient` is the field-bus master scanning the site's field rows, `TcpSlave` serves the register map, `TcpMaster` is the sim's self-check against that map, `RtuSlave` the device model the simulated field is built from. `TCP_*` need `NETWORK` |
-| standalone | `SUN_TRACKER` | owned by `BotanikFirmware` and reached through `SetupContext::sun`, so no site declares one. Off in the header, on in `demo/site.toml` |
+| standalone | `SUN_TRACKER` | owned by `BotanikFirmware` and reached through `SetupContext::sun`, so no site declares one. Off in the header, on in `ref/site.toml` |
 
 A site's opt-in must yield to the command line, and `#ifndef` alone does not do
 that: with `-DBOTANIK_FEATURE_CONSOLE=OFF` the page flags are still undefined
@@ -371,12 +371,12 @@ or 3 is the smell.
 `libbotanik` is generic and site-independent. Code specific to one physical
 greenhouse - its variable table, its control programs, and the mock data
 animating them in the simulator - is a **site**. The reference site is
-`demo`; treat it and `BotanikFirmware` as canonical.
+`ref`; treat it and `BotanikFirmware` as canonical.
 
 | Layer | Holds |
 |---|---|
 | `libbotanik` | generic machinery plus `BotanikFirmware`, which owns the generic components and drives the per-tick `loop()` |
-| site (`demo`) | the single source of truth for one greenhouse: its variable table, programs, shell commands, simulated field |
+| site (`ref`) | the single source of truth for one greenhouse: its variable table, programs, shell commands, simulated field |
 | target | thin: selects one site and runs it (`botanik_sim`, `botanik_fw`) |
 
 `GreenhouseMLB41 : BotanikFirmware` is a thin binding passing a `SiteDescriptor`

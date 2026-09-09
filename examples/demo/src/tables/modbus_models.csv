@@ -1,8 +1,0 @@
-symbol      ,kind       ,model_name         ,regs,words
-MDL_SDM630  ,meter      ,Eastron SDM630     ,80,2
-MDL_MCT1_140,meter      ,Lettel MCT1-140    ,100,2
-MDL_WS_AI8  ,io_board   ,Waveshare AI 8CH   ,8,
-MDL_WS_AO8  ,io_board   ,Waveshare AO 8CH   ,8,
-MDL_WEATHER ,meter      ,Weather station    ,8,2
-MDL_WS_RELAY,relay_board,Waveshare Relay (D),8,
-MDL_TEMP_RH ,meter      ,Temp/RH sensor     ,4,2

@@ -16,7 +16,7 @@ set -euo pipefail
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
 BIN="${BOTANIK_SIM:-$HERE/../build/botanik_sim}"
-SIM_H="$HERE/../examples/demo/src/sim.h"
+SIM_H="$HERE/../examples/ref/src/sim.h"
 DAY="${BOTANIK_SIM_DAY:-2026-07-01}"
 SPEED="${BOTANIK_SIM_SPEED:-60}"
 

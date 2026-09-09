@@ -31,7 +31,7 @@ set(BOTANIK_TARGET "SIMULATOR" CACHE STRING "Target platform: SIMULATOR or OPTA"
 #   -DBOTANIK_SITE_DIR=<path> any directory on disk, possibly out of tree
 # BOTANIK_SITE_DIR wins when both are given. One site per build; both targets
 # run the same one. See the site resolution block further down.
-set(BOTANIK_SITE "demo" CACHE STRING "Greenhouse site under examples/")
+set(BOTANIK_SITE "ref" CACHE STRING "Site under examples/ (its src/ is the site)")
 set(BOTANIK_SITE_DIR "" CACHE PATH "Site directory (overrides BOTANIK_SITE; may be out of tree)")
 
 # -DBOTANIK_SITE=NONE builds the LIBRARY and nothing else: no table, no laws, no
