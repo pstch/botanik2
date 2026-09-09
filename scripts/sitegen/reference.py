@@ -132,9 +132,11 @@ def points(site):
     table, prog = t['table'], t['prog']
     name = t['toml']['site']['name']
     n_lib = sum(1 for r in table if r.get('_lib'))
-    # Anchored on the site's directory name, as the hand-written pages beside
-    # it are, so `@subpage <site>_variables` resolves from the site's index.
-    slug = os.path.basename(site.rstrip(os.sep))
+    # The site's DECLARED name, not its directory: a site repository keeps its
+    # site under src/, and `docs/src/` would be nobody's idea of a page. The
+    # hand-written pages beside it are anchored the same way, so
+    # `@subpage <site>_variables` resolves from the site's index.
+    slug = name
     group = dict((k, [r for r in table if KIND[r['_fac']] == k])
                  for k, _t, _b, _w in KINDS)
     summary = [{'title': title, 'blurb': blurb, 'count': len(group[k])}

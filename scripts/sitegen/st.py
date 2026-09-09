@@ -8,6 +8,7 @@ checks that belong to a law live here rather than beside the table's."""
 import os, re, sys
 
 from . import render
+from .paths import ROOT, lib
 from .model import (AUX, H, KIND, LIB_CSV, _opted_in, build, read_table, site_guard,
                          st_files, toml, var_externals)
 
@@ -57,24 +58,18 @@ def enums(site):
 
 # What `make -C build matiec` builds, then whatever is on PATH. CMake's own
 # targets pass IEC2C explicitly, so this default only serves a hand run.
-_PINNED = os.path.join('build', 'matiec', 'iec2c')
+_PINNED = lib('build', 'matiec', 'iec2c')
 IEC2C = os.environ.get('IEC2C') or (_PINNED if os.access(_PINNED, os.X_OK)
                                     else 'iec2c')
 # What `iec2c -I` is pointed at: the directory holding OUR ieclib.txt.
-IECLIB_DIR = 'src/libbotanik/plc/functions'
+IECLIB_DIR = lib('src', 'libbotanik', 'plc', 'functions')
 # ORDER MATTERS: matiec needs a block declared before it is instanced, and there
 # is no forward declaration. filters before analog, because DC_RAIL holds an EWMA.
-LIBST = ['src/libbotanik/plc/functions/quality.st',
-         'src/libbotanik/plc/functions/health.st',
-         'src/libbotanik/plc/functions/math.st',
-         'src/libbotanik/plc/functions/psychro.st',
-         'src/libbotanik/plc/functions/time.st',
-         'src/libbotanik/plc/blocks/timers.st',
-         'src/libbotanik/plc/blocks/filters.st',
-         'src/libbotanik/plc/blocks/analog.st',
-         'src/libbotanik/plc/blocks/pid.st',
-         'src/libbotanik/plc/blocks/actuator.st',
-         'src/libbotanik/plc/blocks/meter.st']
+LIBST = [lib('src', 'libbotanik', 'plc', p) for p in (
+    'functions/quality.st', 'functions/health.st', 'functions/math.st',
+    'functions/psychro.st', 'functions/time.st',
+    'blocks/timers.st', 'blocks/filters.st', 'blocks/analog.st',
+    'blocks/pid.st', 'blocks/actuator.st', 'blocks/meter.st')]
 
 
 def writes_by_pou(site):
@@ -309,10 +304,10 @@ def plant(site):
 #  a member is spelled in C++, the member pattern). Both are types matiec must be
 #  handed rather than allowed to number itself.
 LIB_ENUMS = [
-    ('QUALITY', 'src/libbotanik/vars/descriptor.h',
+    ('QUALITY', lib('src', 'libbotanik', 'vars', 'descriptor.h'),
      r'enum Quality : uint8_t \{(.*?)\n    \};',
      '::Botanik::Vars::%s', r'^\s*(Q_[A-Z_]+)'),
-    ('HEALTH', 'src/libbotanik/plc/health.h',
+    ('HEALTH', lib('src', 'libbotanik', 'plc', 'health.h'),
      r'enum class Health : uint8_t \{(.*?)\n    \};',
      '::Botanik::Plc::Health::%s',
      r'^\s*([A-Z][A-Z_]+)\s*(?:=\s*\d+)?\s*,?\s*(?:///.*)?$'),
@@ -329,8 +324,11 @@ def _lib_enum(st, header, decl, spell, member):
     if not m: sys.exit('%s: no `%s`' % (header, decl))
     codes = re.findall(member, m.group(1), re.M)
     if not codes: sys.exit('%s: no members for %s' % (header, st))
-    out = 'src/libbotanik/plc/runtime/%s.gen.h' % st.lower()
-    render.write(out, 'lib_enum.gen.h.j2', header=header, st=st,
+    out = lib('src', 'libbotanik', 'plc', 'runtime', '%s.gen.h' % st.lower())
+    # The banner names the header the way the tree does. An absolute path would
+    # put the generating machine into a committed file.
+    rel = os.path.relpath(header, ROOT)
+    render.write(out, 'lib_enum.gen.h.j2', header=rel, st=st,
                  guard='BOTANIK_PLC_RUNTIME_%s_GEN_H' % st,
                  codes=[{'name': c, 'spelt': spell % c} for c in codes])
     return st.lower(), len(codes)
@@ -346,7 +344,7 @@ def _rows_none():
     import csv
     with open(LIB_CSV, newline='') as fh:
         rows = [r['name'].strip() for r in csv.DictReader(fh)]
-    render.write('src/libbotanik/vars/rows_none.gen.h',
+    render.write(lib('src', 'libbotanik', 'vars', 'rows_none.gen.h'),
                  'rows_none.gen.h.j2', rows=rows)
     return len(rows)
 

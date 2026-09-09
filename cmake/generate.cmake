@@ -48,6 +48,28 @@ foreach(_t ${_site_tomls})
     list(APPEND _all_sites ${_n})
 endforeach()
 
+# A site OUT of this tree is named by its path rather than by a directory under
+# src/sites/, and it is the one the embedding build actually cares about. The
+# generator takes either, so both go through the same loop.
+set(_extern_site "")
+if(_site_dir AND EXISTS "${_site_dir}/site.toml")
+    string(FIND "${_site_dir}" "${BOTANIK_ROOT}/src/sites/" _in_tree)
+    if(NOT _in_tree EQUAL 0)
+        set(_extern_site "${_site_dir}")
+    endif()
+endif()
+
+# Who the variables page belongs to. In botanik's own tree that is BOTANIK_SITE
+# under BOTANIK_ROOT/docs; embedded it is the site the consuming project named,
+# and the page goes under THAT project's docs. Writing it under BOTANIK_ROOT
+# would regenerate the submodule's page for a site it does not own.
+if(_extern_site)
+    set(_points_site "${_extern_site}")
+else()
+    set(_points_site "${BOTANIK_SITE}")
+endif()
+set(_points_root "${CMAKE_SOURCE_DIR}")
+
 # `regen-site` is check-generated's other half: the same commands in the source
 # tree, so what a contributor runs after editing a table or an ST file is one
 # command rather than four per site plus an env var. Not a build step and never
@@ -58,7 +80,13 @@ if(_python3 AND _iec2c)
         USES_TERMINAL
         COMMENT "Regenerating every site into the source tree - review the diff"
         VERBATIM)
-    foreach(_s ${_all_sites})
+    if(PROJECT_IS_TOP_LEVEL)
+        add_custom_command(TARGET regen-site POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E chdir ${BOTANIK_ROOT}
+                    ${_python3} scripts/sitegen/tables.py library
+            VERBATIM)
+    endif()
+    foreach(_s ${_all_sites} ${_extern_site})
         add_custom_command(TARGET regen-site POST_BUILD
             COMMAND ${CMAKE_COMMAND} -E env IEC2C=${_iec2c} ${CMAKE_COMMAND} -E chdir
                     ${BOTANIK_ROOT} ${_python3} scripts/sitegen/tables.py generate ${_s}
@@ -74,7 +102,8 @@ if(_python3 AND _iec2c)
     if(NOT BOTANIK_SITE_NONE)
         add_custom_command(TARGET regen-site POST_BUILD
             COMMAND ${CMAKE_COMMAND} -E env IEC2C=${_iec2c} ${CMAKE_COMMAND} -E chdir
-                    ${BOTANIK_ROOT} ${_python3} scripts/sitegen/tables.py points ${BOTANIK_SITE}
+                    ${_points_root} ${_python3}
+                    ${BOTANIK_ROOT}/scripts/sitegen/tables.py points ${_points_site}
             VERBATIM)
     endif()
     if(TARGET matiec)
@@ -102,6 +131,8 @@ if(_python3 AND _iec2c)
     # stopped being generated would silently stop being checked.
     foreach(_s ${_all_sites})
         add_custom_command(TARGET check-generated POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E chdir ${_gen}
+                    ${_python3} scripts/sitegen/tables.py library
             # The scratch tree is a COPY of src/, so a file that is committed
             # but no longer generated would compare equal to itself. Clear the
             # site's generated/ first and let the regeneration refill it.
@@ -139,7 +170,7 @@ if(_python3 AND _iec2c)
 
     # ...and the selected site's variables page, which a build with no site has
     # no equivalent of.
-    if(NOT BOTANIK_SITE_NONE)
+    if(NOT BOTANIK_SITE_NONE AND NOT _extern_site)
         add_custom_command(TARGET check-generated POST_BUILD
             COMMAND ${CMAKE_COMMAND} -E env IEC2C=${_iec2c} ${CMAKE_COMMAND} -E chdir ${_gen}
                     ${_python3} scripts/sitegen/tables.py points ${BOTANIK_SITE}

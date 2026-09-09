@@ -5,8 +5,15 @@
     sitegen/tables.py config   [site]   site.toml + the tables     -> config.gen.h
     sitegen/tables.py plant    [site]   programs.csv + ST          -> plant.st, plant.cpp, matiec
     sitegen/tables.py points   [site]   the lot                    -> docs/<site>/reference/variables.md
+    sitegen/tables.py library           library.csv + lib headers  -> quality/health/rows_none.gen.h
 
 `site` is a name under src/sites/, or a path. BOTANIK_SITE_DIR overrides it.
+
+Runs from anywhere: what it reads out of the LIBRARY is anchored to this
+checkout, what it writes for a SITE goes beside that site, and the variables
+page lands under the working directory - so a site repository regenerates its
+own tables and its own docs without touching the submodule. `library` is
+botanik's own, and a site repository never runs it.
 
 Offline: the output is committed and never built. `make check-generated` holds
 the two together by regenerating into a scratch copy and diffing.
@@ -23,6 +30,7 @@ import os, re, sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from sitegen import render
+from sitegen.paths import lib
 from sitegen.reference import points
 from sitegen.model import (AUX, H, KIND, as_int, build, check, config_defaults,
                          emit_cals, emit_row, read_table, site_dir, site_guard)
@@ -85,7 +93,7 @@ def generate(site):
 def prereqs():
     out = {}
     for m in re.finditer(r'#\s*error "BOTANIK_FEATURE_(\w+) requires BOTANIK_FEATURE_(\w+)"',
-                         open('src/libbotanik_features.h').read()):
+                         open(lib('src', 'libbotanik_features.h')).read()):
         out.setdefault(m.group(1), []).append(m.group(2))
     return out
 
@@ -141,7 +149,8 @@ def config(site):
 if __name__ == '__main__':
     cmd  = sys.argv[1] if len(sys.argv) > 1 else ''
     site = site_dir(sys.argv[2] if len(sys.argv) > 2 else None)
-    if   cmd == 'generate': generate(site); quality_block()
+    if   cmd == 'generate': generate(site)
+    elif cmd == 'library':  quality_block()
     elif cmd == 'plant':    sys.exit(plant(site))
     elif cmd == 'config':   config(site)
     elif cmd == 'points':   points(site)

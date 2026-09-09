@@ -416,7 +416,23 @@ never called for one.
 
 The generator is `scripts/sitegen/`, driven by `scripts/sitegen/tables.py`: `model.py`
 reads and checks the tables, `st.py` is the ST half, `reference.py` the
-variables page, and `render.py` the Jinja environment they emit through. Every
+variables page, `paths.py` anchors it, and `render.py` is the Jinja environment
+they emit through.
+
+**It runs from anywhere.** `paths.ROOT` is derived from the generator's own
+location, so what it reads out of the LIBRARY is anchored to the botanik
+checkout wherever the command was invoked. What it writes for a SITE goes
+beside that site, and the variables page lands under the WORKING DIRECTORY -
+so a site repository regenerates its own tables and its own docs and leaves the
+submodule alone. Nothing may be relative to the working directory again:
+`src/libbotanik/...` resolves to the site repo when that is where the command
+was run.
+
+`tables.py library` is the fifth command and botanik's own: `quality.gen.h`,
+`health.gen.h` and `rows_none.gen.h` come from `library.csv` and from library
+headers, never from a site's tables, and they are committed here. A site
+repository never runs it. Anything a generated file SAYS about a path is
+written relative to the root, or the generating machine ends up in the diff. Every
 generated file has a template of its own in `templates/`, so the shape of the
 output is separate from the model that fills it. Regeneration needs `jinja2`;
 without it the targets are not declared, as they are not without `iec2c`.

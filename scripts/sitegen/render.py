@@ -20,7 +20,8 @@ import os
 
 from jinja2 import Environment, FileSystemLoader, StrictUndefined
 
-ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from .paths import ROOT
+
 TEMPLATES = os.path.join(ROOT, 'templates')
 
 

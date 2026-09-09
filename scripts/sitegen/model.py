@@ -7,7 +7,9 @@ has to satisfy. `tables.py` is the command line over it."""
 
 import csv, os, re, sys
 
-DEFAULT_SITE = 'src/sites/gh_mlb41'
+from .paths import ROOT, lib
+
+DEFAULT_SITE = lib('src', 'sites', 'gh_mlb41')
 
 
 def site_dir(arg=None):
@@ -18,7 +20,7 @@ def site_dir(arg=None):
     env = os.environ.get('BOTANIK_SITE_DIR')
     if env: return env
     if not arg: return DEFAULT_SITE
-    return arg if os.sep in arg else os.path.join('src', 'sites', arg)
+    return arg if os.sep in arg else lib('src', 'sites', arg)
 
 VAR_NONE = 'VAR_NONE'
 
@@ -109,8 +111,8 @@ AUX = {  # stem -> columns, for the tables that are not rows
     'system':         'label var',
 }
 
-LIB_CSV = 'src/libbotanik/vars/tables/library.csv'
-CONFIG_DIR = 'src/libbotanik/config'
+LIB_CSV = lib('src', 'libbotanik', 'vars', 'tables', 'library.csv')
+CONFIG_DIR = lib('src', 'libbotanik', 'config')
 # The always-on core, from libbotanik_features.h's defaults.
 CORE_FEATURES = {'CONSOLE', 'LOGGING', 'PLC', 'HOME_PAGE', 'SHELL_PAGE'}
 
