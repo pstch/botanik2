@@ -170,7 +170,10 @@ def points(site):
             'reads': ', '.join('`%s`' % r for r in _collapse(reads)) or '-',
             'writes': ', '.join('`%s`' % w for w in _collapse(writes)) or '-'})
 
-    out = os.path.join('docs', slug, 'reference', 'variables.md')
+    # Under the WORKING directory, which is the project that owns the site,
+    # and a project owns one: docs/<slug>/ would nest the site's name inside
+    # its own repository. The slug stays the Doxygen anchor.
+    out = os.path.join('docs', 'reference', 'variables.md')
     render.write(out, 'variables.md.j2', slug=slug, n_rows=len(table),
                  n_site=len(table) - n_lib, n_lib=n_lib, summary=summary,
                  sections=sections, cal=cal, programs=programs)
