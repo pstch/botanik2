@@ -20,7 +20,9 @@ CONFIGURATION ref
     air_temp_hi2       : REAL;
     air_temp_in        : REAL;
     air_ventFullDem    : REAL;
+    prog_vent_health   : HEALTH;
     vent_drive         : REAL;
+    vent_drive2        : REAL;
     vent_pos           : REAL;
     vent_tgt           : REAL;
   END_VAR

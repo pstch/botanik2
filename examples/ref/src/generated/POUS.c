@@ -2145,6 +2145,8 @@ static void VENT_CONTROL_init__(VENT_CONTROL_data__ *data__, BOOL retain) {
   __INIT_EXTERNAL(REAL,VENT_TGT,data__->VENT_TGT,retain)
   __INIT_EXTERNAL(REAL,VENT_POS,data__->VENT_POS,retain)
   __INIT_EXTERNAL(REAL,VENT_DRIVE,data__->VENT_DRIVE,retain)
+  __INIT_EXTERNAL(REAL,VENT_DRIVE2,data__->VENT_DRIVE2,retain)
+  __INIT_EXTERNAL(HEALTH,PROG_VENT_HEALTH,data__->PROG_VENT_HEALTH,retain)
 }
 
 // Code part
@@ -2168,6 +2170,15 @@ static void VENT_CONTROL_body__(VENT_CONTROL_data__ *data__) {
     __SET_EXTERNAL(data__->,VENT_POS,,((__GET_EXTERNAL(data__->AIR_TEMP_IN,) - __GET_EXTERNAL(data__->VENT_TGT,)) / __GET_EXTERNAL(data__->AIR_VENTFULLDEM,)));
   };
   __SET_EXTERNAL(data__->,VENT_DRIVE,,__GET_EXTERNAL(data__->VENT_POS,));
+  __SET_EXTERNAL(data__->,VENT_DRIVE2,,__GET_EXTERNAL(data__->VENT_POS,));
+  if ((___ABS(
+    (BOOL)__BOOL_LITERAL(TRUE),
+    NULL,
+    (REAL)(__GET_EXTERNAL(data__->AIR_TEMP_HI1,) - __GET_EXTERNAL(data__->AIR_TEMP_HI2,))) > __REAL_LITERAL(10.0))) {
+    __SET_EXTERNAL(data__->,PROG_VENT_HEALTH,,HEALTH__DEGRADED);
+  } else {
+    __SET_EXTERNAL(data__->,PROG_VENT_HEALTH,,HEALTH__HEALTHY);
+  };
 
   goto __end;
 

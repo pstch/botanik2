@@ -14,6 +14,8 @@ VAR_EXTERNAL
   vent_tgt    : REAL;
   vent_pos    : REAL;
   vent_drive  : REAL;
+  vent_drive2 : REAL;
+  prog_vent_health : HEALTH;
 END_VAR
   (* The WARMER of the two levels. A vent that cools to the average leaves the
      top of the house over target for as long as the stratification lasts. *)
@@ -40,5 +42,16 @@ END_VAR
     vent_pos := (air_temp_in - vent_tgt) / air_ventFullDem;
   END_IF;
 
-  vent_drive := vent_pos;
+  (* Both actuators take the same command: they are one vent with two rams. *)
+  vent_drive  := vent_pos;
+  vent_drive2 := vent_pos;
+
+  (* Written on EVERY path, which is what opting into a health row costs. The
+     two levels should sit a stratification apart; further than that and one of
+     them is telling a story, so the answer is still given but not trusted. *)
+  IF ABS(air_temp_hi1 - air_temp_hi2) > 10.0 THEN
+    prog_vent_health := DEGRADED;
+  ELSE
+    prog_vent_health := HEALTHY;
+  END_IF;
 END_PROGRAM

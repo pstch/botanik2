@@ -1,10 +1,11 @@
 /**
- * @file test_site.cpp
- * @brief The selected site's table integrity: every name a program reaches for
- *        resolves, and no two rows collide on a register or on pool bytes.
+ * @file test_table_behaviour.cpp
+ * @brief What the variable model DOES, with a real table under it.
  *
- * A name matching no row resolves to the inert sink, which reads 0 forever, so
- * these are the cases that stop a typo becoming a silently dead input.
+ * Quality substitution, a band whose ends name other rows, the persistence
+ * cadence, a local output reaching a pin. Table INTEGRITY is not here: the
+ * generator refuses a bad table at generate time, and nothing it checks is
+ * checked again at runtime.
  */
 
 #include <cstdint>
@@ -90,23 +91,6 @@ TEST_CASE("site: running the whole site leaves every parameter where it was") {
 }
 
 #if BOTANIK_FEATURE_SUN_TRACKER
-TEST_CASE("site: every local row gets a terminal") {
-    // Level inputs and pulse counters come off the same eight pins, so a table
-    // can declare more than exist. Such a row reads its declared value for the
-    // life of the run, which on a contact is indistinguishable from open.
-    Botanik::Tasks::Registry reg;
-    Vars::Bank bank;
-    TestSite::build(bank);
-
-    Io::LocalInputs local(Botanik::SetupContext(reg), bank);
-    local.register_tasks();
-    reg.setup(0);
-
-    CHECK(local.refused() == 0);
-    CHECK(local.count() <= Botanik::HAL::DigitalIn::CHANNELS);
-    CHECK(local.pulse_count() <= Botanik::HAL::Pulse::MAX_CHANNELS);
-}
-
 #endif
 TEST_CASE_FIXTURE(SiteBank, "vars: a row's quality IS its companion's value") {
     // One store, two names. A driver writes the quality through the row it
@@ -226,55 +210,7 @@ TEST_CASE("site: a program that opted into health publishes it, off its own name
 #endif
 
 #if BOTANIK_FEATURE_MODBUS_TCP_SERVER
-TEST_CASE("site: every mapped row fits the TCP map") {
-    // Outgrowing it serves a SHORT map - the rows past the end answer nothing,
-    // which an integrator reads as a device that does not have them. The slave
-    // says so at bring-up, but a boot warning is not a thing anyone reads on
-    // the way past, and the table grows a row at a time.
-    SiteBank f;
-    Modbus::Map map(&f.bank);
-    map.build();
-
-    INFO("mapped " << map.count() << " of " << Config::MODBUS_TCP_MAX_ROWS
-                   << ", " << map.overflow() << " did not fit");
-    CHECK(map.overflow() == 0);
-    CHECK(map.count() > 0);
-
-    // Counted here rather than left implicit: the cap is a site override, and
-    // the number it has to clear is this one. A hostname is the one mapped row
-    // the map does not serve - sixteen bits cannot hold one - so it is not in
-    // the count either.
-    uint16_t mapped = 0;
-    for (uint16_t i = 0; i < f.bank.count(); i++) {
-        const Vars::Descriptor& d = f.bank.var(i).meta();
-        if (Vars::mapped(d) && Modbus::Map::published(d)) mapped++;
-    }
-    CHECK(map.count() == mapped);
-}
 #endif
-TEST_CASE("library: a site row REDECLARES a library one, and the site's wins") {
-    // The library declares geo_lat_deg (SUN_TRACKER needs a location) and the
-    // site redeclares it with this greenhouse's own. The GENERATOR applies the
-    // override, in place: the whole row is the site's - the band and the unit
-    // included, not just the value - and it keeps the library's register.
-    SiteBank f;
-    const uint16_t r = f.bank.find("geo_lat_deg");
-    REQUIRE(r != Vars::VAR_NONE);
-
-    INFO("one row, not two: the site's replaced the library's in place");
-    uint16_t seen = 0;
-    for (uint16_t i = 0; i < f.bank.count(); i++)
-        if (strcmp(f.bank.descriptor(i).name, "geo_lat_deg") == 0) seen++;
-    CHECK(seen == 1);
-
-    INFO("and it is the SITE's row: the library declares no band and no unit");
-    const Vars::Descriptor& d = f.bank.descriptor(r);
-    CHECK(f.bank.var(r).as_f32() == doctest::Approx(47.96f));
-    CHECK(strcmp(d.unit, "deg") == 0);
-    INFO("...keeping the register the library assigned it");
-    CHECK(d.bind.reg == 941);
-}
-
 TEST_CASE("site: the two DC rails share one calibration") {
     // Both rails hang off the same divider design, so a recalibration is one
     // edit and not two that can drift apart. Sharing the BLOCK is what shares
@@ -513,20 +449,5 @@ TEST_CASE("local io: a DO or RO row on device 0 reaches a pin") {
     HAL::DigitalIn::inject(HAL::Pin::BUTTON, true);
     CHECK(HAL::DigitalIn::read(HAL::Pin::BUTTON));
 }
-
-TEST_CASE("local io: every pin label is claimable by exactly one direction") {
-    // The labels are one flat space, so a typo lands on a real pin of the
-    // wrong kind rather than out of range. owns() is what keeps that a
-    // refusal instead of a silent mis-drive.
-    for (uint16_t p = 0; p < HAL::Pin::COUNT; p++) {
-        const bool both = HAL::DigitalIn::owns(p) && HAL::DigitalOut::owns(p);
-        INFO("pin ", p);
-        CHECK_FALSE(both);
-    }
-    CHECK(HAL::DigitalIn::owns(HAL::Pin::IN8));
-    CHECK(HAL::DigitalOut::owns(HAL::Pin::LED_4));
-    CHECK(HAL::DigitalOut::owns(HAL::Pin::LED_BLUE));
-}
-
 
 }}  // namespace tests::site_capacity

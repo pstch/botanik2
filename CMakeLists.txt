@@ -368,6 +368,10 @@ if(BOTANIK_TARGET STREQUAL "SIMULATOR")
     # a site repository needs both and never builds tests/.
     include(cmake/generate.cmake)
 
+    # ...and what a site repository tests its own site WITH, for the same
+    # reason: the suite under tests/ is botanik's own.
+    include(cmake/testkit.cmake)
+
     # The suite, `make check` and the sweeps are botanik's own. A site repo
     # embedding botanik tests its site, not this library, so none of it is
     # declared there - and enable_testing() outside the top level would put

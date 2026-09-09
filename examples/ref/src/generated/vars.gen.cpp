@@ -141,6 +141,8 @@ const Descriptor rows[] = {
     MI("air_temp_hi2", T_F32, 50, 4, 2, 2, SF(-40.0f), SF(80.0f), VAR_NONE, VAR_NONE, SF(0.0f), 5000, 1, "degC", "air temperature high level 2", "a second sensor on the same device"),
     Q("air_temp_hi2_qlt", 1001, "quality of air_temp_hi2"),
     AO("vent_drive", &CAL_vent_drive, 16, 6, 0, 1, T_U16, false, 2, "", "vent actuator command", "safe is shut: an unattended vent closes"),
+    AO("vent_drive2", &CAL_vent_drive, 16, 6, 1, 1, T_U16, false, 2, "", "second vent actuator command", "shares the first one's calibration: same actuator type"),
+    SVE("prog_vent_health", 2, &Plc::health_label, 1300, "what the vent law says about its own answer", "FAULTED until it has run: the law writes it, not Plant"),
 };
 
 // Row numbers in NAME order, so Bank::find() binary-searches a const
@@ -152,9 +154,10 @@ const uint16_t row_order[] = {
     31, 33, 25, 26, 24, 36, 38, 28, 29, 27, 30, 0,
     1, 17, 18, 20, 23, 19, 22, 16, 21, 4, 8, 9,
     3, 7, 5, 6, 2, 11, 12, 13, 10, 14, 15, 46,
-    64, 50, 49, 48, 52, 47, 51, 57, 37, 86, 84, 85,
-    83, 43, 39, 79, 78, 80, 40, 81, 45, 44, 41, 42,
-    82, 94, 61, 60, 63, 62, 89, 59, 58, 56, 88,
+    96, 64, 50, 49, 48, 52, 47, 51, 57, 37, 86, 84,
+    85, 83, 43, 39, 79, 78, 80, 40, 81, 45, 44, 41,
+    42, 82, 94, 95, 61, 60, 63, 62, 89, 59, 58, 56,
+    88,
 };
 
 #if BOTANIK_FEATURE_MODBUS_RTU_CLIENT

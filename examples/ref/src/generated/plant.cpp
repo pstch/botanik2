@@ -25,7 +25,9 @@ enum {
     ROW_AIR_TEMP_HI2       = ::Botanik::Vars::Row::air_temp_hi2,
     ROW_AIR_TEMP_IN        = ::Botanik::Vars::Row::air_temp_in,
     ROW_AIR_VENTFULLDEM    = ::Botanik::Vars::Row::air_ventFullDem,
+    ROW_PROG_VENT_HEALTH   = ::Botanik::Vars::Row::prog_vent_health,
     ROW_VENT_DRIVE         = ::Botanik::Vars::Row::vent_drive,
+    ROW_VENT_DRIVE2        = ::Botanik::Vars::Row::vent_drive2,
     ROW_VENT_POS           = ::Botanik::Vars::Row::vent_pos,
     ROW_VENT_TGT           = ::Botanik::Vars::Row::vent_tgt,
 };
@@ -63,7 +65,7 @@ PLANT_PROGRAM_LIST(X)
  * is the author of. `VAR_EXTERNAL CONSTANT` is a read and is not here.
  * Taking a program out of the scan drops exactly these to their
  * declared safe state, so the list has to be the ST's own. */
-static const uint16_t _writes_VENT[] = { Vars::Row::air_temp_in, Vars::Row::vent_tgt, Vars::Row::vent_pos, Vars::Row::vent_drive,};
+static const uint16_t _writes_VENT[] = { Vars::Row::air_temp_in, Vars::Row::vent_tgt, Vars::Row::vent_pos, Vars::Row::vent_drive, Vars::Row::vent_drive2, Vars::Row::prog_vent_health,};
 
 // The parking pair, or VAR_NONE for a program that is simply dropped.
 static const uint16_t _park_VENT   = Vars::VAR_NONE;
@@ -71,7 +73,7 @@ static const uint16_t _parked_VENT = Vars::VAR_NONE;
 
 // The health row of a program that opted in, or VAR_NONE. The LAW
 // writes it; Plant only reads it back for the TASKS page.
-static const uint16_t _health_VENT = Vars::VAR_NONE;
+static const uint16_t _health_VENT = Vars::Row::prog_vent_health;
 
 // The operator's gate, one parameter per program. A row rather than a
 // bit in RAM so `programs disable` can save it, and so a unit that

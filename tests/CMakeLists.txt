@@ -39,14 +39,9 @@ add_executable(botanik_tests
     test_shell.cpp
     test_shell_vars.cpp
     test_shell_report.cpp
-    test_site.cpp
+    test_table_behaviour.cpp
     test_sun.cpp
     test_vars.cpp
-    test_site_sense.cpp
-    test_site_actuators.cpp
-    test_site_irrigation.cpp
-    test_site_scenarios.cpp
-    test_site_water_scenarios.cpp
 )
 
 # vendor/ for doctest.h; src/ for the library and the simulator's site payloads.

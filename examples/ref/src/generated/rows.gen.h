@@ -111,6 +111,8 @@ namespace Botanik { namespace Vars { namespace Row {
     const uint16_t air_temp_hi2        = 92;
     const uint16_t air_temp_hi2_qlt    = 93;
     const uint16_t vent_drive          = 94;
+    const uint16_t vent_drive2         = 95;
+    const uint16_t prog_vent_health    = 96;
 
 }}}  // namespace Botanik::Vars::Row
 
