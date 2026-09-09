@@ -5,19 +5,27 @@
 Control system for a small horticultural greenhouse. It runs irrigation on
 fixed schedules and drives ventilation: air blowers, intractors, window
 openers, thermal screens and an evapo-transpiration cooling system. An
-emergency heat blower and a heatpump run on their own thermostats; botanik
+emergency heat blower and a dehumidifier run on their own thermostats; botanik
 monitors them, along with the power supply and the emergency generator.
 
 The target is an Arduino OPTA PLC (STM32H747, dual-core ARM) with a few Modbus
 RTU I/O modules. We run custom C++ on it rather than the vendor PLC tooling,
-which is undocumented and missing a lot. Some of what we learned about that
-platform is written down here.
+which is undocumented and misses a lot of important features.
+
+The library may also be used for its serial console implementation, a console
+that supports a large set of useful features for PLCs and that provides a
+a complete HMI with parameter control, variable observability, logging, 
+input/output overrides, etc. Feature flags provide the ability to disable
+specific components and allow, for example, to have a console with just a 
+shell page, or a console with just a logs page, etc.
 
 ## Library structure
 
 `libbotanik` is a C++11 library under `src/libbotanik/`, split into
 subsystems. All platform access goes through a HAL, so the same code builds as
-a Linux simulator or as OPTA firmware.
+a Linux simulator, as an OPTA firmware or as a firmware for a ported platform.
+
+TODO: visually align the table below
 
 | Subsystem | Path | Responsibility |
 |---|---|---|
