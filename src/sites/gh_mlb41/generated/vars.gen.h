@@ -27,9 +27,9 @@ extern const AnalogCal CAL_cli_intr2;
 // The whole table, library rows merged in, and the name order beside it.
 extern const Descriptor rows[];
 extern const uint16_t   row_order[];
-const uint16_t ROWS_COUNT  = 655;
+const uint16_t ROWS_COUNT  = 652;
 const uint16_t PARAM_FIRST = 0;
-const uint16_t PARAM_COUNT = 261;
+const uint16_t PARAM_COUNT = 260;
 
 static_assert(ROWS_COUNT == Config::VAR_MAX,
               "the table and the bank's arrays are generated together");

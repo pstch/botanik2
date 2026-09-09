@@ -4120,10 +4120,6 @@ __end:
 static void IRR_VALVES_init__(IRR_VALVES_data__ *data__, BOOL retain) {
   __INIT_EXTERNAL(IRRSTATE,IRR_STATE,data__->IRR_STATE,retain)
   __INIT_EXTERNAL(USINT,IRR_ACTIVETRAY,data__->IRR_ACTIVETRAY,retain)
-  __INIT_EXTERNAL(UINT,IRR_PARKDRAIN_SEC,data__->IRR_PARKDRAIN_SEC,retain)
-  __INIT_EXTERNAL(BOOL,PROG_IRR_VALVES_PARK,data__->PROG_IRR_VALVES_PARK,retain)
-  __INIT_EXTERNAL(UDINT,SYS_NOW_MS,data__->SYS_NOW_MS,retain)
-  __INIT_EXTERNAL(BOOL,PROG_IRR_VALVES_PARKED,data__->PROG_IRR_VALVES_PARKED,retain)
   __INIT_EXTERNAL(BOOL,IRR_INPUT_RO1,data__->IRR_INPUT_RO1,retain)
   __INIT_EXTERNAL(BOOL,IRR_INPUT_RO2,data__->IRR_INPUT_RO2,retain)
   __INIT_EXTERNAL(BOOL,IRR_OUTPUT_RO1,data__->IRR_OUTPUT_RO1,retain)
@@ -4136,7 +4132,6 @@ static void IRR_VALVES_init__(IRR_VALVES_data__ *data__, BOOL retain) {
   __INIT_EXTERNAL(BOOL,IRR_TRAY6,data__->IRR_TRAY6,retain)
   __INIT_EXTERNAL(BOOL,IRR_TRAY7,data__->IRR_TRAY7,retain)
   __INIT_EXTERNAL(BOOL,IRR_TRAY8,data__->IRR_TRAY8,retain)
-  TON_MS_init__(&data__->EMPTIED,retain);
 }
 
 // Code part
@@ -4157,21 +4152,6 @@ static void IRR_VALVES_body__(IRR_VALVES_data__ *data__) {
   __SET_EXTERNAL(data__->,IRR_OUTPUT_RO1,,(__GET_VAR(data__->DRAINING,) || __GET_VAR(data__->FLUSHING,)));
   __SET_EXTERNAL(data__->,IRR_OUTPUT_RO2,,(__GET_VAR(data__->DRAINING,) || __GET_VAR(data__->FLUSHING,)));
   __SET_VAR(data__->,ONTO,,((__GET_VAR(data__->FILLING,) || __GET_VAR(data__->SOAKING,)) || __GET_VAR(data__->DRAINING,)));
-  __SET_VAR(data__->EMPTIED.,IN,,__GET_EXTERNAL(data__->PROG_IRR_VALVES_PARK,));
-  __SET_VAR(data__->EMPTIED.,PT,,___SEC_MS(
-    (BOOL)__BOOL_LITERAL(TRUE),
-    NULL,
-    (UINT)__GET_EXTERNAL(data__->IRR_PARKDRAIN_SEC,)));
-  __SET_VAR(data__->EMPTIED.,NOW,,__GET_EXTERNAL(data__->SYS_NOW_MS,));
-  TON_MS_body__(&data__->EMPTIED);
-  if (__GET_EXTERNAL(data__->PROG_IRR_VALVES_PARK,)) {
-    __SET_EXTERNAL(data__->,IRR_INPUT_RO1,,__BOOL_LITERAL(FALSE));
-    __SET_EXTERNAL(data__->,IRR_INPUT_RO2,,__BOOL_LITERAL(FALSE));
-    __SET_EXTERNAL(data__->,IRR_OUTPUT_RO1,,!(__GET_VAR(data__->EMPTIED.Q,)));
-    __SET_EXTERNAL(data__->,IRR_OUTPUT_RO2,,!(__GET_VAR(data__->EMPTIED.Q,)));
-    __SET_VAR(data__->,ONTO,,!(__GET_VAR(data__->EMPTIED.Q,)));
-  };
-  __SET_EXTERNAL(data__->,PROG_IRR_VALVES_PARKED,,(__GET_EXTERNAL(data__->PROG_IRR_VALVES_PARK,) && __GET_VAR(data__->EMPTIED.Q,)));
   __SET_EXTERNAL(data__->,IRR_TRAY1,,(__GET_VAR(data__->ONTO,) && (__GET_EXTERNAL(data__->IRR_ACTIVETRAY,) == __USINT_LITERAL(1))));
   __SET_EXTERNAL(data__->,IRR_TRAY2,,(__GET_VAR(data__->ONTO,) && (__GET_EXTERNAL(data__->IRR_ACTIVETRAY,) == __USINT_LITERAL(2))));
   __SET_EXTERNAL(data__->,IRR_TRAY3,,(__GET_VAR(data__->ONTO,) && (__GET_EXTERNAL(data__->IRR_ACTIVETRAY,) == __USINT_LITERAL(3))));

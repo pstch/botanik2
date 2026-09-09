@@ -92,9 +92,10 @@ the inlet meter reports and the drain against the outlet, and a tray that will
 not fill or will not empty inside its window raises `alarm_irr_fill_tray1..8`
 or `alarm_irr_drain_tray1..8`.
 
-The manifold is one of the site's two parking programs. Leaving the scan
-mid-cycle would strand a tray with its inlet open, so it keeps being called
-until the valves are where they are safe to leave.
+The manifold does not park, and needs nothing on the way out. Leaving the scan
+mid-cycle drops every valve to its declared value, and those are wired
+active-low: the inlet shuts, the drain opens, every tray opens, and the water
+goes where it was going to go anyway. See @ref gh_mlb41_actuators.
 
 ## The meters
 

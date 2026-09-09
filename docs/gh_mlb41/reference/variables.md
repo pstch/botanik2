@@ -8,13 +8,13 @@ site's, and a site overrides one by redeclaring the name.
 
 One section per kind, in the order `Vars::Kind` declares them.
 
-655 rows: 582 declared by the site, 73 by the library.
+652 rows: 579 declared by the site, 73 by the library.
 
 | kind | what it is | rows |
 |---|---|---|
 | Alarms | the boolean an AlarmCondition reads | 53 |
-| Parameters | persisted, editable | 261 |
-| Status values | computed by a law; published when it has a register | 102 |
+| Parameters | persisted, editable | 260 |
+| Status values | computed by a law; published when it has a register | 100 |
 | Inputs | read from the field; each has a quality companion | 82 |
 | Outputs | driven to the field | 30 |
 | Quality companions | the quality of the row before it | 127 |
@@ -255,7 +255,6 @@ One section per kind, in the order `Vars::Kind` declares them.
 | irr_morningWin_min | T_U16 | 180 | 30 .. 480 | min | RW | 314 | how long into the day the morning slot runs | the tray has to dry before night; watering at four in the afternoon does not |
 | irr_maxFill_sec | T_U16 | 300 | 100 .. 1800 | sec | RW | 299 | alarm if a tray takes longer to fill | - |
 | irr_soak_sec | T_U16 | 300 | 0 .. 3600 | sec | RW | 315 | how long a filled tray sits before draining | 0 skips the soak and opens the drain at the end of the fill |
-| irr_parkDrain_sec | T_U16 | 60 | 0 .. 600 | sec | RW | 316 | time the drain is held open when parking | a tray left full is a tray nobody is watching; 0 shuts every coil at once |
 | irr_drainWindow_sec | T_U16 | 300 | 100 .. 1800 | sec | RW | 300 | time allowed for a tray to drain | - |
 | irr_expDrainFrac | T_F32 | 0.6 | 0.0 .. 1.0 | - | RW | 301 | fraction expected to drain back | - |
 | irr_drainMargin | T_F32 | 0.3 | 0.0 .. 1.0 | - | RW | 302 | clog if drained is this far under | against irr_expDrainFrac, so 0.6 expected and 0.3 here clogs under 0.3 |
@@ -453,8 +452,6 @@ One section per kind, in the order `Vars::Kind` declares them.
 | prog_day_phase_health | T_ENUM | 2 | - | - | 1301 | what the day_phase law says about its own answer | FAULTED until it has run: the law writes it, not Plant |
 | prog_windows_park | T_BOOL | 0 | 0 | - | 1200 | windows is parking to its safe state | - |
 | prog_windows_parked | T_BOOL | 0 | 0 | - | 1201 | windows has reached its parked state | - |
-| prog_irr_valves_park | T_BOOL | 0 | 0 | - | 1202 | irr_valves is parking to its safe state | - |
-| prog_irr_valves_parked | T_BOOL | 0 | 0 | - | 1203 | irr_valves has reached its parked state | - |
 
 ## Inputs
 
@@ -769,7 +766,7 @@ between them.
 | 25 | irr_mtr_output | control | 5 | 2 | The outlet meter: what came back off the trays. |
 | 26 | irr_schedule | control | 28 | 21 | Which tray is owed water, and whether the climate will allow a cycle to start. |
 | 27 | irrigation | control | 21 | 41 | Irrigation: one tray at a time, filled to a dose, steeped, and drained. |
-| 28 | irr_valves | control | 5 | 13 | The irrigation manifold: which valves each state of the cycle opens. |
+| 28 | irr_valves | control | 2 | 12 | The irrigation manifold: which valves each state of the cycle opens. |
 
 ### ac_grid_watch
 
@@ -1018,7 +1015,12 @@ between them.
 
 `programs/irrigation/irr_valves/irr_valves.st`, every `BOTANIK_SITE_CONTROL_MS`.
 
+Nothing here parks. Every coil is one module relay driving an external
+changeover relay, and the declared values are active-low: a de-energised coil
+shuts the inlet, opens the drain and opens every tray, so the manifold
+empties on its own with no law running and no power at all.
+
 | direction | rows |
 |---|---|
-| reads | `irr_state`, `irr_activeTray`, `irr_parkDrain_sec`, `prog_irr_valves_park`, `sys_now_ms` |
-| writes | `prog_irr_valves_parked`, `irr_input_ro1..2`, `irr_output_ro1..2`, `irr_tray1..8` |
+| reads | `irr_state`, `irr_activeTray` |
+| writes | `irr_input_ro1..2`, `irr_output_ro1..2`, `irr_tray1..8` |

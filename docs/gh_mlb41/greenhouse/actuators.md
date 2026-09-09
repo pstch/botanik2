@@ -57,13 +57,9 @@ both de-energised means the motor stopped wherever it stood: there is no
 position a dead PLC leaves them in. The program keeps being called while the
 roof travels, and the unit holds in STOP until it answers.
 
-`irr_valves` parks too, though for sequence rather than for safety. It shuts the
-inlet at once, then holds the drain and the active tray open for
-`irr_parkDrain_sec` (60 s) so that tray and the shared manifold empty before the
-other seven valves open with them.
-
-The thermal screen deliberately does not park. An actuator whose safe state is
-where the wiring already puts it has nothing to travel to.
+They are the only one. Nothing else here parks, the manifold included: an
+actuator whose safe state is where the wiring already puts it has nothing to
+travel to.
 
 ## Control programs
 

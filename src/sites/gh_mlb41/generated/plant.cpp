@@ -378,7 +378,6 @@ enum {
     ROW_IRR_OUT_AVG_MS            = ::Botanik::Vars::Row::irr_out_avg_ms,
     ROW_IRR_OUTPUT_RO1            = ::Botanik::Vars::Row::irr_output_ro1,
     ROW_IRR_OUTPUT_RO2            = ::Botanik::Vars::Row::irr_output_ro2,
-    ROW_IRR_PARKDRAIN_SEC         = ::Botanik::Vars::Row::irr_parkDrain_sec,
     ROW_IRR_PERIOD_DAYS           = ::Botanik::Vars::Row::irr_period_days,
     ROW_IRR_RATEWIN_MS            = ::Botanik::Vars::Row::irr_rateWin_ms,
     ROW_IRR_SERVEDTODAY           = ::Botanik::Vars::Row::irr_servedToday,
@@ -400,8 +399,6 @@ enum {
     ROW_IRR_VPDAVG_KPA            = ::Botanik::Vars::Row::irr_vpdAvg_kPa,
     ROW_IRR_VPDAVG_KPA_QLT        = ::Botanik::Vars::Row::irr_vpdAvg_kPa_qlt,
     ROW_PROG_DAY_PHASE_HEALTH     = ::Botanik::Vars::Row::prog_day_phase_health,
-    ROW_PROG_IRR_VALVES_PARK      = ::Botanik::Vars::Row::prog_irr_valves_park,
-    ROW_PROG_IRR_VALVES_PARKED    = ::Botanik::Vars::Row::prog_irr_valves_parked,
     ROW_PROG_TEMP_RH_ZONE_HEALTH  = ::Botanik::Vars::Row::prog_temp_rh_zone_health,
     ROW_PROG_WINDOWS_PARK         = ::Botanik::Vars::Row::prog_windows_park,
     ROW_PROG_WINDOWS_PARKED       = ::Botanik::Vars::Row::prog_windows_parked,
@@ -564,7 +561,7 @@ static const uint16_t _writes_IRRIN[] = { Vars::Row::irr_inTotal_L, Vars::Row::i
 static const uint16_t _writes_IRROUT[] = { Vars::Row::irr_outFlow_Lpm, Vars::Row::irr_outFlow_Lpm_qlt, Vars::Row::irr_outTotal_L, Vars::Row::irr_outTotal_L_qlt,};
 static const uint16_t _writes_IRRSCHED[] = { Vars::Row::irr_dueTray, Vars::Row::irr_slotOpen, Vars::Row::irr_period_days, Vars::Row::irr_today, Vars::Row::irr_servedToday, Vars::Row::irr_last_tray1, Vars::Row::irr_last_tray2, Vars::Row::irr_last_tray3, Vars::Row::irr_last_tray4, Vars::Row::irr_last_tray5, Vars::Row::irr_last_tray6, Vars::Row::irr_last_tray7, Vars::Row::irr_last_tray8, Vars::Row::irr_forceOff_tray1, Vars::Row::irr_forceOff_tray2, Vars::Row::irr_forceOff_tray3, Vars::Row::irr_forceOff_tray4, Vars::Row::irr_forceOff_tray5, Vars::Row::irr_forceOff_tray6, Vars::Row::irr_forceOff_tray7, Vars::Row::irr_forceOff_tray8,};
 static const uint16_t _writes_IRRCYCLE[] = { Vars::Row::irr_volume_L, Vars::Row::irr_state, Vars::Row::irr_activeTray, Vars::Row::irr_delivered_L, Vars::Row::irr_drained_L, Vars::Row::irr_servedToday, Vars::Row::irr_forceNow, Vars::Row::alarm_irr_fill, Vars::Row::alarm_irr_drain, Vars::Row::irr_last_tray1, Vars::Row::irr_last_tray2, Vars::Row::irr_last_tray3, Vars::Row::irr_last_tray4, Vars::Row::irr_last_tray5, Vars::Row::irr_last_tray6, Vars::Row::irr_last_tray7, Vars::Row::irr_last_tray8, Vars::Row::irr_forceOn_tray1, Vars::Row::irr_forceOn_tray2, Vars::Row::irr_forceOn_tray3, Vars::Row::irr_forceOn_tray4, Vars::Row::irr_forceOn_tray5, Vars::Row::irr_forceOn_tray6, Vars::Row::irr_forceOn_tray7, Vars::Row::irr_forceOn_tray8, Vars::Row::alarm_irr_fill_tray1, Vars::Row::alarm_irr_fill_tray2, Vars::Row::alarm_irr_fill_tray3, Vars::Row::alarm_irr_fill_tray4, Vars::Row::alarm_irr_fill_tray5, Vars::Row::alarm_irr_fill_tray6, Vars::Row::alarm_irr_fill_tray7, Vars::Row::alarm_irr_fill_tray8, Vars::Row::alarm_irr_drain_tray1, Vars::Row::alarm_irr_drain_tray2, Vars::Row::alarm_irr_drain_tray3, Vars::Row::alarm_irr_drain_tray4, Vars::Row::alarm_irr_drain_tray5, Vars::Row::alarm_irr_drain_tray6, Vars::Row::alarm_irr_drain_tray7, Vars::Row::alarm_irr_drain_tray8,};
-static const uint16_t _writes_IRRVALVES[] = { Vars::Row::prog_irr_valves_parked, Vars::Row::irr_input_ro1, Vars::Row::irr_input_ro2, Vars::Row::irr_output_ro1, Vars::Row::irr_output_ro2, Vars::Row::irr_tray1, Vars::Row::irr_tray2, Vars::Row::irr_tray3, Vars::Row::irr_tray4, Vars::Row::irr_tray5, Vars::Row::irr_tray6, Vars::Row::irr_tray7, Vars::Row::irr_tray8,};
+static const uint16_t _writes_IRRVALVES[] = { Vars::Row::irr_input_ro1, Vars::Row::irr_input_ro2, Vars::Row::irr_output_ro1, Vars::Row::irr_output_ro2, Vars::Row::irr_tray1, Vars::Row::irr_tray2, Vars::Row::irr_tray3, Vars::Row::irr_tray4, Vars::Row::irr_tray5, Vars::Row::irr_tray6, Vars::Row::irr_tray7, Vars::Row::irr_tray8,};
 
 // The parking pair, or VAR_NONE for a program that is simply dropped.
 static const uint16_t _park_ACGRID   = Vars::VAR_NONE;
@@ -621,8 +618,8 @@ static const uint16_t _park_IRRSCHED   = Vars::VAR_NONE;
 static const uint16_t _parked_IRRSCHED = Vars::VAR_NONE;
 static const uint16_t _park_IRRCYCLE   = Vars::VAR_NONE;
 static const uint16_t _parked_IRRCYCLE = Vars::VAR_NONE;
-static const uint16_t _park_IRRVALVES   = Vars::Row::prog_irr_valves_park;
-static const uint16_t _parked_IRRVALVES = Vars::Row::prog_irr_valves_parked;
+static const uint16_t _park_IRRVALVES   = Vars::VAR_NONE;
+static const uint16_t _parked_IRRVALVES = Vars::VAR_NONE;
 
 // The health row of a program that opted in, or VAR_NONE. The LAW
 // writes it; Plant only reads it back for the TASKS page.

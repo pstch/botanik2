@@ -26,4 +26,4 @@ irr_mtr_input  ,irrin     ,programs/irrigation/irr_mtr_input/irr_mtr_input.st   
 irr_mtr_output ,irrout    ,programs/irrigation/irr_mtr_output/irr_mtr_output.st              ,control,The outlet meter: what came back off the trays.,yes,,
 irr_schedule   ,irrsched  ,programs/irrigation/irrigation_schedule/irrigation_schedule.st    ,control,"Which tray is owed water, and whether the climate will allow a cycle to start.",,,
 irrigation     ,irrcycle  ,programs/irrigation/irrigation_cycle/irrigation_cycle.st          ,control,"Irrigation: one tray at a time, filled to a dose, steeped, and drained.",,,
-irr_valves     ,irrvalves ,programs/irrigation/irr_valves/irr_valves.st                      ,control,The irrigation manifold: which valves each state of the cycle opens.,,yes,
+irr_valves     ,irrvalves ,programs/irrigation/irr_valves/irr_valves.st                      ,control,The irrigation manifold: which valves each state of the cycle opens.,,,

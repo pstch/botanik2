@@ -1,16 +1,17 @@
 (* irr_valves program
+
+   Nothing here parks. Every coil is one module relay driving an external
+   changeover relay, and the declared values are active-low: a de-energised coil
+   shuts the inlet, opens the drain and opens every tray, so the manifold
+   empties on its own with no law running and no power at all.
    ------------------------------------------------------------------------ *)
 
 PROGRAM irr_valves
 VAR_EXTERNAL CONSTANT
   irr_state             : IrrState;
   irr_activeTray        : USINT;
-  irr_parkDrain_sec     : UINT;
-  prog_irr_valves_park  : BOOL;
-  sys_now_ms            : UDINT;
 END_VAR
 VAR_EXTERNAL
-  prog_irr_valves_parked : BOOL;
   irr_input_ro1  : BOOL;
   irr_input_ro2  : BOOL;
   irr_output_ro1 : BOOL;
@@ -23,9 +24,6 @@ VAR_EXTERNAL
   irr_tray6      : BOOL;
   irr_tray7      : BOOL;
   irr_tray8      : BOOL;
-END_VAR
-VAR
-  emptied : TON_MS;   (* the drain held open on the way out *)
 END_VAR
 VAR_TEMP
   filling  : BOOL;
@@ -57,26 +55,6 @@ END_VAR
      where it was put. Every OTHER tray is shut in all three, so one cycle can
      never water two. *)
   onto := filling OR soaking OR draining;
-
-  (* PARKING outranks the state machine, and it is not "shut everything": the
-     INLET shuts at once, because nothing may go on filling a tray nobody is
-     watching, and then the drain and the active tray are held OPEN for
-     irr_parkDrain_sec so the tray and the shared manifold empty. Only then does
-     every coil shut, which is where the declared values are.
-
-     The timer runs off the scan clock, so the drain gets its full time however
-     the beat is paced - and a park abandoned half way leaves the timer to reset
-     on its own the next time IN goes false. *)
-  emptied(IN := prog_irr_valves_park, PT := SEC_MS(irr_parkDrain_sec),
-          NOW := sys_now_ms);
-  IF prog_irr_valves_park THEN
-    irr_input_ro1  := FALSE;
-    irr_input_ro2  := FALSE;
-    irr_output_ro1 := NOT emptied.Q;
-    irr_output_ro2 := NOT emptied.Q;
-    onto           := NOT emptied.Q;
-  END_IF;
-  prog_irr_valves_parked := prog_irr_valves_park AND emptied.Q;
 
   irr_tray1 := onto AND irr_activeTray = 1;
   irr_tray2 := onto AND irr_activeTray = 2;
