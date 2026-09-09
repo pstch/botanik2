@@ -26,7 +26,7 @@ namespace Botanik { namespace Alarms {
     private:
         /** @name State
          *  @{ */
-        const char* _prefix;   ///< topic root, e.g. "botanik/greenhouse"
+        const char* _prefix;   ///< topic root, e.g. "botanik/<site>"
         Publisher*  _pub;      ///< transport (null = no-op)
         /** @} */
 

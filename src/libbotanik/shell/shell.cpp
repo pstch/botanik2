@@ -117,7 +117,7 @@ namespace Botanik { namespace Shell {
                                                                &CommandShell::_cmd_tasks      },
 
             { "params",    "...",       "the editable settings",
-                           "list [<pat>]         name, or a glob: cli_win*_pos\n"
+                           "list [<pat>]         name, or a glob: sys_*_sec\n"
                            "get <name>\n"
                            "set <name> <value>\n"
                            "clear <name>|all     forget unsaved edits\n"
@@ -157,7 +157,7 @@ namespace Botanik { namespace Shell {
                            "unack <code|name|all>",               G_TAB, false,
                                                                &CommandShell::_cmd_alarms     },
             { "vars",      "...",       "read any variable, whatever its scope",
-                           "list [<pat>]         name, or a glob: cli_win*_pos\n"
+                           "list [<pat>]         name, or a glob: sys_*_sec\n"
                            "get <name>           the value, and nothing else\n"
                            "info <name>          the whole row",  G_TAB, false,
                                                                &CommandShell::_cmd_vars       },
