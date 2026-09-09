@@ -116,7 +116,6 @@ namespace Botanik { namespace Shell {
                            "stats\nlist [<pat>]\nget <name>",      G_STA, false,
                                                                &CommandShell::_cmd_tasks      },
 
-#if BOTANIK_FEATURE_VARS
             { "params",    "...",       "the editable settings",
                            "list [<pat>]         name, or a glob: cli_win*_pos\n"
                            "get <name>\n"
@@ -132,8 +131,6 @@ namespace Botanik { namespace Shell {
                            "clear <name>|all\n"
                            "save <name>|all",                     G_TAB, false,
                                                                &CommandShell::_cmd_overrides  },
-#endif
-#if BOTANIK_FEATURE_VARS
             { "control",   "...",       "whether the control programs drive at all",
                            "status               sys_control, and the run state beside it\n"
                            "start                let the laws drive, this run\n"
@@ -142,7 +139,6 @@ namespace Botanik { namespace Shell {
                            "disable              stop, and save it for the next boot",
                                                                      G_SYS, true,
                                                                &CommandShell::_cmd_control    },
-#endif
 #if BOTANIK_FEATURE_PLC
             { "programs",  "...",       "the control programs in the scan",
                            "status               how many, and which cannot run\n"
@@ -160,13 +156,11 @@ namespace Botanik { namespace Shell {
                            "ack <code|name|all>\n"
                            "unack <code|name|all>",               G_TAB, false,
                                                                &CommandShell::_cmd_alarms     },
-#if BOTANIK_FEATURE_VARS
             { "vars",      "...",       "read any variable, whatever its scope",
                            "list [<pat>]         name, or a glob: cli_win*_pos\n"
                            "get <name>           the value, and nothing else\n"
                            "info <name>          the whole row",  G_TAB, false,
                                                                &CommandShell::_cmd_vars       },
-#endif
         };
         count = (uint8_t)(sizeof(TABLE) / sizeof(TABLE[0]));
         return TABLE;

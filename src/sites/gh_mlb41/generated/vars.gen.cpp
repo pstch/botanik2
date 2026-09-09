@@ -789,6 +789,7 @@ const uint16_t row_order[] = {
     41, 42, 420, 421, 278, 446, 447,
 };
 
+#if BOTANIK_FEATURE_MODBUS_RTU_CLIENT
 const Modbus::DeviceModel MDL_SDM630 = Modbus::meter("Eastron SDM630", 80, 2);
 const Modbus::DeviceModel MDL_MCT1_140 = Modbus::meter("Lettel MCT1-140", 100, 2);
 const Modbus::DeviceModel MDL_WS_AI8 = Modbus::io_board("Waveshare AI 8CH", 8);
@@ -825,6 +826,7 @@ const Modbus::Device g_devices[] = {
 const Modbus::DeviceTable g_device_table = {
     g_devices, (uint8_t)(sizeof(g_devices) / sizeof(g_devices[0]))
 };
+#endif
 
 // Home-screen readings: label + row. A caption is a person's choice
 // and nothing in a row's name says it belongs on the landing page, so
@@ -883,7 +885,9 @@ const Botanik::SiteDescriptor g_site = {
     g_commands,    g_command_count,
     g_home_fields, g_home_field_count,
     g_system_fields, g_system_field_count,
+#if BOTANIK_FEATURE_MODBUS_RTU_CLIENT
     &g_device_table,
+#endif
     rows,          row_order, ROWS_COUNT, PARAM_FIRST, PARAM_COUNT,
 };
 

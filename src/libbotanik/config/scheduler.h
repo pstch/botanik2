@@ -48,9 +48,8 @@ namespace Botanik { namespace Config {
      *  DECLARED value, and a momentary bring-up condition then gets latched by
      *  something that outlives it.
      *
-     *  The operator's knob is `sys_startup_sec`; this is the floor a build
-     *  with no variable table falls back to. Five seconds is about one RS-485
-     *  sweep of a full site. */
+     *  The operator's knob is `sys_startup_sec`; this is that row's declared
+     *  default. Five seconds is about one RS-485 sweep of a full site. */
 #ifndef BOTANIK_STARTUP_HOLD_MS
 #  define BOTANIK_STARTUP_HOLD_MS 5000
 #endif

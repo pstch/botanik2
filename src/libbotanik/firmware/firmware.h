@@ -106,7 +106,7 @@ namespace Botanik {
 #endif
         /** @brief The site's whole variable table, in ONE run - the library's
          *  rows merged in by the generator, every kind of row in it, parameters
-         *  first and contiguous. Null on a site with no variable model.
+         *  first and contiguous.
          *
          *  @c order is the same rows in NAME order, so `find()` binary-searches
          *  a const array; the parameter block's bounds are generated beside
@@ -151,7 +151,6 @@ namespace Botanik {
         /** @brief What every Component below is built with: the table to
          *  register in and the log to speak through. @see SetupContext */
         SetupContext                   _setup;
-#if BOTANIK_FEATURE_VARS
         Vars::Bank                       _io;          ///< the site's variables
         Vars::KvStore                  _param_store; ///< one storage key per row
         /** @brief What makes an edit durable. AFTER the store it binds, so the
@@ -161,7 +160,6 @@ namespace Botanik {
          *  struct. Bindings are added in the ctor body, once every component
          *  exists. @see vars/bindings.h */
         Vars::ConfigBinder             _binder;
-#endif
 #if BOTANIK_FEATURE_SUN_TRACKER
         /** @brief The solar-position instrument. Owned here rather than by a
          *  site: it is library code, one build has at most one, and every
@@ -186,12 +184,9 @@ namespace Botanik {
 #if BOTANIK_FEATURE_NETWORK
         NetworkStack                   _net;         ///< resolver/network/ntp/mqtt
 #endif
-#if BOTANIK_FEATURE_VARS
-        /** @brief The controller's own input terminals. Not gated on a field-bus
-         *  flag: local wiring is there whether or not the site has a bus. */
+        /** @brief The controller's own input terminals. */
         Io::LocalInputs                _local_in;
         Io::LocalOutputs               _local_out;
-#endif
 #if BOTANIK_FEATURE_MODBUS_RTU_CLIENT
         /** @brief The field-bus master. Stepped from two phases like the slave
          *  below, and for the mirror-image reason: it takes the field in before
@@ -343,29 +338,18 @@ namespace Botanik {
             }
         }
 
-        /** @brief The two holds, from their rows where there is a table and
-         *  from the build's own floor where there is not. */
+        /** @brief The two holds, from the rows that carry them. */
         uint32_t _startup_hold_ms() const {
-#if BOTANIK_FEATURE_VARS
             return _hold_ms(Vars::Row::sys_startup_sec);
-#else
-            return Config::STARTUP_HOLD_MS;
-#endif
         }
         uint32_t _shutdown_hold_ms() const {
-#if BOTANIK_FEATURE_VARS
             return _hold_ms(Vars::Row::sys_shutdown_sec);
-#else
-            return Config::SHUTDOWN_HOLD_MS;
-#endif
         }
-#if BOTANIK_FEATURE_VARS
         /** @brief A hold row's seconds, in ms. */
         uint32_t _hold_ms(uint16_t row) const {
             const int32_t sec = (int32_t)_io.var(row).as_i64();
             return sec > 0 ? (uint32_t)sec * 1000u : 0u;
         }
-#endif
 
         /** @brief Is a control program still travelling to its parked state?
          *  False where there is no plant to ask. */
@@ -403,7 +387,6 @@ namespace Botanik {
         Scheduler::LoopScheduler&       scheduler()       { return _scheduler; }
         /** @brief The site's variable tables bound to their value stores: what
          *  everything - programs, console, telemetry - reads and writes. */
-#if BOTANIK_FEATURE_VARS
         const Vars::Bank&                 io() const { return _io; }
         Vars::Bank&                       io()       { return _io; }
         /** @brief What makes a value durable. Separate from the bank, which is
@@ -412,7 +395,6 @@ namespace Botanik {
         /** @brief Where a site binds a component of its OWN to the parameters
          *  that configure it. Bind in on_setup(): apply_all() runs after it. */
         Vars::ConfigBinder&               config_binder() { return _binder; }
-#endif
 #if BOTANIK_FEATURE_NETWORK
         Network::NetworkHandler&        network()         { return _net.network(); }
         Network::NameResolver&          resolver()        { return _net.resolver(); }
@@ -448,7 +430,6 @@ namespace Botanik {
          *  bring-up and cycle order can never be skipped or misordered.
          *  @{ */
 
-#if BOTANIK_FEATURE_VARS
         /** @brief Hand the bank the site's variable rows, one call per segment,
          *  at the top of setup(), AFTER the descriptor's own two runs. Most
          *  sites need nothing here: `SiteDescriptor::params` / `rows` is the
@@ -456,7 +437,6 @@ namespace Botanik {
          *  way - and it inherits the same rule, that PARAMETERS come first,
          *  which by then means "there are none left to add". */
         virtual void register_vars() {}
-#endif
 
 #if BOTANIK_FEATURE_SYSTEM_PAGE
         /** @brief The page register_pages() puts in the SYSTEM slot. Override
@@ -532,14 +512,6 @@ namespace Botanik {
          *  device table the field-bus log lines read. */
         static const char* _device_name_of(const void* ctx, uint8_t unit);
 #endif
-#endif
-
-#if !BOTANIK_FEATURE_VARS
-        /** @brief Hand every component its struct defaults. Only a build with no
-         *  variable table needs this: with one, ConfigBinder does it from the
-         *  rows, and a component nobody configures keeps what it was
-         *  CONSTRUCTED with. @see vars/bindings.h */
-        void _apply_default_config();
 #endif
 
         /** @brief Build the task table: what runs, at which rate, in which phase.

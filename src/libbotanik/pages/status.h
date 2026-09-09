@@ -33,10 +33,8 @@
 #include "libbotanik/pages/metric_page.h"
 #include "libbotanik/scheduler/scheduler.h"
 #include "libbotanik/tasks/tasks.h"
-#if BOTANIK_FEATURE_VARS
 #include "libbotanik/config/vars.h"
 #include "libbotanik/vars/access.h"
-#endif
 #include "libbotanik/utils/text.h"
 
 #if BOTANIK_FEATURE_MODBUS_RTU_CLIENT
@@ -68,7 +66,6 @@ namespace Botanik { namespace Pages {
          *  not read back off the console. */
         const SystemContext* _sys;
 
-#if BOTANIK_FEATURE_VARS
         /** @name The site's own half of the band
          *  Borrowed and flash-resident, like the home table: a label and the
          *  row it shows, both generated. @{ */
@@ -76,7 +73,6 @@ namespace Botanik { namespace Pages {
         const Vars::Bank*    _io          = nullptr;
         uint8_t              _site_count  = 0;
         /** @} */
-#endif
 
         /** @} */
 
@@ -400,17 +396,12 @@ namespace Botanik { namespace Pages {
 
         /** @brief Rows the site half occupies, given how many fields it has. */
         uint16_t _site_rows() const {
-#if BOTANIK_FEATURE_VARS
             const uint8_t n = _site_count < Config::SYSTEM_FIELDS_MAX
                             ? _site_count : Config::SYSTEM_FIELDS_MAX;
             return (uint16_t)((n + 1u) / 2u);
-#else
-            return 0;
-#endif
         }
 
         void _draw_site_labels() {
-#if BOTANIK_FEATURE_VARS
             if (_site_fields == nullptr || _site_count == 0) return;
             const Band b = band();
             const uint16_t rows = _site_rows();
@@ -419,11 +410,9 @@ namespace Botanik { namespace Pages {
                 const uint16_t row = (uint16_t)(PAYLOAD_ROW + 1 + (i % rows));
                 _label_at(row, (i < rows) ? b.l_lbl : b.r_lbl, _site_fields[i].label);
             }
-#endif
         }
 
         void _draw_site_values() {
-#if BOTANIK_FEATURE_VARS
             if (_site_fields == nullptr || _io == nullptr) return;
             const Band b = band();
             const uint16_t rows = _site_rows();
@@ -444,7 +433,6 @@ namespace Botanik { namespace Pages {
                     snprintf(buf, sizeof(buf), "%s", v);
                 _cell(row, col, rjust(fld, sizeof(fld), w, buf), w);
             }
-#endif
         }
 
         /** @} */
@@ -470,13 +458,8 @@ namespace Botanik { namespace Pages {
                    const Vars::HomeVar* fields = nullptr, uint8_t count = 0,
                    const Vars::Bank* io = nullptr)
             : MetricPage(console), _sys(sys)
-#if BOTANIK_FEATURE_VARS
             , _site_fields(fields), _io(io), _site_count(count)
-#endif
         {
-#if !BOTANIK_FEATURE_VARS
-            (void)fields; (void)count; (void)io;
-#endif
             _hot_ms = Config::PAGE_HOT_MS;   // run state + watchdog + jitter
         }
 

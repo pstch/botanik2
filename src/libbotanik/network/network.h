@@ -23,14 +23,13 @@ namespace Botanik { namespace Network {
 
     /** @brief The link a NetworkHandler brings up.
      *
-     *  @note These two deliberately disagree with the `net_` rows, which pair
-     *  dhcp=0 with a real static address. A build with NO configuration source
-     *  must not invent one, so the addresses stay empty and DHCP is the only
-     *  thing left that can work. Every other Config struct in the library
-     *  matches its rows exactly. */
+     *  @note What a handler is CONSTRUCTED with, until ConfigBinder pushes the
+     *  `net_` rows at PHASE_CONFIG. It matches those rows, as every Config
+     *  struct does; the addresses are empty because a static address is the
+     *  site's to state. */
     struct NetworkConfig {
         bool enabled  = true;
-        bool dhcp     = true;
+        bool dhcp     = false;
         char ip[16]   = {0};
         char mask[16] = {0};
         char gw[16]   = {0};

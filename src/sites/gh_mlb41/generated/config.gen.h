@@ -123,11 +123,11 @@
 #  define BOTANIK_FEATURE_SUN_TRACKER 1
 #endif
 
-// This site turns every optional feature ON, and its table is CUT for
-// that: a guarded library row the build leaves out shifts every index
-// after it, and the indices are generated constants. So refuse rather
-// than drift. Here rather than in a header the site hand-writes,
-// because the flags have their defaults by the time this is read again.
+// This site's table is CUT for the profile above: a guarded library row the
+// build leaves out shifts every index after it, and the indices are generated
+// constants. So refuse rather than drift. Here rather than in a header the
+// site hand-writes, because the flags have their defaults by the time this is
+// read again.
 #define BOTANIK_SITE_ASSERT_FEATURES \
     BOTANIK_FEATURE_LOGS_PAGE && \
     BOTANIK_FEATURE_ALARMS_PAGE && \

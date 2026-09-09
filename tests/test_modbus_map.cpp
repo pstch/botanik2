@@ -27,7 +27,7 @@ namespace tests { namespace modbus_map {
 using namespace Botanik;
 using namespace Botanik::Modbus;
 
-#if BOTANIK_FEATURE_MODBUS_TCP_SERVER && BOTANIK_FEATURE_VARS
+#if BOTANIK_FEATURE_MODBUS_TCP_SERVER
 
 /** @brief A row's Modbus REGISTER address. Two words per row, high first, so
  *  the address is twice the row number. Bits are indexed by the row number

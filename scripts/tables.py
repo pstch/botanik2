@@ -119,17 +119,20 @@ def config(site):
            ('MODBUS_BAUD', tom['fieldbus']['baud'])]
     if tom.get('build', {}).get('pin_sizes'): val.append(('PIN_SIZES', 1))
 
-    on = [f for f, v in tom['features'].items() if v]
+    on  = [f for f, v in tom['features'].items() if v]
+    # A flag the site turns OFF. Only the ones defaulting ON need saying, but
+    # the site states its whole profile and the redundant ones cost a #ifndef.
+    off = [f for f, v in tom['features'].items() if not v]
     features = []
     for f in on:
-        # VARS is dropped: every one of these needs it, and nesting it round
-        # each would say so eighteen times.
-        need = [d for d in dep.get(f, []) if d not in ('VARS',)]
+        need = dep.get(f, [])
         features.append({'name': f, 'needs': need, 'indent': '  ' * len(need)})
 
     render.write(os.path.join(site, 'generated', 'config.gen.h'),
-                 'config.gen.h.j2', guard=guard, values=val, features=features)
-    print('  config.gen.h   %d values, %d features' % (len(val), len(on)))
+                 'config.gen.h.j2', guard=guard, values=val,
+                 features=features, features_off=off)
+    print('  config.gen.h   %d values, %d on, %d off'
+          % (len(val), len(on), len(off)))
 
 
 

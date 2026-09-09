@@ -18,13 +18,11 @@ namespace Botanik {
           _logger(),
           _scheduler(_tasks, Config::TASK_PERIOD_MS, &_logger),
           _setup(_tasks, &_logger),
-#if BOTANIK_FEATURE_VARS
           _io(_setup),
           // A row's durable copy comes from local storage; Persist owns it.
           _param_store(),
           _persist(_setup, _io),
           _binder(_setup, &_io),
-#endif
           // The alarm model scans the variable table for K_ALARM rows;
           // platform-health alarms are appended and driven locally.
 #if BOTANIK_FEATURE_SUN_TRACKER
@@ -33,11 +31,7 @@ namespace Botanik {
 #if BOTANIK_FEATURE_PLC
           _st(_setup, _io),
 #endif
-#if BOTANIK_FEATURE_VARS
           _health(_setup, _scheduler.context(), &_io)
-#else
-          _health(_setup, _scheduler.context())
-#endif
           , _sys_ctx()   // fields wired in the body, once addresses are known
 #if BOTANIK_FEATURE_LOGS_MONITOR
           , _monitor(_setup)
@@ -47,10 +41,8 @@ namespace Botanik {
           // telemetry publishes the live _sys_ctx (read later).
           , _net(_setup, &_sys_ctx)
 #endif
-#if BOTANIK_FEATURE_VARS
           , _local_in(_setup, _io)
           , _local_out(_setup, _io)
-#endif
 #if BOTANIK_FEATURE_MODBUS_RTU_CLIENT
           , _modbus_rtu(_setup, &_io, site.devices)
 #endif
@@ -83,14 +75,8 @@ namespace Botanik {
           // _sys_ctx is filled in this constructor's BODY, below; the page only
           // reads through the pointer at draw time, so taking its address here
           // is fine.
-#if BOTANIK_FEATURE_VARS
-          // The site's own half of the band. Only a VARS build has a table to
-          // resolve its names in; without one the page is the library rows.
           , _system_page(_console.terminal(), &_sys_ctx,
                          site.system_fields, site.system_field_count, &_io)
-#else
-          , _system_page(_console.terminal(), &_sys_ctx)
-#endif
 #endif
 #endif
     {
@@ -103,7 +89,6 @@ namespace Botanik {
 
         // Bind each component's config to the rows behind it, now every one of
         // them exists. Pushed at PHASE_CONFIG, and once at bring-up.
-#if BOTANIK_FEATURE_VARS
 #if BOTANIK_FEATURE_LOGGING
         // Every sink's own level row. Without this the five *_log_level rows
         // commit and persist and each writer keeps what it was constructed with.
@@ -131,11 +116,6 @@ namespace Botanik {
 #if BOTANIK_FEATURE_MODBUS_TCP_SERVER
         Vars::bind_modbus_tcp(_binder, _modbus_tcp);
 #endif
-        // EVERY bind is inside this guard: the binder is the table's, so with
-        // no table there is nothing to bind and each component keeps the
-        // defaults it was constructed with. Keep the network binds in here
-        // too: NETWORK=ON with VARS=OFF does not compile otherwise.
-#endif  // BOTANIK_FEATURE_VARS
 
         // Wire the status aggregate now every subsystem address is fixed.
         _sys_ctx.scheduler = _scheduler.context();
@@ -143,10 +123,8 @@ namespace Botanik {
 #if BOTANIK_FEATURE_PLC
         _sys_ctx.plant     = &_st;
 #endif
-#if BOTANIK_FEATURE_VARS
         _sys_ctx.vars      = &_io;
         _sys_ctx.persist   = &_persist;
-#endif
 #if BOTANIK_FEATURE_NETWORK
         _sys_ctx.network = &_net.network();
 #endif
@@ -173,11 +151,9 @@ namespace Botanik {
         // whole - the library's rows merged into the site's, ordered, indexed
         // and checked - so this lays out the string pool and seeds every slot
         // from its declared default, and there is nothing here that can fail.
-#if BOTANIK_FEATURE_VARS
         _io.init(_site.rows, _site.order, _site.row_count,
                  _site.param_first, _site.param_count);
         register_vars();
-#endif
 #if BOTANIK_FEATURE_PLC
         // Points the ST runtime at the bank and runs every generated bind.
         _st.wire();
@@ -185,7 +161,6 @@ namespace Botanik {
         // So the quality log can tell a roster change from an instrument dying.
         _health.set_plant(&_st);
 #endif
-#if BOTANIK_FEATURE_VARS
 #if BOTANIK_FEATURE_SUN_TRACKER
         // The tracker publishes its own rows, so a site gets the sun by turning
         // the feature on rather than by writing a program to copy the
@@ -197,7 +172,6 @@ namespace Botanik {
         _persist.set_store(&_param_store);
         // ...and it is what health writes the record through on the way down.
         _health.set_persist(&_persist);
-#endif
 
         // What runs on the beat, in which phase, and how often.
         _register_tasks();
@@ -281,17 +255,6 @@ namespace Botanik {
         register_telemetry();   // site telemetry fields (base set always on)
 #endif
 
-#if !BOTANIK_FEATURE_VARS
-        // No table means no ConfigBinder, and a component that is never handed a
-        // config keeps the one it was CONSTRUCTED with - which for the console is
-        // a single usable cell, so the screen stays blank. The struct defaults
-        // are the factory profile, so pushing them here puts this build in the
-        // same state a variable build reaches with a wiped store.
-        //
-        // BEFORE on_setup(), so a site can still override any of it in its hook.
-        _apply_default_config();
-#endif
-
         // The site's own components and programs register here, on top of the
         // library's - still ahead of the setup pass below, so they are set up
         // in the same sweep as everything else.
@@ -306,9 +269,7 @@ namespace Botanik {
 
         // AFTER the line above, which is what loads the parameters: what each
         // component is handed here is the store, not the defaults.
-#if BOTANIK_FEATURE_VARS
         _binder.apply_all();
-#endif
 
         // SETUP is over. The beat runs from here; the laws wait out
         // sys_startup_sec in START, which loop() counts.
@@ -337,27 +298,6 @@ namespace Botanik {
 #endif
 #endif
 
-#if !BOTANIK_FEATURE_VARS
-    void BotanikFirmware::_apply_default_config() {
-#if BOTANIK_FEATURE_CONSOLE
-        _console.terminal().set_config(Terminal::ConsoleConfig(), /*announce=*/false);
-#endif
-#if BOTANIK_FEATURE_LOGS_MONITOR
-        _monitor.set_config(MonitorConfig());
-#endif
-#if BOTANIK_FEATURE_NETWORK
-        _net.network().set_config(Network::NetworkConfig());
-#endif
-#if BOTANIK_FEATURE_NTP
-        _net.ntp().set_config(Network::NtpConfig());
-#endif
-#if BOTANIK_FEATURE_MQTT
-        _net.mqtt().set_config(Network::MqttConfig());
-        _net.telemetry().set_config(Network::TelemetryConfig());
-#endif
-    }
-#endif
-
     // The task table
 
     // The task table
@@ -371,12 +311,10 @@ namespace Botanik {
         using namespace Tasks;
 
         // INPUT: fresh bytes and fresh field, before anything reads
-#if BOTANIK_FEATURE_VARS
         // The controller's own terminals, before the bus: both fill rows the
         // programs read this beat, and this one cannot fail or block.
         _local_in.register_tasks();
         _local_out.register_tasks();
-#endif
 #if BOTANIK_FEATURE_MODBUS_RTU_CLIENT
         // Spans the beat: takes the field in here, issues at OUTPUT.
         _modbus_rtu.register_tasks();
@@ -385,7 +323,6 @@ namespace Botanik {
         // Spans three: decodes here, persists at SERVICE, answers at PRESENT.
         _modbus_tcp.register_tasks();
 #endif
-#if BOTANIK_FEATURE_VARS
         // The bank's own two sweeps, after the drivers have committed: age a
         // row out, and reject one that is fresh and still nonsense. Both before
         // anything reads, so one beat is coherent.
@@ -398,7 +335,6 @@ namespace Botanik {
 
         // CONFIG: a commit reaches its component
         _binder.register_tasks();
-#endif
 
         // SERVICE: supervision and the background state machines
 #if BOTANIK_FEATURE_SUN_TRACKER
@@ -488,24 +424,15 @@ namespace Botanik {
 
 #if BOTANIK_FEATURE_SHELL_PAGE
     void BotanikFirmware::register_commands() {
-        // The site's commands get the bank as their context, when there is one.
-#if BOTANIK_FEATURE_VARS
         _console.shell().set_commands(_site.commands, _site.command_count,
                                       (void*)&_io);
-#else
-        _console.shell().set_commands(_site.commands, _site.command_count, nullptr);
-#endif
     }
 #endif
 #endif  // BOTANIK_FEATURE_CONSOLE
 
 #if BOTANIK_FEATURE_MQTT
     void BotanikFirmware::register_telemetry() {
-#if BOTANIK_FEATURE_VARS
-        // What there is to publish IS the table, so with no table the sender
-        // carries the lifecycle and nothing else. MQTT does not require VARS.
         telemetry().set_variables(&_io);
-#endif
         telemetry().set_run_state(&_scheduler.context()->run_state);
     }
 #endif

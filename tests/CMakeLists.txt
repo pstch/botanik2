@@ -104,17 +104,17 @@ add_custom_target(check
 
 # `make check-bare` compiles the feature profiles nothing else builds, starting
 # with sites/bare: every optional flag off. Compile-only, and it builds
-# botanik_sim rather than the suite, since the tests are written against a site
-# that has a variable table.
+# botanik_sim rather than the suite, since the tests are written against the
+# reference site's table rather than the library rows bare carries.
 add_custom_target(check-bare
     COMMAND ${CMAKE_COMMAND} -G ${CMAKE_GENERATOR} -S ${CMAKE_SOURCE_DIR}
             -B ${CMAKE_SOURCE_DIR}/build-bare -DBOTANIK_TARGET=SIMULATOR
             -DBOTANIK_SITE=bare
     COMMAND ${CMAKE_COMMAND} --build ${CMAKE_SOURCE_DIR}/build-bare
             --target botanik_sim --parallel ${_nproc}
-    # A console, a shell and its log/task views, with no variable model behind
-    # them. The two extremes only compile the file-level guard around an
-    # `#if VARS`, never one inside a page or a shell command.
+    # A console, a shell and its log/task views on top of a site that declares
+    # nothing of its own: the pages and the shell compiled against the library
+    # rows alone, which is the only build where a page meets an absent row.
     COMMAND ${CMAKE_COMMAND} -G ${CMAKE_GENERATOR} -S ${CMAKE_SOURCE_DIR}
             -B ${CMAKE_SOURCE_DIR}/build-bare-ui -DBOTANIK_TARGET=SIMULATOR
             -DBOTANIK_SITE=bare
@@ -123,18 +123,6 @@ add_custom_target(check-bare
             -DBOTANIK_FEATURE_TASKS_PAGE=ON
             -DBOTANIK_FEATURE_SYSTEM_PAGE=ON
     COMMAND ${CMAKE_COMMAND} --build ${CMAKE_SOURCE_DIR}/build-bare-ui
-            --target botanik_sim --parallel ${_nproc}
-    # The network stack with no variable model. Nobody ships this combination;
-    # it is what catches a `#if VARS` forgotten around something the network
-    # reaches, which neither profile above compiles.
-    COMMAND ${CMAKE_COMMAND} -G ${CMAKE_GENERATOR} -S ${CMAKE_SOURCE_DIR}
-            -B ${CMAKE_SOURCE_DIR}/build-bare-net -DBOTANIK_TARGET=SIMULATOR
-            -DBOTANIK_SITE=bare
-            -DBOTANIK_FEATURE_NETWORK=ON -DBOTANIK_FEATURE_NTP=ON
-            -DBOTANIK_FEATURE_MQTT=ON
-            -DBOTANIK_FEATURE_VARS=OFF -DBOTANIK_FEATURE_PLC=OFF
-            -DBOTANIK_FEATURE_HOME_PAGE=OFF
-    COMMAND ${CMAKE_COMMAND} --build ${CMAKE_SOURCE_DIR}/build-bare-net
             --target botanik_sim --parallel ${_nproc}
     USES_TERMINAL
     COMMENT "Sweep: libbotanik with every optional feature off (build-bare/)"
@@ -189,22 +177,42 @@ elseif(DEFINED ENV{IEC2C} AND EXISTS "$ENV{IEC2C}")
 else()
     find_program(_iec2c iec2c)
 endif()
-# `regen-site` is check-generated's other half: the same four commands in the
-# source tree, so what a contributor runs after editing a table or an ST file is
-# one command rather than four plus an env var. Not a build step and never in
-# ALL; see cmake/matiec.cmake.
+# EVERY site in the tree, not just the selected one: the library's own rows
+# (vars/tables/library.csv) and the templates feed all of them, so a table edit
+# regenerated for one site leaves the others stale and committed.
+file(GLOB _site_tomls ${CMAKE_SOURCE_DIR}/src/sites/*/site.toml)
+set(_all_sites "")
+foreach(_t ${_site_tomls})
+    get_filename_component(_d ${_t} DIRECTORY)
+    get_filename_component(_n ${_d} NAME)
+    list(APPEND _all_sites ${_n})
+endforeach()
+
+# `regen-site` is check-generated's other half: the same commands in the source
+# tree, so what a contributor runs after editing a table or an ST file is one
+# command rather than four per site plus an env var. Not a build step and never
+# in ALL; see cmake/matiec.cmake.
 if(_python3 AND _iec2c)
     add_custom_target(regen-site
-        COMMAND ${CMAKE_COMMAND} -E env IEC2C=${_iec2c} ${CMAKE_COMMAND} -E chdir
-                ${CMAKE_SOURCE_DIR} ${_python3} scripts/tables.py generate ${BOTANIK_SITE}
-        COMMAND ${CMAKE_COMMAND} -E env IEC2C=${_iec2c} ${CMAKE_COMMAND} -E chdir
-                ${CMAKE_SOURCE_DIR} ${_python3} scripts/tables.py config ${BOTANIK_SITE}
-        COMMAND ${CMAKE_COMMAND} -E env IEC2C=${_iec2c} ${CMAKE_COMMAND} -E chdir
-                ${CMAKE_SOURCE_DIR} ${_python3} scripts/tables.py plant ${BOTANIK_SITE}
+        COMMAND ${CMAKE_COMMAND} -E echo "Regenerating: ${_all_sites}"
+        USES_TERMINAL
+        COMMENT "Regenerating every site into the source tree - review the diff"
+        VERBATIM)
+    foreach(_s ${_all_sites})
+        add_custom_command(TARGET regen-site POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E env IEC2C=${_iec2c} ${CMAKE_COMMAND} -E chdir
+                    ${CMAKE_SOURCE_DIR} ${_python3} scripts/tables.py generate ${_s}
+            COMMAND ${CMAKE_COMMAND} -E env IEC2C=${_iec2c} ${CMAKE_COMMAND} -E chdir
+                    ${CMAKE_SOURCE_DIR} ${_python3} scripts/tables.py config ${_s}
+            COMMAND ${CMAKE_COMMAND} -E env IEC2C=${_iec2c} ${CMAKE_COMMAND} -E chdir
+                    ${CMAKE_SOURCE_DIR} ${_python3} scripts/tables.py plant ${_s}
+            VERBATIM)
+    endforeach()
+    # The variables page is a per-site DOC, and only a site that is documented
+    # has one. `points` is therefore the selected site's alone.
+    add_custom_command(TARGET regen-site POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E env IEC2C=${_iec2c} ${CMAKE_COMMAND} -E chdir
                 ${CMAKE_SOURCE_DIR} ${_python3} scripts/tables.py points ${BOTANIK_SITE}
-        USES_TERMINAL
-        COMMENT "Regenerating ${BOTANIK_SITE} into the source tree - review the diff"
         VERBATIM)
     if(TARGET matiec)
         add_dependencies(regen-site matiec)
@@ -212,7 +220,6 @@ if(_python3 AND _iec2c)
 endif()
 
 set(_gen ${CMAKE_BINARY_DIR}/genchk)
-set(_site src/sites/${BOTANIK_SITE}/generated)
 if(_python3 AND _iec2c)
     add_custom_target(check-generated
         COMMAND ${CMAKE_COMMAND} -E rm -rf ${_gen}
@@ -222,45 +229,53 @@ if(_python3 AND _iec2c)
         COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_SOURCE_DIR}/templates ${_gen}/templates
         COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_SOURCE_DIR}/src       ${_gen}/src
         COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_SOURCE_DIR}/docs      ${_gen}/docs
-        COMMAND ${CMAKE_COMMAND} -E env IEC2C=${_iec2c} ${CMAKE_COMMAND} -E chdir ${_gen}
-                ${_python3} scripts/tables.py generate ${BOTANIK_SITE}
-        COMMAND ${CMAKE_COMMAND} -E env IEC2C=${_iec2c} ${CMAKE_COMMAND} -E chdir ${_gen}
-                ${_python3} scripts/tables.py config ${BOTANIK_SITE}
-        COMMAND ${CMAKE_COMMAND} -E env IEC2C=${_iec2c} ${CMAKE_COMMAND} -E chdir ${_gen}
-                ${_python3} scripts/tables.py plant ${BOTANIK_SITE}
-        COMMAND ${CMAKE_COMMAND} -E env IEC2C=${_iec2c} ${CMAKE_COMMAND} -E chdir ${_gen}
-                ${_python3} scripts/tables.py points ${BOTANIK_SITE}
-        COMMAND ${CMAKE_COMMAND} -E compare_files
-                ${CMAKE_SOURCE_DIR}/${_site}/vars.gen.cpp ${_gen}/${_site}/vars.gen.cpp
-        COMMAND ${CMAKE_COMMAND} -E compare_files
-                ${CMAKE_SOURCE_DIR}/${_site}/vars.gen.h   ${_gen}/${_site}/vars.gen.h
-        COMMAND ${CMAKE_COMMAND} -E compare_files
-                ${CMAKE_SOURCE_DIR}/${_site}/config.gen.h ${_gen}/${_site}/config.gen.h
-        COMMAND ${CMAKE_COMMAND} -E compare_files
-                ${CMAKE_SOURCE_DIR}/${_site}/plant.cpp    ${_gen}/${_site}/plant.cpp
-        COMMAND ${CMAKE_COMMAND} -E compare_files
-                ${CMAKE_SOURCE_DIR}/${_site}/POUS.c       ${_gen}/${_site}/POUS.c
-        COMMAND ${CMAKE_COMMAND} -E compare_files
-                ${CMAKE_SOURCE_DIR}/${_site}/rows.gen.h  ${_gen}/${_site}/rows.gen.h
-        COMMAND ${CMAKE_COMMAND} -E compare_files
-                ${CMAKE_SOURCE_DIR}/${_site}/enums.gen.h ${_gen}/${_site}/enums.gen.h
-        COMMAND ${CMAKE_COMMAND} -E compare_files
-                ${CMAKE_SOURCE_DIR}/${_site}/enums.st    ${_gen}/${_site}/enums.st
+        USES_TERMINAL
+        COMMENT "Sweep: the committed generated sources still match the tables"
+        VERBATIM)
+
+    # Every site, and for each one every file it actually committed under
+    # generated/. Globbed rather than listed: the set differs per site (a site
+    # with no programs has no plant.cpp and no POUS.c), and a listed name that
+    # stopped being generated would silently stop being checked.
+    foreach(_s ${_all_sites})
+        add_custom_command(TARGET check-generated POST_BUILD
+            # The scratch tree is a COPY of src/, so a file that is committed
+            # but no longer generated would compare equal to itself. Clear the
+            # site's generated/ first and let the regeneration refill it.
+            COMMAND ${CMAKE_COMMAND} -E rm -rf ${_gen}/src/sites/${_s}/generated
+            COMMAND ${CMAKE_COMMAND} -E env IEC2C=${_iec2c} ${CMAKE_COMMAND} -E chdir ${_gen}
+                    ${_python3} scripts/tables.py generate ${_s}
+            COMMAND ${CMAKE_COMMAND} -E env IEC2C=${_iec2c} ${CMAKE_COMMAND} -E chdir ${_gen}
+                    ${_python3} scripts/tables.py config ${_s}
+            COMMAND ${CMAKE_COMMAND} -E env IEC2C=${_iec2c} ${CMAKE_COMMAND} -E chdir ${_gen}
+                    ${_python3} scripts/tables.py plant ${_s}
+            VERBATIM)
+        file(GLOB _committed ${CMAKE_SOURCE_DIR}/src/sites/${_s}/generated/*)
+        foreach(_f ${_committed})
+            file(RELATIVE_PATH _rel ${CMAKE_SOURCE_DIR} ${_f})
+            add_custom_command(TARGET check-generated POST_BUILD
+                COMMAND ${CMAKE_COMMAND} -E compare_files ${_f} ${_gen}/${_rel}
+                VERBATIM)
+        endforeach()
+    endforeach()
+
+    # The two the generator writes into the LIBRARY rather than into a site,
+    # and the selected site's variables page.
+    add_custom_command(TARGET check-generated POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E compare_files
                 ${CMAKE_SOURCE_DIR}/src/libbotanik/plc/runtime/quality.gen.h
                 ${_gen}/src/libbotanik/plc/runtime/quality.gen.h
-        # health.gen.h is generated beside quality.gen.h and compiled in through
-        # accessor.h.
         COMMAND ${CMAKE_COMMAND} -E compare_files
                 ${CMAKE_SOURCE_DIR}/src/libbotanik/plc/runtime/health.gen.h
                 ${_gen}/src/libbotanik/plc/runtime/health.gen.h
+        COMMAND ${CMAKE_COMMAND} -E env IEC2C=${_iec2c} ${CMAKE_COMMAND} -E chdir ${_gen}
+                ${_python3} scripts/tables.py points ${BOTANIK_SITE}
         COMMAND ${CMAKE_COMMAND} -E compare_files
                 ${CMAKE_SOURCE_DIR}/docs/${BOTANIK_SITE}/reference/variables.md
                 ${_gen}/docs/${BOTANIK_SITE}/reference/variables.md
         COMMAND ${CMAKE_COMMAND} -E rm -rf ${_gen}
-        USES_TERMINAL
-        COMMENT "Sweep: the committed generated sources still match the tables"
         VERBATIM)
+
     # Build the pinned compiler first where there is one, so the diff is against
     # it rather than against whatever the developer happens to have.
     if(TARGET matiec)

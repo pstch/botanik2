@@ -1,0 +1,39 @@
+# bare - the minimum a site can be: a name, and a table with nothing of its own.
+#
+# It declares no variables, no programs, no commands and no simulated field.
+# What builds here is libbotanik with every optional feature compiled out, so
+# the seam that makes them optional is exercised by something rather than
+# asserted by a comment.
+#
+# Its config.h is HAND-WRITTEN, so `tables.py config` is never run for this
+# site: the table below is generated, the flags beside it are not.
+
+[site]
+name = "bare"
+
+[rates]
+control = 100
+sense   = 100
+
+[registers]
+quality_base  = 1000
+park_base     = 1200
+prog_base     = 1300
+prog_run_base = 1400
+
+[fieldbus]
+baud = 38400
+
+[features]
+# Every optional flag stays at the header's default, which is off. The core the
+# header turns ON is turned off here by name: what is left is a scheduler, a
+# task table, a logger with no sink, the variable bank, and the HAL.
+#
+# The TABLE still carries the core's rows: `check-bare` builds this site with
+# CONSOLE back on from the command line, and a row cut here would leave that
+# build naming a Vars::Row that does not exist.
+CONSOLE    = false
+LOGGING    = false
+HOME_PAGE  = false
+SHELL_PAGE = false
+PLC        = false

@@ -3,54 +3,42 @@
 
 /**
  * @file site.h
- * @brief HAND-WRITTEN - the bare site: a name, and nothing else.
+ * @brief The bare site: the generated table, and nothing else.
  *
- * The minimum a site can be. It declares no variables, no programs, no commands
- * and no simulated field, which is the point: what builds here is libbotanik
- * with every optional feature compiled out, so the seam that makes them optional
- * is exercised by something rather than asserted by a comment.
+ * The minimum a site can be. It declares no variables of its own, no programs,
+ * no commands and no simulated field, which is the point: what builds here is
+ * libbotanik with every optional feature compiled out, so the seam that makes
+ * them optional is exercised by something rather than asserted by a comment.
+ * The table under `generated/` is the library's own rows and nothing else.
  *
  * Same surface as any other site, so a harness never names it:
- * `Site::firmware()` and `Site::simulate()`.
+ *   - `Site::firmware()`  the firmware, bound to this site's descriptor
+ *   - `Site::simulate()`  the simulated field, which here has nothing to animate
  */
 
 #include <cstdint>
 
 #include "libbotanik.h"
 
+#include "generated/enums.gen.h"
+
 namespace Site {
 
-/** @brief No commands, no home fields, no devices. Field order matches
- *  Botanik::SiteDescriptor. */
-const Botanik::SiteDescriptor g_site = {
-    Botanik::Config::SITE_NAME,
-    nullptr, 0,                      // site shell commands
-    nullptr, 0,                      // home-screen readings
-    nullptr, 0,                      // SYSTEM-page readings
-#if BOTANIK_FEATURE_MODBUS_RTU_CLIENT
-    nullptr,                         // what each unit answers
-#endif
-    nullptr, nullptr, 0, 0, 0,       // the variable table, and there is none
-};
+using namespace Botanik;
+using namespace Botanik::Vars;
 
-#if defined(TARGET_SIMULATOR) && BOTANIK_FEATURE_VARS
-/** @brief No field to animate: this site declares no rows. */
+// RELATIVE on purpose: a site can live outside this tree with no include
+// directory of its own, so an absolute path would resolve to the in-tree
+// reference site instead of the one being built.
+#include "generated/vars.gen.h"
+
+#ifdef TARGET_SIMULATOR
+/** @brief No field to animate: this site declares no rows of its own. */
 inline void simulate(Botanik::Vars::Bank& io, uint32_t now_ms) {
     (void)io; (void)now_ms;
 }
 #endif
 
-/** @brief The firmware, bound to this site. A FUNCTION-LOCAL static: on the
- *  OPTA it must be constructed after the Arduino core's init() has brought up
- *  the UARTs, and a file-scope object would run before it. No subclass - this
- *  site adds nothing to the base, which is the point of it. */
-inline Botanik::BotanikFirmware& firmware() {
-    static Botanik::BotanikFirmware fw(g_site);
-    return fw;
-}
-
 }  // namespace Site
-
-
 
 #endif // BARE_SITE_H

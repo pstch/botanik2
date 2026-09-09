@@ -10,7 +10,6 @@
 #include "libbotanik/vars/persist.h"
 #include "libbotanik_features.h"
 
-#if BOTANIK_FEATURE_VARS
 
 #include <cstdio>
 #include <cstring>
@@ -400,4 +399,3 @@ namespace Botanik { namespace Vars {
 
 }}  // namespace Botanik::Vars
 
-#endif // BOTANIK_FEATURE_VARS

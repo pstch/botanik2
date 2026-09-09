@@ -6,7 +6,7 @@
 #include "libbotanik/shell/shell.h"
 #include "libbotanik_features.h"
 
-#if BOTANIK_FEATURE_SHELL_PAGE && BOTANIK_FEATURE_VARS
+#if BOTANIK_FEATURE_SHELL_PAGE
 #include "libbotanik/shell/args.h"
 
 #include <algorithm>
@@ -673,4 +673,4 @@ namespace Botanik { namespace Shell {
 
 }}  // namespace Botanik::Shell
 
-#endif // BOTANIK_FEATURE_SHELL_PAGE && BOTANIK_FEATURE_VARS
+#endif // BOTANIK_FEATURE_SHELL_PAGE

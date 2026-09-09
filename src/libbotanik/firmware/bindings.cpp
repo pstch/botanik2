@@ -14,8 +14,6 @@
 #include "libbotanik/vars/bindings.h"
 #include "libbotanik_features.h"
 
-#if BOTANIK_FEATURE_VARS
-
 #include "libbotanik/hal/platform.h"
 
 #include "libbotanik/vars/model.h"
@@ -53,12 +51,14 @@
 
 namespace Botanik { namespace Vars {
 
+#if BOTANIK_FEATURE_NETWORK
     const char* host_or_gateway(const Bank& io, uint16_t row) {
         const char* t = io.var(row).text();
         if (t != nullptr && t[0] != '\0') return t;
         const char* gw = io.var(Row::net_gw).text();
         return (gw != nullptr) ? gw : "";
     }
+#endif
 
 
     // The walk
@@ -300,4 +300,3 @@ namespace Botanik { namespace Vars {
 
 }}  // namespace Botanik::Vars
 
-#endif // BOTANIK_FEATURE_VARS

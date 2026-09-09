@@ -4,7 +4,6 @@
  */
 
 #include "libbotanik/io/local_outputs.h"
-#if BOTANIK_FEATURE_VARS
 
 #include "libbotanik/tasks/tasks.h"
 #include "libbotanik/logs/logger.h"
@@ -63,4 +62,3 @@ namespace Botanik { namespace Io {
 
 }}  // namespace Botanik::Io
 
-#endif // BOTANIK_FEATURE_VARS

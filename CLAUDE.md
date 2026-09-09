@@ -59,7 +59,7 @@ make -C build botanik_tests          # just build the doctest binary
 ctest --test-dir build --output-on-failure          # all CTest entries
 ctest --test-dir build -R pyte --output-on-failure  # just pyte
 make -C build matiec                 # build the pinned matiec (needs flex/bison/autotools)
-make -C build regen-site             # regenerate into the source tree, then commit the diff
+make -C build regen-site             # regenerate EVERY site into the source tree, then commit the diff
 make -C build docs                   # regenerate the variables page, then render
 make -C build docs-screens           # recapture the console screenshots
 scripts/sim_scenario.sh <name> [when]    # run one scenario interactively
@@ -98,8 +98,9 @@ PID can meet the lingering sockets of a run that just exited. If only those
 failed, re-run before digging.
 
 **`make check-full`** runs clang-tidy over `src/` first, then `check-generated`
-(regenerate into a scratch copy of the generator's inputs and diff against what
-is committed), `check-bare`, `check-opta` (the cross build, the only thing that
+(regenerate EVERY site into a scratch copy of the generator's inputs and diff
+against what is committed, file by file over what each site actually has under
+`generated/`), `check-bare`, `check-opta` (the cross build, the only thing that
 catches a link error: `Arduino.h` declares the whole wiring API and `libmbed.a`
 defines none of it), `coverage`, and finally the whole gate again under
 ASan+UBSan in `build/asan/`. It drives that tree's own `check` target, so the two
@@ -111,10 +112,10 @@ upstream commit, built by `make -C build matiec` into `build/matiec/iec2c`.
 flex, bison and the autotools the `matiec` target is not declared and the check
 falls back to PATH.
 
-**`make check-bare`** compiles `sites/bare` (every optional feature off) plus two
-partial profiles: console + shell + logs, no variable model; and network with no
-variable model. The extremes only compile the file-level guards; the middle
-profiles compile an `#if VARS` inside a page, a shell command or a network bind.
+**`make check-bare`** compiles `sites/bare` (every optional feature off) plus one
+partial profile: console + shell + its log/task/system views, on a site that
+declares nothing of its own. That is the only build where a page and a shell
+command meet the library rows alone, with no site table behind them.
 
 **`make coverage`** builds a third tree under `build/coverage/`, runs both suites
 and prints per-area line coverage of the library, writing `build/coverage.json`.
@@ -184,7 +185,7 @@ Subsystems under `src/libbotanik/`; the header is the API.
 | `tasks/` | The task table and `TaskTimer`. `LoopScheduler` decides when a beat happens, `Tasks::Registry` what runs in it. Sits below `core/` |
 | `core/` | The bottom of the stack: `Component` (one hook per phase, `register_tasks()`) and `SystemContext` (a borrowed-pointer aggregate, constructor-injected, not reachable through the console) |
 | `firmware/` | `BotanikFirmware`, the Template-Method base owning every generic component and the non-overridable per-tick order. Sites customize through the protected hooks |
-| `vars/` | Gated by `BOTANIK_FEATURE_VARS`. The one model everything the firmware exposes goes through. A row is a `Kind` and a `VarType`; published, mapped, local, analog and writable are derived. `Bank` holds the generated table and the RAM over it, `Var` (bank + index) is every row-level operation, `Persist` the durable half |
+| `vars/` | The one model everything the firmware exposes goes through. A row is a `Kind` and a `VarType`; published, mapped, local, analog and writable are derived. `Bank` holds the generated table and the RAM over it, `Var` (bank + index) is every row-level operation, `Persist` the durable half |
 | `plc/` | The POU vocabulary, in ST: `functions/*.st` has no state, `blocks/*.st` has state, `runtime/` joins the beat to matiec's generated C. If it has to remember something it is a block. `functions/ieclib.txt` is what `iec2c -I` points at, so matiec's own GPL library is never loaded |
 | `io/` | `LocalInputs`, the controller's own input terminals: every local input row found by walking the table at bring-up, published at `PHASE_INPUT` with `F_INVERT` folded in |
 | `modbus/` | Four corners in one tree: `rtu/` is the RS-485 field bus, `tcp/` the plant network, each with both ends. `wire.h` and `response.h` are shared |
@@ -192,7 +193,7 @@ Subsystems under `src/libbotanik/`; the header is the API.
 | `pages/` | Full-screen views behind a common `Page` interface, all base-owned and site-independent |
 | `shell/` | `CommandShell`: commands are noun then verb, a noun parsing its own verb. Depends on the terminal device, not on `Console` or `pages/` |
 | `logs/` | `Logger` with a dual-bucket token-bucket rate limiter before its `LogWriter`s. `LOG_CRITICAL` is undroppable |
-| `alarms/` | `AlarmController` reads an `AlarmSourceTable`, never a bank. With `VARS` on that is `Vars::BankAlarms` over the site's `K_ALARM` rows, each carrying its boolean and its dwell policy; without it, `StaticAlarmTable` over a flash array. Every build has alarms |
+| `alarms/` | `AlarmController` reads an `AlarmSourceTable`, never a bank: that is what keeps this tree free of `vars/`, and what lets a test stand its own source in front of the controller. The one implementation is `Vars::BankAlarms` over the site's `K_ALARM` rows, each carrying its boolean and its dwell policy |
 | `health/` | `HealthMonitor` owns the `AlarmController`, raises the platform-health alarms from scheduler metrics, runs the POST, and produces the watchdog verdict |
 | `network/` | `NetworkHandler` / `NameResolver` / `NtpClient` / `MqttClient`, all non-blocking. The sim backend is hermetic: it emulates DNS/NTP/MQTT in-process |
 | `sun/` | `SunPositionTracker` over the NOAA solar-position math. `BotanikFirmware` owns the instance and binds its `geo_` parameters; a program reads it through `SetupContext::sun` |
@@ -296,9 +297,9 @@ Subsystems under `src/libbotanik/`; the header is the API.
 
 ### Optional features (`BOTANIK_FEATURE_*`)
 
-Optional subsystems are gated at compile time by the 24 `BOTANIK_FEATURE_*` flags
+Optional subsystems are gated at compile time by the 23 `BOTANIK_FEATURE_*` flags
 in `src/libbotanik_features.h`. Each defaults from an `#ifndef`-guarded macro, a
-site can `#define` it in `sites/<name>/config.h`, and the build can set
+site names it in the `[features]` table of its `site.toml`, and the build can set
 `-DBOTANIK_FEATURE_<X>=ON/OFF` (forwarded PUBLIC on the `botanik` library, same
 ABI discipline as `BOTANIK_SITE_CONFIG`). Precedence: command line > site >
 header default.
@@ -310,11 +311,14 @@ than from a list. Adding a flag is an `X()` entry plus an `#ifndef` default, and
 a row in the integration docs.
 
 A build that sets nothing gets `CONSOLE` + `HOME_PAGE` + `SHELL_PAGE` +
-`LOGGING` + `VARS` + `PLC`. Everything else is off. `src/sites/gh_mlb41/config.h`
-is the worked full profile, and because the test and pyte builds compile the
-selected site, it is also what keeps those suites exercising the whole surface.
-`src/sites/bare/config.h` is the other end: every optional flag off, nothing
-declared, existing to be compiled rather than run.
+`LOGGING` + `PLC`. Everything else is off. A site states its whole profile in
+the `[features]` table of its `site.toml`, `true` and `false` both, and
+`tables.py config` generates `config.gen.h` from it. `gh_mlb41` is the worked
+full profile, and because the test and pyte builds compile the selected site, it
+is also what keeps those suites exercising the whole surface. `sites/bare` is the
+other end: every optional flag off and nothing declared, existing to be compiled
+rather than run. Its table is still generated - the library's own rows and
+nothing else - because there is no build without one.
 
 | Group | Flags | Notes |
 |---|---|---|
@@ -323,14 +327,21 @@ declared, existing to be compiled rather than run.
 | pages | `HOME_PAGE`, `SHELL_PAGE` (both = `CONSOLE`), `LOGS_PAGE`, `ALARMS_PAGE`, `PARAMS_PAGE`, `MONITOR_PAGE`, `TASKS_PAGE`, `SYSTEM_PAGE`, `NOTES_PAGE` | all require `CONSOLE`; `LOGS_PAGE` also `LOGGING`. `SHELL_PAGE` gates the whole command interpreter, since `ShellPage` owns `Shell::CommandShell`. The boot page is whichever registers first, so it is positional |
 | transports | `LOGS_PUBLISH`, `ALARMS_PUBLISH` (both need `LOGGING`+`MQTT`), `LOGS_MONITOR` (needs `LOGGING`) | `LOGS_MONITOR` is the secondary serial log sink, not `MONITOR_PAGE` |
 | PLC | `PLC` (on) | `PLC` off keeps `SiteDescriptor`'s program fields (removing trailing aggregate fields would break every site's initialiser) and does not remove control authority. The POU vocabulary is ST, compiled into the site, so there is nothing per-block to gate |
-| field bus | `MODBUS_TCP_SERVER`, `MODBUS_TCP_CLIENT`, `MODBUS_RTU_CLIENT`, `MODBUS_RTU_SERVER` | `RtuClient` is the field-bus master scanning the site's field rows, `TcpSlave` serves the register map, `TcpMaster` is the sim's self-check against that map, `RtuSlave` the device model the simulated field is built from. `TCP_*` need `NETWORK`; `RTU_CLIENT` and `TCP_SERVER` need `VARS` |
-| standalone | `SUN_TRACKER` | owned by `BotanikFirmware` and reached through `SetupContext::sun`, so no site declares one. Off in the header, on in `gh_mlb41/config.h` |
+| field bus | `MODBUS_TCP_SERVER`, `MODBUS_TCP_CLIENT`, `MODBUS_RTU_CLIENT`, `MODBUS_RTU_SERVER` | `RtuClient` is the field-bus master scanning the site's field rows, `TcpSlave` serves the register map, `TcpMaster` is the sim's self-check against that map, `RtuSlave` the device model the simulated field is built from. `TCP_*` need `NETWORK` |
+| standalone | `SUN_TRACKER` | owned by `BotanikFirmware` and reached through `SetupContext::sun`, so no site declares one. Off in the header, on in `gh_mlb41/site.toml` |
 
 A site's opt-in must yield to the command line, and `#ifndef` alone does not do
 that: with `-DBOTANIK_FEATURE_CONSOLE=OFF` the page flags are still undefined
 when the site config is read, so a bare `#define ..._PAGE 1` would turn the
-builder's choice into a dependency error they never wrote. Guard the block with
-`#if !defined(X) || X`; see `gh_mlb41/config.h`.
+builder's choice into a dependency error they never wrote. The generator emits
+`#if !defined(X) || X` around each opt-in, nested under the prerequisites it
+reads out of the `#error` rules, which is why a site states its profile in
+`site.toml` rather than writing the guards by hand.
+
+Anything reading a flag must include a `config/` header BEFORE
+`libbotanik_features.h`: `config/base.h` pulls the site's config first, and
+naming the feature header alone takes the defaults and loses whatever the site
+turned off.
 
 Gate with the preprocessor `#if BOTANIK_FEATURE_<X>`; it must drop member
 declarations and ctor-init entries, and C++11 has no `if constexpr`. Four rules,
@@ -392,8 +403,16 @@ are one file each, `blocks/<name>/<name>.st`. Its RS-485 field devices are
 
 **The generated files are committed and never built.** Run `make -C build
 regen-site` after editing a table or an ST file, and commit what comes out. It is
-the four `scripts/tables.py` commands in one, against the pinned compiler, in the
+the `scripts/tables.py` commands in one, against the pinned compiler, in the
 source tree; `make check-generated` catches you if you forget.
+
+It regenerates EVERY site, not the selected one: `vars/tables/library.csv` and
+the templates feed all of them, so a library row edited and regenerated for one
+site leaves the others stale and committed. `points` is the exception - the
+variables page is a per-site doc, and only a documented site has one, so that
+one runs for `BOTANIK_SITE` alone. `plant` is a no-op on a site that declares no
+programs: an ST resource with no program in it is not valid ST, so matiec is
+never called for one.
 
 The generator is `scripts/sitegen/`, driven by `scripts/tables.py`: `model.py`
 reads and checks the tables, `st.py` is the ST half, `reference.py` the
@@ -439,10 +458,13 @@ site and checks that nothing moved a parameter it does not own.
 - **Config is one file per concern.** `libbotanik_config.h` is only the
   aggregate; values live in `libbotanik/config/<concern>.h` and a module includes
   the one it reads. `config/base.h` is the preamble every concern header pulls
-  first, and it reads the site's `config.h` before any default. A constraint
+  first, and it reads the site's config before any default, then the feature
+  flags. A constraint
   spanning two concerns is asserted at the consumer that makes it exist.
 - **Config is site-overridable.** Every value defaults from an `#ifndef`-guarded
-  `BOTANIK_<NAME>`; a site may `#define` it in `sites/<name>/config.h`, which
-  CMake includes PUBLIC so the override is build-wide.
+  `BOTANIK_<NAME>`; a site's generated `config.gen.h` may `#define` it, which
+  CMake includes PUBLIC so the override is build-wide. `VAR_MAX`,
+  `STR_POOL_BYTES` and the analog counts are COMPUTED from the table there, so
+  a site never states its own size.
 - New site-level work goes in the site, not in `libbotanik` and not in a
   target's `main`.

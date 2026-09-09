@@ -34,7 +34,7 @@ namespace tests { namespace modbus_master {
 using namespace Botanik;
 using namespace Botanik::Modbus;
 
-#if BOTANIK_FEATURE_MODBUS_RTU_CLIENT && BOTANIK_FEATURE_VARS
+#if BOTANIK_FEATURE_MODBUS_RTU_CLIENT
 
 /** @brief An RtuMaster on one end of a socketpair, with the site's own devices
  *  standing on the other. */

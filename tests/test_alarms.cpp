@@ -25,6 +25,50 @@
 #include <cstring>
 #include "libbotanik_config.h"
 #include "libbotanik/alarms/publisher.h"
+#include "libbotanik/alarms/source.h"
+
+// A source that is not a bank. AlarmSourceTable is what keeps `alarms/` free of
+// `vars/`; standing a second implementation in front of the controller is what
+// proves it, and what these cases need is a boolean they own outright.
+
+namespace tests { namespace fake_source {
+
+struct FakeAlarm {
+    const char*             name;
+    const char*             desc;
+    const char*             notes;
+    Botanik::Alarms::AlarmSpec spec;
+    /** @brief Borrowed. Null reads false, as a row nobody publishes does. */
+    const bool*             raw;
+};
+
+class FakeSource : public Botanik::Alarms::AlarmSourceTable {
+    const FakeAlarm* _rows;
+    uint16_t         _count;
+
+public:
+    FakeSource(const FakeAlarm* rows = nullptr, uint16_t count = 0)
+        : _rows(rows), _count(rows != nullptr ? count : 0) {}
+
+    uint16_t    count() const override { return _count; }
+    const char* name(uint16_t i) const override  { return _rows[i].name; }
+    const char* desc(uint16_t i) const override  { return _rows[i].desc; }
+    const char* notes(uint16_t i) const override { return _rows[i].notes; }
+    Botanik::Alarms::AlarmSpec spec(uint16_t i) const override { return _rows[i].spec; }
+    bool        raw(uint16_t i) const override {
+        const bool* q = _rows[i].raw;
+        return q != nullptr && *q;
+    }
+    int32_t find(const char* nm, uint16_t len) const override {
+        for (uint16_t i = 0; i < _count; i++)
+            if (strncmp(_rows[i].name, nm, len) == 0 && _rows[i].name[len] == 0)
+                return (int32_t)i;
+        return -1;
+    }
+};
+
+}}  // namespace tests::fake_source
+
 
 // alarms
 
@@ -676,10 +720,10 @@ TEST_CASE("MqttAlarmNotifier: notify_on/off build the topic + payload and forwar
     // one - and a notifier has no business knowing which kind it is, so the
     // table-free source is what stands in here.
     static const bool RAW = true;
-    static const Alarms::StaticAlarm ONE = {
+    static const fake_source::FakeAlarm ONE = {
         "NET_FLT", "", "", { "NET_FLT", 0, 0, 0, 0 }, &RAW
     };
-    static const Alarms::StaticAlarmTable TAB(&ONE, 1);
+    static const fake_source::FakeSource TAB(&ONE, 1);
     AlarmCondition c = {};
     c.src = &TAB;
     c.idx = 0;
@@ -741,23 +785,23 @@ TEST_CASE("AlarmController: a transition fans out to every registered notifier")
 
 }}  // namespace tests::notifier
 
-namespace tests { namespace static_source {
+namespace tests { namespace non_bank_source {
 
 using namespace Botanik;
 
-TEST_CASE("alarm: a StaticAlarmTable is a source like any other") {
-    // What a build with no variable table runs on: the rows are plain structs
-    // whose `raw` points at bools somebody else owns, and the controller reads
-    // them through the same AlarmSourceTable interface a bank presents.
+TEST_CASE("alarm: a source that is not a bank drives the controller the same") {
+    // The rows are plain structs whose `raw` points at bools somebody else
+    // owns, and the controller reads them through the same interface a bank
+    // presents.
     bool state[3] = { false, false, false };
-    Alarms::StaticAlarm rows[3] = {
+    fake_source::FakeAlarm rows[3] = {
         { "alarm_one",   "the first",  "", { "ONE",   0, 0, 0, 0 }, &state[0] },
         { "alarm_two",   "the second", "", { "TWO",   0, 0, 0, 0 }, &state[1] },
         // A null `raw` is a row nobody publishes, and must read false rather
         // than dereference.
         { "alarm_three", "the third",  "", { "THREE", 0, 0, 0, 0 }, nullptr   },
     };
-    Alarms::StaticAlarmTable table(rows, 3);
+    fake_source::FakeSource table(rows, 3);
     Alarms::AlarmController m(Botanik::SetupContext(), &table);
     m.setup(0);
 
@@ -780,10 +824,9 @@ TEST_CASE("alarm: a StaticAlarmTable is a source like any other") {
     CHECK(m.condition(2).active == false);
 }
 
-TEST_CASE("alarm: a default StaticAlarmTable declares nothing") {
-    // The shape HealthMonitor's no-VARS members had before they were filled:
-    // a table over no rows. It must be inert rather than a null dereference.
-    Alarms::StaticAlarmTable empty;
+TEST_CASE("alarm: a source over no rows declares nothing") {
+    // Inert rather than a null dereference.
+    fake_source::FakeSource empty;
     Alarms::AlarmController m(Botanik::SetupContext(), &empty);
     m.setup(0);
     CHECK(m.count() == 0);
@@ -791,7 +834,7 @@ TEST_CASE("alarm: a default StaticAlarmTable declares nothing") {
     CHECK(m.active_count() == 0);
 }
 
-}}  // namespace tests::static_source
+}}  // namespace tests::non_bank_source
 
 namespace tests { namespace slot_overflow {
 
@@ -804,7 +847,7 @@ TEST_CASE("alarm: a source declaring more than the slots hold loses the tail saf
     // must say so rather than handing ack() an index past _conditions[].
     const uint16_t n = (uint16_t)(Config::ALARM_SLOTS + 3);
     std::vector<bool>                state((size_t)n, false);
-    std::vector<Alarms::StaticAlarm> rows((size_t)n);
+    std::vector<fake_source::FakeAlarm> rows((size_t)n);
     std::vector<std::string>         names((size_t)n), codes((size_t)n);
     for (uint16_t i = 0; i < n; i++) {
         names[i] = "alarm_" + std::to_string(i);
@@ -816,7 +859,7 @@ TEST_CASE("alarm: a source declaring more than the slots hold loses the tail saf
         rows[i].spec  = Alarms::AlarmSpec{ codes[i].c_str(), 0, 0, 0, 0 };
         rows[i].raw   = nullptr;
     }
-    Alarms::StaticAlarmTable table(rows.data(), n);
+    fake_source::FakeSource table(rows.data(), n);
     Alarms::AlarmController m(Botanik::SetupContext(), &table);
     m.setup(0);
 

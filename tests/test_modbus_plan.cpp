@@ -25,7 +25,7 @@ namespace tests { namespace modbus_plan {
 using namespace Botanik;
 using namespace Botanik::Modbus;
 
-#if BOTANIK_FEATURE_MODBUS_RTU_CLIENT && BOTANIK_FEATURE_VARS
+#if BOTANIK_FEATURE_MODBUS_RTU_CLIENT
 
 /** @brief A planner over the site's own table, at the site's own bus settings. */
 struct PlanFixture {

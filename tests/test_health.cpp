@@ -184,8 +184,7 @@ TEST_CASE("health: an ending latches with no bank to save into") {
     // bank-dependent half meant `halt` and `reboot` were accepted, latched in
     // _stop, and never happened: _stopped stayed false, so halted() was false
     // for ever and the watchdog was never withheld. Driven with a null bank,
-    // which is the reachable shape of that (and the whole shape of it in a
-    // build with no variable model).
+    // which is the reachable shape of that.
     Fixture f;
     Botanik::Tasks::Registry reg;
     Health::HealthMonitor h(Botanik::SetupContext(reg, &f.log), &f.sched, nullptr);

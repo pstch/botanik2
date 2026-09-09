@@ -225,6 +225,13 @@ def plant(site):
     enums(site)
     t = build(site)
     prog = t['prog']
+    # A site may declare no laws at all (sites/bare). There is no plant to
+    # compile then, and an ST resource with no program in it is not valid ST -
+    # matiec refuses it. Nothing consumes plant.cpp either: the scan is
+    # BOTANIK_FEATURE_PLC's, and a site with no programs has it off.
+    if not prog:
+        print('  plant          no programs, nothing to compile')
+        return 0
     for e in prog:
         e['path'] = os.path.join(site, e['source'])
         e['pou'] = pou_of(e['path'])
@@ -254,8 +261,8 @@ def plant(site):
             print('  %s: no table declares it (%s)' % (n, whence[n]), file=sys.stderr)
         sys.exit('%d ST name(s) declare no row' % len(absent))
 
-    w = max(len(n) for n in rows)
-    wi = max(len(e['instance']) for e in prog)
+    w  = max((len(n) for n in rows), default=0)
+    wi = max((len(e['instance']) for e in prog), default=0)
     render.write(os.path.join(site, 'generated', 'plant.st'), 'plant.st.j2',
                  banner=H.replace('//', '(*').rstrip() + ' *)',
                  config_name=os.path.basename(site.rstrip(os.sep)),

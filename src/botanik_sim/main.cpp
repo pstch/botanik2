@@ -185,9 +185,7 @@ int main(int argc, char** argv) {
         // device sees it now and its answer is waiting at the next beat's input
         // phase - one turnaround, like a real device.
         if (greenhouse.loop()) {
-#if BOTANIK_FEATURE_VARS
             Site::simulate(greenhouse.io(), (uint32_t)HAL::Clock::uptime_ms());
-#endif
 #if BOTANIK_FEATURE_NETWORK
             // The mock NTP/MQTT peer, serviced like the field bus: one
             // non-blocking pass per beat, on this thread.

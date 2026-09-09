@@ -25,7 +25,7 @@ namespace tests { namespace modbus_image {
 using namespace Botanik;
 using namespace Botanik::Modbus;
 
-#if BOTANIK_FEATURE_MODBUS_RTU_CLIENT && BOTANIK_FEATURE_VARS
+#if BOTANIK_FEATURE_MODBUS_RTU_CLIENT
 
 struct ImageFixture {
     Vars::Bank bank;

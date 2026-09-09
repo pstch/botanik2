@@ -6,9 +6,9 @@
  * @brief AlarmSourceTable - where an alarm comes from.
  *
  * AlarmController owns the dwell, the latch and the announce; it does not own
- * where the boolean lives. With a variable table that is a K_ALARM row; without
- * one it is a bool the owner publishes into. Both answer this interface, so the
- * controller and everything drawing it are the same code either way.
+ * where the boolean lives: that is a K_ALARM row, reached through this
+ * interface, so `alarms/` compiles without `vars/` and a test can stand its own
+ * source in front of the controller.
  *
  * Index-based rather than a struct per alarm: a condition then costs a table
  * pointer and an index, which is what it cost when it held a Descriptor and a
@@ -70,41 +70,6 @@ namespace Botanik { namespace Alarms {
         virtual bool force_save(uint16_t i) { (void)i; return false; }
 
         /** @} */
-    };
-
-    /** @brief One alarm declared without a variable table: its metadata in
-     *  flash, its boolean somewhere the owner writes. */
-    struct StaticAlarm {
-        const char* name;
-        const char* desc;
-        const char* notes;
-        AlarmSpec   spec;
-        /** @brief Borrowed, and must outlive the table. Null reads as false,
-         *  which is what an alarm nobody publishes is. */
-        const bool* raw;
-    };
-
-    /** @brief A source over a flash array of StaticAlarm. What a build with no
-     *  variable model uses. */
-    class StaticAlarmTable : public AlarmSourceTable {
-        const StaticAlarm* _rows;
-        uint16_t           _count;
-
-    public:
-        /** @brief Borrowed; @p rows must outlive this table. */
-        StaticAlarmTable(const StaticAlarm* rows = nullptr, uint16_t count = 0)
-            : _rows(rows), _count(rows != nullptr ? count : 0) {}
-
-        uint16_t    count() const override { return _count; }
-        const char* name(uint16_t i) const override  { return _rows[i].name; }
-        const char* desc(uint16_t i) const override  { return _rows[i].desc; }
-        const char* notes(uint16_t i) const override { return _rows[i].notes; }
-        AlarmSpec   spec(uint16_t i) const override  { return _rows[i].spec; }
-        bool        raw(uint16_t i) const override {
-            const bool* p = _rows[i].raw;
-            return p != nullptr && *p;
-        }
-        int32_t find(const char* n, uint16_t len) const override;
     };
 
 }}  // namespace Botanik::Alarms

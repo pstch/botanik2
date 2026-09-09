@@ -7,14 +7,16 @@
  *        own configuration struct.
  *
  * A component takes its settings through set_config(), and never learns where
- * they came from: with no variable model its owner fills the struct in, with one
- * this walks the table at PHASE_CONFIG and fills it from the rows. Every
- * `Vars::` mention behind a configurable component lives in bindings.cpp.
+ * they came from: this walks the table at PHASE_CONFIG and fills the struct
+ * from the rows. Every `Vars::` mention behind a configurable component lives
+ * in bindings.cpp. A struct's member defaults are what a component is
+ * CONSTRUCTED with, which is what runs until the first apply_all().
  */
 
 #include <cstdint>
 
 #include "libbotanik/config/vars.h"
+#include "libbotanik_features.h"
 #include "libbotanik/core/component.h"
 #include "libbotanik/vars/ref.h"
 
@@ -119,7 +121,9 @@ namespace Botanik { namespace Vars {
      *  Public because the CONFIG and the console must agree: a `net` report
      *  showing an empty broker while the client talks to the gateway would be
      *  the report lying. */
+#if BOTANIK_FEATURE_NETWORK
     const char* host_or_gateway(const Bank& io, uint16_t row);
+#endif
 
 }}  // namespace Botanik::Vars
 

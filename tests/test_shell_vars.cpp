@@ -24,7 +24,7 @@ namespace tests { namespace shell_vars {
 
 using namespace Botanik;
 
-#if BOTANIK_FEATURE_SHELL_PAGE && BOTANIK_FEATURE_VARS
+#if BOTANIK_FEATURE_SHELL_PAGE
 
 using shell_rig::Rig;
 
@@ -567,6 +567,6 @@ TEST_CASE("shell alarms: an ack belongs to one episode") {
     CHECK(f.run("alarms list").find("[ack]") == std::string::npos);
 }
 
-#endif // BOTANIK_FEATURE_SHELL_PAGE && BOTANIK_FEATURE_VARS
+#endif // BOTANIK_FEATURE_SHELL_PAGE
 
 }}  // namespace tests::shell_vars

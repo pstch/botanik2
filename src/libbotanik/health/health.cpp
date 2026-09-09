@@ -21,20 +21,7 @@
 
 namespace Botanik { namespace Health {
 
-#if !BOTANIK_FEATURE_VARS
-    /** @brief One name per PlatAlarm, in enum order. Only the no-table build
-     *  needs them: with a table the row IS the binding. */
-    const char* const HealthMonitor::PLATFORM_NAMES[HealthMonitor::PA_COUNT] = {
-        "alarm_system_reset",
-        "alarm_cpu_xrun",
-        "alarm_cpu_load",
-        "alarm_stack",
-        "alarm_cpu_jitter",
-        "alarm_flash_error",
-    };
-#endif
 
-#if BOTANIK_FEATURE_VARS
     const uint16_t HealthMonitor::PLATFORM_ROWS[HealthMonitor::PA_COUNT] = {
         Vars::Row::alarm_system_reset,
         Vars::Row::alarm_cpu_xrun,
@@ -43,34 +30,11 @@ namespace Botanik { namespace Health {
         Vars::Row::alarm_cpu_jitter,
         Vars::Row::alarm_flash_error,
     };
-#endif
 
-#if !BOTANIK_FEATURE_VARS
-    /** @brief The same six as the library's own K_ALARM rows carry, for a build
-     *  with no table to read them out of. @see vars/tables/library.csv */
-    const char* const HealthMonitor::PLATFORM_DESCS[HealthMonitor::PA_COUNT] = {
-        "unit reset recently",
-        "scheduler overrun (skipped beat)",
-        "CPU load over threshold",
-        "stack usage over threshold",
-        "CPU jitter over threshold",
-        "persistent storage write failed",
-    };
 
-    const Alarms::AlarmSpec
-    HealthMonitor::PLATFORM_SPECS[HealthMonitor::PA_COUNT] = {
-        { "SYS_RST"  , -1, 0 , 30*24*3600, 0   },
-        { "CPU_XRUN" , 0 , -1, 24*3600   , 300 },
-        { "CPU_LOAD" , 5 , 5 , 24*3600   , 300 },
-        { "STACK"    , 5 , 5 , 30*24*3600, 300 },
-        { "CPU_JITT" , 5 , 5 , 24*3600   , 300 },
-        { "FLASH_FLT", 0 , -1, 30*24*3600, 0   },
-    };
-#endif
-
+#if BOTANIK_FEATURE_LOGGING
     /** @brief The registry hands back the owner it was given; the cast is
      *  confined to this line, beside the method it calls. */
-#if BOTANIK_FEATURE_VARS
     void HealthMonitor::_subsystem_alarms(Vars::Bank* io) {
         // Each condition comes off the component that owns it, so there is no
         // second copy of "what counts as broken" here. A row a build does not
@@ -97,23 +61,18 @@ namespace Botanik { namespace Health {
         }
 #endif
     }
-#endif
+#endif // BOTANIK_FEATURE_LOGGING
 
 
     void HealthMonitor::_latch_task(Component* c, const Tasks::Tick& t) {
         static_cast<HealthMonitor*>(c)->_latch_control(t.now_ms);
     }
 
-    // Two halves with different dependencies. The ENDING is the lifecycle's and
-    // runs in every build: `halt` and `reboot` are answers the unit owes whether
-    // or not it has a table. Control authority is the Bank's latch, so there is
-    // none to carry without one, and the rest below needs the bank.
     void HealthMonitor::_latch_control(uint64_t now_ms) {
         // Taking the unit out of service, if that has been asked for. There is
         // no handshake to wait on, because a program has no state to reach.
         if (_stop != Stop::NONE && !_stopped) {
             _stopped = true;
-#if BOTANIK_FEATURE_VARS
             // The retained rows AND the parameters a PROGRAM owes: the same kind
             // of fact, reaching the store the same way. A watering date stamped
             // since the last cadence would otherwise be lost by the one exit
@@ -124,13 +83,8 @@ namespace Botanik { namespace Health {
                 if (_logger) _logger->warning(Logs::HEALTH, "%s: retained saved",
                     _stop == Stop::REBOOT ? "reboot" : "halt");
             }
-#endif
         }
 
-#if !BOTANIK_FEATURE_VARS
-        (void)now_ms;
-    }
-#else
         Vars::Bank* io = _io;
         if (io == nullptr) return;
 
@@ -140,7 +94,9 @@ namespace Botanik { namespace Health {
         _quality_sweep(now_ms);
 #endif
 
+#if BOTANIK_FEATURE_LOGGING
         _subsystem_alarms(io);
+#endif
 
 #if BOTANIK_FEATURE_PLC
         if (_tasks == nullptr) return;
@@ -163,9 +119,8 @@ namespace Botanik { namespace Health {
         // name at bring-up or never runs.
 #endif
     }
-#endif // BOTANIK_FEATURE_VARS
 
-#if BOTANIK_FEATURE_VARS && BOTANIK_FEATURE_LOGGING
+#if BOTANIK_FEATURE_LOGGING
     void HealthMonitor::_quality_sweep(uint64_t now_ms) {
         // Enough to cross a 500-row table in about a second at HEALTH_PERIOD_MS: fast
         // enough that a reader watching a sensor die sees it, slow enough that

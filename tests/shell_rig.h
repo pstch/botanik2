@@ -41,7 +41,7 @@ namespace tests { namespace shell_rig {
 
 using namespace Botanik;
 
-#if BOTANIK_FEATURE_SHELL_PAGE && BOTANIK_FEATURE_VARS
+#if BOTANIK_FEATURE_SHELL_PAGE
 
 /** @brief A ShellWriter that keeps what it was given, line by line. */
 struct Sink : Shell::ShellWriter {
@@ -179,7 +179,7 @@ struct Rig {
     Vars::Var var(const char* name) { return bank.var(bank.find(name)); }
 };
 
-#endif // BOTANIK_FEATURE_SHELL_PAGE && BOTANIK_FEATURE_VARS
+#endif // BOTANIK_FEATURE_SHELL_PAGE
 
 }}  // namespace tests::shell_rig
 

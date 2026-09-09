@@ -34,6 +34,7 @@ const uint16_t PARAM_COUNT = 261;
 static_assert(ROWS_COUNT == Config::VAR_MAX,
               "the table and the bank's arrays are generated together");
 
+#if BOTANIK_FEATURE_MODBUS_RTU_CLIENT
 extern const Modbus::DeviceModel MDL_SDM630;
 extern const Modbus::DeviceModel MDL_MCT1_140;
 extern const Modbus::DeviceModel MDL_WS_AI8;
@@ -43,6 +44,7 @@ extern const Modbus::DeviceModel MDL_WS_RELAY;
 extern const Modbus::DeviceModel MDL_TEMP_RH;
 extern const Modbus::Device g_devices[];
 extern const Modbus::DeviceTable g_device_table;
+#endif
 
 // The one table no rule derives: a caption is a person's choice, and
 // nothing in a row's name says it belongs on the landing page.

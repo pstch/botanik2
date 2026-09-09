@@ -42,12 +42,10 @@ namespace Botanik { namespace detail {
     // Serial
     static_assert(sizeof(Utils::BufferedSerial)    == BOTANIK_SIZE(  4384,   4376), "BufferedSerial footprint changed");
 
-#if BOTANIK_FEATURE_VARS
     /** The single largest library object, and the one a site's config moves:
      *  VAR_MAX drives four arrays inside it. */
     static_assert(sizeof(Vars::Bank)               == BOTANIK_SIZE( 16384,  16360), "Vars::Bank footprint changed");
     static_assert(sizeof(Vars::ConfigBinder)       == BOTANIK_SIZE(   568,    348), "ConfigBinder footprint changed");
-#endif
 
 #if BOTANIK_FEATURE_CONSOLE
     static_assert(sizeof(Terminal::AnsiTerminal)   == BOTANIK_SIZE(  8584,   8580), "AnsiTerminal footprint changed");

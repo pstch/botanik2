@@ -12,7 +12,6 @@
 #include "libbotanik/config/base.h"
 #include "libbotanik/core/component.h"
 #include "libbotanik/hal/platform.h"
-#if BOTANIK_FEATURE_VARS
 #include "libbotanik/vars/model.h"
 
 namespace Botanik { namespace Io {
@@ -88,6 +87,5 @@ namespace Botanik { namespace Io {
 
 }}  // namespace Botanik::Io
 
-#endif // BOTANIK_FEATURE_VARS
 
 #endif // IO_LOCAL_INPUTS_H

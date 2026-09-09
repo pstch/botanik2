@@ -62,10 +62,8 @@ namespace Botanik { namespace Health {
          *  row it drives, and that is settling rather than news.
          *  @see _quality_sweep */
         void set_plant(const Plc::Runtime::Plant* plant) { _plant = plant; }
-#if BOTANIK_FEATURE_VARS
         /** @brief What writes the retained rows on the way down. */
         void set_persist(Vars::Persist* p) { _persist = p; }
-#endif
     public:
         /** @brief How the unit is being taken out of service.
          *
@@ -114,7 +112,7 @@ namespace Botanik { namespace Health {
 
         /** @} */
 
-#if BOTANIK_FEATURE_VARS && BOTANIK_FEATURE_LOGGING
+#if BOTANIK_FEATURE_LOGGING
         /** @brief The three subsystem alarms, off the components that own the
          *  conditions. @see set_network */
         void _subsystem_alarms(Vars::Bank* io);
@@ -160,11 +158,9 @@ namespace Botanik { namespace Health {
 #if BOTANIK_FEATURE_ALARMS_PUBLISH
         Alarms::MqttAlarmNotifier          _notifier; ///< MQTT transition sink
 #endif
-#if BOTANIK_FEATURE_VARS
         /** @brief The site's K_ALARM rows as an alarm source. Declared BEFORE
          *  _model, which is constructed with its address. */
         Vars::BankAlarms                        _alarm_rows;
-#endif
         Alarms::AlarmController                 _model;
         /** perf metrics (may be null) */
         const Scheduler::SchedulerContext* _sched;
@@ -203,29 +199,11 @@ namespace Botanik { namespace Health {
             PA_COUNT
         };
     private:
-#if BOTANIK_FEATURE_VARS
         /** @brief The row each one IS, generated, in the same enum order. */
         static const uint16_t PLATFORM_ROWS[PA_COUNT];
-#else
-        /** @brief What each one is called, and what the variable table carries
-         *  for the six when there IS one. Only a build with no table needs
-         *  either: with one, PLATFORM_ROWS above is the binding. */
-        static const char* const PLATFORM_NAMES[PA_COUNT];
-        static const char* const    PLATFORM_DESCS[PA_COUNT];
-        static const Alarms::AlarmSpec PLATFORM_SPECS[PA_COUNT];
-#endif
 
-#if BOTANIK_FEATURE_VARS
         /** @brief Bound once in on_setup() rather than looked up per beat. */
         uint16_t _a[PA_COUNT];
-#else
-        /** @brief Where the six live with no table to hold them, and the source
-         *  that lets the model read them. Per-instance because the source
-         *  borrows pointers INTO this object. */
-        bool                     _a_state[PA_COUNT] = { false, false, false, false, false, false };
-        Alarms::StaticAlarm      _a_rows[PA_COUNT];
-        Alarms::StaticAlarmTable _alarm_rows;
-#endif
         /** @} */
 
         /** @name The thresholds those alarms fire at
@@ -236,21 +214,14 @@ namespace Botanik { namespace Health {
          *  beat; unbound they read the bank's inert sink, so _pct() falls back
          *  to the Config value. @see @ref dev_health
          *  @{ */
-#if BOTANIK_FEATURE_VARS
         uint16_t _p_load_pct   = { Vars::VAR_NONE };
         uint16_t _p_jitter_pct = { Vars::VAR_NONE };
         uint16_t _p_stack_pct  = { Vars::VAR_NONE };
-#else
-        // No rows to point at; _pct() ignores these and answers the default.
-        static const int _p_load_pct = 0, _p_jitter_pct = 0, _p_stack_pct = 0;
-#endif
         /** @} */
 
     public:
-        /** @brief Build the notifier + model. Either way the model is handed
-         *  `_alarm_rows`: with a variable table that is a BankAlarms over the
-         *  K_ALARM rows, without one a StaticAlarmTable over the six this
-         *  object declares itself. */
+        /** @brief Build the notifier + model. The model is handed
+         *  `_alarm_rows`, a BankAlarms over the site's K_ALARM rows. */
         HealthMonitor(const SetupContext& ctx,
                       const Scheduler::SchedulerContext* sched,
                       Vars::Bank* io = nullptr)
@@ -260,20 +231,6 @@ namespace Botanik { namespace Health {
 #endif
               _model(ctx, &_alarm_rows),
               _sched(sched), _io(io) {
-#if !BOTANIK_FEATURE_VARS
-            // With no table to declare them in, the six platform alarms are
-            // this object's own: each row points its `raw` at the bool _raise()
-            // writes. Built here rather than in flash because that pointer is
-            // per-instance.
-            for (uint8_t i = 0; i < PA_COUNT; i++) {
-                _a_rows[i].name  = PLATFORM_NAMES[i];
-                _a_rows[i].desc  = PLATFORM_DESCS[i];
-                _a_rows[i].notes = "";
-                _a_rows[i].spec  = PLATFORM_SPECS[i];
-                _a_rows[i].raw   = &_a_state[i];
-            }
-            _alarm_rows = Alarms::StaticAlarmTable(_a_rows, PA_COUNT);
-#endif
 #if BOTANIK_FEATURE_ALARMS_PUBLISH
             _model.add_notifier(&_notifier);   // the built-in MQTT sink
 #endif
@@ -328,9 +285,7 @@ namespace Botanik { namespace Health {
     protected:
         /** @brief POST runs once on the first step() (sinks now registered). */
         void on_setup(uint64_t now) override {
-#if BOTANIK_FEATURE_VARS
             _alarm_rows.bind(_io, _persist);
-#endif
             // The model's setup takes a slot per alarm the source declares, so
             // it cannot run before the bind above. Driven from here rather than
             // left to registration order, which would make it an ordering trap
@@ -398,7 +353,6 @@ namespace Botanik { namespace Health {
         /** @brief Bind every alarm this class raises, once. Nothing else names
          *  them, so this list IS the list: no second copy to drift from. */
         void _bind_alarms() {
-#if BOTANIK_FEATURE_VARS
             for (uint8_t i = 0; i < PA_COUNT; i++) _a[i] = PLATFORM_ROWS[i];
             // Each of these is gated on its own feature: a build without the
             // network declares no network alarm to raise.
@@ -414,10 +368,8 @@ namespace Botanik { namespace Health {
             _p_load_pct   = Vars::Row::sys_cpu_load_pct;
             _p_jitter_pct = Vars::Row::sys_jitter_pct;
             _p_stack_pct  = Vars::Row::sys_stack_pct;
-#endif
         }
 
-#if BOTANIK_FEATURE_VARS
         /** @brief A threshold's live percent: the parameter, or @p dflt when the
          *  row is absent or reads invalid. */
         uint8_t _pct(uint16_t r, uint8_t dflt) const {
@@ -427,20 +379,12 @@ namespace Botanik { namespace Health {
             const float v = h.as_f32();
             return (v >= 1.0f && v <= 100.0f) ? (uint8_t)v : dflt;
         }
-#else
-        /** @brief No parameter to read: the build-time value IS the threshold. */
-        uint8_t _pct(int, uint8_t dflt) const { return dflt; }
-#endif
 
         /** @brief Raise or clear @p r. Writing the variable IS raising the
          *  alarm: the model reads the same row on its next step. An unbound one
          *  lands on the bank's inert sink, so this needs no guard. */
         void _raise(PlatAlarm a, bool on) {
-#if BOTANIK_FEATURE_VARS
             if (_io != nullptr) _io->var(_a[a]).set(on);
-#else
-            _a_state[a] = on;
-#endif
         }
 
         /** @brief Raise/clear the platform alarms from the scheduler metrics.

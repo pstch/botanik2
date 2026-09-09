@@ -23,7 +23,7 @@ namespace tests { namespace shell_report {
 
 using namespace Botanik;
 
-#if BOTANIK_FEATURE_SHELL_PAGE && BOTANIK_FEATURE_VARS
+#if BOTANIK_FEATURE_SHELL_PAGE
 
 using shell_rig::Rig;
 
@@ -159,7 +159,7 @@ TEST_CASE("shell features: every flag in the roster, on or off") {
     // The reference site is the full profile, so these must all be present -
     // and the command expands BOTANIK_FEATURE_LIST, so a flag added without a
     // roster entry would be missing here rather than merely undocumented.
-    for (const char* flag : { "console", "logging", "vars", "plc",
+    for (const char* flag : { "console", "logging", "plc",
                               "modbus_rtu_client", "system_page", "sun_tracker" }) {
         INFO(flag);
         CHECK(said.find(flag) != std::string::npos);
@@ -331,6 +331,6 @@ TEST_CASE("shell history: a repeated line is not stored twice") {
     CHECK(std::string(f.editor.buffer(), f.editor.buffer_len()) == "version");
 }
 
-#endif // BOTANIK_FEATURE_SHELL_PAGE && BOTANIK_FEATURE_VARS
+#endif // BOTANIK_FEATURE_SHELL_PAGE
 
 }}  // namespace tests::shell_report

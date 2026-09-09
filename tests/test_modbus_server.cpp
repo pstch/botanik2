@@ -34,7 +34,7 @@ namespace tests { namespace modbus_server {
 using namespace Botanik;
 using namespace Botanik::Modbus;
 
-#if BOTANIK_FEATURE_MODBUS_TCP_SERVER && BOTANIK_FEATURE_NETWORK && BOTANIK_FEATURE_VARS
+#if BOTANIK_FEATURE_MODBUS_TCP_SERVER && BOTANIK_FEATURE_NETWORK
 
 /** @brief A listening TcpSlave, and a socket to talk to it with. */
 struct ServerFixture {

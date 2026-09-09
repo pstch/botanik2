@@ -26,8 +26,6 @@ namespace tests { namespace io_local {
 using namespace Botanik;
 using namespace Botanik::Vars;
 
-#if BOTANIK_FEATURE_VARS
-
 namespace {
 
 /** @brief Calibration for the analog row: 1:1, so the published engineering
@@ -208,6 +206,5 @@ TEST_CASE("io: both components put themselves in the beat, in their own phase") 
     CHECK(saw_out);
 }
 
-#endif // BOTANIK_FEATURE_VARS
 
 }}  // namespace tests::io_local

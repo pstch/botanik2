@@ -46,7 +46,6 @@
     X(LOGS_PUBLISH)       \
     X(ALARMS_PUBLISH)     \
     X(LOGS_MONITOR)       \
-    X(VARS)               \
     X(PLC)                \
     X(MODBUS_TCP_SERVER)  \
     X(MODBUS_TCP_CLIENT)  \
@@ -172,23 +171,12 @@
 
 // --- The process image and the PLC ----------------------------------------
 
-/** @brief The variable model: the Bank, the site's table, overrides, the
- *  parameter store, and every surface whose SUBJECT is that table - the
- *  MONITOR / PARAMS pages, `shell_vars`, the Modbus register maps, telemetry.
- *
- *  Off leaves a library of parts: components still work, configured through
- *  their own set_config() by whoever owns them rather than by a table.
- *  @see vars/bindings.h */
-#ifndef BOTANIK_FEATURE_VARS
-#  define BOTANIK_FEATURE_VARS 1
-#endif
-
 /** @brief The PLC proper: control authority, the scan cycle, and the site's
  *  control programs registered and run at their declared rates.
  *
- *  Requires VARS - a control program's inputs and outputs ARE table rows. Off
- *  does not remove the Bank's enable/disable latch, which has consumers of its
- *  own (the `control` command, the health withdrawal) that outlive the scan. */
+ *  Off does not remove the Bank's enable/disable latch, which has consumers of
+ *  its own (the `control` command, the health withdrawal) that outlive the
+ *  scan. */
 #ifndef BOTANIK_FEATURE_PLC
 #  define BOTANIK_FEATURE_PLC 1
 #endif
@@ -208,9 +196,7 @@
 #  define BOTANIK_FEATURE_MODBUS_TCP_CLIENT 0
 #endif
 
-/** @brief Modbus RTU master, filling the process image from the field.
- *  @note Requires BOTANIK_FEATURE_VARS: it scans the site's XP_MODBUS rows,
- *  which is the table, not the scan cycle. */
+/** @brief Modbus RTU master, filling the process image from the field. */
 #ifndef BOTANIK_FEATURE_MODBUS_RTU_CLIENT
 #  define BOTANIK_FEATURE_MODBUS_RTU_CLIENT 0
 #endif
@@ -283,26 +269,8 @@
 #if BOTANIK_FEATURE_MODBUS_TCP_SERVER && !BOTANIK_FEATURE_NETWORK
 #  error "BOTANIK_FEATURE_MODBUS_TCP_SERVER requires BOTANIK_FEATURE_NETWORK"
 #endif
-#if BOTANIK_FEATURE_MODBUS_TCP_SERVER && !BOTANIK_FEATURE_VARS
-#  error "BOTANIK_FEATURE_MODBUS_TCP_SERVER requires BOTANIK_FEATURE_VARS"
-#endif
 #if BOTANIK_FEATURE_MODBUS_TCP_CLIENT && !BOTANIK_FEATURE_NETWORK
 #  error "BOTANIK_FEATURE_MODBUS_TCP_CLIENT requires BOTANIK_FEATURE_NETWORK"
-#endif
-#if BOTANIK_FEATURE_MODBUS_RTU_CLIENT && !BOTANIK_FEATURE_VARS
-#  error "BOTANIK_FEATURE_MODBUS_RTU_CLIENT requires BOTANIK_FEATURE_VARS"
-#endif
-#if BOTANIK_FEATURE_PLC && !BOTANIK_FEATURE_VARS
-#  error "BOTANIK_FEATURE_PLC requires BOTANIK_FEATURE_VARS"
-#endif
-#if BOTANIK_FEATURE_HOME_PAGE && !BOTANIK_FEATURE_VARS
-#  error "BOTANIK_FEATURE_HOME_PAGE requires BOTANIK_FEATURE_VARS"
-#endif
-#if BOTANIK_FEATURE_PARAMS_PAGE && !BOTANIK_FEATURE_VARS
-#  error "BOTANIK_FEATURE_PARAMS_PAGE requires BOTANIK_FEATURE_VARS"
-#endif
-#if BOTANIK_FEATURE_MONITOR_PAGE && !BOTANIK_FEATURE_VARS
-#  error "BOTANIK_FEATURE_MONITOR_PAGE requires BOTANIK_FEATURE_VARS"
 #endif
 // MODBUS_RTU_SERVER depends on nothing, deliberately: it is a device model over
 // a serial port and a register image, with no variable table and no scan behind

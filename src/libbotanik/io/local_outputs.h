@@ -11,7 +11,6 @@
 #include "libbotanik/hal/platform.h"
 #include "libbotanik/vars/model.h"
 
-#if BOTANIK_FEATURE_VARS
 
 namespace Botanik { namespace Io {
 
@@ -73,6 +72,5 @@ namespace Botanik { namespace Io {
 
 }}  // namespace Botanik::Io
 
-#endif // BOTANIK_FEATURE_VARS
 
 #endif
