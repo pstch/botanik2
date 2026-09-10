@@ -168,9 +168,13 @@ endif()
 # and the Mbed core are not installed.
 find_program(_arm_gxx arm-none-eabi-g++)
 if(_arm_gxx)
+    # The SITE is passed: this tree persists between runs, and a cache left by
+    # an earlier configuration would otherwise cross-build a different site
+    # from the one the gate just tested, silently.
     add_custom_target(check-opta
         COMMAND ${CMAKE_COMMAND} -G ${CMAKE_GENERATOR} -S ${BOTANIK_ROOT}
                 -B ${BOTANIK_ROOT}/build-opta -DBOTANIK_TARGET=OPTA
+                -DBOTANIK_SITE=${BOTANIK_SITE} -DBOTANIK_SITE_DIR=${BOTANIK_SITE_DIR}
         COMMAND ${CMAKE_COMMAND} --build ${BOTANIK_ROOT}/build-opta
                 --parallel ${_nproc}
         USES_TERMINAL
