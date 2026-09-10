@@ -384,6 +384,9 @@ if(BOTANIK_TARGET STREQUAL "SIMULATOR")
     # reason: the suite under tests/ is botanik's own.
     include(cmake/testkit.cmake)
 
+    # ...and the two gates it needs that tests/ would otherwise keep to itself.
+    include(cmake/consumer.cmake)
+
     # The suite, `make check` and the sweeps are botanik's own. A site repo
     # embedding botanik tests its site, not this library, so none of it is
     # declared there - and enable_testing() outside the top level would put

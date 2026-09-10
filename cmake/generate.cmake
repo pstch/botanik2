@@ -78,8 +78,15 @@ set(_points_root "${CMAKE_SOURCE_DIR}")
 # command rather than four per site plus an env var. Not a build step and never
 # in ALL; see cmake/matiec.cmake.
 if(_python3 AND _iec2c)
+    # EMBEDDED: the consuming project's site and nothing else. The examples in
+    # the submodule are botanik's to regenerate, and writing into a submodule is
+    # what the generator was taught not to do.
+    set(_regen_sites ${_all_sites} ${_extern_site})
+    if(NOT PROJECT_IS_TOP_LEVEL)
+        set(_regen_sites ${_extern_site})
+    endif()
     add_custom_target(regen-site
-        COMMAND ${CMAKE_COMMAND} -E echo "Regenerating: ${_all_sites}"
+        COMMAND ${CMAKE_COMMAND} -E echo "Regenerating: ${_regen_sites}"
         USES_TERMINAL
         COMMENT "Regenerating every site into the source tree - review the diff"
         VERBATIM)
@@ -89,7 +96,7 @@ if(_python3 AND _iec2c)
                     ${_python3} scripts/sitegen/tables.py library
             VERBATIM)
     endif()
-    foreach(_s ${_all_sites} ${_extern_site})
+    foreach(_s ${_regen_sites})
         # An example that is its own repository - gh_mlb41, carried here as a
         # submodule - is regenerated THERE. Writing into a submodule is what
         # the generator was taught not to do, and its committed output belongs
