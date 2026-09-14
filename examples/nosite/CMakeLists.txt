@@ -23,3 +23,7 @@ botanik_add_library()
 
 add_executable(nosite src/main.cpp)
 target_link_libraries(nosite botanik)
+
+# Its test is that it runs: every component constructed without a table.
+enable_testing()
+add_test(NAME nosite COMMAND nosite)

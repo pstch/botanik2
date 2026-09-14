@@ -56,22 +56,24 @@ target_compile_definitions(botanik_tests PRIVATE
 # The doctest binary is registered twice; the label tells them apart:
 #
 #   doctest      - every case in one process. Unlabelled, so the gate runs it.
-#   <case name>  - one entry per TEST_CASE, labelled `unit`, so `ctest -R` and an
-#                  IDE test panel can address a single case.
+#   <case name>  - one entry per TEST_CASE, labelled `unit;unit:doctest`, so
+#                  `ctest -R` and an IDE test panel can address a single case.
 #
 # The gate excludes `unit`: one process is the configuration that catches a case
 # corrupting state for the ones after it. A bare `ctest` runs both.
 add_test(NAME doctest COMMAND botanik_tests)
 
-# The selected example's own tests: the model with a real table under it,
-# which is the site's to provide. Nothing here names a site's rows.
-if(EXISTS "${_site_dir}/../tests/CMakeLists.txt")
-    add_subdirectory("${_site_dir}/../tests" site_tests)
-endif()
-
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/vendor)
 include(doctest)
-doctest_discover_tests(botanik_tests PROPERTIES LABELS unit)
+doctest_discover_tests(botanik_tests)
+# `unit;unit:doctest`, set over the discovered list: TEST_PROPERTIES flattens a
+# two-label list. unit:<binary> is what the gate re-runs when that binary fails.
+file(WRITE ${CMAKE_CURRENT_BINARY_DIR}/doctest-labels.cmake
+    "if(DEFINED botanik_tests_TESTS)\n"
+    "  set_tests_properties(\${botanik_tests_TESTS} PROPERTIES LABELS \"unit;unit:doctest\")\n"
+    "endif()\n")
+set_property(DIRECTORY APPEND PROPERTY TEST_INCLUDE_FILES
+             ${CMAKE_CURRENT_BINARY_DIR}/doctest-labels.cmake)
 
 
 # `make check` is the pre-push gate. Its DEPENDS build what the suite needs
@@ -99,37 +101,25 @@ add_custom_target(check
     VERBATIM
 )
 
-# `make check-nosite` is the two profiles nothing else builds.
-#
-# examples/nosite: the library with NO site, and a consumer that reuses the
-# console, its shell and the task view - each constructed directly and
-# configured through its own set_config(). It is what keeps "a component is
-# reusable without a variable table" true rather than asserted.
-#
-# ...and the same library with every optional feature off, which is the only
-# thing that compiles the file-level guards. It used to need a site declaring
-# nothing (sites/bare); a build can name no site at all now, so it is the same
-# library with the flags turned off and no directory behind it.
-#
-# Nested projects rather than targets here: a site is chosen once per build.
-add_custom_target(check-nosite
-    COMMAND ${CMAKE_COMMAND} -G ${CMAKE_GENERATOR}
-            -S ${BOTANIK_ROOT}/examples/nosite
-            -B ${BOTANIK_ROOT}/build-nosite
-            -DBOTANIK_TARGET=SIMULATOR
-    COMMAND ${CMAKE_COMMAND} --build ${BOTANIK_ROOT}/build-nosite
-            --target nosite --parallel ${_nproc}
-    COMMAND ${BOTANIK_ROOT}/build-nosite/nosite
+# Every example, built as its own consumer project and joined to this tree's
+# CTest. See cmake/examples.cmake. The gate builds them before it runs.
+include(${BOTANIK_ROOT}/cmake/examples.cmake)
+add_dependencies(check examples)
+
+# `make check-alloff` is the library with every optional feature off, the only
+# build that compiles the file-level guards. No site: a nested project, since a
+# site and its features are chosen once per build.
+add_custom_target(check-alloff
     COMMAND ${CMAKE_COMMAND} -G ${CMAKE_GENERATOR} -S ${BOTANIK_ROOT}
-            -B ${BOTANIK_ROOT}/build-alloff -DBOTANIK_TARGET=SIMULATOR
+            -B ${CMAKE_BINARY_DIR}/alloff -DBOTANIK_TARGET=SIMULATOR
             -DBOTANIK_SITE=NONE
             -DBOTANIK_FEATURE_CONSOLE=OFF -DBOTANIK_FEATURE_LOGGING=OFF
             -DBOTANIK_FEATURE_PLC=OFF -DBOTANIK_FEATURE_HOME_PAGE=OFF
             -DBOTANIK_FEATURE_SHELL_PAGE=OFF
-    COMMAND ${CMAKE_COMMAND} --build ${BOTANIK_ROOT}/build-alloff
+    COMMAND ${CMAKE_COMMAND} --build ${CMAKE_BINARY_DIR}/alloff
             --target botanik --parallel ${_nproc}
     USES_TERMINAL
-    COMMENT "Sweep: the library with no site, reused as components and with every feature off"
+    COMMENT "Sweep: the library with every optional feature off (build/alloff/)"
     VERBATIM
 )
 
@@ -185,7 +175,7 @@ else()
     message(STATUS "check-full: no arm-none-eabi-g++, skipping the OPTA cross build")
 endif()
 
-add_dependencies(check-full check-nosite)
+add_dependencies(check-full check-alloff)
 
 # `make coverage` builds a third tree, instrumented for gcov, runs both suites
 # against it and prints the per-area line coverage; build/coverage.json is the
@@ -195,7 +185,7 @@ add_dependencies(check-full check-nosite)
 # Both suites: the doctest binary never exercises network/, and the pyte screen
 # tests are the only thing driving the shell over a real PTY.
 #
-# Its own tree, like check-nosite's: --coverage changes every object, and folding
+# Its own tree, like check-alloff's: --coverage changes every object, and folding
 # it into build/ would make an ordinary `make check` pay for instrumentation.
 find_program(GCOV_EXE NAMES gcov)
 if(GCOV_EXE AND _python3 AND CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
@@ -212,7 +202,7 @@ if(GCOV_EXE AND _python3 AND CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
                 -P ${BOTANIK_ROOT}/cmake/coverage-reset.cmake
         # A failing test is `check`'s business; the numbers are still worth
         # having, so the report runs either way.
-        COMMAND ${CMAKE_COMMAND} -E env ${CMAKE_CTEST_COMMAND} -LE unit
+        COMMAND ${CMAKE_COMMAND} -E env ${CMAKE_CTEST_COMMAND} -LE unit -E ^example:
                 --test-dir ${CMAKE_BINARY_DIR}/coverage || ${CMAKE_COMMAND} -E true
         COMMAND ${_python3} ${BOTANIK_ROOT}/scripts/coverage.py
                 --gcov ${GCOV_EXE}
