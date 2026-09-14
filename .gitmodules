@@ -1,3 +1,4 @@
 [submodule "examples/gh_mlb41"]
 	path = examples/gh_mlb41
 	url = git@framagit.org:pstch2/gh_mlb41.git
+	update = none

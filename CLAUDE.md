@@ -56,6 +56,9 @@ Host-only, SIMULATOR build. Everything runs under botanik's own CTest:
   `example:<name>:NOT_BUILT` stands in. Every example builds against this
   checkout: ref and nosite link `extern/botanik` to it, and gh_mlb41's
   CMakeLists uses the enclosing botanik when it sits in one's `examples/`.
+  gh_mlb41 is a submodule with `update = none`, since it pins botanik in turn and
+  a recursive clone would nest forever: `git submodule update --init --checkout
+  examples/gh_mlb41` populates it, and without it the gate skips it.
 
 Nothing in `tests/` names a site's rows: the library's cases use library rows,
 so they pass on any full-profile site. What a site's table decides is tested
@@ -392,13 +395,21 @@ animating them in the simulator - is a **site**. The reference site is
 | site (`ref`) | the single source of truth for one greenhouse: its variable table, programs, shell commands, simulated field |
 | target | thin: selects one site and runs it (`botanik_sim`, `botanik_fw`) |
 
-`GreenhouseMLB41 : BotanikFirmware` is a thin binding passing a `SiteDescriptor`
-to the base constructor. The base owns every page and wires each table
-generically. `setup()` and `loop()` are non-virtual; a site customizes through
-`register_vars()`, `register_pages()` (tab order, page 0 = boot page),
-`register_commands()`, `register_telemetry()` and `on_setup()`. There is no
-per-phase hook on the firmware: work at a point in the beat is a `Component` or
-an ST program. The site is chosen at configure time with `-DBOTANIK_SITE=<name>`.
+A site has no subclass: `Site::firmware()`, generated into `vars.gen.h`, is a
+`BotanikFirmware` bound to the site's `SiteDescriptor`. The base owns every page
+and wires each table generically. `setup()` and `loop()` are non-virtual; a site
+needing more derives `BotanikFirmware` and overrides `register_vars()`,
+`register_pages()` (tab order, page 0 = boot page), `register_commands()`,
+`register_telemetry()` or `on_setup()`. There is no per-phase hook on the
+firmware: work at a point in the beat is a `Component` or an ST program.
+
+A consumer project names its site with `botanik_add_site(SITE_DIR <dir>)`;
+botanik's own tree picks an example with `-DBOTANIK_SITE=<name>`. The one other
+thing a site writes by hand is `Site::simulate()` in its `sim.h`, which writes the
+physical quantities through `botanik_sim/field.h` (`put()`, `at()`, `silence()`,
+and the bus hooks `botanik_sim` fills in). Its tests compile against
+`botanik_testkit`, which is `tests/kit/` and doctest: a change to either header
+set is a change to what site repositories build against.
 
 A site is data plus ST. Its rows, enums, home screen, field devices and
 `SiteDescriptor` are generated from `tables/*.csv` and `site.toml` by
