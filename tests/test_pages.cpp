@@ -155,11 +155,11 @@ TEST_CASE("pages: the SYSTEM band's site half carries labels, values AND units")
     sys.tasks     = &reg;
 
     static const Vars::HomeVar FIELDS[] = {
-        { "Rail 1",  Vars::Row::bus_dc_V1 },
-        { "Rail 2",  Vars::Row::bus_dc_V2 },
+        { "Warm-up",  Vars::Row::sys_startup_sec },
+        { "Cool-off", Vars::Row::sys_shutdown_sec },
     };
-    bank.var(FIELDS[0].row).set(231.5f);
-    bank.var(FIELDS[1].row).set(50.0f);
+    bank.var(FIELDS[0].row).set(45.0f);
+    bank.var(FIELDS[1].row).set(30.0f);
 
     botanik_test::PageFixture f;
     Pages::StatusPage page(f.console, &sys, FIELDS, 2, &bank);
@@ -169,10 +169,10 @@ TEST_CASE("pages: the SYSTEM band's site half carries labels, values AND units")
 
     bool saw_label = false, saw_value = false;
     for (const std::string& row : f.content()) {
-        if (row.find("Rail 1") != std::string::npos) saw_label = true;
+        if (row.find("Warm-up") != std::string::npos) saw_label = true;
         // The unit is the half that went missing: the value alone rendered
         // fine and read as unitless.
-        if (row.find("231.5 V") != std::string::npos) saw_value = true;
+        if (row.find("45 sec") != std::string::npos) saw_value = true;
     }
     CHECK(saw_label);
     CHECK(saw_value);
