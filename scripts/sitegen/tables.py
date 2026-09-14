@@ -8,12 +8,12 @@
     sitegen/tables.py generate [site]   library.csv + tables/*.csv -> enums, vars.gen.{h,cpp}, rows.gen.h
     sitegen/tables.py config   [site]   site.toml + the tables     -> config.gen.h
     sitegen/tables.py plant    [site]   programs.csv + ST          -> enums, plant.st, plant.cpp, matiec
-    sitegen/tables.py points   [site]   the lot                    -> docs/reference/variables.md
     sitegen/tables.py library           library.csv + lib headers  -> quality/health/rows_none.gen.h
 
-`site` is a name under examples/, or a path. What it reads out of the library
-is anchored to this checkout, what it writes for a site goes beside the site,
-and the variables page lands under the working directory."""
+`codegen` also writes the site's reference page, ../docs/reference/variables.md
+beside the site. `site` is a name under examples/, or a path. What it reads out
+of the library is anchored to this checkout; what it writes for a site goes
+beside the site."""
 
 import filecmp, os, re, shutil, sys
 
@@ -149,6 +149,7 @@ def codegen(site, stamp):
         generate(site, t)
         config(site, t)
         plant(site, t)
+        points(site, t)
         path = os.path.join(site, 'generated', 'codegen.stamp')
     with open(path, 'w') as fh: fh.write(STAMP % stamp)
 
@@ -165,6 +166,11 @@ def check_generated(site, stamp, scratch):
     names = sorted(set(os.listdir(old)) | set(os.listdir(new)))
     _same, differ, missing = filecmp.cmpfiles(old, new, names, shallow=False)
     bad = differ + missing
+    page = os.path.join('docs', 'reference', 'variables.md')
+    committed = os.path.join(os.path.dirname(site), page)
+    if not (os.path.exists(committed) and
+            filecmp.cmp(committed, os.path.join(os.path.dirname(copy), page), shallow=False)):
+        bad.append('../' + page)
     shutil.rmtree(os.path.dirname(copy))
     if bad: sys.exit('%s differs from a fresh generation: %s' % (old, ' '.join(bad)))
     print('check-generated: %s matches' % name)
@@ -195,7 +201,6 @@ COMMANDS = {
     'generate': _generate,
     'config':   lambda a: config(_site(a), build(_site(a))),
     'plant':    _plant,
-    'points':   lambda a: points(_site(a)),
     'library':  lambda a: quality_block(),
 }
 

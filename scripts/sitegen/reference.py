@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""docs/<site>/reference/variables.md: every row the firmware exposes, from
-the tables and the ST itself."""
+"""The site's reference page: every row the firmware exposes, from the tables
+and the ST itself."""
 
 import os, re
 
 from . import render
-from .model import KIND, build, var_externals
+from .model import KIND, var_externals
 
 # ---- the reference page ----------------------------------------------------
 
@@ -123,8 +123,7 @@ def _table(rows, want):
             + ['| ' + ' | '.join(r) + ' |' for r in rows])
 
 
-def points(site):
-    t = build(site)
+def points(site, t):
     table, prog = t['table'], t['prog']
     name = t['toml']['site']['name']
     n_lib = sum(1 for r in table if r.get('_lib'))
@@ -167,10 +166,10 @@ def points(site):
             'reads': ', '.join('`%s`' % r for r in _collapse(reads)) or '-',
             'writes': ', '.join('`%s`' % w for w in _collapse(writes)) or '-'})
 
-    # Under the WORKING directory, which is the project that owns the site,
-    # and a project owns one: docs/<slug>/ would nest the site's name inside
-    # its own repository. The slug stays the Doxygen anchor.
-    out = os.path.join('docs', 'reference', 'variables.md')
+    # Beside the site, in the docs of the project that owns it: a site repository
+    # keeps its site in src/ and its manual in docs/. The slug stays the Doxygen
+    # anchor.
+    out = os.path.join(os.path.dirname(site), 'docs', 'reference', 'variables.md')
     render.write(out, 'variables.md.j2', slug=slug, n_rows=len(table),
                  n_site=len(table) - n_lib, n_lib=n_lib, summary=summary,
                  sections=sections, cal=cal, programs=programs)

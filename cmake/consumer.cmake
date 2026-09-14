@@ -6,9 +6,8 @@
 # library at all - they are "does my site still work" and "does my firmware
 # still link" - so they are declared here, against the CONSUMING project.
 #
-#   make check           build everything, then run this project's own ctest cases
-#   make check-opta      the cross build, which is where a link error lives
-#   make variables-page  the site's docs/reference/variables.md, from its tables
+#   make check       build everything, then run this project's own ctest cases
+#   make check-opta  the cross build, which is where a link error lives
 #
 # Top-level builds skip this file: botanik declares richer versions of both in
 # tests/, and two targets of one name is a configure error.
@@ -50,16 +49,4 @@ if(_consumer_arm)
         VERBATIM)
 else()
     message(STATUS "check-opta: no arm-none-eabi-g++, skipping the cross build")
-endif()
-
-# The variables page is a document, so the build never writes it: run this after
-# a table changes and commit it. Under the consuming project's own docs/.
-find_package(Python3 COMPONENTS Interpreter QUIET)
-if(Python3_Interpreter_FOUND AND _site_dir AND EXISTS "${_site_dir}/site.toml")
-    add_custom_target(variables-page
-        COMMAND ${CMAKE_COMMAND} -E chdir ${CMAKE_SOURCE_DIR}
-                ${Python3_EXECUTABLE} ${BOTANIK_ROOT}/scripts/sitegen/tables.py
-                points ${_site_dir}
-        COMMENT "Regenerating docs/reference/variables.md - review the diff"
-        VERBATIM)
 endif()

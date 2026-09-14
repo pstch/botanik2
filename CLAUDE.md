@@ -74,13 +74,12 @@ ctest --test-dir build --output-on-failure          # all CTest entries
 ctest --test-dir build -R pyte --output-on-failure  # just pyte
 make -C build codegen                # regenerate whatever no longer matches its inputs
 make -C build matiec                 # build the pinned matiec into vendor/matiec/build/
-make -C build docs                   # regenerate the variables page, then render
+make -C build docs                   # render the manual
 make -C build docs-screens           # recapture the console screenshots
 scripts/sim_scenario.sh <name> [when]    # run one scenario interactively
 ```
 
-`make docs` regenerates the site's variables page and renders the manual, in a
-few seconds. `docs-screens` is deliberately **not** one of its dependencies: it
+`make docs` renders the manual, in a few seconds. `docs-screens` is deliberately **not** one of its dependencies: it
 boots a simulator per scenario and takes a minute and a half, too much to pay
 for every render.
 
@@ -436,8 +435,8 @@ a template) edited in botanik moves every example's stamp, and each example
 catches up when `make examples` builds it; `gh_mlb41`'s regenerated output lands
 in the submodule, to commit there. `plant` is a no-op on a site that declares no
 programs: an ST resource with no program in it is not valid ST, so matiec is
-never called for one. The variables page is a document and never a build
-output: a consumer writes it with `make variables-page`.
+never called for one. The site's reference page, `docs/reference/variables.md`
+beside its `src/`, is generated and stamped with the rest.
 
 Generated sources carry `BOTANIK_SITE_CODEGEN_ABI` (in `rows.gen.h`), and
 `vars/rows.h` refuses one that differs from `libbotanik/codegen_abi.h`. Bump
@@ -453,13 +452,12 @@ they emit through.
 **It runs from anywhere.** `paths.ROOT` is derived from the generator's own
 location, so what it reads out of the LIBRARY is anchored to the botanik
 checkout wherever the command was invoked. What it writes for a SITE goes
-beside that site, and the variables page lands under the WORKING DIRECTORY -
-so a site repository regenerates its own tables and its own docs and leaves the
-submodule alone. Nothing may be relative to the working directory again:
-`src/libbotanik/...` resolves to the site repo when that is where the command
-was run.
+beside that site, its reference page included, so a site repository
+regenerates its own tables and its own docs and leaves the submodule alone.
+Nothing may be relative to the working directory: `src/libbotanik/...` resolves
+to the site repo when that is where the command was run.
 
-`tables.py library` is the fifth command and botanik's own: `quality.gen.h`,
+`tables.py library` is botanik's own: `quality.gen.h`,
 `health.gen.h` and `rows_none.gen.h` come from `library.csv` and from library
 headers, never from a site's tables, and they are committed here. A site
 repository never runs it. Anything a generated file SAYS about a path is
