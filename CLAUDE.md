@@ -348,10 +348,10 @@ rather than run.
 A site's opt-in must yield to the command line, and `#ifndef` alone does not do
 that: with `-DBOTANIK_FEATURE_CONSOLE=OFF` the page flags are still undefined
 when the site config is read, so a bare `#define ..._PAGE 1` would turn the
-builder's choice into a dependency error they never wrote. The generator
-emits one `#if` per opt-in: the flag is undefined, and each prerequisite it
-reads out of the `#error` rules is not turned off. That is why a site states
-its profile in `site.toml` rather than writing the guards by hand.
+builder's choice into a dependency error they never wrote. The generator emits
+`#if !defined(X) || X` around each opt-in, nested under the prerequisites it
+reads out of the `#error` rules, which is why a site states its profile in
+`site.toml` rather than writing the guards by hand.
 
 Anything reading a flag must include a `config/` header BEFORE
 `libbotanik_features.h`: `config/base.h` pulls the site's config first, and
