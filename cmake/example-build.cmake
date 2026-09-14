@@ -22,9 +22,8 @@ if(NOT EXISTS "${BIN}/CMakeCache.txt")
     endif()
 endif()
 
-file(STRINGS "${BIN}/CMakeCache.txt" _root REGEX "^BOTANIK_ROOT:INTERNAL=")
-string(REGEX REPLACE "^BOTANIK_ROOT:INTERNAL=" "" _root "${_root}")
-file(REAL_PATH "${_root}" _root)
+load_cache("${BIN}" READ_WITH_PREFIX _ BOTANIK_ROOT)
+file(REAL_PATH "${_BOTANIK_ROOT}" _root)
 if(NOT _root STREQUAL ROOT)
     message(FATAL_ERROR "example ${NAME} builds against ${_root}, not this "
         "checkout (${ROOT})")

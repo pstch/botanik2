@@ -170,7 +170,6 @@ function(_botanik_codegen_generate root site python iec2c)
         if(NOT _rc EQUAL 0)
             message(FATAL_ERROR "codegen: tables.py ${_c} ${site} failed\n${_o}${_e}")
         endif()
-        # The generator's own summary, one line per file it wrote.
         string(REGEX REPLACE "\n+$" "" _o "${_o}")
         if(_o)
             message(STATUS "codegen: tables.py ${_c}\n${_o}")
