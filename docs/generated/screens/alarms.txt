@@ -2,8 +2,8 @@
 
   | CODE     | VARIABLE                    | ON | ACK | OVR | LAST EVENT     |
   +----------+-----------------------------+----+-----+-----+----------------+
+  | DC_LOW   | bus_dcLow                   | ON |     |     | 26/01/01 00:00 |
   | SYS_RST  | alarm_system_reset          | ON |     |     | 26/01/01 00:00 |
-
 
 
 
@@ -15,10 +15,10 @@
 
   +----------+-----------------------------+----+-----+-----+----------------+
 
- Description  : unit reset recently
- Remediation  : -
+ Description  : a DC rail is under its floor
+ Remediation  : either rail; the pair is one supply
  Acknowledged : -
 
- unmasked <  [recent]     > all    1-1 / 1                  1 active  ENTER ack
+ unmasked <  [recent]     > all    1-2 / 2                  2 active  ENTER ack
 
- ALARMS : SYS_RST
+ ALARMS : SYS_RST DC_LOW

@@ -1,0 +1,24 @@
+ 1 2 3 4 5 6 7 8:SYSTEM 9           00:01:22        run:  RUN cpu:100% stk:  1%
+
+  ==== SYSTEM STATUS =========================================================
+  Run state                        RUN    Watchdog          10000 ms, kicking
+  CPU jitter        0.0% (peak 0.00ms)    Task period           10 ms (<N> TPS)
+  Tasks                  24, 0 us/beat    Task load            0.0%, 0 missed
+  Network                       online    NTP sync                     synced
+  Network IP                 127.0.0.1    MQTT                  ready (  0 m)
+  Field bus           online, 0/3 dead    Modbus TCP          :502, 0 clients
+
+  ==== SITE ==================================================================
+  Rail 1                         0.0 V    Rail 2                        0.0 V
+
+
+
+
+
+
+
+
+
+
+
+ ALARMS : SYS_RST DC_LOW

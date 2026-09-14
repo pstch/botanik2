@@ -1,0 +1,24 @@
+ 1:HOME 2 3 4 5 6 7 8 9             00:01:02        run:  RUN cpu:100% stk:  1%
+    _           _              _ _
+   | |__   ___ | |_ __ _ _ __ (_) | __
+   | '_ \ / _ \| __/ _` | '_ \| | |/ /       Site name ...... : ref
+   | |_) | (_) | || (_| | | | | |   <        Version ........ : v0.13.12-dev
+   |_.__/ \___/ \__\__,_|_| |_|_|_|\_\       Commit ......... : <COMMIT>
+
+  Uptime     000d 00:01:02
+
+  Air        11.6 degC
+  Target     26.0 degC
+  Vent       0.00
+
+
+
+
+    LOGS
+26/01/01 00:00:00.010 [-] NETWORK: network bring-up (static)
+26/01/01 00:00:00.010 [+] NETWORK: network up: 127.0.0.1
+26/01/01 00:00:00.020 [+] TIME: NTP synced (192.168.1.1:123)
+26/01/01 00:00:00.030 [+] NETWORK: MQTT connected (192.168.1.1:1883)
+26/01/01 00:00:05.000 [+] BOOT: control tasks enabled, system operational
+26/01/01 00:00:10.050 [!] ALARM_BEG: a DC rail is under its floor
+ ALARMS : SYS_RST DC_LOW

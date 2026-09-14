@@ -76,7 +76,6 @@ make -C build codegen                # regenerate whatever no longer matches its
 make -C build matiec                 # build the pinned matiec into vendor/matiec/build/
 make -C build docs                   # codegen, then render the manual
 make -C build docs-screens           # recapture the console screenshots
-scripts/sim_scenario.sh <name> [when]    # run one scenario interactively
 ```
 
 `make docs` runs codegen first, so nothing it documents is stale, then renders
@@ -85,16 +84,15 @@ boots a simulator per scenario and takes a minute and a half, too much to pay
 for every render.
 
 `scripts/screens.py` is what that target runs. It drives `botanik_sim` through
-the pyte harness and writes rendered 80x24 screens into `docs/user/screens/` (one
-per console page) and `docs/ref/screens/` (HOME under each simulated day),
-which the pages pull in with `@verbinclude`. It writes `.txt` only, so it can
-never touch a page's prose, and it masks the git hash and the measured TPS - the
-two cells that would otherwise rewrite a committed screen on every commit.
+the pyte harness and writes one rendered 80x24 screen per console page into
+`docs/generated/screens/`, which the user manual pulls in with `@verbinclude`.
+Generated documentation lives in `docs/generated/`. It writes `.txt` only, so it
+can never touch a page's prose, and it masks the git hash and the measured TPS -
+the two cells that would otherwise rewrite a committed screen on every commit.
 
-`scripts/sim_scenario.sh` runs the sim on one named day under the virtual clock.
-`when` is `2026-07-01T18:30:00Z`, or `18:30Z` for that time on the default day;
-omitted, each scenario starts at the hour it has something to show.
-`scripts/scenarios.tsv` is the roster both of them read.
+The simulated days (`BOTANIK_SIM_SCENARIO`) are a site's, not the library's:
+gh_mlb41 carries `scripts/scenarios.tsv`, `scripts/sim_scenario.sh` and a
+`scenario_screens.py` that imports `screens.py` for its own screens.
 
 **`make check`** fails on the first problem: the library compiles `-Werror`, so
 a warning in a library source fails the build of the suite; it builds every

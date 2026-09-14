@@ -1,17 +1,17 @@
- 1 2 3 4 5 6:MONITOR 7 8 9          00:01:17        run:  RUN cpu:100% stk:  1%
+ 1 2 3 4 5 6:MONITOR 7 8 9          00:01:16        run:  RUN cpu:100% stk:  1%
 
   | KIND     | VARIABLE                 | VALUE         | UNIT   | OVERRIDE  |
   +----------+--------------------------+---------------+--------+-----------+
   | S        | sys_fieldbus_dead        | 0             |        | -         |
   | S        | sys_fieldbus_crc         | 0             |        | -         |
   | S        | sys_fieldbus_stray       | 0             |        | -         |
-  | S        | sys_now_ms               | 76890         | ms     | -         |
+  | S        | sys_now_ms               | 76470         | ms     | -         |
   | S        | sys_today                | 20454         | days   | -         |
   | S        | sol_ready                | 1             |        | -         |
-  | S        | sol_fromRise_min         | -469          | min    | -         |
-  | S        | sol_fromSet_min          | -964          | min    | -         |
-  | S        | sol_elev_deg             | -65.0         | deg    | -         |
-  | S        | cli_temp_in              | 6.7           | degC   | -         |
+  | S        | sol_fromRise_min         | -362          | min    | -         |
+  | S        | sol_fromSet_min          | -1082         | min    | -         |
+  | S        | sol_elev_deg             | -67.0         | deg    | -         |
+  | S        | air_temp_in              | 11.6          | degC   | -         |
   v----------+--------------------------+---------------+--------+-----------v
 
  Description  : field devices not answering
@@ -19,6 +19,6 @@
  Mapping      : computed (nothing drives it)
  Quality      : GOOD
 
- override <    [all]    > invalid  1-10 / 214               type to filter
+ override <    [all]    > invalid  1-10 / 23                type to filter
 
- ALARMS : SYS_RST
+ ALARMS : SYS_RST DC_LOW

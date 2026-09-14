@@ -40,9 +40,9 @@ IMAGE_PATH             = images \
                          docs/dev/field
 
 # Where \verbinclude looks. The console screenshots in the user manual are
-# captured by scripts/screens.py and kept beside the pages that show them,
+# captured by scripts/screens.py into docs/generated/screens/,
 # so the generator only ever writes .txt and never touches a page's prose.
-EXAMPLE_PATH           = docs/user/screens
+EXAMPLE_PATH           = docs/generated/screens
 
 # Working notes, if any: excluded so a plan never renders beside the manual.
 EXCLUDE                = docs/design

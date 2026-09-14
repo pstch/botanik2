@@ -19,6 +19,6 @@
  Description  : monitor UART rate
  Notes        : log-only port; ignored on the OPTA, whose MONITOR is USB CDC
 
-                                   1-11 / 261               type to filter
+                                   1-11 / 78                type to filter
 
- ALARMS : SYS_RST
+ ALARMS : SYS_RST DC_LOW

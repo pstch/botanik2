@@ -3,12 +3,11 @@
 
 
 
-
 26/01/01 00:00:00.000 [-] BOOT: Botanik v0.13.12-dev
                         > Running on : x86-64 POSIX simulator
-26/01/01 00:00:00.000 [-] MODBUS: 110 rows, 24 blocks, 22 devices
-                        > 24.9% of the bus at 38400 baud
-26/01/01 00:00:00.000 [-] HEALTH: POST ok (site demo)
+26/01/01 00:00:00.000 [-] MODBUS: 8 rows, 4 blocks, 3 devices
+                        > 3.5% of the bus at 38400 baud
+26/01/01 00:00:00.000 [-] HEALTH: POST ok (site ref)
 26/01/01 00:00:00.000 [-] NETWORK: modbus slave on port 502
 26/01/01 00:00:00.000 [~] BOOT: setup done, outputs are safe, starting...
 26/01/01 00:00:00.000 [~] BOOT: boot complete
@@ -21,4 +20,5 @@
 26/01/01 00:00:00.020 [+] TIME: NTP synced (192.168.1.1:123)
 26/01/01 00:00:00.030 [+] NETWORK: MQTT connected (192.168.1.1:1883)
 26/01/01 00:00:05.000 [+] BOOT: control tasks enabled, system operational
- ALARMS : SYS_RST
+26/01/01 00:00:10.050 [!] ALARM_BEG: a DC rail is under its floor
+ ALARMS : SYS_RST DC_LOW

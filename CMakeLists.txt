@@ -629,8 +629,8 @@ if(PROJECT_IS_TOP_LEVEL)
     # `make -C build docs` renders the manual into docs/doxygen/html/.
     #
     # `docs-screens` is NOT one of its dependencies. Recapturing the screenshots
-    # means booting a simulator per scenario and is a minute and a half, which is
-    # too much to pay for every render; run it when a screen has actually moved.
+    # boots and warms a simulator, too much to pay for every render; run it when
+    # a screen has actually moved.
     #
     # Both targets WRITE INTO THE SOURCE TREE: what they produce is committed,
     # and a diff afterwards is the point rather than a surprise.
@@ -646,12 +646,9 @@ if(PROJECT_IS_TOP_LEVEL)
                 COMMAND ${CMAKE_COMMAND} -E chdir ${BOTANIK_ROOT}
                         ${Python3_EXECUTABLE} scripts/screens.py
                         $<TARGET_FILE:botanik_sim>
-                COMMAND ${CMAKE_COMMAND} -E chdir ${BOTANIK_ROOT}
-                        ${Python3_EXECUTABLE} scripts/screens.py --scenarios
-                        $<TARGET_FILE:botanik_sim>
                 DEPENDS botanik_sim
                 USES_TERMINAL
-                COMMENT "Recapturing the console screenshots (a minute or two)"
+                COMMENT "Recapturing the console screenshots into docs/generated/screens/"
                 VERBATIM)
         else()
             message(STATUS "docs: pyte not importable - screenshots stay as committed")
