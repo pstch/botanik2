@@ -10,7 +10,7 @@
     sitegen/tables.py plant    [site]   programs.csv + ST          -> enums, plant.st, plant.cpp, matiec
     sitegen/tables.py library           library.csv + lib headers  -> quality/health/rows_none.gen.h
 
-`codegen` also writes the site's reference page, ../docs/reference/variables.md
+`codegen` also writes the site's reference page, ../docs/generated/variables.md
 beside the site. `site` is a name under examples/, or a path. What it reads out
 of the library is anchored to this checkout; what it writes for a site goes
 beside the site."""
@@ -166,7 +166,7 @@ def check_generated(site, stamp, scratch):
     names = sorted(set(os.listdir(old)) | set(os.listdir(new)))
     _same, differ, missing = filecmp.cmpfiles(old, new, names, shallow=False)
     bad = differ + missing
-    page = os.path.join('docs', 'reference', 'variables.md')
+    page = os.path.join('docs', 'generated', 'variables.md')
     committed = os.path.join(os.path.dirname(site), page)
     if not (os.path.exists(committed) and
             filecmp.cmp(committed, os.path.join(os.path.dirname(copy), page), shallow=False)):

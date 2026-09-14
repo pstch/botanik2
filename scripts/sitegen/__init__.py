@@ -7,6 +7,6 @@ through a template in templates/, and everything it emits is COMMITTED - see
     model      the CSVs read, merged and checked: the model the rest share
     st         the ST half: the site's enumerations, the resource matiec
                compiles, and the roster Plant runs
-    reference  the site's reference page, docs/reference/variables.md beside it
+    reference  the site's reference page, docs/generated/variables.md beside it
     render     the Jinja environment they emit through
 """

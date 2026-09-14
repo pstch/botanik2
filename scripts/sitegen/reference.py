@@ -166,10 +166,10 @@ def points(site, t):
             'reads': ', '.join('`%s`' % r for r in _collapse(reads)) or '-',
             'writes': ', '.join('`%s`' % w for w in _collapse(writes)) or '-'})
 
-    # Beside the site, in the docs of the project that owns it: a site repository
-    # keeps its site in src/ and its manual in docs/. The slug stays the Doxygen
-    # anchor.
-    out = os.path.join(os.path.dirname(site), 'docs', 'reference', 'variables.md')
+    # Beside the site, in the generated half of the docs of the project that
+    # owns it: a site repository keeps its site in src/ and its manual in docs/.
+    # The slug is the Doxygen anchor, so a page links it wherever it lives.
+    out = os.path.join(os.path.dirname(site), 'docs', 'generated', 'variables.md')
     render.write(out, 'variables.md.j2', slug=slug, n_rows=len(table),
                  n_site=len(table) - n_lib, n_lib=n_lib, summary=summary,
                  sections=sections, cal=cal, programs=programs)

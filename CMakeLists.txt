@@ -666,6 +666,9 @@ if(PROJECT_IS_TOP_LEVEL)
             COMMENT "Generating API documentation with Doxygen"
             VERBATIM
         )
+        # The manual documents generated sources and pages, so it renders them
+        # current rather than as last committed.
+        add_dependencies(docs botanik_codegen)
         # `make clean` wipes the output (CMake 3.15+). Doxygen never deletes stale
         # pages, so without this a removed page lingers until a manual rm.
         set_property(DIRECTORY APPEND PROPERTY ADDITIONAL_CLEAN_FILES
