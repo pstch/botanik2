@@ -12,6 +12,18 @@ endif()
 
 project(Botanik CXX C)
 
+# Embedded, botanik is added through cmake/preamble.cmake, which names the site
+# first. A bare add_subdirectory() would fall back to examples/ref, and so would
+# a misspelled BOTANIK_SITE_DIR: the wrong firmware under the right name.
+if(NOT PROJECT_IS_TOP_LEVEL)
+    get_property(_botanik_added GLOBAL PROPERTY BOTANIK_ADDED_BY)
+    if(NOT _botanik_added)
+        message(FATAL_ERROR "botanik is not added with add_subdirectory(): include "
+            "its cmake/preamble.cmake before project(), then call "
+            "botanik_add_site(SITE_DIR <dir>) or botanik_add_library()")
+    endif()
+endif()
+
 # Where the botanik checkout is, whether it is the top-level project or a
 # subdirectory of a site's repository. CMAKE_SOURCE_DIR is the SITE's root in
 # the embedded build, so nothing below may use it to mean "here".

@@ -7,7 +7,7 @@
 #
 #   cmake -B build && make -C build && ./build/nosite
 #
-# -DBOTANIK_SITE=NONE is what makes it a library-only build: no simulator, no
+# botanik_add_library() is what makes it a library-only build: no simulator, no
 # suite, and every library row name resolving through vars/rows_none.gen.h to
 # VAR_NONE and so to the bank's inert sink.
 cmake_minimum_required(VERSION 3.21)
@@ -16,12 +16,10 @@ include(extern/botanik/cmake/preamble.cmake)
 
 project(nosite C CXX)
 
-set(BOTANIK_SITE "NONE" CACHE STRING "" FORCE)
-
 # The task view is not on by default; the shell rides on CONSOLE, which is.
 set(BOTANIK_FEATURE_TASKS_PAGE ON CACHE STRING "" FORCE)
 
-add_subdirectory(extern/botanik botanik-build)
+botanik_add_library()
 
 add_executable(nosite src/main.cpp)
 target_link_libraries(nosite botanik)
