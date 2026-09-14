@@ -53,8 +53,9 @@ Host-only, SIMULATOR build. Everything runs under botanik's own CTest:
   one unlabelled `example:<name>` entry running that project's own ctest, and one
   `example:<name>:<case>` entry per case of its `<name>_tests` binary, labelled
   `unit;unit:<name>`. Before `make examples` has run, a failing
-  `example:<name>:NOT_BUILT` stands in. `gh_mlb41` is built from a farm of links
-  whose `extern/botanik` is this checkout.
+  `example:<name>:NOT_BUILT` stands in. Every example builds against this
+  checkout: ref and nosite link `extern/botanik` to it, and gh_mlb41's
+  CMakeLists uses the enclosing botanik when it sits in one's `examples/`.
 
 Nothing in `tests/` names a site's rows: the library's cases use library rows,
 so they pass on any full-profile site. What a site's table decides is tested

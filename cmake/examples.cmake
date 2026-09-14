@@ -42,20 +42,11 @@ foreach(_dir IN LISTS _example_dirs)
     endif()
     get_filename_component(_name "${_dir}" NAME)
 
-    set(_farm "")
-    set(_link "${_dir}/extern/botanik")
-    if(EXISTS "${_link}")
-        file(REAL_PATH "${_link}" _link)
-    endif()
-    if(NOT _link STREQUAL _examples_root)
-        set(_farm "${_examples_bin}/${_name}-src")
-    endif()
-
     set(_bin "${_examples_bin}/${_name}")
     add_custom_target(example-${_name}
         COMMAND ${CMAKE_COMMAND}
                 -DNAME=${_name} -DSRC=${_dir} -DBIN=${_bin} -DROOT=${_examples_root}
-                -DFARM=${_farm} -DGENERATOR=${CMAKE_GENERATOR}
+                -DGENERATOR=${CMAKE_GENERATOR}
                 -DOPTIONS=${_examples_options_arg} -DCTEST=${CMAKE_CTEST_COMMAND}
                 -DDOCTEST_ADD=${BOTANIK_ROOT}/tests/vendor/doctestAddTests.cmake
                 -P ${BOTANIK_ROOT}/cmake/example-build.cmake

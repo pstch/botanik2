@@ -2,41 +2,32 @@
 # entries botanik's tree includes for it. Run by the example-<name> targets.
 #
 #   -DNAME=<name> -DSRC=<examples/name> -DBIN=<build tree> -DROOT=<botanik>
-#   -DFARM=<dir or empty> -DGENERATOR=<gen> -DOPTIONS=<|-list> -DCTEST=<ctest>
+#   -DGENERATOR=<gen> -DOPTIONS=<|-list> -DCTEST=<ctest>
 #   -DDOCTEST_ADD=<doctestAddTests.cmake>
 #
-# FARM is set for an example whose extern/botanik is not this checkout (a site
-# repository carried as a submodule): the example is built from FARM, a
-# directory of links to SRC's entries plus extern/botanik -> ROOT, so it tests
-# this checkout and codegen still writes into the example's own sources.
+# An example must build against ROOT, the checkout under test: ref and nosite
+# link extern/botanik to it, and gh_mlb41 finds the checkout enclosing it. One
+# that resolves another botanik fails here rather than testing the wrong one.
 
 string(REPLACE "|" ";" OPTIONS "${OPTIONS}")
-
-if(FARM)
-    file(REMOVE_RECURSE "${FARM}")
-    file(MAKE_DIRECTORY "${FARM}/extern")
-    file(GLOB _entries LIST_DIRECTORIES true RELATIVE "${SRC}" "${SRC}/*" "${SRC}/.*")
-    foreach(_e IN LISTS _entries)
-        if(_e MATCHES "^(\\.|\\.\\.|extern|build.*|\\.git|compile_commands\\.json)$")
-            continue()
-        endif()
-        file(CREATE_LINK "${SRC}/${_e}" "${FARM}/${_e}" SYMBOLIC)
-    endforeach()
-    file(CREATE_LINK "${ROOT}" "${FARM}/extern/botanik" SYMBOLIC)
-    set(_source "${FARM}")
-else()
-    set(_source "${SRC}")
-endif()
 
 # Configured once; the build re-runs CMake itself when a CMakeLists moves.
 if(NOT EXISTS "${BIN}/CMakeCache.txt")
     execute_process(
-        COMMAND ${CMAKE_COMMAND} -G ${GENERATOR} -S ${_source} -B ${BIN} ${OPTIONS}
+        COMMAND ${CMAKE_COMMAND} -G ${GENERATOR} -S ${SRC} -B ${BIN} ${OPTIONS}
         RESULT_VARIABLE _rc)
     if(NOT _rc EQUAL 0)
         file(REMOVE "${BIN}/CMakeCache.txt")
         message(FATAL_ERROR "example ${NAME}: configure failed")
     endif()
+endif()
+
+file(STRINGS "${BIN}/CMakeCache.txt" _root REGEX "^BOTANIK_ROOT:INTERNAL=")
+string(REGEX REPLACE "^BOTANIK_ROOT:INTERNAL=" "" _root "${_root}")
+file(REAL_PATH "${_root}" _root)
+if(NOT _root STREQUAL ROOT)
+    message(FATAL_ERROR "example ${NAME} builds against ${_root}, not this "
+        "checkout (${ROOT})")
 endif()
 
 # No --parallel: under make this joins the calling make's jobserver, so the
