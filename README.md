@@ -46,21 +46,16 @@ TODO: visually align the table below
 | Sun | `sun/` | Solar position, from the NOAA math. |
 | Utils | `utils/` | Ring-buffered serial, metric filters, time helpers. |
 
-`BotanikFirmware` owns the components and drives the beat. A site supplies the
-tables and control programs it runs on; `src/botanik_sim/main.cpp` is the
-canonical wiring.
-
 ## Key concepts
 
-- **Nothing blocks.** Every stateful object has a `step()` that does a small
+- **Non-blocking code** : Every stateful object has a `step()` that does a small
   bounded amount of work and returns. Blocking stalls the RTOS and trips the
   watchdog on the OPTA. `CONTRIBUTING.md` has the contract.
-- **Platform access goes through the HAL.** No `<time.h>`, no Arduino calls
+- **Hardware Abstraction Layer** No `<time.h>`, no Arduino calls
   outside `hal/`. This is what makes the simulator possible.
-- **One variable model.** A Modbus reading, a relay coil, a computed value and
-  a configuration parameter are rows of one table, differing by field rather
-  than by type.
-- **The console is byte-efficient.** It targets a 4800-baud serial link, so the
+- **Unified variable model** A Modbus reading, a relay coil, a computed value and
+  a configuration parameter are rows of one table.
+- **Byte-efficient serial console** It targets a 4800-baud serial link, so the
   terminal and editor layers minimise what they emit.
 
 ## Building
@@ -68,35 +63,23 @@ canonical wiring.
 Requires CMake 3.10+ and a C++11 compiler. The default target is the Linux
 simulator; builds default to `DEBUG` (`-O0 -g3`).
 
-```bash
-cmake -B build -DBOTANIK_TARGET=SIMULATOR
-make -C build
-./build/botanik_sim
-```
+### PLC code generation
 
-`-DCMAKE_BUILD_TYPE=RELEASE` gives `-O3`, LTO and `NDEBUG`.
-`-DBOTANIK_SANITIZE=address+undefined` instruments a tree; sanitizers are off
-by default and `make check-full` runs the gate instrumented in a tree of its
-own.
+TODO: explain that some part of the code is generated and how to refresh it.
 
-`.envrc` exports `MAKEFLAGS=-j4` and `CTEST_PARALLEL_LEVEL` for
-[direnv](https://direnv.net) users. `ccache` is used when installed.
+### Debugging build on the simulator
 
-### OPTA target
+TODO: add commands for a debug build of the simulator
 
-```bash
-arduino-cli core install arduino:mbed_opta   # one-time
-cmake -B build-opta -DBOTANIK_TARGET=OPTA
-make -C build-opta
-```
+### Release build for a target platform
 
-This links `botanik_opta`, the flashable M7 image; the entry wiring is in
-[src/botanik_fw](src/botanik_fw/README.md). The Mbed headers and the ARM
-toolchain come from the core `arduino-cli` installs under `~/.arduino15`. The
-build takes the highest version installed; override with `-DMBED_CORE_ROOT=...`
-or `ARDUINO_DATA_DIR`.
+TODO: add commands for a release build on the OPTA
 
-## Tests
+### Utility targets
+
+TODO: describe the other utility cmake targets we have
+
+## Testing
 
 Two host-only suites, both under CTest: [doctest](https://github.com/doctest/doctest)
 unit tests in `tests/`, and pyte screen tests in `tests/pyte/` that drive
@@ -132,7 +115,7 @@ or compiled into the firmware. Its IEC library would have been the exception,
 which is why `src/libbotanik/plc/functions/ieclib.txt` replaces it and why
 `vendor/matiec` carries no `lib/`.
 
-## Links
+l## Links
 
 - [CONTRIBUTING.md](CONTRIBUTING.md) - code style and the non-blocking rules.
 - [CLAUDE.md](CLAUDE.md) - orientation for AI coding agents.
