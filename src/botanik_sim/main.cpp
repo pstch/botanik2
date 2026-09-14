@@ -17,6 +17,7 @@
 #include BOTANIK_SITE_HEADER            // Site::firmware() + Site::simulate
 
 #if BOTANIK_FEATURE_NETWORK
+#include "botanik_sim/field.h"
 #include "botanik_sim/fieldbus.h"
 #include "botanik_sim/mbcheck.h"
 #include "botanik_sim/network.h"
@@ -115,14 +116,14 @@ int main(int argc, char** argv) {
     fieldbus.bind(&greenhouse.io());
     // The animator's readings go into the DEVICES from here, not into the bank
     // rows - so a row shows what the bus delivered, at the rate it delivered it.
-    Site::field_ctx()  = &fieldbus;
-    Site::field_sink() = [](void* ctx, Vars::Var h, float v) {
+    Sim::field_ctx()  = &fieldbus;
+    Sim::field_sink() = [](void* ctx, Vars::Var h, float v) {
         static_cast<Sim::FieldBus*>(ctx)->set_physical(h, v);
     };
     // ...and the same reach for taking a device off the wire, which is the only
     // way to simulate one that has died: a device left holding its last
     // register answers every poll, and the row stays valid.
-    Site::field_fault() = [](void* ctx, uint8_t unit, bool absent) {
+    Sim::field_fault() = [](void* ctx, uint8_t unit, bool absent) {
         static_cast<Sim::FieldBus*>(ctx)->set_fault(
             unit, absent ? Sim::FieldBus::FAULT_ABSENT
                          : Sim::FieldBus::FAULT_NONE);

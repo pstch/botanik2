@@ -19,34 +19,11 @@
 #include <cstdint>
 
 #include "libbotanik.h"
+#include "botanik_sim/field.h"
 
 namespace Site {
 
-/** @brief How the harness reaches the simulated field bus.
- *
- *  A reading on the bus goes into the DEVICE, not into the row: the row should
- *  show what the wire delivered, at the rate it delivered it. The simulator
- *  fills these in at bring-up; the site only declares them, so it still
- *  cross-compiles for the OPTA where the real field plays this role. */
-typedef void (*FieldSink)(void* ctx, Botanik::Vars::Var h, float v);
-inline FieldSink& field_sink() { static FieldSink fn = nullptr; return fn; }
-inline void*&     field_ctx()  { static void* ctx = nullptr; return ctx; }
-
-/** @brief Take a device off the wire, or put it back. A device left holding
- *  its last register answers every poll and the row stays valid, so silence is
- *  the only way to simulate one that died. */
-typedef void (*FieldFault)(void* ctx, uint8_t unit, bool absent);
-inline FieldFault& field_fault() { static FieldFault fn = nullptr; return fn; }
-
-/** @brief Publish through the bus where the row is on one, into the row where
- *  it is not. */
-inline void put(Botanik::Vars::Bank& io, uint16_t row, float v) {
-    Botanik::Vars::Var h = io.var(row);
-    if (h.meta().bind.device != 0 && field_sink() != nullptr)
-        field_sink()(field_ctx(), h, v);
-    else
-        h.set(v);
-}
+using namespace Botanik::Sim;
 
 /** @brief One day of air temperature, and a vent that follows its command.
  *
@@ -63,13 +40,13 @@ inline void simulate(Botanik::Vars::Bank& io, uint32_t now_ms) {
     const float base = 18.0f + 9.0f * (float)(-__builtin_cos((hour - 3.0f)
                                               * 3.14159265f / 12.0f));
 
-    put(io, Row::air_temp_hi1, base);
-    put(io, Row::air_temp_hi2, base - 1.5f);   // the cooler level
+    put(io, Row::air_temp_hi1, base, now_ms);
+    put(io, Row::air_temp_hi2, base - 1.5f, now_ms);   // the cooler level
 
     // The actuator reaches its command in one beat: this site has no travel
     // time to model, and a vent that lies about where it is would be a
     // different example.
-    put(io, Row::vent_drive, io.var(Row::vent_pos).as_f32());
+    put(io, Row::vent_drive, io.var(Row::vent_pos).as_f32(), now_ms);
 }
 
 }  // namespace Site

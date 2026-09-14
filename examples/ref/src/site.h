@@ -11,8 +11,9 @@
  * `programs/`, compiled by matiec. There is no subclass and no hook.
  *
  * Every site exposes the same surface, so a harness never names the site:
- *   - `Site::firmware()`  the firmware, bound to this site's descriptor
- *   - `Site::simulate()`  the simulated field (sim.h)
+ *   - `Site::firmware()`  the firmware, bound to this site's descriptor (generated)
+ *   - `Site::simulate()`  the simulated field (sim.h), written through
+ *                         botanik_sim/field.h
  */
 
 #include <cstdint>
