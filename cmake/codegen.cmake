@@ -2,14 +2,20 @@
 # CMakeLists once the site is resolved, for both targets and whether botanik
 # is the project or a consumer's subdirectory.
 #
-# Runs at CONFIGURE time, because configure reads what it writes (config.gen.h,
-# rows.gen.h, the site's .cpp list). Every input is a configure dependency, so
-# editing a table or an ST file re-runs CMake on the next build, and the stamp
-# decides whether anything is regenerated. See cmake/codegen-lib.cmake.
+# One CODEGEN custom command per generated tree - the library's three .gen.h
+# files, and the site's generated/ - depending on every input the generator
+# reads. The generated files themselves are committed sources, not OUTPUTs: a
+# Makefile `make clean` deletes outputs, and a clean clone must build without
+# the tools. So the OUTPUT is a stamp in the build tree, and the command only
+# regenerates when the committed codegen.stamp no longer matches the inputs
+# (see cmake/codegen-lib.cmake). When it matches, running it needs no tools.
 #
-#   make codegen           the same, on demand
+#   make codegen           CMake's builtin target: these commands, nothing else
 #   make matiec            build the pinned compiler into vendor/matiec/build/
 #   make check-generated   regenerate every example into a scratch copy and diff
+#
+# Sets _codegen_site_config, _codegen_site_rows and _codegen_site_sources for
+# the CMakeLists, which cannot look for files a build has not written yet.
 
 include(${CMAKE_CURRENT_LIST_DIR}/codegen-lib.cmake)
 
@@ -24,39 +30,75 @@ if(_site_dir AND EXISTS "${_site_dir}/site.toml")
     set(_codegen_site "${_site_dir}")
 endif()
 
-# Globbed with CONFIGURE_DEPENDS as well, so a NEW table or ST file re-runs
-# CMake too, not only an edit to a known one.
+# A NEW table, ST file or template has to reach the DEPENDS below, which only a
+# re-configure does: these globs make the build re-run CMake when one appears.
 file(GLOB _codegen_globbed CONFIGURE_DEPENDS
-     "${BOTANIK_ROOT}/scripts/sitegen/*.py" "${BOTANIK_ROOT}/templates/*.j2")
+     "${BOTANIK_ROOT}/scripts/sitegen/*.py" "${BOTANIK_ROOT}/templates/*.j2"
+     "${BOTANIK_ROOT}/src/libbotanik/config/*.h"
+     "${BOTANIK_ROOT}/src/libbotanik/plc/functions/*.st"
+     "${BOTANIK_ROOT}/src/libbotanik/plc/blocks/*.st")
 if(_codegen_site)
     file(GLOB _codegen_globbed CONFIGURE_DEPENDS "${_codegen_site}/tables/*.csv")
     file(GLOB_RECURSE _codegen_globbed CONFIGURE_DEPENDS "${_codegen_site}/*.st")
 endif()
-botanik_codegen_inputs(_codegen_pairs "${BOTANIK_ROOT}" "")
-if(_codegen_site)
-    botanik_codegen_inputs(_codegen_site_pairs "${BOTANIK_ROOT}" "${_codegen_site}")
-    list(APPEND _codegen_pairs ${_codegen_site_pairs})
-endif()
-foreach(_p IN LISTS _codegen_pairs)
-    string(REGEX REPLACE "^[^|]*\\|" "" _f "${_p}")
-    set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${_f}")
-endforeach()
 
-botanik_codegen("${BOTANIK_ROOT}" "" "${_codegen_python}")
+set(_codegen_dir "${CMAKE_CURRENT_BINARY_DIR}/codegen")
+set(_codegen_script "${BOTANIK_ROOT}/cmake/codegen-lib.cmake")
+
+function(_botanik_codegen_command tree site done)
+    botanik_codegen_inputs(_pairs "${BOTANIK_ROOT}" "${site}")
+    set(_deps "${_codegen_script}" "${BOTANIK_ROOT}/cmake/matiec-build.cmake")
+    foreach(_p IN LISTS _pairs)
+        string(REGEX REPLACE "^[^|]*\\|" "" _f "${_p}")
+        list(APPEND _deps "${_f}")
+    endforeach()
+    add_custom_command(OUTPUT "${done}"
+        COMMAND ${CMAKE_COMMAND} -DROOT=${BOTANIK_ROOT} -DSITE=${site}
+                -DPYTHON=${_codegen_python} -DDONE=${done}
+                -P ${_codegen_script}
+        DEPENDS ${_deps}
+        CODEGEN
+        COMMENT "Checking the generated sources of ${tree}"
+        VERBATIM)
+endfunction()
+
+set(_codegen_done "${_codegen_dir}/library.done")
+_botanik_codegen_command("the library" "" "${_codegen_dir}/library.done")
 if(_codegen_site)
-    botanik_codegen("${BOTANIK_ROOT}" "${_codegen_site}" "${_codegen_python}")
+    _botanik_codegen_command("the site" "${_codegen_site}" "${_codegen_dir}/site.done")
+    list(APPEND _codegen_done "${_codegen_dir}/site.done")
 endif()
 
-# CMake's builtin `codegen` target drives it, and so does every build, as a
-# dependency of the library: ~30 ms of hashing when current. The output is never
-# written, so the command runs each time.
-add_custom_command(OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/codegen.always
-    COMMAND ${CMAKE_COMMAND} -DROOT=${BOTANIK_ROOT} -DSITE=${_codegen_site}
-            -DPYTHON=${_codegen_python} -P ${BOTANIK_ROOT}/cmake/codegen-lib.cmake
-    CODEGEN
-    VERBATIM)
-add_custom_target(botanik_codegen DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/codegen.always)
+# Every target compiling a generated file links the library, so ordering the
+# library after these orders all of them.
+add_custom_target(botanik_codegen DEPENDS ${_codegen_done})
 add_dependencies(botanik botanik_codegen)
+
+# What the generator writes, named from the inputs rather than looked for on
+# disk: the first build of an edited site has not written it yet. plant.cpp
+# exists only for a site with laws, which programs.csv says, so a change to it
+# re-runs CMake.
+set(_codegen_site_config "")
+set(_codegen_site_rows "")
+set(_codegen_site_sources "")
+if(_codegen_site)
+    set(_codegen_site_config "${_codegen_site}/generated/config.gen.h")
+    set(_codegen_site_rows "${_codegen_site}/generated/rows.gen.h")
+    list(APPEND _codegen_site_sources "${_codegen_site}/generated/vars.gen.cpp")
+    _botanik_codegen_has_programs(_codegen_laws "${_codegen_site}")
+    if(_codegen_laws)
+        list(APPEND _codegen_site_sources "${_codegen_site}/generated/plant.cpp")
+    endif()
+    if(EXISTS "${_codegen_site}/tables/programs.csv")
+        set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
+                     "${_codegen_site}/tables/programs.csv")
+    endif()
+    foreach(_f IN LISTS _codegen_site_sources)
+        if(NOT EXISTS "${_f}")
+            set_source_files_properties("${_f}" PROPERTIES GENERATED TRUE)
+        endif()
+    endforeach()
+endif()
 
 add_custom_target(matiec
     COMMAND ${CMAKE_COMMAND} -DSRC=${BOTANIK_ROOT}/vendor/matiec
@@ -78,7 +120,7 @@ if(PROJECT_IS_TOP_LEVEL)
         add_custom_command(TARGET check-generated POST_BUILD
             COMMAND ${CMAKE_COMMAND} -DROOT=${BOTANIK_ROOT} -DSITE=${_s}
                     -DPYTHON=${_codegen_python} -DCHECK=${CMAKE_BINARY_DIR}/genchk
-                    -P ${BOTANIK_ROOT}/cmake/codegen-lib.cmake
+                    -P ${_codegen_script}
             VERBATIM)
     endforeach()
 endif()

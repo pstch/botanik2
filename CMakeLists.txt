@@ -186,30 +186,28 @@ elseif(NOT EXISTS "${_site_dir}/site.h")
         "every site must ship one. Point -DBOTANIK_SITE_DIR=<path> at a site "
         "directory, or -DBOTANIK_SITE=<name> at one under examples/.")
 endif()
-# The generator, before anything below reads what it writes. A site whose
-# committed output no longer matches its tables is regenerated here.
+# The generator: a build step, so what it writes is named here rather than
+# looked for, since the build that writes it has not run yet.
 include(cmake/codegen.cmake)
 
-# The config a table-driven site GENERATES, or the one it hand-writes. A site
-# whose site.toml produces config.gen.h needs no shim over it.
-if(EXISTS "${_site_dir}/generated/config.gen.h" AND EXISTS "${_site_dir}/config.h")
-    message(FATAL_ERROR "Site directory '${_site_dir}' has BOTH "
-        "generated/config.gen.h and config.h. One site, one config: the "
-        "generated one would win and edits to the hand-written one would go "
-        "nowhere. Delete whichever is not the source of truth.")
-endif()
+# The config a table-driven site GENERATES, or the one it hand-writes.
 if(BOTANIK_SITE_NONE)
     # Nothing to define: libbotanik_site.h resolves neither macro and
     # config/base.h skips the include, so every Config value takes its own
     # #ifndef default.
-elseif(EXISTS "${_site_dir}/generated/config.gen.h")
-    set(_site_config "${_site_dir}/generated/config.gen.h")
+elseif(_codegen_site_config)
+    if(EXISTS "${_site_dir}/config.h")
+        message(FATAL_ERROR "Site directory '${_site_dir}' has BOTH a site.toml, "
+            "which generates generated/config.gen.h, and a config.h. One site, one "
+            "config: edits to the hand-written one would go nowhere. Delete "
+            "whichever is not the source of truth.")
+    endif()
+    set(_site_config "${_codegen_site_config}")
 elseif(EXISTS "${_site_dir}/config.h")
     set(_site_config "${_site_dir}/config.h")
 else()
-    message(FATAL_ERROR "Site directory '${_site_dir}' has neither "
-        "generated/config.gen.h nor config.h; one of them carries the "
-        "build-wide BOTANIK_* overrides.")
+    message(FATAL_ERROR "Site directory '${_site_dir}' has neither a site.toml "
+        "nor a config.h; one of them carries the build-wide BOTANIK_* overrides.")
 endif()
 if(NOT BOTANIK_SITE_NONE)
     target_compile_definitions(botanik PUBLIC
@@ -221,9 +219,21 @@ endif()
 # a reference that resolves to the sink for the life of the run. Left unset by a
 # build that names no site, and vars/rows.h then falls back to the library's own
 # rows_none.gen.h, where every one of them is VAR_NONE.
-if(_site_dir AND EXISTS "${_site_dir}/generated/rows.gen.h")
+if(_codegen_site_rows)
     target_compile_definitions(botanik PUBLIC
-        BOTANIK_SITE_ROWS=\"${_site_dir}/generated/rows.gen.h\")
+        BOTANIK_SITE_ROWS=\"${_codegen_site_rows}\")
+endif()
+
+# The site's own sources: what it wrote by hand, plus what the generator writes
+# for it. Recursive, since control programs sit a directory or two down.
+# Exported to a site repository's own targets further down, per target.
+set(_site_sources "")
+if(NOT BOTANIK_SITE_NONE)
+    file(GLOB_RECURSE _site_sources CONFIGURE_DEPENDS "${_site_dir}/*.cpp")
+    if(_codegen_site)
+        list(FILTER _site_sources EXCLUDE REGEX "/generated/")
+        list(APPEND _site_sources ${_codegen_site_sources})
+    endif()
 endif()
 if(NOT BOTANIK_SITE_NONE)
     message(STATUS "Site: ${_site_dir}")
@@ -291,14 +301,11 @@ if(BOTANIK_TARGET STREQUAL "SIMULATOR")
     endif()
 
     # The site compiles into the host application, so it stays out of the OPTA
-    # `botanik` archive. Empty for a header-only site. Recursive: generated/
-    # holds vars.gen.cpp, which defines the tables, and the control programs sit
-    # one directory further down.
+    # `botanik` archive.
     # No simulator without a site: main.cpp includes BOTANIK_SITE_HEADER and
     # runs Site::firmware(). The library alone is the whole product then.
     if(NOT BOTANIK_SITE_NONE)
-        file(GLOB_RECURSE BOTANIK_SITE_SOURCES CONFIGURE_DEPENDS
-             "${_site_dir}/*.cpp")
+        set(BOTANIK_SITE_SOURCES ${_site_sources})
 
         # Exported, like BOTANIK_TEST_MAIN beside it: a site repository builds
         # its own targets from this, and add_subdirectory() puts a plain
@@ -629,11 +636,7 @@ elseif(BOTANIK_TARGET STREQUAL "OPTA")
     set_target_properties(botanik PROPERTIES LINKER_LANGUAGE CXX)
 
     # The selected site compiles into the firmware alongside the entry wiring.
-    # Empty for a header-only site.
-    # RECURSIVE: generated/ holds vars.gen.cpp, which DEFINES the tables, and a
-    # site's control programs sit one directory further down still.
-    file(GLOB_RECURSE BOTANIK_SITE_SOURCES CONFIGURE_DEPENDS
-         "${_site_dir}/*.cpp")
+    set(BOTANIK_SITE_SOURCES ${_site_sources})
 
     # Exported, like BOTANIK_TEST_MAIN beside it: a site repository builds its
     # own targets from this, and add_subdirectory() puts a plain variable in a

@@ -8,12 +8,13 @@
 # not, the generator runs and rewrites the stamp; without its tools that is a
 # hard error, never a build of stale output.
 #
-# Included by cmake/codegen.cmake at configure time, and run with -P by the
-# `codegen` and `check-generated` targets:
+# Included by cmake/codegen.cmake for the input list, and run with -P by its
+# custom commands and by `check-generated`:
 #
 #   cmake -DROOT=<botanik> [-DSITE=<site dir>] [-DPYTHON=<python3>]
-#         [-DCHECK=<scratch dir>] -P codegen-lib.cmake
+#         [-DDONE=<file>] [-DCHECK=<scratch dir>] -P codegen-lib.cmake
 #
+# SITE empty is the library's tree. DONE is touched once the tree is current.
 # CHECK regenerates SITE into a copy under <scratch dir> and diffs it against
 # what is committed, touching nothing.
 
@@ -111,7 +112,6 @@ endfunction()
 # what stood in the way when none is found.
 function(_botanik_codegen_iec2c out missing root)
     set(_pinned "${root}/vendor/matiec/build/iec2c")
-    set(_why "")
     execute_process(
         COMMAND ${CMAKE_COMMAND} -DSRC=${root}/vendor/matiec
                 -P ${root}/cmake/matiec-build.cmake
@@ -183,7 +183,7 @@ function(botanik_codegen root site python)
         return()
     endif()
 
-    # Several build trees can configure the same site at once (the examples,
+    # Several build trees can build the same site at once (the examples,
     # the sanitizer tree). The second waits, then finds the stamp current.
     file(LOCK "${root}/.codegen.lock" GUARD FUNCTION TIMEOUT 900)
     _botanik_codegen_stamp_read(_have "${_stamp}")
@@ -224,9 +224,11 @@ endfunction()
 if(CMAKE_SCRIPT_MODE_FILE STREQUAL CMAKE_CURRENT_LIST_FILE)
     get_filename_component(ROOT "${ROOT}" ABSOLUTE)
     if(NOT CHECK)
-        botanik_codegen("${ROOT}" "" "${PYTHON}")
-        if(SITE)
-            botanik_codegen("${ROOT}" "${SITE}" "${PYTHON}")
+        botanik_codegen("${ROOT}" "${SITE}" "${PYTHON}")
+        if(DONE)
+            get_filename_component(_dir "${DONE}" DIRECTORY)
+            file(MAKE_DIRECTORY "${_dir}")
+            file(TOUCH "${DONE}")
         endif()
         return()
     endif()
