@@ -3,16 +3,7 @@
 # Added only from the SIMULATOR branch of the top-level CMakeLists. doctest is a
 # single vendored header (tests/vendor/doctest.h).
 
-# The suite compiles the selected site's header, so it links the site's own
-# sources too: the IO value stores live in one of them.
-#
-# -Wshadow on those, as the top-level does for the sim. A source property is
-# per-directory, so the target defined here needs its own.
-set_source_files_properties(${BOTANIK_SITE_SOURCES}
-                            PROPERTIES COMPILE_FLAGS "-Wshadow")
-
 add_executable(botanik_tests
-    ${BOTANIK_SITE_SOURCES}
     doctest_main.cpp
     test_alarms.cpp
     test_console.cpp
@@ -46,7 +37,9 @@ target_include_directories(botanik_tests PRIVATE
     ${BOTANIK_ROOT}/src
 )
 
-target_link_libraries(botanik_tests botanik)
+# The suite compiles the selected site's header, so it links the site too: the
+# IO value stores live in it.
+target_link_libraries(botanik_tests botanik_site)
 
 # The committed goldens. Only test_alarms.cpp reads them, so this stays a
 # test-target define.

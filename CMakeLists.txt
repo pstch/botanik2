@@ -224,9 +224,9 @@ if(_codegen_site_rows)
         BOTANIK_SITE_ROWS=\"${_codegen_site_rows}\")
 endif()
 
-# The site's own sources: what it wrote by hand, plus what the generator writes
-# for it. Recursive, since control programs sit a directory or two down.
-# Exported to a site repository's own targets further down, per target.
+# botanik_site: the site's own sources, compiled once and linked by everything
+# that runs the site (the sim, the firmware, the suites, a site repository's own
+# tests). What it wrote by hand, recursively, plus what the generator writes.
 set(_site_sources "")
 if(NOT BOTANIK_SITE_NONE)
     file(GLOB_RECURSE _site_sources CONFIGURE_DEPENDS "${_site_dir}/*.cpp")
@@ -234,6 +234,11 @@ if(NOT BOTANIK_SITE_NONE)
         list(FILTER _site_sources EXCLUDE REGEX "/generated/")
         list(APPEND _site_sources ${_codegen_site_sources})
     endif()
+    add_library(botanik_site OBJECT ${_site_sources})
+    target_link_libraries(botanik_site PUBLIC botanik)
+    # A control program reads its variables as members, so a local of the same
+    # name takes over silently.
+    target_compile_options(botanik_site PRIVATE -Wshadow)
 endif()
 if(NOT BOTANIK_SITE_NONE)
     message(STATUS "Site: ${_site_dir}")
@@ -300,33 +305,11 @@ if(BOTANIK_TARGET STREQUAL "SIMULATOR")
         message(STATUS "Sanitizers enabled: ${BOTANIK_SANITIZE}")
     endif()
 
-    # The site compiles into the host application, so it stays out of the OPTA
-    # `botanik` archive.
     # No simulator without a site: main.cpp includes BOTANIK_SITE_HEADER and
     # runs Site::firmware(). The library alone is the whole product then.
-    if(NOT BOTANIK_SITE_NONE)
-        set(BOTANIK_SITE_SOURCES ${_site_sources})
-
-        # Exported, like BOTANIK_TEST_MAIN beside it: a site repository builds
-        # its own targets from this, and add_subdirectory() puts a plain
-        # variable in a child scope its own CMakeLists cannot see.
-        set(BOTANIK_SITE_SOURCES "${BOTANIK_SITE_SOURCES}" CACHE INTERNAL
-            "The selected site's own sources, for a site repo's own targets")
-
-        # -Wshadow on the site's own sources only. A control program reads its
-        # variables as members, so a local of the same name takes over silently.
-        set_source_files_properties(${BOTANIK_SITE_SOURCES}
-                                    PROPERTIES COMPILE_FLAGS "-Wshadow")
-        add_executable(botanik_sim
-            "src/botanik_sim/main.cpp"
-            ${BOTANIK_SITE_SOURCES})
-        target_link_libraries(botanik_sim botanik)
-    else()
-        # A cache entry outlives the branch that set it: reconfiguring the same
-        # tree from a site to no site would otherwise leave the old site's
-        # sources behind, for clang-tidy to lint and a consumer to compile.
-        set(BOTANIK_SITE_SOURCES "" CACHE INTERNAL
-            "The selected site's own sources, for a site repo's own targets")
+    if(TARGET botanik_site)
+        add_executable(botanik_sim "src/botanik_sim/main.cpp")
+        target_link_libraries(botanik_sim botanik_site)
     endif()
 
 
@@ -355,7 +338,7 @@ if(BOTANIK_TARGET STREQUAL "SIMULATOR")
     # re-configure or an edit to .clang-tidy invalidates every stamp, since the
     # lint depends on the compile flags and the check set. `rm -rf
     # build/clang-tidy` re-lints the whole tree.
-    set(_tidy_sources ${LIB_SOURCES} ${BOTANIK_SITE_SOURCES}
+    set(_tidy_sources ${LIB_SOURCES} ${_site_sources}
                       "${CMAKE_CURRENT_SOURCE_DIR}/src/botanik_sim/main.cpp")
     # ...minus what a generator wrote: never hand-edited, and matiec's output is
     # a .c included as a header and X-macros whose arguments are type names.
@@ -398,7 +381,9 @@ if(BOTANIK_TARGET STREQUAL "SIMULATOR")
 
     # What a site repository tests its own site WITH: the suite under tests/
     # is botanik's own.
-    include(cmake/testkit.cmake)
+    if(TARGET botanik_site)
+        include(cmake/testkit.cmake)
+    endif()
 
     # ...and the two gates it needs that tests/ would otherwise keep to itself.
     include(cmake/consumer.cmake)
@@ -518,7 +503,8 @@ elseif(BOTANIK_TARGET STREQUAL "OPTA")
     )
     # Mbed's headers use C++14, so this build needs it even though our code is
     # C++11. Layout/ABI is identical, so libbotanik.h's footprint asserts hold.
-    set_target_properties(botanik PROPERTIES CXX_STANDARD 14 CXX_STANDARD_REQUIRED ON)
+    # PUBLIC, so every target compiling against the library gets it.
+    target_compile_features(botanik PUBLIC cxx_std_14)
 
     # Size-optimized, no debug info, sections split for the final --gc-sections.
     # These override the inherited DEBUG flags: GCC honors the last -O/-g, and
@@ -539,20 +525,6 @@ elseif(BOTANIK_TARGET STREQUAL "OPTA")
 
     # Compile the objects without trying to link a final binary.
     set_target_properties(botanik PROPERTIES LINKER_LANGUAGE CXX)
-
-    # The selected site compiles into the firmware alongside the entry wiring.
-    set(BOTANIK_SITE_SOURCES ${_site_sources})
-
-    # Exported, like BOTANIK_TEST_MAIN beside it: a site repository builds its
-    # own targets from this, and add_subdirectory() puts a plain variable in a
-    # child scope its own CMakeLists cannot see.
-    set(BOTANIK_SITE_SOURCES "${BOTANIK_SITE_SOURCES}" CACHE INTERNAL
-        "The selected site's own sources, for a site repo's own targets")
-
-    # -Wshadow on the site's own sources only. A control program reads its
-    # variables as members, so a local of the same name takes over silently.
-    set_source_files_properties(${BOTANIK_SITE_SOURCES}
-                                PROPERTIES COMPILE_FLAGS "-Wshadow")
 
     # botanik_opta, the flashable M7 image. Three things come from the core
     # package: the prebuilt libmbed.a, the linker script, and PinNames.
@@ -610,8 +582,7 @@ elseif(BOTANIK_TARGET STREQUAL "OPTA")
     add_executable(botanik_opta
         "src/botanik_fw/main.cpp"
         "src/botanik_fw/mbed_hooks.cpp"
-        ${MBED_CORE_SOURCES}
-        ${BOTANIK_SITE_SOURCES})
+        ${MBED_CORE_SOURCES})
     add_dependencies(botanik_opta botanik_ldscript)
 
     # nosys.specs supplies the syscall stubs (-lnosys): a bare-metal image has
@@ -625,13 +596,14 @@ elseif(BOTANIK_TARGET STREQUAL "OPTA")
 
     set_target_properties(botanik_opta PROPERTIES
         SUFFIX ".elf"
-        CXX_STANDARD 14 CXX_STANDARD_REQUIRED ON
         LINK_FLAGS "-Wl,--gc-sections -Wl,--as-needed @${MBED_VARIANT}/ldflags.txt -T${_ldscript} -Wl,-Map,${CMAKE_BINARY_DIR}/botanik_opta.map ${_specs}")
-    # Via target_link_libraries so the libraries land AFTER our objects.
-    # --whole-archive keeps libmbed's vector table and RTOS entry, which nothing
-    # references by symbol; --gc-sections then prunes what is unused.
+    # Via target_link_libraries so the libraries land AFTER our objects, and
+    # botanik named before libmbed rather than left to follow botanik_site to
+    # the end of the line. --whole-archive keeps libmbed's vector table and RTOS
+    # entry, which nothing references by symbol; --gc-sections then prunes what
+    # is unused.
     target_link_libraries(botanik_opta
-        botanik
+        botanik_site botanik
         -Wl,--whole-archive "${MBED_VARIANT}/libs/libmbed.a" -Wl,--no-whole-archive
         -Wl,--start-group -lstdc++ -lsupc++ -lm -lc -lgcc -lnosys -Wl,--end-group)
 

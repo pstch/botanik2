@@ -12,16 +12,10 @@ add_executable(ref_tests
     health.cpp
     shell_vars.cpp
     table_behaviour.cpp
-    vars.cpp
-    ${BOTANIK_SITE_SOURCES})
+    vars.cpp)
 
 target_include_directories(ref_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(ref_tests botanik_testkit)
-
-# A control program reads its variables as members, so a local of the same name
-# takes over silently.
-set_source_files_properties(${BOTANIK_SITE_SOURCES}
-                            PROPERTIES COMPILE_FLAGS "-Wshadow")
 
 add_test(NAME ref_tests COMMAND ref_tests)
 

@@ -3,14 +3,13 @@
 # Available in every build that has a site, embedded or not, because a site
 # repository never builds tests/ - the suite in there is botanik's own.
 #
-#   botanik_testkit    an INTERFACE target: doctest, the generic fixtures, and
-#                      the library, with the selected site already wired in
+#   botanik_testkit    an INTERFACE target: doctest, the generic fixtures, the
+#                      library and the selected site (botanik_site)
 #   BOTANIK_TEST_MAIN  doctest's main, to compile beside your own cases
 #
 # In a site repository:
 #
-#   add_executable(site_tests ${BOTANIK_TEST_MAIN} tests/test_laws.cpp
-#                             ${BOTANIK_SITE_SOURCES})
+#   add_executable(site_tests ${BOTANIK_TEST_MAIN} tests/test_laws.cpp)
 #   target_link_libraries(site_tests botanik_testkit)
 #
 # The fixtures it puts on the include path are the ones written against no site
@@ -22,7 +21,10 @@ add_library(botanik_testkit INTERFACE)
 target_include_directories(botanik_testkit INTERFACE
     "${BOTANIK_ROOT}/tests"
     "${BOTANIK_ROOT}/tests/vendor")
-target_link_libraries(botanik_testkit INTERFACE botanik)
+# The site's objects too: an object library's objects reach only the targets
+# linking it directly, not those linking it through an interface.
+target_link_libraries(botanik_testkit INTERFACE botanik_site)
+target_sources(botanik_testkit INTERFACE $<TARGET_OBJECTS:botanik_site>)
 
 set(BOTANIK_TEST_MAIN "${BOTANIK_ROOT}/tests/doctest_main.cpp"
     CACHE INTERNAL "doctest's main, for a site's own test binary")
