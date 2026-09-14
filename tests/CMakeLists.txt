@@ -33,6 +33,7 @@ add_executable(botanik_tests
 
 # vendor/ for doctest.h; src/ for the library and the simulator's site payloads.
 target_include_directories(botanik_tests PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/kit
     ${CMAKE_CURRENT_SOURCE_DIR}/vendor
     ${BOTANIK_ROOT}/src
 )

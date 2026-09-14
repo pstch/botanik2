@@ -12,14 +12,22 @@
 #   add_executable(site_tests ${BOTANIK_TEST_MAIN} tests/test_laws.cpp)
 #   target_link_libraries(site_tests botanik_testkit)
 #
-# The fixtures it puts on the include path are the ones written against no site
-# in particular: site_bank.h (a bank over whatever table is selected),
-# live_fixture.h (a running firmware), scenario_trace.h, ram_store.h,
-# term_fixture.h. A fixture that names a site's own rows belongs to that site.
+# The fixtures it puts on the include path are tests/kit/, the ones written
+# against no site in particular, and nothing else of botanik's suite:
+#
+#   site_bank.h         a bank over whatever table is selected
+#   live_fixture.h      a running firmware and its ST scan (TestScan)
+#   scenario_trace.h    a timeline a scenario case prints on failure
+#   shell_rig.h         a command shell over the selected table
+#   term_fixture.h      a terminal whose output a case can read back
+#   ram_store.h         storage in RAM
+#   recording_writer.h  a log writer that keeps what it was given
+#
+# A fixture that names a site's own rows belongs to that site.
 
 add_library(botanik_testkit INTERFACE)
 target_include_directories(botanik_testkit INTERFACE
-    "${BOTANIK_ROOT}/tests"
+    "${BOTANIK_ROOT}/tests/kit"
     "${BOTANIK_ROOT}/tests/vendor")
 # The site's objects too: an object library's objects reach only the targets
 # linking it directly, not those linking it through an interface.

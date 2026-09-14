@@ -114,8 +114,10 @@ prose narrating the steps, no comment restating a `CHECK`. Comment a
 non-obvious constant or a real gotcha: why *this* byte sequence, why *this*
 timing.
 
-Prefer a shared fixture to repeating setup - `tests/site_bank.h`,
-`tests/term_fixture.h`, `tests/live_fixture.h`, `tests/recording_writer.h`.
+Prefer a shared fixture to repeating setup - `tests/kit/site_bank.h`,
+`tests/kit/term_fixture.h`, `tests/kit/live_fixture.h`, `tests/kit/recording_writer.h`.
+`tests/kit/` is also what a site repository's tests compile against
+(`botanik_testkit`), so a change there is a change to that interface.
 
 All test code lives in `namespace tests`, one per-file namespace inside it
 (`namespace tests { namespace modbus_map {`). The library declares two
