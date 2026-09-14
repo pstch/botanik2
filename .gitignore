@@ -20,6 +20,10 @@ build/
 build-*/
 examples/*/build/
 
+# The pinned matiec, built once per checkout, and the lock codegen takes.
+vendor/matiec/build/
+/.codegen.lock
+
 nohup.out
 *.log
 

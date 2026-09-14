@@ -58,7 +58,7 @@ def enums(site):
 
 # What `make -C build matiec` builds, then whatever is on PATH. CMake's own
 # targets pass IEC2C explicitly, so this default only serves a hand run.
-_PINNED = lib('build', 'matiec', 'iec2c')
+_PINNED = lib('vendor', 'matiec', 'build', 'iec2c')
 IEC2C = os.environ.get('IEC2C') or (_PINNED if os.access(_PINNED, os.X_OK)
                                     else 'iec2c')
 # What `iec2c -I` is pointed at: the directory holding OUR ieclib.txt.

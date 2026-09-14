@@ -1,6 +1,6 @@
 # What a project embedding botanik includes before its own project() call.
 #
-#   cmake_minimum_required(VERSION 3.21)
+#   cmake_minimum_required(VERSION 3.31)
 #   include(extern/botanik/cmake/preamble.cmake)
 #   project(my_greenhouse C CXX)
 #   botanik_add_site(SITE_DIR src)

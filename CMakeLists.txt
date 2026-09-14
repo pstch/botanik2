@@ -1,6 +1,7 @@
-# 3.21 for PROJECT_IS_TOP_LEVEL: botanik is add_subdirectory()'d by a site's
-# own repository, and the dev-only half of this file must not run there.
-cmake_minimum_required(VERSION 3.21)
+# 3.31 for the builtin `codegen` target (CMP0171), which the generator joins, and
+# for PROJECT_IS_TOP_LEVEL: botanik is add_subdirectory()'d by a site's own
+# repository, and the dev-only half of this file must not run there.
+cmake_minimum_required(VERSION 3.31)
 
 # The toolchain must be chosen before project() runs compiler detection.
 # BOTANIK_TARGET arrives via -D, so it is already in the cache here. An EMBEDDED
@@ -144,7 +145,7 @@ target_include_directories(botanik PUBLIC "${BOTANIK_GENERATED_DIR}")
 
 # Keep the per-beat metric math single-precision: no double FPU on the M4.
 # This TU only, so the benign float->double promotions in display formatting
-# are not flagged. COMPILE_FLAGS (string) for the CMake 3.10 floor.
+# are not flagged.
 set_source_files_properties(
     "${CMAKE_CURRENT_SOURCE_DIR}/src/libbotanik/scheduler/scheduler.cpp"
     PROPERTIES COMPILE_FLAGS "-Wdouble-promotion")
@@ -185,6 +186,10 @@ elseif(NOT EXISTS "${_site_dir}/site.h")
         "every site must ship one. Point -DBOTANIK_SITE_DIR=<path> at a site "
         "directory, or -DBOTANIK_SITE=<name> at one under examples/.")
 endif()
+# The generator, before anything below reads what it writes. A site whose
+# committed output no longer matches its tables is regenerated here.
+include(cmake/codegen.cmake)
+
 # The config a table-driven site GENERATES, or the one it hand-writes. A site
 # whose site.toml produces config.gen.h needs no shim over it.
 if(EXISTS "${_site_dir}/generated/config.gen.h" AND EXISTS "${_site_dir}/config.h")
@@ -384,16 +389,8 @@ if(BOTANIK_TARGET STREQUAL "SIMULATOR")
         set(_nproc 4)
     endif()
 
-    # The pinned matiec: a host tool, not in ALL, absent where flex/bison are.
-    # Before generate.cmake, which diffs against it.
-    include(cmake/matiec.cmake)
-
-    # regen-site and check-generated. In EVERY simulator build, embedded or not:
-    # a site repository needs both and never builds tests/.
-    include(cmake/generate.cmake)
-
-    # ...and what a site repository tests its own site WITH, for the same
-    # reason: the suite under tests/ is botanik's own.
+    # What a site repository tests its own site WITH: the suite under tests/
+    # is botanik's own.
     include(cmake/testkit.cmake)
 
     # ...and the two gates it needs that tests/ would otherwise keep to itself.
@@ -758,9 +755,8 @@ if(PROJECT_IS_TOP_LEVEL)
     # means booting a simulator per scenario and is a minute and a half, which is
     # too much to pay for every render; run it when a screen has actually moved.
     #
-    # Both targets WRITE INTO THE SOURCE TREE, as `regen-site` does: what they
-    # produce is committed, and a diff afterwards is the point rather than a
-    # surprise.
+    # Both targets WRITE INTO THE SOURCE TREE: what they produce is committed,
+    # and a diff afterwards is the point rather than a surprise.
     find_package(Python3 COMPONENTS Interpreter QUIET)
     if(Python3_Interpreter_FOUND)
         execute_process(COMMAND ${Python3_EXECUTABLE} -c "import jinja2"

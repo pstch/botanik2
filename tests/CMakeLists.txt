@@ -143,9 +143,7 @@ if(TARGET clang-tidy)
     add_dependencies(check-full clang-tidy)
 endif()
 
-# check-generated lives in cmake/generate.cmake, which the top-level CMakeLists
-# includes before this file: a site repository needs it and never builds tests/.
-# The sweep's dependency on it has to be declared here, where check-full is.
+# check-generated is declared by cmake/codegen.cmake, beside the generator.
 if(TARGET check-generated)
     add_dependencies(check-full check-generated)
 endif()

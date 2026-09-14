@@ -10,7 +10,7 @@
 # botanik_add_library() is what makes it a library-only build: no simulator, no
 # suite, and every library row name resolving through vars/rows_none.gen.h to
 # VAR_NONE and so to the bank's inert sink.
-cmake_minimum_required(VERSION 3.21)
+cmake_minimum_required(VERSION 3.31)
 
 include(extern/botanik/cmake/preamble.cmake)
 

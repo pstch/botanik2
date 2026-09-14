@@ -11,7 +11,7 @@ either as a Linux simulator (`SIMULATOR`) or for the hardware (`OPTA`).
 
 ## Build
 
-CMake 3.10+ and a C++11 compiler. Default target is `SIMULATOR`.
+CMake 3.31+ and a C++11 compiler. Default target is `SIMULATOR`.
 
 ```bash
 cmake -B build -DBOTANIK_TARGET=SIMULATOR   # configure
@@ -39,27 +39,40 @@ math single-precision; the M4 has no double FPU.
 
 ## Tests and checks
 
-Host-only, SIMULATOR build. Two suites, both under CTest:
+Host-only, SIMULATOR build. Everything runs under botanik's own CTest:
 
 - **doctest** in `tests/` (vendored `tests/vendor/doctest.h`), registered twice:
-  one unlabelled entry running the whole binary, and one `unit`-labelled entry
-  per `TEST_CASE` so `ctest -R` or an IDE can address a single case.
+  one unlabelled entry running the whole binary, and one entry per `TEST_CASE`,
+  labelled `unit;unit:doctest`, so `ctest -R` or an IDE can address a single case.
 - **pyte** in `tests/pyte/`, driving `botanik_sim` over a PTY and asserting its
-  rendered ANSI. Registered only when `pytest` and `pyte` import. Regenerate
-  goldens with `make -C build pytest-update` and review the diff.
+  rendered ANSI. Registered only when `pytest` and `pyte` import, through
+  `botanik_add_pyte_tests()` (cmake/testkit.cmake). Regenerate goldens with
+  `make -C build pytest-update` and review the diff.
+- **examples**: every `examples/<name>/` is configured and built as its own
+  consumer project in `build/examples/<name>/` (cmake/examples.cmake). Each gets
+  one unlabelled `example:<name>` entry running that project's own ctest, and one
+  `example:<name>:<case>` entry per case of its `<name>_tests` binary, labelled
+  `unit;unit:<name>`. Before `make examples` has run, a failing
+  `example:<name>:NOT_BUILT` stands in. `gh_mlb41` is built from a farm of links
+  whose `extern/botanik` is this checkout.
+
+Nothing in `tests/` names a site's rows: the library's cases use library rows,
+so they pass on any full-profile site. What a site's table decides is tested
+beside that site (`examples/ref/tests/`, its `pyte/` included).
 
 ```bash
 make -C build check                  # the pre-push gate
 make -C build check-full             # the sweep
-make -C build check-bare             # the bare feature profiles
+make -C build check-alloff           # the library with every optional feature off
+make -C build examples               # build every example (check does it too)
 make -C build coverage               # per-area line coverage, both suites
 make -C build botanik_tests          # just build the doctest binary
 ./build/tests/botanik_tests          # run it directly (doctest CLI)
 ./build/tests/botanik_tests -tc=<name>              # one case
 ctest --test-dir build --output-on-failure          # all CTest entries
 ctest --test-dir build -R pyte --output-on-failure  # just pyte
-make -C build matiec                 # build the pinned matiec (needs flex/bison/autotools)
-make -C build regen-site             # regenerate EVERY site into the source tree, then commit the diff
+make -C build codegen                # regenerate whatever no longer matches its inputs
+make -C build matiec                 # build the pinned matiec into vendor/matiec/build/
 make -C build docs                   # regenerate the variables page, then render
 make -C build docs-screens           # recapture the console screenshots
 scripts/sim_scenario.sh <name> [when]    # run one scenario interactively
@@ -83,39 +96,40 @@ omitted, each scenario starts at the hour it has something to show.
 `scripts/scenarios.tsv` is the roster both of them read.
 
 **`make check`** fails on the first problem: the library compiles `-Werror`, so
-a warning in a library source fails the build of the suite; then both suites via
-`ctest -LE unit`. The gate runs the whole doctest binary in ONE process, which is
+a warning in a library source fails the build of the suite; it builds every
+example, then runs `ctest -LE unit`: the whole doctest binary, each
+`example:<name>` and the pyte files. Whole binaries run in ONE process, which is
 what catches a case corrupting state for the ones after it.
 
-doctest names the failing case, with file and line, in that one-process run. On
-a failure `tests/gate.cmake` also re-runs the per-case entries, each in a fresh
-process, which answers a different question: an all-green re-run means the case
-fails only in company, so the fault is interference. Reproduce it with
-`./build/tests/botanik_tests`, the one-process configuration. The
+doctest names the failing case, with file and line, in that one-process run. For
+each whole binary that failed (read from CTest's `LastTestsFailed.log`),
+`tests/gate.cmake` re-runs that binary's per-case entries (`-L unit:<name>`),
+each in a fresh process, which answers a different question: an all-green
+re-run means the case fails only in company, so the fault is interference.
+Reproduce it with the binary itself, e.g. `./build/tests/botanik_tests`. The
 exception is the socket-backed cases (`test_modbus_server.cpp`,
 `test_modbus_master.cpp`), which bind a PID-derived 127/8 address, so a recycled
 PID can meet the lingering sockets of a run that just exited. If only those
 failed, re-run before digging.
 
 **`make check-full`** runs clang-tidy over `src/` first, then `check-generated`
-(regenerate EVERY site into a scratch copy of the generator's inputs and diff
-against what is committed, file by file over what each site actually has under
-`generated/`), `check-bare`, `check-opta` (the cross build, the only thing that
+(regenerate every example into a scratch copy and diff it file by file against
+its committed `generated/`, both ways), `check-alloff`, `check-opta` (the cross build, the only thing that
 catches a link error: `Arduino.h` declares the whole wiring API and `libmbed.a`
 defines none of it), `coverage`, and finally the whole gate again under
 ASan+UBSan in `build/asan/`. It drives that tree's own `check` target, so the two
 cannot drift. Halves are skipped where their tool is absent.
 
-The compiler `check-generated` diffs against is pinned: `vendor/matiec`, one
-upstream commit, built by `make -C build matiec` into `build/matiec/iec2c`.
-`scripts/sitegen/tables.py` finds it by itself; `IEC2C=` points it elsewhere. Without
-flex, bison and the autotools the `matiec` target is not declared and the check
-falls back to PATH.
+The compiler is pinned: `vendor/matiec`, one upstream commit, built on first
+use into `vendor/matiec/build/iec2c` (gitignored, once per checkout, shared by
+every build tree). `scripts/sitegen/tables.py` finds it by itself; `IEC2C=`
+points it elsewhere. Where it cannot be built (no flex, bison or autotools),
+codegen falls back to `$IEC2C`, then PATH, with a warning.
 
-**`make check-bare`** compiles `sites/bare` (every optional feature off) plus one
-partial profile: console + shell + its log/task/system views, on a site that
-declares nothing of its own. That is the only build where a page and a shell
-command meet the library rows alone, with no site table behind them.
+**`make check-alloff`** compiles the library with every optional feature off and
+no site, the only build that compiles the file-level guards. `examples/nosite`
+is the other no-site build: the console, its shell and the task view reused as
+components, which keeps "a component works without a variable table" true.
 
 **`make coverage`** builds a third tree under `build/coverage/`, runs both suites
 and prints per-area line coverage of the library, writing `build/coverage.json`.
@@ -317,10 +331,9 @@ defines, so a build with no site cannot link it. A site with laws turns it on. A
 the `[features]` table of its `site.toml`, `true` and `false` both, and
 `tables.py config` generates `config.gen.h` from it. `ref` is the worked
 full profile, and because the test and pyte builds compile the selected site, it
-is also what keeps those suites exercising the whole surface. `sites/bare` is the
-other end: every optional flag off and nothing declared, existing to be compiled
-rather than run. Its table is still generated - the library's own rows and
-nothing else - because there is no build without one.
+is also what keeps those suites exercising the whole surface. `check-alloff` is
+the other end: every optional flag off and no site, existing to be compiled
+rather than run.
 
 | Group | Flags | Notes |
 |---|---|---|
@@ -403,18 +416,31 @@ no registration: it names the rows it uses in `VAR_EXTERNAL CONSTANT` (read) and
 are one file each, `blocks/<name>/<name>.st`. Its RS-485 field devices are
 `tables/modbus_devices.csv` and `tables/modbus_models.csv`.
 
-**The generated files are committed and never built.** Run `make -C build
-regen-site` after editing a table or an ST file, and commit what comes out. It is
-the `scripts/sitegen/tables.py` commands in one, against the pinned compiler, in the
-source tree; `make check-generated` catches you if you forget.
+**The generated files are committed, and the build keeps them current.** A
+generated tree (a site's `generated/`, and the library's three `.gen.h` files)
+carries a committed `codegen.stamp`: the SHA-256 over the name and content of
+every input the generator reads (`cmake/codegen-lib.cmake` lists them). Configure
+compares it, because configure reads what the generator writes; every input is a
+configure dependency, so editing a table or an ST file re-runs CMake on the next
+build. A match runs nothing and needs nothing, so a clean clone builds without
+python or matiec. A mismatch runs `tables.py` (generate, config, plant) against
+the pinned compiler and rewrites the stamp; commit both. A mismatch without
+python3, jinja2 or (for a site with laws) matiec is a hard error. `make codegen`
+is CMake's builtin target, which the same check joins.
 
-It regenerates EVERY site, not the selected one: `vars/tables/library.csv` and
-the templates feed all of them, so a library row edited and regenerated for one
-site leaves the others stale and committed. `points` is the exception - the
-variables page is a per-site doc, and only a documented site has one, so that
-one runs for `BOTANIK_SITE` alone. `plant` is a no-op on a site that declares no
+Only the selected site is regenerated by a build. A library input (library.csv,
+a template) edited in botanik moves every example's stamp, and each example
+catches up when `make examples` builds it; `gh_mlb41`'s regenerated output lands
+in the submodule, to commit there. `plant` is a no-op on a site that declares no
 programs: an ST resource with no program in it is not valid ST, so matiec is
-never called for one.
+never called for one. The variables page is a document and never a build
+output: a consumer writes it with `make variables-page`.
+
+Generated sources carry `BOTANIK_SITE_CODEGEN_ABI` (in `rows.gen.h`), and
+`vars/rows.h` refuses one that differs from `libbotanik/codegen_abi.h`. Bump
+that number when the library stops accepting what the templates used to emit;
+it catches output compiled without the build running codegen (the Arduino IDE,
+a copied `generated/`).
 
 The generator is `scripts/sitegen/`, driven by `scripts/sitegen/tables.py`: `model.py`
 reads and checks the tables, `st.py` is the ST half, `reference.py` the
@@ -453,8 +479,8 @@ opted-in program owes and does not write, and a parking program that never
 answers. A program naming a row no table declares fails to compile, because a
 binding is a generated index.
 
-What is left for the suite is behaviour: `tests/test_site.cpp` runs the whole
-site and checks that nothing moved a parameter it does not own.
+What is left for the suites is behaviour, beside each site: `examples/ref/tests/`
+and gh_mlb41's own `tests/`.
 
 ### Rules
 

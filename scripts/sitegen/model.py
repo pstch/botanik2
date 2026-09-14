@@ -9,7 +9,7 @@ import csv, os, re, sys
 
 from .paths import ROOT, lib
 
-DEFAULT_SITE = lib('examples', 'demo', 'src')
+DEFAULT_SITE = lib('examples', 'ref', 'src')
 
 
 def site_dir(arg=None):

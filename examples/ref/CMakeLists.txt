@@ -10,7 +10,7 @@
 # Copy this directory to start a site of your own. extern/botanik is a symlink
 # to the repository root here; a real site carries it as a submodule, and
 # nothing else differs.
-cmake_minimum_required(VERSION 3.21)
+cmake_minimum_required(VERSION 3.31)
 
 include(extern/botanik/cmake/preamble.cmake)
 
