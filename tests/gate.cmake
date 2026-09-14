@@ -1,13 +1,13 @@
 # The pre-push gate's run logic, driven by `make check`.
 # ============================================================================
-# `-LE unit` runs the aggregate doctest entry plus the pyte files: every test
-# once, in the one-process configuration that catches a case corrupting state
-# for the ones after it.
+# `-LE unit` runs the whole-binary entries - the library's doctest binary, each
+# example:<name> - plus the pyte files: every test once, in the one-process
+# configuration that catches a case corrupting state for the ones after it.
 #
-# Only on a doctest failure does it re-run the per-case entries, each in a fresh
-# process. That is not for the NAMES - doctest already prints the failing case
-# with its file and line - but to tell a case that fails on its own from one
-# that only fails in company.
+# Only for a binary that failed does it re-run that binary's per-case entries
+# (label unit:<binary>), each in a fresh process. Not for the NAMES - doctest
+# already prints the failing case with its file and line - but to tell a case
+# that fails on its own from one that only fails in company.
 #
 # Driven with -DCTEST=<ctest> -DJOBS=<n>, from the build directory.
 
@@ -18,23 +18,45 @@ if(_rc EQUAL 0)
     return()
 endif()
 
-# Which half failed. Re-running the aggregate alone answers in under a second.
-execute_process(COMMAND ${CTEST} -R "^doctest$"
-                RESULT_VARIABLE _doctest_rc OUTPUT_QUIET ERROR_QUIET)
+# CTest's own record of what just failed, one `<index>:<name>` per line.
+set(_binaries)
+if(EXISTS Testing/Temporary/LastTestsFailed.log)
+    file(STRINGS Testing/Temporary/LastTestsFailed.log _failed)
+    foreach(_line IN LISTS _failed)
+        string(REGEX REPLACE "^[0-9]+:" "" _name "${_line}")
+        if(_name STREQUAL "doctest")
+            list(APPEND _binaries doctest)
+        elseif(_name MATCHES "^example:([^:]+)$")
+            list(APPEND _binaries ${CMAKE_MATCH_1})
+        endif()
+    endforeach()
+endif()
 
-if(NOT _doctest_rc EQUAL 0)
+foreach(_bin IN LISTS _binaries)
+    execute_process(COMMAND ${CTEST} -N -L "^unit:${_bin}$"
+                    OUTPUT_VARIABLE _listing ERROR_QUIET)
+    if(NOT _listing MATCHES "Total Tests: [1-9]")
+        continue()
+    endif()
+    if(_bin STREQUAL "doctest")
+        set(_reproduce "./tests/botanik_tests")
+    else()
+        set(_reproduce "the ${_bin}_tests binary under examples/${_bin}/")
+    endif()
     message("")
-    message("=== doctest failed; re-running the cases one process each ===")
+    message("=== ${_bin} failed; re-running its cases one process each ===")
     # A case that only fails in company passes on its own, so an all-green run
     # below does not overturn the failure above.
     message("    An all-green run below usually means INTERFERENCE between cases,")
-    message("    not a flake: run ./tests/botanik_tests directly to reproduce it.")
-    message("    The exception is the socket-backed cases (test_modbus_server,")
-    message("    test_modbus_master): those bind a PID-derived 127/8 address, so")
-    message("    a recycled PID can meet a previous run's lingering sockets. If")
-    message("    ONLY those failed and nothing else did, re-run before digging.")
+    message("    not a flake: run ${_reproduce} directly to reproduce it.")
+    if(_bin STREQUAL "doctest")
+        message("    The exception is the socket-backed cases (test_modbus_server,")
+        message("    test_modbus_master): those bind a PID-derived 127/8 address, so")
+        message("    a recycled PID can meet a previous run's lingering sockets. If")
+        message("    ONLY those failed and nothing else did, re-run before digging.")
+    endif()
     message("")
-    execute_process(COMMAND ${CTEST} -L unit ${_run})
-endif()
+    execute_process(COMMAND ${CTEST} -L "^unit:${_bin}$" ${_run})
+endforeach()
 
 message(FATAL_ERROR "gate failed")
