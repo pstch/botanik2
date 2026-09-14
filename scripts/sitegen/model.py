@@ -363,7 +363,7 @@ def build(site):
     # FAULTED is the declared value, which is also where the row goes when the
     # program leaves the scan: a law that has never run has answered nothing,
     # and saying HEALTHY there would be the firmware speaking for it.
-    preg = int(tom['registers']['prog_base'])
+    preg = int(tom['registers']['prog_health_base'])
     for e in prog:
         if not _opted_in(e, 'health'): continue
         table.append(_gen_row('SVE', name='prog_%s_health' % e['name'], **{
@@ -371,7 +371,7 @@ def build(site):
             'desc': 'what the %s law says about its own answer' % e['name'],
             'notes': 'FAULTED until it has run: the law writes it, not Plant'}))
         preg += 1
-    kreg = int(tom['registers']['park_base'])
+    kreg = int(tom['registers']['prog_park_base'])
     for e in prog:
         if not _opted_in(e, 'park'): continue
         for suffix, what in (('park', 'is parking to its safe state'),
@@ -424,7 +424,7 @@ def check(t):
     # not published.
     regs = {}
     gen_base = min(int(t['toml']['registers'][k])
-                   for k in ('quality_base', 'park_base', 'prog_base',
+                   for k in ('quality_base', 'prog_park_base', 'prog_health_base',
                              'prog_run_base'))
     for r in table:
         kind = KIND[r['_fac']]

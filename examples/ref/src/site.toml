@@ -17,10 +17,10 @@ sense   = 10
 [registers]
 # Generated companions get their own blocks, above every hand-assigned
 # register, so adding a reading cannot renumber one.
-quality_base  = 1000
-park_base     = 1200
-prog_base     = 1300
-prog_run_base = 1400
+quality_base     = 1000
+prog_park_base   = 1200
+prog_health_base = 1300
+prog_run_base    = 1400
 
 [fieldbus]
 # RS-485. Every device on the segment has to agree.
