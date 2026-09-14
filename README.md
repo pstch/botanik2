@@ -60,7 +60,7 @@ TODO: visually align the table below
 
 ## Building
 
-Requires CMake 3.10+ and a C++11 compiler. The default target is the Linux
+Requires CMake 3.31+ and a C++11 compiler. The default target is the Linux
 simulator; builds default to `DEBUG` (`-O0 -g3`).
 
 ### PLC code generation
@@ -81,13 +81,14 @@ TODO: describe the other utility cmake targets we have
 
 ## Testing
 
-Two host-only suites, both under CTest: [doctest](https://github.com/doctest/doctest)
-unit tests in `tests/`, and pyte screen tests in `tests/pyte/` that drive
-`botanik_sim` over a PTY.
+Host-only, all under CTest: [doctest](https://github.com/doctest/doctest) unit
+tests in `tests/`, pyte screen tests in `tests/pyte/` that drive `botanik_sim`
+over a PTY, and every project under `examples/`, built as its own consumer of
+the library and running its own tests.
 
 ```bash
-make -C build check        # the pre-push gate: warning-clean build, both suites
-make -C build check-full   # the sweep: clang-tidy, bare profiles, generated-source
+make -C build check        # the pre-push gate: warning-clean build, every suite
+make -C build check-full   # the sweep: clang-tidy, the all-off profile, generated-source
                            # drift, the OPTA cross build, then the gate under ASan+UBSan
 make -C build coverage     # per-area line coverage, reported not enforced
 ```
