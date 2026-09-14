@@ -7,7 +7,7 @@
      guard         the site's include-guard prefix
      cals          the AnalogCal symbols
      models        the DeviceModel symbols
-     rows_count, param_first, param_count, home_count, system_count
+     rows_count, param_count, home_count, system_count
 #}
 {{ banner }}
 
@@ -36,7 +36,7 @@ extern const AnalogCal {{ c }};
 extern const Descriptor rows[];
 extern const uint16_t   row_order[];
 const uint16_t ROWS_COUNT  = {{ rows_count }};
-const uint16_t PARAM_FIRST = {{ param_first }};
+const uint16_t PARAM_FIRST = 0;
 const uint16_t PARAM_COUNT = {{ param_count }};
 
 static_assert(ROWS_COUNT == Config::VAR_MAX,

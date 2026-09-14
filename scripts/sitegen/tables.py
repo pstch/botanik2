@@ -1,32 +1,19 @@
 #!/usr/bin/env python3
 """The site, from its tables.
 
-    sitegen/tables.py generate [site]   library.csv + tables/*.csv -> vars.gen.{h,cpp}, rows.gen.h
+    sitegen/tables.py codegen <site|-> <hash>          every command below the site (or `-`,
+                                                       the library) needs, then its stamp
+    sitegen/tables.py check   <site> <hash> <scratch>  codegen into a copy, diffed against the site
+
+    sitegen/tables.py generate [site]   library.csv + tables/*.csv -> enums, vars.gen.{h,cpp}, rows.gen.h
     sitegen/tables.py config   [site]   site.toml + the tables     -> config.gen.h
-    sitegen/tables.py plant    [site]   programs.csv + ST          -> plant.st, plant.cpp, matiec
-    sitegen/tables.py points   [site]   the lot                    -> docs/<site>/reference/variables.md
+    sitegen/tables.py plant    [site]   programs.csv + ST          -> enums, plant.st, plant.cpp, matiec
+    sitegen/tables.py points   [site]   the lot                    -> docs/reference/variables.md
     sitegen/tables.py library           library.csv + lib headers  -> quality/health/rows_none.gen.h
 
-    sitegen/tables.py codegen <site|-> <hash>          generate, config, plant (or library), then the stamp
-    sitegen/tables.py check   <site> <hash> <scratch>  codegen into a copy, and diff it against the site
-
-`site` is a name under examples/, or a path. BOTANIK_SITE_DIR overrides it.
-
-Runs from anywhere: what it reads out of the LIBRARY is anchored to this
-checkout, what it writes for a SITE goes beside that site, and the variables
-page lands under the working directory - so a site repository regenerates its
-own tables and its own docs without touching the submodule. `library` is
-botanik's own, and a site repository never runs it.
-
-The build runs `codegen` (cmake/codegen-lib.cmake) when a committed
-codegen.stamp stops matching the inputs' hash, which CMake computes and passes
-in. The output stays committed, so a build without python or matiec works as
-long as nothing was edited. `make check-generated` runs `check` per example.
-
-The generator owns the whole table. It merges the library's rows into the
-site's, applies the site's overrides, orders the rows, assigns every index and
-every generated register, resolves every name to an index, and checks. Nothing
-it checks is checked again at runtime."""
+`site` is a name under examples/, or a path. What it reads out of the library
+is anchored to this checkout, what it writes for a site goes beside the site,
+and the variables page lands under the working directory."""
 
 import filecmp, os, re, shutil, sys
 
@@ -40,23 +27,13 @@ except ImportError as e:
     sys.exit('the generator needs jinja2 (pip install jinja2): %s' % e)
 from sitegen.paths import lib
 from sitegen.reference import points
-from sitegen.model import (AUX, H, KIND, as_int, build, check, config_defaults,
-                         emit_cals, emit_row, read_table, site_dir, site_guard)
+from sitegen.model import (H, KIND, as_int, build, check, config_defaults,
+                           emit_cals, emit_row, site_dir, site_guard)
 from sitegen.st import enums, plant, quality_block
 
-def generate(site):
-    enums(site)
-    t = build(site)
-    check(t)
-    table, tom = t['table'], t['toml']
-    guard = site_guard(tom)
-
+def generate(site, t):
+    table = t['table']
     order = sorted(range(len(table)), key=lambda i: table[i]['name'].lower())
-
-    mdl = read_table(os.path.join(site, 'tables', 'modbus_models.csv'),
-                     AUX['modbus_models'].split())
-    dev = read_table(os.path.join(site, 'tables', 'modbus_devices.csv'),
-                     AUX['modbus_devices'].split())
 
     # The lead comment a row may carry is already formatted; the template only
     # decides where it goes.
@@ -73,24 +50,25 @@ def generate(site):
               for i in range(0, len(order), 12)]
     models = [{'symbol': m['symbol'], 'kind': m['kind'],
                'args': '"%s", %s' % (m['model_name'], m['regs'])
-                       + (', %s' % m['words'] if m['words'] else '')} for m in mdl]
+                       + (', %s' % m['words'] if m['words'] else '')} for m in t['models']]
+    guard = site_guard(t['toml'])
 
     render.write(os.path.join(site, 'generated', 'vars.gen.cpp'), 'vars.gen.cpp.j2',
-                 banner=H.rstrip('\n'), cal_lines=emit_cals(t['cal']), rows=rows,
+                 banner=H, cal_lines=emit_cals(t['cal']), rows=rows,
                  param_count=t['param_count'], order_chunks=chunks, models=models,
-                 devices=dev, home=t['home'], system=t['system'])
+                 devices=t['dev'], home=t['home'], system=t['system'])
 
     render.write(os.path.join(site, 'generated', 'vars.gen.h'), 'vars.gen.h.j2',
-                 banner=H.rstrip('\n'), guard=guard,
+                 banner=H, guard=guard,
                  cals=[c['cal'] for c in t['cal']], rows_count=len(table),
-                 param_first=t['param_first'], param_count=t['param_count'],
-                 models=[m['symbol'] for m in mdl],
+                 param_count=t['param_count'],
+                 models=[m['symbol'] for m in t['models']],
                  home_count=len(t['home']), system_count=len(t['system']))
 
     abi = re.search(r'^#define BOTANIK_CODEGEN_ABI (\d+)$',
                     open(lib('src', 'libbotanik', 'codegen_abi.h')).read(), re.M).group(1)
     render.write(os.path.join(site, 'generated', 'rows.gen.h'), 'rows.gen.h.j2',
-                 banner=H.rstrip('\n'), guard=guard, abi=abi,
+                 banner=H, guard=guard, abi=abi,
                  rows=[{'name': r['name'], 'index': r['_i']} for r in table])
 
     print('  vars.gen.cpp   %d rows (%d params), %d quality, %d order'
@@ -108,8 +86,7 @@ def prereqs():
     return out
 
 
-def config(site):
-    t = build(site)
+def config(site, t):
     tom, dep = t['toml'], prereqs()
     table = t['table']
     # Named for the site: "BOTANIK_SITE_*" is the same symbol in every site's
@@ -143,10 +120,7 @@ def config(site):
     # A flag the site turns OFF. Only the ones defaulting ON need saying, but
     # the site states its whole profile and the redundant ones cost a #ifndef.
     off = [f for f, v in tom['features'].items() if not v]
-    features = []
-    for f in on:
-        need = dep.get(f, [])
-        features.append({'name': f, 'needs': need, 'indent': '  ' * len(need)})
+    features = [{'name': f, 'needs': dep.get(f, [])} for f in on]
 
     render.write(os.path.join(site, 'generated', 'config.gen.h'),
                  'config.gen.h.j2', guard=guard, values=val,
@@ -169,9 +143,12 @@ def codegen(site, stamp):
         quality_block()
         path = lib('src', 'libbotanik', 'codegen.stamp')
     else:
-        generate(site)
-        config(site)
-        if plant(site): sys.exit(1)
+        t = build(site)
+        check(t)
+        enums(site, t)
+        generate(site, t)
+        config(site, t)
+        plant(site, t)
         path = os.path.join(site, 'generated', 'codegen.stamp')
     with open(path, 'w') as fh: fh.write(STAMP % stamp)
 
@@ -185,24 +162,45 @@ def check_generated(site, stamp, scratch):
     shutil.copytree(site, copy, ignore=shutil.ignore_patterns('generated'))
     codegen(copy, stamp)
     old, new = os.path.join(site, 'generated'), os.path.join(copy, 'generated')
-    bad = [f for f in sorted(set(os.listdir(old)) | set(os.listdir(new)))
-           if not (os.path.isfile(os.path.join(old, f))
-                   and os.path.isfile(os.path.join(new, f))
-                   and filecmp.cmp(os.path.join(old, f), os.path.join(new, f),
-                                   shallow=False))]
+    names = sorted(set(os.listdir(old)) | set(os.listdir(new)))
+    _same, differ, missing = filecmp.cmpfiles(old, new, names, shallow=False)
+    bad = differ + missing
     shutil.rmtree(os.path.dirname(copy))
     if bad: sys.exit('%s differs from a fresh generation: %s' % (old, ' '.join(bad)))
     print('check-generated: %s matches' % name)
 
 
+def _site(args):
+    return site_dir(args[0] if args else None)
+
+
+def _generate(args):
+    site = _site(args)
+    t = build(site)
+    check(t)
+    enums(site, t)
+    generate(site, t)
+
+
+def _plant(args):
+    site = _site(args)
+    t = build(site)
+    enums(site, t)
+    plant(site, t)
+
+
+COMMANDS = {
+    'codegen':  lambda a: codegen(None if a[0] == '-' else site_dir(a[0]), a[1]),
+    'check':    lambda a: check_generated(site_dir(a[0]), a[1], a[2]),
+    'generate': _generate,
+    'config':   lambda a: config(_site(a), build(_site(a))),
+    'plant':    _plant,
+    'points':   lambda a: points(_site(a)),
+    'library':  lambda a: quality_block(),
+}
+
+
 if __name__ == '__main__':
-    cmd, args = (sys.argv[1] if len(sys.argv) > 1 else ''), sys.argv[2:]
-    site = lambda: site_dir(args[0] if args else None)
-    if   cmd == 'generate': generate(site())
-    elif cmd == 'config':   config(site())
-    elif cmd == 'plant':    sys.exit(plant(site()))
-    elif cmd == 'points':   points(site())
-    elif cmd == 'library':  quality_block()
-    elif cmd == 'codegen':  codegen(None if args[0] == '-' else site(), args[1])
-    elif cmd == 'check':    check_generated(site(), args[1], args[2])
-    else:                   sys.exit(__doc__)
+    cmd = sys.argv[1] if len(sys.argv) > 1 else ''
+    if cmd not in COMMANDS: sys.exit(__doc__)
+    COMMANDS[cmd](sys.argv[2:])

@@ -9,12 +9,12 @@ import os, re, sys
 
 from . import render
 from .paths import ROOT, lib
-from .model import (AUX, H, KIND, LIB_CSV, _opted_in, build, read_table, site_guard,
-                         st_files, toml, var_externals)
+from .model import (H, H_ST, KIND, _opted_in, lib_table, row_ref, site_guard,
+                    st_files, var_externals)
 
 # ---- the site's enumerations, on both sides ---------------------------------
 
-def enums(site):
+def enums(site, t):
     """`generated/enums.st` and `generated/enums.gen.h` from enums.csv.
 
     One declaration, two languages. matiec numbers an enumerated type 0,1,2...
@@ -26,7 +26,7 @@ def enums(site):
     own member list is discarded and these constants take its place, exactly as
     QUALITY does. A member added to the CSV and not regenerated fails to
     compile on the name matiec emits for it."""
-    en = read_table(os.path.join(site, 'tables', 'enums.csv'), AUX['enums'].split())
+    en = t['enums']
     names = list(dict.fromkeys(e['enum'] for e in en))
     groups = [(n, [e for e in en if e['enum'] == n]) for n in names]
 
@@ -45,14 +45,10 @@ def enums(site):
             'members': mem} for n, mem in groups]
 
     render.write(os.path.join(site, 'generated', 'enums.st'), 'enums.st.j2',
-                 banner=H.replace('//', '(*').rstrip() + ' *)', groups=ctx)
-
-    guard = site_guard(toml(os.path.join(site, 'site.toml')))
+                 banner=H_ST, groups=ctx)
     render.write(os.path.join(site, 'generated', 'enums.gen.h'), 'enums.gen.h.j2',
-                 banner=H.rstrip('\n'), guard=guard, groups=ctx)
+                 banner=H, guard=site_guard(t['toml']), groups=ctx)
     print('  enums.gen.h    %d enumeration(s), %d code(s)' % (len(groups), len(en)))
-
-
 
 # ---- plant -----------------------------------------------------------------
 
@@ -82,18 +78,18 @@ LIBST = [lib('src', 'libbotanik', 'plc', p) for p in (
     'blocks/pid.st', 'blocks/actuator.st', 'blocks/meter.st')]
 
 
-def writes_by_pou(site):
-    """What each PROGRAM writes, off matiec's own generated C.
+def writes_by_pou(site, prog):
+    """What each PROGRAM writes, off matiec's own generated C, as a set of
+    upper-case names per POU, empty for a program that writes nothing.
 
-    A write is `__SET_EXTERNAL` and a read is `__GET_EXTERNAL` - our macros,
-    emitted from matiec's parse. So this is the COMPILER's answer, not a second
-    reading of the ST: no comments to skip, and a call's named arguments cannot
-    look like an assignment. Names come back matiec-folded (upper)."""
+    A write is `__SET_EXTERNAL` - our macro, emitted from matiec's parse. So this
+    is the COMPILER's answer, not a second reading of the ST: no comments to
+    skip, and a call's named arguments cannot look like an assignment."""
     src = open(os.path.join(site, 'generated', 'POUS.c')).read()
-    out = {}
+    out = dict((e['pou'], set()) for e in prog)
     for m in re.finditer(r'^static void (\w+)_body__\(.*?^\}', src, re.M | re.S):
-        w = re.findall(r'__SET_EXTERNAL\(\w+->,\s*(\w+)\s*,', m.group(0))
-        if w: out[m.group(1)] = w
+        out[m.group(1)] = {w.upper() for w in
+                           re.findall(r'__SET_EXTERNAL\(\w+->,\s*(\w+)\s*,', m.group(0))}
     return out
 
 
@@ -103,40 +99,33 @@ def pou_of(path):
 
 
 def emit_plant_cpp(site, t, prog, writes):
-    w = max(len(e['pou']) for e in prog)
-    wi = max(len(e['instance'].upper()) for e in prog)
-    wn = max(len(e['name']) for e in prog)
-    index = t['index']
+    home = _spelling(t['index'])
     ext = sorted({n for e in prog for n, _t, _ro in var_externals(e['path'])})
-    externals = [{'upper': n.upper(), 'row': _home(index, n)} for n in ext]
+    externals = [{'upper': n.upper(), 'row': home(n)} for n in ext]
 
     programs = []
     for e in prog:
-        inst = e['instance'].upper()
-        wr = set(writes.get(e['pou'], ()))
-        mine = [n for n, _t, ro in var_externals(e['path']) if not ro and n.upper() in wr]
-        park = ('Vars::Row::prog_%s_park' % e['name'],
-                'Vars::Row::prog_%s_parked' % e['name']) if _opted_in(e, 'park') \
-            else ('Vars::VAR_NONE', 'Vars::VAR_NONE')
+        park = _opted_in(e, 'park')
+        mine = [n for n, _t, ro in var_externals(e['path'])
+                if not ro and n.upper() in writes[e['pou']]]
         programs.append({
-            'name': e['name'], 'pou': e['pou'], 'inst': inst,
+            'name': e['name'], 'pou': e['pou'], 'inst': e['instance'].upper(),
             'rate': e['rate'].upper(),
-            'writes': ''.join(' Vars::Row::%s,' % _home(index, n) for n in mine) or ' 0',
-            'park': park[0], 'parked': park[1],
-            'health': ('Vars::Row::prog_%s_health' % e['name'])
-                      if _opted_in(e, 'health') else 'Vars::VAR_NONE',
-            'gate': 'Vars::Row::prog_%s_run' % e['name']})
+            'writes': ''.join(' Vars::Row::%s,' % home(n) for n in mine) or ' 0',
+            'park': row_ref(park and 'prog_%s_park' % e['name'], 'Vars::'),
+            'parked': row_ref(park and 'prog_%s_parked' % e['name'], 'Vars::'),
+            'health': row_ref(_opted_in(e, 'health') and 'prog_%s_health' % e['name'],
+                              'Vars::'),
+            'gate': row_ref('prog_%s_run' % e['name'], 'Vars::')})
 
     render.write(os.path.join(site, 'generated', 'plant.cpp'), 'plant.cpp.j2',
                  externals=externals, programs=programs)
 
 
-def _home(index, n):
+def _spelling(index):
     """The table's own spelling of a name an ST file wrote in any case."""
-    if n in index: return n
-    for k in index:
-        if k.lower() == n.lower(): return k
-    sys.exit('%s: no table declares it' % n)
+    folded = dict((k.lower(), k) for k in index)
+    return lambda n: n if n in index else folded[n.lower()]
 
 
 def check_laws(t, prog, writes):
@@ -154,10 +143,9 @@ def check_laws(t, prog, writes):
     # reported, not refused.
     author, shared = {}, []
     for e in prog:
-        wr = set(writes.get(e['pou'], ()))
         for n, _ty, ro in var_externals(e['path']):
             if ro: continue
-            if n.upper() not in wr:
+            if n.upper() not in writes[e['pou']]:
                 bad.append('%s: declares %s writable and never writes it'
                            % (e['name'], n))
                 continue
@@ -171,8 +159,7 @@ def check_laws(t, prog, writes):
     # a status row with no author is a law that was meant to be written and was
     # not, and it reads its declared value for the life of the plant with
     # nothing to say so.
-    every = set()
-    for pou in writes.values(): every |= {x.upper() for x in pou}
+    every = set().union(*writes.values())
     for r in table:
         k = KIND[r['_fac']]
         if k not in ('OUTPUT', 'ALARM', 'STATUS'): continue
@@ -188,47 +175,33 @@ def check_laws(t, prog, writes):
     # A program that OPTS IN owes a quality for every row it writes: the
     # companion EXISTS for each of them, and one nothing writes sits at Q_NONE
     # for the life of the run with nothing to say why.
+    alarms = {n.upper() for n in alarms}
     for e in prog:
-        if not _opted_in(e, 'quality'): continue
-        wr = {n.upper() for n in writes.get(e['pou'], ())}
-        for n in sorted(wr):
-            # An alarm is a verdict, not a reading, and so is anything a program
-            # says about ITSELF - its health, its parked answer. A quality on
-            # one of those would be a verdict on a verdict.
-            if n.endswith('_QLT') or n.startswith('PROG_'): continue
-            if n.lower() in {a.lower() for a in alarms}: continue
-            if n + '_QLT' not in wr:
-                bad.append('%s: writes %s and owes %s_qlt'
-                           % (e['name'], n.lower(), n.lower()))
-
-    # A program that opts into HEALTH owes a write to its own row, on every
-    # path: the row's declared value is FAULTED, so one nothing writes reads as
-    # a program that could not answer - which is worse than not opting in.
-    for e in prog:
-        if not _opted_in(e, 'health'): continue
-        if ('PROG_%s_HEALTH' % e['name']).upper() not in \
-                {n.upper() for n in writes.get(e['pou'], ())}:
-            bad.append('%s: opts into health and owes prog_%s_health'
-                       % (e['name'], e['name']))
-
-    # ...and the same for parking: a program told to park that never answers
-    # holds the shutdown open until plc_parkTimeout_sec runs out.
-    for e in prog:
-        if not _opted_in(e, 'park'): continue
-        if ('PROG_%s_PARKED' % e['name']).upper() not in \
-                {n.upper() for n in writes.get(e['pou'], ())}:
-            bad.append('%s: parks and owes prog_%s_parked' % (e['name'], e['name']))
+        wr = writes[e['pou']]
+        if _opted_in(e, 'quality'):
+            for n in sorted(wr):
+                # An alarm is a verdict, not a reading, and so is anything a
+                # program says about ITSELF - its health, its parked answer.
+                if n.endswith('_QLT') or n.startswith('PROG_') or n in alarms: continue
+                if n + '_QLT' not in wr:
+                    bad.append('%s: writes %s and owes %s_qlt'
+                               % (e['name'], n.lower(), n.lower()))
+        # HEALTH is declared FAULTED, so a health row nothing writes reads as a
+        # program that could not answer; a program told to park that never
+        # answers holds the shutdown open until plc_parkTimeout_sec runs out.
+        for col, row, what in (('health', 'health', 'opts into health'),
+                               ('park', 'parked', 'parks')):
+            if _opted_in(e, col) and ('PROG_%s_%s' % (e['name'], row)).upper() not in wr:
+                bad.append('%s: %s and owes prog_%s_%s' % (e['name'], what, e['name'], row))
 
     if bad:
         for b in bad: print('  ' + b, file=sys.stderr)
         sys.exit('%d law error(s)' % len(bad))
 
 
-def plant(site):
+def plant(site, t):
     """plant.st and plant.cpp from programs.csv, then matiec."""
     import subprocess, tempfile
-    enums(site)
-    t = build(site)
     prog = t['prog']
     # A site may declare no laws at all. There is no plant to
     # compile then, and an ST resource with no program in it is not valid ST -
@@ -236,22 +209,21 @@ def plant(site):
     # BOTANIK_FEATURE_PLC's, and a site with no programs has it off.
     if not prog:
         print('  plant          no programs, nothing to compile')
-        return 0
+        return
     for e in prog:
         e['path'] = os.path.join(site, e['source'])
         e['pou'] = pou_of(e['path'])
     # IEC identifiers are case-insensitive, so a program INSTANCE that folds
     # onto an enumerated type is one name for two things - and matiec says only
     # "invalid program name", about the RESOURCE, three thousand lines away.
-    types = {e['enum'].lower() for e in
-             read_table(os.path.join(site, 'tables', 'enums.csv'),
-                        AUX['enums'].split())}
+    types = {e['enum'].lower() for e in t['enums']}
     clash = [e['name'] for e in prog if e['instance'].lower() in types]
     if clash:
         sys.exit('%s: the instance name folds onto an enumerated type; '
                  'rename it in programs.csv' % ', '.join(clash))
+    sources = st_files(site)
     rows, whence = {}, {}
-    for p in st_files(site):
+    for p in sources:
         for n, ty, _ in var_externals(p):
             if rows.get(n, ty) != ty: sys.exit('type clash on %s' % n)
             rows[n] = ty
@@ -266,10 +238,8 @@ def plant(site):
             print('  %s: no table declares it (%s)' % (n, whence[n]), file=sys.stderr)
         sys.exit('%d ST name(s) declare no row' % len(absent))
 
-    w  = max((len(n) for n in rows), default=0)
-    wi = max((len(e['instance']) for e in prog), default=0)
-    render.write(os.path.join(site, 'generated', 'plant.st'), 'plant.st.j2',
-                 banner=H.replace('//', '(*').rstrip() + ' *)',
+    pl = os.path.join(site, 'generated', 'plant.st')
+    render.write(pl, 'plant.st.j2', banner=H_ST,
                  # The DECLARED name: matiec names its output after the ST
                  # CONFIGURATION, and a site repository keeps its site under
                  # src/, which would make every one of them src.c.
@@ -277,14 +247,12 @@ def plant(site):
                  globals_=sorted(rows.items()),
                  programs=[{'instance': e['instance'], 'pou': e['pou'].lower()}
                            for e in prog])
-    pl = os.path.join(site, 'generated', 'plant.st')
 
     # matiec FIRST: plant.cpp's write rosters are read out of the POUS.c it
     # emits, so the compiler's own answer is what they are built from.
     with tempfile.NamedTemporaryFile('w', suffix='.st', delete=False) as fh:
-        corpus = (LIBST + [os.path.join(site, 'generated', 'enums.st')]
-                  + st_files(site) + [pl])
-        for f in corpus: fh.write(open(f).read() + '\n')
+        for f in LIBST + [os.path.join(site, 'generated', 'enums.st')] + sources + [pl]:
+            fh.write(open(f).read() + '\n')
         tmp = fh.name
     # -I OURS: matiec loads <dir>/ieclib.txt unconditionally, and its own
     # declares 28 function blocks under names we use for our own - and is GPL
@@ -299,14 +267,14 @@ def plant(site):
     finally:
         os.unlink(tmp)
     err = [l for l in (r.stdout + r.stderr).splitlines() if 'error' in l.lower()]
-    for l in err[:6]: print('  ' + l)
-    if err: return 1
+    if err:
+        for l in err[:6]: print('  ' + l, file=sys.stderr)
+        sys.exit('matiec refused the ST')
 
-    writes = writes_by_pou(site)
+    writes = writes_by_pou(site, prog)
     check_laws(t, prog, writes)
     emit_plant_cpp(site, t, prog, writes)
-    print('  plant.st       %d globals, %d POUs' % (len(rows), len(st_files(site))))
-    return 0
+    print('  plant.st       %d globals, %d POUs' % (len(rows), len(sources)))
 
 
 # ---- the ST enumerations the LIBRARY owns -----------------------------------
@@ -352,9 +320,7 @@ def _rows_none():
     compiles for a consumer that wants a component and no table. Emitted from
     library.csv alone, which is why it is the LIBRARY's artifact and not a
     site's."""
-    import csv
-    with open(LIB_CSV, newline='') as fh:
-        rows = [r['name'].strip() for r in csv.DictReader(fh)]
+    rows = [r['name'] for r in lib_table()]
     render.write(lib('src', 'libbotanik', 'vars', 'rows_none.gen.h'),
                  'rows_none.gen.h.j2', rows=rows)
     return len(rows)

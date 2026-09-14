@@ -66,7 +66,7 @@ between them.
 {% for p in programs %}
 ### {{ p.name }}
 
-`{{ p.source }}`, every `BOTANIK_SITE_{{ p.rate_upper }}_MS`.
+`{{ p.source }}`, every `BOTANIK_SITE_{{ p.rate | upper }}_MS`.
 
 {% if p.header %}
 {% for line in p.header %}

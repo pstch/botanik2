@@ -25,7 +25,7 @@ KINDS = [
 ]
 
 # The CSV's keys are terse where a reference table wants words.
-HEADINGS = {'def': 'default', 'desc': 'description', 'cal': 'calibration',
+HEADINGS = {'def': 'default', 'desc': 'description',
             'on_s': 'on (s)', 'off_s': 'off (s)', 'recent_s': 'recent (s)',
             'hold_s': 'hold (s)', 'regs': 'registers'}
 # What a factory pins where the CSV does not carry it.
@@ -103,11 +103,7 @@ def _st_header(path):
 
     Every program opens with `(* <name> program` and a rule, which says nothing
     the heading above it does not. What is left is the author's own."""
-    try:
-        s = open(path).read()
-    except IOError:
-        return []
-    m = re.match(r'\s*\(\*(.*?)\*\)', s, re.S)
+    m = re.match(r'\s*\(\*(.*?)\*\)', open(path).read(), re.S)
     if not m:
         return []
     out = [ln.strip() for ln in m.group(1).strip().split('\n')
@@ -155,7 +151,8 @@ def points(site):
 
     programs = []
     for e in prog:
-        ext = var_externals(os.path.join(site, e['source']))
+        path = os.path.join(site, e['source'])
+        ext = var_externals(path)
         # Quality companions are left out. A law reads and writes them beside
         # the rows they speak for, so listing both says nothing the pairing does
         # not, and doubles the table.
@@ -164,9 +161,9 @@ def points(site):
         writes = [n for n, _t, ro in ext if not ro]
         programs.append({
             'name': e['name'], 'source': e['source'], 'rate': e['rate'],
-            'rate_upper': e['rate'].upper(), 'desc': _md(e['desc']),
+            'desc': _md(e['desc']),
             'n_reads': len(reads), 'n_writes': len(writes),
-            'header': _st_header(os.path.join(site, e['source'])),
+            'header': _st_header(path),
             'reads': ', '.join('`%s`' % r for r in _collapse(reads)) or '-',
             'writes': ', '.join('`%s`' % w for w in _collapse(writes)) or '-'})
 

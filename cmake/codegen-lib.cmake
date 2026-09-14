@@ -85,8 +85,7 @@ function(_botanik_codegen_stamp out)
     set(${out} "${_s}" PARENT_SCOPE)
 endfunction()
 
-# tables.py <args>, with the environment's site override cleared: the site is
-# always named on the command line.
+# tables.py <args>.
 function(_botanik_codegen_python what)
     set(_python "${PYTHON}")
     if(NOT _python)
@@ -96,7 +95,7 @@ function(_botanik_codegen_python what)
         message(FATAL_ERROR "codegen: ${what} needs python3")
     endif()
     execute_process(
-        COMMAND ${CMAKE_COMMAND} -E env --unset=BOTANIK_SITE_DIR CMAKE=${CMAKE_COMMAND}
+        COMMAND ${CMAKE_COMMAND} -E env CMAKE=${CMAKE_COMMAND}
                 ${_python} ${ROOT}/scripts/sitegen/tables.py ${ARGN}
         RESULT_VARIABLE _rc)
     if(NOT _rc EQUAL 0)
