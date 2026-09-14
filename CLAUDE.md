@@ -79,7 +79,9 @@ make -C build docs-screens           # recapture the console screenshots
 ```
 
 `make docs` runs codegen first, so nothing it documents is stale, then renders
-the manual, in a few seconds. `docs-screens` is deliberately **not** one of its dependencies: it
+the manual, in a few seconds. A site repository's `make docs` (cmake/consumer.cmake)
+renders its own `docs/` and `src/` with botanik's pages and sources in the same
+run, through botanik's Doxyfile with the paths re-pointed, into `build/docs/html`. `docs-screens` is deliberately **not** one of its dependencies: it
 boots a simulator per scenario and takes a minute and a half, too much to pay
 for every render.
 
