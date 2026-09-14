@@ -97,7 +97,7 @@ CASES = {
     # Kill and yank: the cut is a plain remove, but the yank re-inserts a whole
     # span mid-buffer, which is the multi-char splice branch under another name.
     "kill_word_back": (
-        [b"set air_targetMax_degC 21", keys.ALT_B, keys.CTRL_W],
+        [b"set sys_startup_sec 21", keys.ALT_B, keys.CTRL_W],
         ["botanik> set 21"]),
     "kill_to_eol_then_yank": (
         [b"echo hello world", keys.CTRL_A, keys.RIGHT * 5, keys.CTRL_K,

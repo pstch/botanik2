@@ -230,62 +230,11 @@ endif()
 
 # pyte screen-assertion tests (Python) - host-only, joined to the same CTest
 # ============================================================================
-# These drive botanik_sim over a PTY and assert its rendered screen. Installing
-# pytest + pyte is a manual developer step: the build installs nothing and
-# registers the suite only when the interpreter can already import them, so a
-# tree without the venv still gets a green `make check`. Point CMake at the venv
-# with -DPython3_EXECUTABLE=... .
-#
-# They run against this tree's botanik_sim, which is in ALL, so under check-full
-# the screen tests are instrumented too.
-option(BOTANIK_PYTE_TESTS "Register the pyte screen-assertion tests" ON)
-find_package(Python3 COMPONENTS Interpreter QUIET)
-if(BOTANIK_PYTE_TESTS AND Python3_Interpreter_FOUND)
-    execute_process(
-        COMMAND ${Python3_EXECUTABLE} -c "import pytest, pyte"
-        RESULT_VARIABLE _pyte_import_rc OUTPUT_QUIET ERROR_QUIET)
-    if(_pyte_import_rc EQUAL 0)
-        set(_pyte_dir ${CMAKE_CURRENT_SOURCE_DIR}/pyte)
-
-        # One CTest entry per test FILE: failures stay attributable without each
-        # entry paying ~1.5 s of pytest import to run ~0.4 s of test.
-        file(GLOB _pyte_test_files CONFIGURE_DEPENDS ${_pyte_dir}/test_*.py)
-        foreach(_file IN LISTS _pyte_test_files)
-            get_filename_component(_name ${_file} NAME)
-            # WORKING_DIRECTORY is the test dir so pytest loads its conftest (the
-            # --sim option) regardless of the invocation's CWD.
-            add_test(NAME "pyte:${_name}"
-                COMMAND ${Python3_EXECUTABLE} -m pytest -q -p no:cacheprovider
-                        ${_name} --sim $<TARGET_FILE:botanik_sim>
-                WORKING_DIRECTORY ${_pyte_dir})
-            # ctest launches the most expensive test first, but only from
-            # timings of its own, which it never gets here: doctest case names
-            # contain spaces and its cost file is whitespace-delimited.
-            # Declaring the cost keeps a screen test off the tail of the run.
-            set_tests_properties("pyte:${_name}" PROPERTIES COST 10)
-        endforeach()
-        list(LENGTH _pyte_test_files _pyte_count)
-        message(STATUS "pyte: registered ${_pyte_count} screen test files")
-        # `check` names it explicitly, so the gate does not depend on ALL having
-        # been built first. CTest never builds anything, and CMake's built-in
-        # `test` target cannot be given dependencies.
-        add_dependencies(check botanik_sim)
-
-        # Opt-in golden regeneration, kept out of check/test so the gate never
-        # rewrites its own expectations. Review the diff before committing. The
-        # harness drives the clock, so a capture cannot race.
-        add_custom_target(pytest-update
-            COMMAND ${Python3_EXECUTABLE} -m pytest -q -p no:cacheprovider
-                    ${_pyte_dir} --sim $<TARGET_FILE:botanik_sim> --update
-            WORKING_DIRECTORY ${_pyte_dir}
-            DEPENDS botanik_sim
-            USES_TERMINAL
-            COMMENT "Regenerating pyte golden screens - review the diff before committing")
-    else()
-        message(STATUS "pyte/pytest not importable - skipping Python screen tests")
-    endif()
-elseif(NOT BOTANIK_PYTE_TESTS)
-    # quietly disabled
-elseif(NOT Python3_Interpreter_FOUND)
-    message(STATUS "Python3 interpreter not found - skipping Python screen tests")
-endif()
+# These drive botanik_sim over a PTY and assert its rendered screen, against
+# this tree's sim, which is in ALL, so under check-full they are instrumented
+# too. See botanik_add_pyte_tests() in cmake/testkit.cmake.
+botanik_add_pyte_tests(botanik ${CMAKE_CURRENT_SOURCE_DIR}/pyte)
+# `check` names it explicitly, so the gate does not depend on ALL having been
+# built first. CTest never builds anything, and CMake's built-in `test` target
+# cannot be given dependencies.
+add_dependencies(check botanik_sim)

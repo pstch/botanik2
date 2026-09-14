@@ -133,6 +133,12 @@ edit, a reset, a persisted override or a note - keeps its own `spawn`. It also
 pays to keep a one-assertion test out of a file of its own, which is why the
 odds and ends live together in `test_page_behaviour.py`.
 
+Cases here name only the library's rows, so they pass on any full-profile
+site. A case that needs a site's own table (its HOME golden, its programs, its
+rows) lives beside that site, e.g. `examples/ref/tests/pyte/`: a conftest that
+imports the fixtures from `harness.py`, registered with
+`botanik_add_pyte_tests(<name> <dir>)`, and goldens in `golden/` next to it.
+
 A boot costs ~0.02 s and syncs on the tab strip. The network handshake behind
 it spans 0.14-0.35 sim-seconds; the mock responder binds its sockets before its
 thread starts (see `botanik_sim/network.h`).

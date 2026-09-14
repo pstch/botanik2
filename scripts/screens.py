@@ -32,7 +32,7 @@ ROOT = os.path.dirname(HERE)
 sys.path.insert(0, os.path.join(ROOT, 'tests', 'pyte'))
 
 import keys                                          # noqa: E402
-from conftest import Term                            # noqa: E402
+from harness import Term                             # noqa: E402
 
 # Tab order, as register_pages() adds them. The label is what the status bar
 # renders for the ACTIVE tab, so it is what a page switch syncs on.

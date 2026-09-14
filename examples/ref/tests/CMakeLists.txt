@@ -24,3 +24,6 @@ set_source_files_properties(${BOTANIK_SITE_SOURCES}
                             PROPERTIES COMPILE_FLAGS "-Wshadow")
 
 add_test(NAME ref_tests COMMAND ref_tests)
+
+# The screens this site's table decides, over the library's pyte harness.
+botanik_add_pyte_tests(ref ${CMAKE_CURRENT_SOURCE_DIR}/pyte)

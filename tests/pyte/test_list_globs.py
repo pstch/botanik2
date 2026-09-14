@@ -1,62 +1,59 @@
 """`<noun> list` takes a glob, and still takes a bare prefix.
 
 One sim per pattern: a listing is paced, and a second command on the same
-screen would race the first one's tail.
+screen would race the first one's tail. Patterns name the library's rows, and
+the claims are properties of the match, so a site's own rows cannot move them.
 """
+
+import re
+from fnmatch import fnmatchcase
 
 import keys
 from helpers import shell
 
+_ROW = re.compile(r"^([a-z][A-Za-z0-9_]*) .*\([PASIOQ]\)")
+_COUNT = re.compile(r"^(\d+) variable\(s\)$")
 
-# The groups these cases list from. A row name, not the chrome around it.
-_GROUPS = ("air_", "tank_", "vent_", "bus_")
 
-
-def _listing(term):
-    """The result lines of the last listing, without the chrome."""
-    out = []
+def _listing(term, pattern):
+    """The names the listing printed, checked against its own count line."""
+    term.send(b"vars list " + pattern.encode() + keys.ENTER)
+    term.settle()
+    names, count = [], None
     for line in term.view():
         s = line.strip()
-        if s.startswith(_GROUPS) or s.endswith("variable(s)"):
-            out.append(s)
-    return out
+        m = _ROW.match(s)
+        if m:
+            names.append(m.group(1))
+        m = _COUNT.match(s)
+        if m:
+            count = int(m.group(1))
+    assert count == len(names), (count, names)
+    return names
 
 
 def test_star_matches_inside_a_name(spawn):
     """The case the wildcard exists for: a group named around its middle."""
-    term = shell(spawn, quiet_logs=True)
-    term.send(b"vars list air_*_degC" + keys.ENTER)
-    term.settle()
-    rows = _listing(term)
-    assert rows[-1] == "3 variable(s)", rows
-    assert all(r.startswith("air_") and "_degC" in r for r in rows[:-1]), rows
+    names = _listing(shell(spawn, quiet_logs=True), "sys_*_pct")
+    assert all(fnmatchcase(n, "sys_*_pct") for n in names), names
+    assert {"sys_cpu_load_pct", "sys_jitter_pct", "sys_stack_pct"} <= set(names), names
 
 
 def test_star_anchors_the_tail(spawn):
     """A leading star is ends-with: nothing else could express it."""
-    term = shell(spawn, quiet_logs=True)
-    term.send(b"vars list *_mV" + keys.ENTER)
-    term.settle()
-    rows = _listing(term)
-    assert rows[-1] == "4 variable(s)", rows
-    assert all(r.startswith(("vent_raw", "bus_dc_raw")) for r in rows[:-1]), rows
+    names = _listing(shell(spawn, quiet_logs=True), "*down_sec")
+    assert names and all(n.endswith("down_sec") for n in names), names
+    assert "sys_shutdown_sec" in names, names
 
 
 def test_a_bare_prefix_still_means_prefix(spawn):
     """What every listing meant before wildcards, unchanged."""
-    term = shell(spawn, quiet_logs=True)
-    term.send(b"vars list air_temp" + keys.ENTER)
-    term.settle()
-    rows = _listing(term)
-    assert rows[-1] == "6 variable(s)", rows
-    assert all(r.startswith("air_temp") for r in rows[:-1]), rows
+    names = _listing(shell(spawn, quiet_logs=True), "sys_s")
+    assert all(n.startswith("sys_s") for n in names), names
+    assert {"sys_stack_pct", "sys_startup_sec", "sys_shutdown_sec"} <= set(names), names
 
 
 def test_question_mark_is_one_character(spawn):
-    """vent_drive? takes the numbered channel and not the bare name."""
-    term = shell(spawn, quiet_logs=True)
-    term.send(b"vars list vent_drive?" + keys.ENTER)
-    term.settle()
-    rows = _listing(term)
-    assert rows[-1] == "1 variable(s)", rows
-    assert rows[0].startswith("vent_drive2"), rows
+    """mqtt_???_sec takes the telemetry period and not the two-letter keepalive."""
+    names = _listing(shell(spawn, quiet_logs=True), "mqtt_???_sec")
+    assert names == ["mqtt_tlm_sec"], names
