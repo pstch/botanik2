@@ -7,6 +7,9 @@
     sitegen/tables.py points   [site]   the lot                    -> docs/<site>/reference/variables.md
     sitegen/tables.py library           library.csv + lib headers  -> quality/health/rows_none.gen.h
 
+    sitegen/tables.py codegen <site|-> <hash>          generate, config, plant (or library), then the stamp
+    sitegen/tables.py check   <site> <hash> <scratch>  codegen into a copy, and diff it against the site
+
 `site` is a name under examples/, or a path. BOTANIK_SITE_DIR overrides it.
 
 Runs from anywhere: what it reads out of the LIBRARY is anchored to this
@@ -15,23 +18,26 @@ page lands under the working directory - so a site repository regenerates its
 own tables and its own docs without touching the submodule. `library` is
 botanik's own, and a site repository never runs it.
 
-The build runs it (cmake/codegen.cmake) when a committed codegen.stamp stops
-matching the inputs, and the output stays committed, so a build without python
-or matiec works as long as nothing was edited. `make check-generated`
-regenerates every example into a scratch copy and diffs.
+The build runs `codegen` (cmake/codegen-lib.cmake) when a committed
+codegen.stamp stops matching the inputs' hash, which CMake computes and passes
+in. The output stays committed, so a build without python or matiec works as
+long as nothing was edited. `make check-generated` runs `check` per example.
 
 The generator owns the whole table. It merges the library's rows into the
 site's, applies the site's overrides, orders the rows, assigns every index and
 every generated register, resolves every name to an index, and checks. Nothing
 it checks is checked again at runtime."""
 
-import os, re, sys
+import filecmp, os, re, shutil, sys
 
 # Runnable as a path (`python3 .../sitegen/tables.py`), so the package's parent
 # has to be importable before the package is.
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from sitegen import render
+try:
+    from sitegen import render
+except ImportError as e:
+    sys.exit('the generator needs jinja2 (pip install jinja2): %s' % e)
 from sitegen.paths import lib
 from sitegen.reference import points
 from sitegen.model import (AUX, H, KIND, as_int, build, check, config_defaults,
@@ -150,12 +156,53 @@ def config(site):
 
 
 
+# ---- the build's entry points -----------------------------------------------
+
+STAMP = ('# Input hash of this generated tree, written by the build.\n'
+         '# The build regenerates when it stops matching. Commit it with the output.\n'
+         '%s\n')
+
+
+def codegen(site, stamp):
+    """Every command a tree needs, then the stamp; site None is the library."""
+    if site is None:
+        quality_block()
+        path = lib('src', 'libbotanik', 'codegen.stamp')
+    else:
+        generate(site)
+        config(site)
+        if plant(site): sys.exit(1)
+        path = os.path.join(site, 'generated', 'codegen.stamp')
+    with open(path, 'w') as fh: fh.write(STAMP % stamp)
+
+
+def check_generated(site, stamp, scratch):
+    """A copy of the site without its output, regenerated from scratch, so a
+    committed file that is no longer generated has nothing to compare equal to."""
+    name = os.path.basename(os.path.dirname(site))
+    copy = os.path.join(scratch, name, 'src')
+    shutil.rmtree(os.path.dirname(copy), ignore_errors=True)
+    shutil.copytree(site, copy, ignore=shutil.ignore_patterns('generated'))
+    codegen(copy, stamp)
+    old, new = os.path.join(site, 'generated'), os.path.join(copy, 'generated')
+    bad = [f for f in sorted(set(os.listdir(old)) | set(os.listdir(new)))
+           if not (os.path.isfile(os.path.join(old, f))
+                   and os.path.isfile(os.path.join(new, f))
+                   and filecmp.cmp(os.path.join(old, f), os.path.join(new, f),
+                                   shallow=False))]
+    shutil.rmtree(os.path.dirname(copy))
+    if bad: sys.exit('%s differs from a fresh generation: %s' % (old, ' '.join(bad)))
+    print('check-generated: %s matches' % name)
+
+
 if __name__ == '__main__':
-    cmd  = sys.argv[1] if len(sys.argv) > 1 else ''
-    site = site_dir(sys.argv[2] if len(sys.argv) > 2 else None)
-    if   cmd == 'generate': generate(site)
+    cmd, args = (sys.argv[1] if len(sys.argv) > 1 else ''), sys.argv[2:]
+    site = lambda: site_dir(args[0] if args else None)
+    if   cmd == 'generate': generate(site())
+    elif cmd == 'config':   config(site())
+    elif cmd == 'plant':    sys.exit(plant(site()))
+    elif cmd == 'points':   points(site())
     elif cmd == 'library':  quality_block()
-    elif cmd == 'plant':    sys.exit(plant(site))
-    elif cmd == 'config':   config(site)
-    elif cmd == 'points':   points(site)
+    elif cmd == 'codegen':  codegen(None if args[0] == '-' else site(), args[1])
+    elif cmd == 'check':    check_generated(site(), args[1], args[2])
     else:                   sys.exit(__doc__)

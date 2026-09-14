@@ -123,9 +123,8 @@ cannot drift. Halves are skipped where their tool is absent.
 
 The compiler is pinned: `vendor/matiec`, one upstream commit, built on first
 use into `vendor/matiec/build/iec2c` (gitignored, once per checkout, shared by
-every build tree). `scripts/sitegen/tables.py` finds it by itself; `IEC2C=`
-points it elsewhere. Where it cannot be built (no flex, bison or autotools),
-codegen falls back to `$IEC2C`, then PATH, with a warning.
+every build tree). The generator builds it itself, and only for a site with
+laws; `IEC2C=` points it at another compiler instead.
 
 **`make check-alloff`** compiles the library with every optional feature off and
 no site, the only build that compiles the file-level guards. `examples/nosite`
@@ -424,9 +423,9 @@ every input the generator reads (`cmake/codegen-lib.cmake` lists them). Each tre
 is one `CODEGEN` custom command (`cmake/codegen.cmake`) depending on those inputs,
 whose OUTPUT is a stamp in the build tree: the generated files are committed
 sources, and a Makefile `make clean` deletes outputs. The command compares the
-hashes; a match needs nothing, so a clean clone builds without python or matiec.
-A mismatch runs `tables.py` (generate, config, plant) against the pinned
-compiler and rewrites the stamp; commit both. A mismatch without python3, jinja2
+hashes in CMake; a match needs nothing, so a clean clone builds without python
+or matiec. A mismatch runs `tables.py codegen`, which regenerates against the
+pinned compiler and writes the stamp CMake computed; commit both. A mismatch without python3, jinja2
 or (for a site with laws) matiec fails the build. `make codegen` is CMake's
 builtin target, which runs these commands and nothing else. Configure never
 looks for a generated file: it names `config.gen.h`, `rows.gen.h`,

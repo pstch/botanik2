@@ -9,6 +9,7 @@
 # the tools. So the OUTPUT is a stamp in the build tree, and the command only
 # regenerates when the committed codegen.stamp no longer matches the inputs
 # (see cmake/codegen-lib.cmake). When it matches, running it needs no tools.
+# matiec is built by the generator itself, on first use, for a site with laws.
 #
 #   make codegen           CMake's builtin target: these commands, nothing else
 #   make matiec            build the pinned compiler into vendor/matiec/build/
@@ -47,7 +48,7 @@ set(_codegen_script "${BOTANIK_ROOT}/cmake/codegen-lib.cmake")
 
 function(_botanik_codegen_command tree site done)
     botanik_codegen_inputs(_pairs "${BOTANIK_ROOT}" "${site}")
-    set(_deps "${_codegen_script}" "${BOTANIK_ROOT}/cmake/matiec-build.cmake")
+    set(_deps "${_codegen_script}")
     foreach(_p IN LISTS _pairs)
         string(REGEX REPLACE "^[^|]*\\|" "" _f "${_p}")
         list(APPEND _deps "${_f}")
@@ -85,13 +86,15 @@ if(_codegen_site)
     set(_codegen_site_config "${_codegen_site}/generated/config.gen.h")
     set(_codegen_site_rows "${_codegen_site}/generated/rows.gen.h")
     list(APPEND _codegen_site_sources "${_codegen_site}/generated/vars.gen.cpp")
-    _botanik_codegen_has_programs(_codegen_laws "${_codegen_site}")
-    if(_codegen_laws)
-        list(APPEND _codegen_site_sources "${_codegen_site}/generated/plant.cpp")
-    endif()
-    if(EXISTS "${_codegen_site}/tables/programs.csv")
-        set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
-                     "${_codegen_site}/tables/programs.csv")
+    set(_codegen_programs "${_codegen_site}/tables/programs.csv")
+    if(EXISTS "${_codegen_programs}")
+        set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${_codegen_programs}")
+        # A header and at least one row.
+        file(STRINGS "${_codegen_programs}" _codegen_rows REGEX "[^ \t,]" LIMIT_COUNT 2)
+        list(LENGTH _codegen_rows _codegen_rows)
+        if(_codegen_rows EQUAL 2)
+            list(APPEND _codegen_site_sources "${_codegen_site}/generated/plant.cpp")
+        endif()
     endif()
     foreach(_f IN LISTS _codegen_site_sources)
         if(NOT EXISTS "${_f}")

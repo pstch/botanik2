@@ -56,11 +56,21 @@ def enums(site):
 
 # ---- plant -----------------------------------------------------------------
 
-# What `make -C build matiec` builds, then whatever is on PATH. CMake's own
-# targets pass IEC2C explicitly, so this default only serves a hand run.
-_PINNED = lib('vendor', 'matiec', 'build', 'iec2c')
-IEC2C = os.environ.get('IEC2C') or (_PINNED if os.access(_PINNED, os.X_OK)
-                                    else 'iec2c')
+def iec2c():
+    """IEC2C= when set, else the pinned matiec, built once per checkout.
+
+    Only a site with laws gets here, so a site without any never needs the
+    compiler, nor the autotools that build it."""
+    if os.environ.get('IEC2C'): return os.environ['IEC2C']
+    import subprocess
+    r = subprocess.run([os.environ.get('CMAKE', 'cmake'),
+                        '-DSRC=' + lib('vendor', 'matiec'),
+                        '-P', lib('cmake', 'matiec-build.cmake')])
+    if r.returncode:
+        sys.exit('the pinned matiec did not build; point IEC2C= at another iec2c')
+    return lib('vendor', 'matiec', 'build', 'iec2c')
+
+
 # What `iec2c -I` is pointed at: the directory holding OUR ieclib.txt.
 IECLIB_DIR = lib('src', 'libbotanik', 'plc', 'functions')
 # ORDER MATTERS: matiec needs a block declared before it is instanced, and there
@@ -279,17 +289,15 @@ def plant(site):
     # -I OURS: matiec loads <dir>/ieclib.txt unconditionally, and its own
     # declares 28 function blocks under names we use for our own - and is GPL
     # besides.
+    compiler = iec2c()
     try:
-        r = subprocess.run([IEC2C, '-I', IECLIB_DIR,
+        r = subprocess.run([compiler, '-I', IECLIB_DIR,
                             '-T', os.path.join(site, 'generated'), tmp],
                            capture_output=True, text=True)
     except FileNotFoundError:
+        sys.exit('iec2c not found at %r' % compiler)
+    finally:
         os.unlink(tmp)
-        sys.exit("iec2c not found at %r.\n"
-                 "  Build the pinned one:  make -C build matiec\n"
-                 "  ...or point at another: IEC2C=/path/to/iec2c %s"
-                 % (IEC2C, ' '.join(sys.argv)))
-    os.unlink(tmp)
     err = [l for l in (r.stdout + r.stderr).splitlines() if 'error' in l.lower()]
     for l in err[:6]: print('  ' + l)
     if err: return 1
