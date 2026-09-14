@@ -436,106 +436,6 @@ elseif(BOTANIK_TARGET STREQUAL "OPTA")
         # like HAL::Serial::get().
         -fno-threadsafe-statics)
 
-    target_compile_definitions(botanik PUBLIC 
-        ARM_MATH_CM7
-
-        COMPONENT_4343W_FS=1
-        COMPONENT_CYW43XXX=1
-        COMPONENT_FLASHIAP=1
-        COMPONENT_QSPIF=1
-        COMPONENT_WHD=1
-
-        CM4_BOOT_BY_APPLICATION
-        CORE_CM7
-        __CORTEX_M7
-        __CMSIS_RTOS
-        CYW43XXX_UNBUFFERED_UART
-
-        DEVICE_ANALOGIN=1
-        DEVICE_ANALOGOUT=1
-        DEVICE_CAN=1
-        DEVICE_CRC=1
-        DEVICE_EMAC=1
-        DEVICE_FLASH=1
-        DEVICE_I2C=1
-        DEVICE_I2C_ASYNCH=1
-        DEVICE_I2CSLAVE=1
-        DEVICE_INTERRUPTIN=1
-        DEVICE_LPTICKER=1
-        DEVICE_MPU=1
-        DEVICE_PORTIN=1
-        DEVICE_PORTINOUT=1
-        DEVICE_PORTOUT=1
-        DEVICE_PWMOUT=1
-        DEVICE_QSPI=1
-        DEVICE_RESET_REASON=1
-        DEVICE_RTC=1
-        DEVICE_SERIAL=1
-        DEVICE_SERIAL_FC=1
-        DEVICE_SLEEP=1
-        DEVICE_SPI=1
-        DEVICE_SPI_ASYNCH=1
-        DEVICE_SPISLAVE=1
-        DEVICE_STDIO_MESSAGES=1
-        DEVICE_TRNG=1
-        DEVICE_USBDEVICE=1
-        DEVICE_USTICKER=1
-        DEVICE_WATCHDOG=1
-        FEATURE_BLE=1
-
-        __FPU_PRESENT=1
-        __MBED__=1
-        __MBED_CMSIS_RTOS_CM
-        MBED_BUILD_TIMESTAMP=1721368775.741562
-        MBED_TICKLES
-
-        MBED_NO_GLOBAL_USING_DIRECTIVE=1
-        CORE_MAJOR=4
-        CORE_MINOR=1
-        CORE_PATCH=6
-        USE_ARDUINO_PINOUT
-
-
-        MBEDTLS_FS_IO
-        MBEDTLS_SHA1_C
-
-        METAL_INTERNAL
-        METAL_MAX_DEVICE_REGIONS=2
-
-        NO_ATOMIC_64_SUPPORT
-        QSPI_NO_SAMPLE_SHIFT
-        TRANSACTION_QUEUE_SIZE_SPI=2
-        RPMSG_BUFFER_SIZE=512
-
-        STM32H747xx
-        TARGET_CORDIO
-        TARGET_CORTEX
-        TARGET_CORTEX_M
-        TARGET_LIKE_CORTEX_M7
-        TARGET_LIKE_MBED TARGET_M7
-        TARGET_MCU_STM32
-        TARGET_MCU_STM32H7
-        TARGET_MCU_STM32H747xI
-        TARGET_MCU_STM32H747xI_CM7
-
-        TARGET_RTOS_M4_M7
-        TARGET_STM
-        TARGET_STM32H7
-        TARGET_STM32H747xI
-        TARGET_STM32H747xI_CM7
-
-        TARGET_NAME=OPTA
-        TARGET_OPTA
-        TARGET_RELEASE
-
-        TOOLCHAIN_GCC
-        TOOLCHAIN_GCC_ARM
-
-        USE_FULL_LL_DRIVER
-        USE_HAL_DRIVER
-        VIRTIO_DRIVER_ONLY
-        EXTRA_IDLE_STACK_REQUIRED
-    )
 
     # The Arduino Mbed OPTA core, by default where arduino-cli installs it under
     # ~/.arduino15 (override with -DMBED_CORE_ROOT=... or ARDUINO_DATA_DIR). The
@@ -561,6 +461,11 @@ elseif(BOTANIK_TARGET STREQUAL "OPTA")
     endif()
     message(STATUS "Using Mbed OPTA core: ${MBED_CORE_ROOT}")
     set(MBED_ROOT "${MBED_CORE_ROOT}")
+    set(MBED_VARIANT "${MBED_ROOT}/variants/OPTA")
+
+    # The core's own define list, the one libmbed.a was built with, as a GCC
+    # response file: copied by hand it drifted from the installed core.
+    target_compile_options(botanik PUBLIC "@${MBED_VARIANT}/defines.txt")
 
     target_include_directories(botanik SYSTEM PUBLIC
         "${CMAKE_CURRENT_SOURCE_DIR}/src"
@@ -659,7 +564,6 @@ elseif(BOTANIK_TARGET STREQUAL "OPTA")
     #
     # Layout: .text at 0x08040000 (the app base, bootloader below it), .data/.bss
     # in RAM at 0x24000000, entry at Reset_Handler.
-    set(MBED_VARIANT "${MBED_ROOT}/variants/OPTA")
     set(MBED_CM4_DEFS -DCM4_BINARY_START=0x60000000
                       -DCM4_BINARY_END=0x60040000
                       -DCM4_RAM_END=0x60080000)
