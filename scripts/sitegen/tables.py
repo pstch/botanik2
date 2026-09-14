@@ -15,8 +15,10 @@ page lands under the working directory - so a site repository regenerates its
 own tables and its own docs without touching the submodule. `library` is
 botanik's own, and a site repository never runs it.
 
-Offline: the output is committed and never built. `make check-generated` holds
-the two together by regenerating into a scratch copy and diffing.
+The build runs it (cmake/codegen.cmake) when a committed codegen.stamp stops
+matching the inputs, and the output stays committed, so a build without python
+or matiec works as long as nothing was edited. `make check-generated`
+regenerates every example into a scratch copy and diffs.
 
 The generator owns the whole table. It merges the library's rows into the
 site's, applies the site's overrides, orders the rows, assigns every index and
@@ -79,8 +81,10 @@ def generate(site):
                  models=[m['symbol'] for m in mdl],
                  home_count=len(t['home']), system_count=len(t['system']))
 
+    abi = re.search(r'^#define BOTANIK_CODEGEN_ABI (\d+)$',
+                    open(lib('src', 'libbotanik', 'codegen_abi.h')).read(), re.M).group(1)
     render.write(os.path.join(site, 'generated', 'rows.gen.h'), 'rows.gen.h.j2',
-                 banner=H.rstrip('\n'), guard=guard,
+                 banner=H.rstrip('\n'), guard=guard, abi=abi,
                  rows=[{'name': r['name'], 'index': r['_i']} for r in table])
 
     print('  vars.gen.cpp   %d rows (%d params), %d quality, %d order'

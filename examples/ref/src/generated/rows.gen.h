@@ -14,6 +14,9 @@
 
 #include <cstdint>
 
+/// What vars/rows.h checks against the library's BOTANIK_CODEGEN_ABI.
+#define BOTANIK_SITE_CODEGEN_ABI 1
+
 namespace Botanik { namespace Vars { namespace Row {
 
     const uint16_t monitor_baud        = 0;

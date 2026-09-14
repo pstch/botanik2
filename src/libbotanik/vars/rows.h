@@ -18,6 +18,10 @@
 
 #if defined(BOTANIK_SITE_ROWS)
 #  include BOTANIK_SITE_ROWS
+#  include "libbotanik/codegen_abi.h"
+#  if !defined(BOTANIK_SITE_CODEGEN_ABI) || BOTANIK_SITE_CODEGEN_ABI != BOTANIK_CODEGEN_ABI
+#    error "the site's generated sources are from another generator version: regenerate them (make codegen)"
+#  endif
 #else
 // No site: every library row resolves to the bank's inert sink. A consumer
 // reusing a component without a variable table still compiles.
