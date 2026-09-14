@@ -80,8 +80,9 @@ set_property(DIRECTORY APPEND PROPERTY TEST_INCLUDE_FILES
 # That is the cap because each pyte sim wants a core to itself.
 set(BOTANIK_CTEST_JOBS ${_nproc} CACHE STRING
     "Parallel job count for the ctest gate (make check)")
-# The run itself is gate.cmake: `-LE unit` first, then the per-case entries only
-# when doctest failed, which says whether a case fails alone or only in company.
+# The run itself is gate.cmake: `-LE unit` first, then the per-case entries of
+# each binary that failed, which says whether a case fails alone or only in
+# company.
 # Excluding by label rather than naming what to run means a newly added test
 # joins the gate by default.
 add_custom_target(check

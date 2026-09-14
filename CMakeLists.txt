@@ -82,7 +82,6 @@ endif()
 # Runtime sanitizers for the SIMULATOR build (ignored on OPTA, which we can't
 # run). OFF | address | undefined | address+undefined. `make check-full` runs
 # the gate instrumented.
-string(TOUPPER "${CMAKE_BUILD_TYPE}" _build_type_upper)
 set(BOTANIK_SANITIZE "OFF" CACHE STRING "Sanitizers for the SIMULATOR build")
 
 # Footprint budget for the OPTA image, checked after the link by
@@ -114,6 +113,7 @@ set(CMAKE_EXE_LINKER_FLAGS_RELEASE "-s"           CACHE STRING "" FORCE)
 
 # Symlink compile_commands.json to the project root for clang-tidy/clangd. DEBUG
 # trees only, so a parallel RELEASE configure cannot repoint it at NDEBUG flags.
+string(TOUPPER "${CMAKE_BUILD_TYPE}" _build_type_upper)
 if(_build_type_upper STREQUAL "DEBUG")
     execute_process(
         COMMAND ${CMAKE_COMMAND} -E create_symlink
@@ -148,7 +148,7 @@ target_include_directories(botanik PUBLIC "${BOTANIK_GENERATED_DIR}")
 # are not flagged.
 set_source_files_properties(
     "${CMAKE_CURRENT_SOURCE_DIR}/src/libbotanik/scheduler/scheduler.cpp"
-    PROPERTIES COMPILE_FLAGS "-Wdouble-promotion")
+    PROPERTIES COMPILE_OPTIONS "-Wdouble-promotion")
 
 # Site resolution: the site DIRECTORY is the single source of truth, resolved
 # absolute and forwarded PUBLIC so its files are found by full path. It never
@@ -156,12 +156,11 @@ set_source_files_properties(
 # which must not shadow other headers (notably Mbed's). Site-internal includes
 # are RELATIVE, which is what makes an out-of-tree site work.
 #
-# config.h carries the build-wide Config overrides, read before libbotanik's
-# #ifndef defaults and with none of the library in scope.
+# The site's config (generated/config.gen.h, or a hand-written config.h) carries
+# the build-wide Config overrides, read before libbotanik's #ifndef defaults.
 #
 # ABI guard: any TU including libbotanik_config.h MUST link `botanik` for these
 # PUBLIC defines, or it silently compiles against the un-overridden defaults.
-# Sizes in the PLC wire contract live in the site's payload.h for that reason.
 if(BOTANIK_SITE_NONE)
     set(_site_dir "")
 elseif(BOTANIK_SITE_DIR)
@@ -299,9 +298,8 @@ if(BOTANIK_TARGET STREQUAL "SIMULATOR")
         # Lets the HAL leave SIGSEGV to the sanitizer's own handler. GCC and
         # clang spell the built-in test differently, so state it once for both.
         target_compile_definitions(botanik PUBLIC BOTANIK_SANITIZED=1)
-        # Also as link flags so the runtimes get linked; via
-        # target_link_libraries because target_link_options is CMake 3.13+.
-        target_link_libraries(botanik PUBLIC ${_san_flags})
+        # Also as link flags, so the runtimes get linked.
+        target_link_options(botanik PUBLIC ${_san_flags})
         message(STATUS "Sanitizers enabled: ${BOTANIK_SANITIZE}")
     endif()
 
@@ -372,7 +370,7 @@ if(BOTANIK_TARGET STREQUAL "SIMULATOR")
         message(STATUS "clang-tidy not found (or non-Make generator) - skipping the target")
     endif()
 
-    # Both subdirectories below want a job count.
+    # tests/ wants a job count.
     include(ProcessorCount)
     ProcessorCount(_nproc)
     if(_nproc EQUAL 0)
@@ -636,33 +634,27 @@ if(PROJECT_IS_TOP_LEVEL)
     #
     # Both targets WRITE INTO THE SOURCE TREE: what they produce is committed,
     # and a diff afterwards is the point rather than a surprise.
+    # The console screenshots, which drive the real simulator through the pyte
+    # harness: a built sim, and pyte importable. Skipped rather than failed
+    # where either is absent, the way the screen tests are.
     find_package(Python3 COMPONENTS Interpreter QUIET)
-    if(Python3_Interpreter_FOUND)
-        execute_process(COMMAND ${Python3_EXECUTABLE} -c "import jinja2"
-                        RESULT_VARIABLE _docs_jinja_rc OUTPUT_QUIET ERROR_QUIET)
-    endif()
-    if(Python3_Interpreter_FOUND AND _docs_jinja_rc EQUAL 0)
-        # The console screenshots, which drive the real simulator through the pyte
-        # harness: a built sim, and pyte importable. Skipped rather than failed
-        # where either is absent, the way the screen tests are.
-        if(TARGET botanik_sim)
-            execute_process(COMMAND ${Python3_EXECUTABLE} -c "import pytest, pyte"
-                            RESULT_VARIABLE _screens_rc OUTPUT_QUIET ERROR_QUIET)
-            if(_screens_rc EQUAL 0)
-                add_custom_target(docs-screens
-                    COMMAND ${CMAKE_COMMAND} -E chdir ${BOTANIK_ROOT}
-                            ${Python3_EXECUTABLE} scripts/screens.py
-                            $<TARGET_FILE:botanik_sim>
-                    COMMAND ${CMAKE_COMMAND} -E chdir ${BOTANIK_ROOT}
-                            ${Python3_EXECUTABLE} scripts/screens.py --scenarios
-                            $<TARGET_FILE:botanik_sim>
-                    DEPENDS botanik_sim
-                    USES_TERMINAL
-                    COMMENT "Recapturing the console screenshots (a minute or two)"
-                    VERBATIM)
-            else()
-                message(STATUS "docs: pyte not importable - screenshots stay as committed")
-            endif()
+    if(Python3_Interpreter_FOUND AND TARGET botanik_sim)
+        execute_process(COMMAND ${Python3_EXECUTABLE} -c "import pytest, pyte"
+                        RESULT_VARIABLE _screens_rc OUTPUT_QUIET ERROR_QUIET)
+        if(_screens_rc EQUAL 0)
+            add_custom_target(docs-screens
+                COMMAND ${CMAKE_COMMAND} -E chdir ${BOTANIK_ROOT}
+                        ${Python3_EXECUTABLE} scripts/screens.py
+                        $<TARGET_FILE:botanik_sim>
+                COMMAND ${CMAKE_COMMAND} -E chdir ${BOTANIK_ROOT}
+                        ${Python3_EXECUTABLE} scripts/screens.py --scenarios
+                        $<TARGET_FILE:botanik_sim>
+                DEPENDS botanik_sim
+                USES_TERMINAL
+                COMMENT "Recapturing the console screenshots (a minute or two)"
+                VERBATIM)
+        else()
+            message(STATUS "docs: pyte not importable - screenshots stay as committed")
         endif()
     endif()
 
