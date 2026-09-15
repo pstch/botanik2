@@ -18,9 +18,8 @@ project(ref C CXX)
 
 botanik_add_site(SITE_DIR src)
 
-# This site's own tests, when it is the project rather than the selected
-# example of botanik's own build.
-if(TARGET botanik_testkit AND PROJECT_IS_TOP_LEVEL)
+# This site's own tests. Host-only: the testkit exists in a SIMULATOR build.
+if(TARGET botanik_testkit)
     enable_testing()
     add_subdirectory(tests)
 endif()

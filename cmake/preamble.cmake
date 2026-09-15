@@ -5,6 +5,15 @@
 #   project(my_greenhouse C CXX)
 #   botanik_add_site(SITE_DIR src)
 #
+# What a consumer then has, beside the library itself:
+#
+#   botanik_sim, botanik_site    the simulator, and the site as an object library
+#   botanik_testkit              tests/kit and doctest (cmake/testkit.cmake), with
+#   BOTANIK_TEST_MAIN            doctest's main, and
+#   botanik_add_pyte_tests()     screen tests over tests/kit/pyte
+#   BOTANIK_ROOT                 the botanik checkout this build uses
+#   check, check-opta, docs      the consumer targets (cmake/consumer.cmake)
+#
 # Toolchain selection has to be here: CMAKE_TOOLCHAIN_FILE must be set before
 # the first project(), which runs before botanik is added. -DBOTANIK_TARGET=OPTA
 # stays the one knob in both repositories, and a toolchain named on the command
