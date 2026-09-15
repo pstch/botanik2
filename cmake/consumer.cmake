@@ -70,6 +70,16 @@ if(_consumer_doxygen AND EXISTS "${_consumer_root}/docs/index.md")
                docs/dev/runtime docs/dev/console docs/dev/field)
         string(APPEND _consumer_image_path " \\\n    \"${BOTANIK_ROOT}/${_d}\"")
     endforeach()
+    # botanik's own front page, retitled: in a site's manual it is one part of the
+    # whole, and "Botanik" alone reads as the name of the site's manual. Written
+    # into the build tree, so botanik's */build/* exclusion is dropped below: no
+    # input directory holds a build of its own.
+    file(READ "${BOTANIK_ROOT}/docs/index.md" _consumer_front)
+    string(REGEX REPLACE "^# [^\n]*" "# The Botanik runtime {#botanik_runtime}"
+           _consumer_front "${_consumer_front}")
+    file(WRITE "${CMAKE_BINARY_DIR}/docs-input/botanik_runtime.md" "${_consumer_front}")
+    set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
+                 "${BOTANIK_ROOT}/docs/index.md")
     file(WRITE "${CMAKE_BINARY_DIR}/Doxyfile"
 "@INCLUDE               = \"${BOTANIK_ROOT}/Doxyfile\"
 PROJECT_NAME           = \"${CMAKE_PROJECT_NAME}\"
@@ -77,11 +87,12 @@ PROJECT_NUMBER         =
 PROJECT_BRIEF          = \"A Botanik site\"
 PROJECT_LOGO           = \"${BOTANIK_ROOT}/images/logo-small.png\"
 OUTPUT_DIRECTORY       = \"${CMAKE_BINARY_DIR}/docs\"
-INPUT                  = \"${_consumer_root}/docs\" \"${_site_dir}\" \"${BOTANIK_ROOT}/docs\" \"${BOTANIK_ROOT}/src\"
+INPUT                  = \"${_consumer_root}/docs\" \"${_site_dir}\" \"${BOTANIK_ROOT}/docs\" \"${BOTANIK_ROOT}/src\" \"${CMAKE_BINARY_DIR}/docs-input\"
 USE_MDFILE_AS_MAINPAGE = \"${_consumer_root}/docs/index.md\"
 IMAGE_PATH             =${_consumer_image_path}
 EXAMPLE_PATH           = \"${_consumer_root}/docs/generated/screens\" \"${BOTANIK_ROOT}/docs/generated/screens\"
-EXCLUDE                = \"${BOTANIK_ROOT}/docs/design\" \"${BOTANIK_ROOT}/docs/doxygen\" \"${_site_dir}/README.md\"
+EXCLUDE                = \"${BOTANIK_ROOT}/docs/design\" \"${BOTANIK_ROOT}/docs/doxygen\" \"${BOTANIK_ROOT}/docs/index.md\" \"${_site_dir}/README.md\"
+EXCLUDE_PATTERNS       = */includes/* */archive/* */CMakeFiles/* */tests/vendor/* */.pytest_cache/* */__pycache__/*
 STRIP_FROM_PATH        = \"${_consumer_root}\" \"${BOTANIK_ROOT}\"
 STRIP_FROM_INC_PATH    = \"${BOTANIK_ROOT}/src\"
 INCLUDE_PATH           = \"${BOTANIK_ROOT}/src\"
