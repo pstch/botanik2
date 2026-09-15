@@ -23,6 +23,10 @@
 #   ram_store.h         storage in RAM
 #   recording_writer.h  a log writer that keeps what it was given
 #
+# ...and tests/kit/pyte/, the screen-test harness: harness.py (the fixtures a
+# conftest imports), helpers.py, keys.py and normalize.py, on PYTHONPATH for
+# every test botanik_add_pyte_tests() registers.
+#
 # A fixture that names a site's own rows belongs to that site.
 
 add_library(botanik_testkit INTERFACE)
@@ -66,7 +70,7 @@ function(botanik_add_pyte_tests name dir)
     endif()
 
     get_filename_component(dir ${dir} ABSOLUTE)
-    set(_harness "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/../tests/pyte")
+    set(_harness "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/../tests/kit/pyte")
     get_filename_component(_harness ${_harness} ABSOLUTE)
 
     # One entry per FILE: failures stay attributable without each entry paying

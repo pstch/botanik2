@@ -139,6 +139,10 @@ rows) lives beside that site, e.g. `examples/ref/tests/pyte/`: a conftest that
 imports the fixtures from `harness.py`, registered with
 `botanik_add_pyte_tests(<name> <dir>)`, and goldens in `golden/` next to it.
 
+The harness itself - `harness.py`, `helpers.py`, `keys.py`, `normalize.py` - is
+`tests/kit/pyte/`, the part a site repository builds on; this directory holds
+only botanik's own cases.
+
 A boot costs ~0.02 s and syncs on the tab strip. The network handshake behind
 it spans 0.14-0.35 sim-seconds; the mock responder binds its sockets before its
 thread starts (see `botanik_sim/network.h`).

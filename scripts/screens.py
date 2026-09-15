@@ -26,7 +26,7 @@ import tempfile
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
-sys.path.insert(0, os.path.join(ROOT, 'tests', 'pyte'))
+sys.path.insert(0, os.path.join(ROOT, 'tests', 'kit', 'pyte'))
 
 import keys                                          # noqa: E402
 from harness import Term                             # noqa: E402

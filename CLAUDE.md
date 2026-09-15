@@ -45,8 +45,8 @@ Host-only, SIMULATOR build. Everything runs under botanik's own CTest:
   one unlabelled entry running the whole binary, and one entry per `TEST_CASE`,
   labelled `unit;unit:doctest`, so `ctest -R` or an IDE can address a single case.
 - **pyte** in `tests/pyte/`, driving `botanik_sim` over a PTY and asserting its
-  rendered ANSI. Registered only when `pytest` and `pyte` import, through
-  `botanik_add_pyte_tests()` (cmake/testkit.cmake). Regenerate goldens with
+  rendered ANSI, through the harness in `tests/kit/pyte/`. Registered only when
+  `pytest` and `pyte` import, through `botanik_add_pyte_tests()` (cmake/testkit.cmake). Regenerate goldens with
   `make -C build pytest-update` and review the diff.
 - **examples**: every `examples/<name>/` is configured and built as its own
   consumer project in `build/examples/<name>/` (cmake/examples.cmake). Each gets
