@@ -267,7 +267,10 @@ namespace Botanik { namespace Terminal {
 
     // present() - reconcile FRONT to the wire
 
-    bool AnsiTerminal::_go(const CursorPos& target) {
+    bool AnsiTerminal::_go(const CursorPos& target_in) {
+        // The terminal clamps a position past the edge; track where it lands.
+        const CursorPos target = { std::min(target_in.row, (uint16_t)(_rows - 1)),
+                                   std::min(target_in.col, (uint16_t)(_cols - 1)) };
         if (target == _hw_pos && !_hw_at_eol) return true;
         bool ok;
         if (_hw_at_eol) {

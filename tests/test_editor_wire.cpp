@@ -170,6 +170,12 @@ static const Scenario SCENARIOS[] = {
       },
       [](EditorFixture& f) { type(f, "x"); }, 41 },
 
+    // 72 characters wrap one onto a second row; the first backspace brings the
+    // text back to exactly the last column, which parks the cursor past it.
+    { "backspace twice from one past a full row", SHELL,
+      [](EditorFixture& f) { fill(f, 72); f.editor.backspace(1); },
+      [](EditorFixture& f) { f.editor.backspace(1); }, 9 },
+
     { "cursor up a row in a 3-row wrap", SHELL,
       [](EditorFixture& f) { fill(f, 180); },
       [](EditorFixture& f) { f.editor.move_up(); }, 3 },
