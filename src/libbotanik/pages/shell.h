@@ -34,7 +34,7 @@ namespace Botanik { namespace Pages {
         /** @name State
          *  @{ */
 
-        /** @brief Owning console (content-area geometry + clear_content/line_feed). */
+        /** @brief Owning console (content-area geometry + clear_content). */
         Console&           _console;
         /** @brief The VT device it paints through (cached _console.terminal()). */
         AnsiTerminal&      _terminal;
@@ -132,13 +132,6 @@ namespace Botanik { namespace Pages {
          *  the prompt grows, hence a call and not a member. */
         uint16_t _log_rows() const;
 
-        /** @brief Return the transcript to the live bottom; no-op unless
-         *  scrolled back. Every key but PAGE_UP/PAGE_DOWN must do this: the
-         *  editor moves the log band without telling the scrollback (line_feed()
-         *  on submit, the band shift when the prompt shrinks), so anything
-         *  editing the line has to land at the bottom first. */
-        void _follow_tail();
-
         /** @brief Snapshot the current line into @p line, echo it to history and
          *  reset to a fresh prompt. @return the line length. Shared by submit and
          *  cancel. */
@@ -156,10 +149,6 @@ namespace Botanik { namespace Pages {
         /** @brief Store each display row of a submitted command in the
          *  scrollback (screen content is already visible). */
         void _record_command(const char* cmd, uint16_t len);
-
-        /** @brief Fill the @p delta rows the editor's shrink opened at the top
-         *  of the log area from the scrollback. */
-        void _fill_revealed_rows(uint16_t delta);
 
         /** @} */
     };

@@ -7,10 +7,8 @@
  *        the bordered table pages (ALARMS / MONITOR / CONFIG).
  *
  * A subclass supplies only the band geometry and the row count; clamping,
- * follow-scroll, the DL/IL band shift and the chrome are shared. Each page
- * keeps its own row builder.
- * @note Moving the cursor past a window edge scrolls the band, so only the
- *       revealed rows repaint (@ref dev_screen).
+ * follow-scroll and the chrome are shared. Each page keeps its own row
+ * builder.
  */
 
 #include <cstdint>
@@ -112,10 +110,8 @@ namespace Botanik { namespace Pages {
          *  _draw_legend() shows in place of the page's own detail. */
         const char* _copied_badge() const;
 
-        /** @brief Move the cursor by @p dir (clamped to the set), auto-scrolling
-         *  the band to keep it visible. A shift smaller than the window rides a
-         *  DL/IL so only the revealed rows repaint; a full-page jump keeps no
-         *  overlap worth shifting and leaves the whole band to the tick's redraw. */
+        /** @brief Move the cursor by @p dir (clamped to the set), scrolling the
+         *  band to keep it visible; the tick's redraw paints it. */
         void _move_selection(int dir);
 
         /** @}

@@ -174,34 +174,23 @@ namespace Botanik { namespace Pages {
     void HomePage::focus() {
         MetricPage::focus();                 // logo, readings, divider
         _log_active = true;
-        // Stage the SAME band tick() drains into. Spanning the whole content
-        // area instead bottom-aligned the replay against the last row and so
-        // started it above the divider whenever the ring was full.
-        const uint16_t band_top = log_band_top();
-        if (band_top != 0)
-            _scrollback.begin_redraw(band_top,
-                                     (uint16_t)(_console.rows() - band_top));
+        _scrollback.reset_view();
     }
 
     void HomePage::tick(bool active) {
         // logo/readings (paced) refresh
         MetricPage::tick(active);
         _log_active = active;
-        // Staged focus replay first, and bail until it finishes: the live
-        // band's DL scroll must not shift rows the replay already drew.
-        if (_scrollback.tick_redraw_gate(_terminal, active)) return;
-        // Bank queued entries, then paint them paced into the bottom band.
         drain();
+        if (!active) return;
         const uint16_t band_top = log_band_top();
-        if (active && band_top != 0) {
-            _scrollback.drain_tail(_terminal, band_top,
-                                   (uint16_t)(_console.rows() - band_top));
-        }
+        if (band_top != 0)
+            _scrollback.paint(_terminal, band_top, (uint16_t)(_console.rows() - band_top));
     }
 
     size_t HomePage::write(const char* buf, size_t len) {
-        // Store-only: bank the entry, mark pending when active for the paced
-        // drain_tail. Never blocks or drops, so report it all consumed.
+        // Store-only: the next paint shows it. Never blocks or drops, so report
+        // it all consumed.
         _scrollback.ingest(buf, len, (uint16_t)_terminal.cols(),
             Logs::LOG_CONT_PREFIX,
             (uint16_t)strlen(Logs::LOG_CONT_PREFIX), _log_active);

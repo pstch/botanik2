@@ -33,6 +33,17 @@
 
 namespace tests { namespace botanik_test {
 
+    /** @brief Wire bytes with ESC and control bytes spelled out. */
+    inline std::string shown(const std::string& bytes) {
+        std::string out;
+        for (char c : bytes) {
+            if (c == 0x1B)                  out += "\\e";
+            else if (c >= 0x20 && c < 0x7F) out += c;
+            else { char h[8]; snprintf(h, sizeof h, "\\x%02x", (unsigned char)c); out += h; }
+        }
+        return out;
+    }
+
     /** @brief A Console on a pipe, at a stated geometry.
      *
      *  `console_cols` is banded 80..132 and `console_rows` 20..32, so the
@@ -195,8 +206,8 @@ namespace tests { namespace botanik_test {
          *
          *  @warning Only where a repaint is meant to reproduce the screen.
          *  Two documented cases where it is not: MonitorPage::focus() and
-         *  ParamsPage::focus() clear `_editing`, and Scrollback::begin_redraw()
-         *  resets `_view_offset`. So a page repainted mid-edit, or scrolled
+         *  ParamsPage::focus() clear `_editing`, and Scrollback::reset_view()
+         *  returns to the newest lines. So a page repainted mid-edit, or scrolled
          *  back, legitimately comes back different. Leave the edit or return to
          *  the bottom first, and assert convergence around it.
          */

@@ -114,6 +114,11 @@ namespace Botanik { namespace Terminal {
     }
 
     void Console::_flush() {
+        // A beat that routed input flushes the frame it caused, whole: the draw
+        // task does not run every beat.
+        if (_input_routed && _pages_len > 0 && _pages[_page_index] != nullptr)
+            _pages[_page_index]->tick(true);
+        _input_routed = false;
         _term.present();
         _serial.transmit();
     }
@@ -145,6 +150,7 @@ namespace Botanik { namespace Terminal {
     }
 
     void Console::_draw(uint64_t now_ms) {
+        _input_routed = false;          // every page ticks below
         // Establish the screen on the first step (not in setup_*()) so the clear
         // lands after the handshake setup_*() queued (establish_screen(), not
         // clear_screen, so it keeps the queued handshake bytes).
@@ -173,6 +179,7 @@ namespace Botanik { namespace Terminal {
             if (ev.type == InputEvent::EventType::NONE) break;
             if (_pages_len == 0 || _pages[_page_index] == nullptr) continue;
             Pages::Page* page = _pages[_page_index];
+            _input_routed = true;
             if (ev.type == InputEvent::EventType::CONTENT) {
                 page->handle_text_batch(ev.batch_data, ev.batch_len);
                 continue;
@@ -222,29 +229,10 @@ namespace Botanik { namespace Terminal {
         }
     }
 
-    // Content-area geometry & scrolling
+    // Content-area geometry
 
     void Console::clear_content() {
-        // clear_rows scrolls the band off by its full height: one escape, and it
-        // shifts BACK too, so the diff then emits nothing. (An erase-to-end-of-
-        // display would only blank FRONT, leaving the diff to write a space over
-        // every non-blank cell - and would wipe a reserved alarm bar besides.)
         _term.clear_rows(1, _content_bottom());
-    }
-
-    void Console::line_feed(bool carriage_return) {
-        uint16_t content_bottom = _content_bottom();
-        if (_term.cursor_pos().row < content_bottom) {
-            // Normal case: cursor moves into the next row.
-            _term.newline(carriage_return);
-        } else {
-            // At the bottom of the content band: scroll it up one so row 0
-            // (status) and the reserved bottom row are never touched, then drop
-            // onto the freed bottom row.
-            uint16_t target_col = carriage_return ? 0 : _term.cursor_pos().col;
-            _term.scroll_region(1, content_bottom, /*up=*/true, 1);
-            _term.move_to({content_bottom, target_col});
-        }
     }
 
     // Pages

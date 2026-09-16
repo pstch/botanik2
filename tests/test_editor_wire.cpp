@@ -110,7 +110,7 @@ static const Scenario SCENARIOS[] = {
 
     { "hard break at the head of a 3-row input", SHELL,
       [](EditorFixture& f) { fill(f, 180); f.editor.move_to_line_start(); },
-      [](EditorFixture& f) { type(f, "\n"); }, 89 },
+      [](EditorFixture& f) { type(f, "\n"); }, 71 },
 
     { "hard break mid a 3-row input", SHELL,
       [](EditorFixture& f) { fill(f, 180); seek(f, 40); },
@@ -149,7 +149,7 @@ static const Scenario SCENARIOS[] = {
       [](EditorFixture& f) {
           const std::string s = varied(100);
           f.editor.replace_all(s.data(), 100);
-      }, 132 },
+      }, 125 },
 
     { "region raised over a word", SHELL,
       [](EditorFixture& f) {
@@ -190,7 +190,7 @@ static const Scenario SCENARIOS[] = {
 
     { "NOTES hard break at the head of a 3-row line", NOTES,
       [](EditorFixture& f) { fill(f, 180); f.editor.move_to_line_start(); },
-      [](EditorFixture& f) { type(f, "\n"); }, 25 },
+      [](EditorFixture& f) { type(f, "\n"); }, 19 },
 
     { "NOTES hard break mid a 3-row line", NOTES,
       [](EditorFixture& f) { fill(f, 180); seek(f, 40); },
@@ -218,7 +218,7 @@ static const Scenario SCENARIOS[] = {
           lines(f, 30);
           for (int i = 0; i < 21; i++) f.editor.move_up();
       },
-      [](EditorFixture& f) { f.editor.move_up(); }, 35 },
+      [](EditorFixture& f) { f.editor.move_up(); }, 21 },
 
     { "NOTES viewport slides up a row", NOTES,
       [](EditorFixture& f) {
@@ -226,7 +226,7 @@ static const Scenario SCENARIOS[] = {
           f.editor.move_to_start();
           for (int i = 0; i < 21; i++) f.editor.move_down();
       },
-      [](EditorFixture& f) { f.editor.move_down(); }, 34 },
+      [](EditorFixture& f) { f.editor.move_down(); }, 0 },
 };
 
 static constexpr size_t N_SCENARIOS = sizeof(SCENARIOS) / sizeof(SCENARIOS[0]);
@@ -244,15 +244,8 @@ static size_t run(EditorFixture& f, const Scenario& s) {
     f.drain();
     s.act(f);
     const std::string bytes = f.pump();
-    if (getenv("BOTANIK_LEDGER_DUMP") != nullptr) {
-        std::string shown;
-        for (char c : bytes) {
-            if (c == 0x1B)              shown += "\\e";
-            else if (c >= 0x20 && c < 0x7F) shown += c;
-            else { char h[8]; snprintf(h, sizeof h, "\\x%02x", (unsigned char)c); shown += h; }
-        }
-        MESSAGE(std::string(s.name) << " (" << bytes.size() << " bytes):\n  " << shown);
-    }
+    if (getenv("BOTANIK_LEDGER_DUMP") != nullptr)
+        MESSAGE(std::string(s.name) << " (" << bytes.size() << " bytes):\n  " << botanik_test::shown(bytes));
     return bytes.size();
 }
 

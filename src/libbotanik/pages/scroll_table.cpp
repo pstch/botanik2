@@ -65,17 +65,7 @@ namespace Botanik { namespace Pages {
         if (s < 0)           s = 0;
         if (s >= (int32_t)n) s = (int32_t)n - 1;
         _selected = (uint16_t)s;
-        uint16_t old_top = _top;
         _follow_selection();
-        int32_t td = (int32_t)_top - (int32_t)old_top;
-        if (td == 0) return;
-        uint16_t win = _window();
-        uint16_t nd  = (uint16_t)(td < 0 ? -td : td);
-        if (nd < win) {
-            uint16_t top = _data_top();
-            _terminal.scroll_region(top, (uint16_t)(top + win - 1),
-                                    /*up=*/td > 0, nd);
-        }
     }
 
     void ScrollTablePage::_cycle_mode(int dir) {

@@ -4,7 +4,7 @@
  *
  * test_editor_wire.cpp bills the editor alone. Here it sits on the page that
  * owns a scrollback above it, so what a shrink or a grow costs includes the
- * log rows the band scroll reveals or hides. Same two checks: the VT lands
+ * transcript rows that slide with it. Same two checks: the VT lands
  * where FRONT asked, and each action has a committed byte ceiling.
  */
 
@@ -69,15 +69,15 @@ static const Scenario SCENARIOS[] = {
 
     { "SHELL backspace joins two rows over a transcript",
       [](ShellRig& f) { f.transcript(30); f.two_rows(); },
-      [](ShellRig& f) { f.key(Command::BACKSPACE, 30); }, 41 },
+      [](ShellRig& f) { f.key(Command::BACKSPACE, 30); }, 47 },
 
     { "SHELL Ctrl-U clears a two-row input over a transcript",
       [](ShellRig& f) { f.transcript(30); f.two_rows(); },
-      [](ShellRig& f) { f.key(Command::CTRL_U); }, 37 },
+      [](ShellRig& f) { f.key(Command::CTRL_U); }, 48 },
 
     { "SHELL Enter submits a two-row input over a transcript",
       [](ShellRig& f) { f.transcript(30); f.two_rows(); },
-      [](ShellRig& f) { f.key(Command::ENTER); }, 173 },
+      [](ShellRig& f) { f.key(Command::ENTER); }, 162 },
 };
 
 static constexpr size_t N_SCENARIOS = sizeof(SCENARIOS) / sizeof(SCENARIOS[0]);
@@ -87,7 +87,10 @@ static size_t run(ShellRig& f, const Scenario& s) {
     (void)f.paint(f.page);
     f.drain();
     s.act(f);
-    return f.paint(f.page).size();
+    const std::string bytes = f.paint(f.page);
+    if (getenv("BOTANIK_LEDGER_DUMP") != nullptr)
+        MESSAGE(std::string(s.name) << " (" << bytes.size() << " bytes):\n  " << botanik_test::shown(bytes));
+    return bytes.size();
 }
 
 TEST_CASE("shell: the wire puts the screen where FRONT asked for it") {

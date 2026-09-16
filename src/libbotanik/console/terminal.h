@@ -6,9 +6,9 @@
  * @brief AnsiTerminal - a compositing screen over a VT device. Renderers draw
  *        immediate-mode into a FRONT cell grid; once a tick present() diffs it
  *        against BACK (the wire) and emits the minimal ANSI under a byte budget.
- * @warning Pages must NOT track their own dirty regions or diff by hand -
- *          redrawing an unchanged cell already costs nothing. The one measured
- *          exception is the line editor (@ref dev_editor). See @ref dev_screen.
+ * @warning Renderers must NOT track dirty regions, diff by hand or scroll:
+ *          redrawing an unchanged cell costs nothing, and present() finds the
+ *          rows and cells that only slid. See @ref dev_screen.
  */
 
 #include <cstdint>
@@ -111,13 +111,14 @@ namespace Botanik { namespace Terminal {
          *  (a status/alarm bar) would drag the cursor off the edit point. */
         CursorPos _live_cursor_pos = {0, 0};
 
-        /** @brief Band scrolls recorded by scroll_region this tick, emitted as
-         *  DL/IL by present() before the cell diff (both grids were already
-         *  shifted, so the diff then only repaints the revealed rows). */
-        struct PendingScroll { uint16_t top, bottom, n; bool up; };
-        static constexpr uint8_t MAX_SCROLLS = 8;
-        PendingScroll _scrolls[MAX_SCROLLS];
-        uint8_t       _nscrolls = 0;
+        /** @brief A band slide present() found by comparing FRONT with BACK:
+         *  rows [top, bottom] move @p n rows, emitted as a DL/IL pair. */
+        struct Slide { uint16_t top, bottom, n; bool up; };
+        /** @brief Slides present() looks for per frame, each against the BACK
+         *  the previous one left. */
+        static constexpr uint8_t MAX_SLIDES = 4;
+        /** @brief Distinct row offsets one search tries. */
+        static constexpr uint8_t MAX_OFFSETS = 12;
 
         /** @brief Per-row priority class, the order present() reconciles rows in.
          *  Filled by the constructor: a brace-initialiser would set only the first
@@ -214,10 +215,9 @@ namespace Botanik { namespace Terminal {
         /** @brief Stale cells in a row's blank tail from which one EL beats
          *  writing the spaces: the escape is three bytes. */
         static constexpr uint16_t EL_MIN_CELLS     = 4;
-        /** @brief Shift grid @p g for a band scroll (content moves, freed rows
-         *  blanked). Called for FRONT by scroll_region and for BACK by present()
-         *  once the matching DL/IL has reached the wire. */
-        void _shift_grid(uint8_t* g, uint16_t top, uint16_t bottom, bool up, uint16_t n);
+        /** @brief Mirror a slide that reached the wire in BACK: the band's
+         *  rows move, the rows it frees are blank. */
+        void _shift_back(const Slide& s);
         /** @brief Blank the active region of both grids - after a physical
          *  clear, the wire is blank and nothing is drawn. */
         void _reset_grids();
@@ -226,8 +226,35 @@ namespace Botanik { namespace Terminal {
 
         /** @name present() phases
          *  @{ */
-        /** @brief Emit each pending band DL/IL, shifting BACK on success. */
-        void _emit_scrolls();
+        /** @brief The cheapest band slide that pays for its escapes, in @p out.
+         *  @return false when none does. */
+        bool _find_slide(Slide& out) const;
+        /** @brief Emit @p s as its DL/IL pair; BACK follows only if it all went. */
+        bool _emit_slide(const Slide& s);
+        /** @brief The run loop's estimated price for turning row @p bk into row
+         *  @p fr, each @ref _cols cells. */
+        uint16_t _row_cost(const uint8_t* fr, const uint8_t* bk) const;
+        /** @brief Where @p row's blank tail starts: one past its last glyph. */
+        uint16_t _blank_tail(const uint8_t* row) const {
+            uint16_t e = _cols;
+            while (e > 0 && row[e - 1] == CELL_BLANK) e--;
+            return e;
+        }
+        /** @brief What clearing @p stale cells of a blank tail costs: spaces,
+         *  or one EL once that is cheaper. */
+        static uint16_t _el_cost(uint16_t stale) { return stale >= EL_MIN_CELLS ? 3 : stale; }
+        /** @brief Whether a write of @p cost bytes may go out now, against the
+         *  ring and this tick's @p budget. */
+        bool _fits(uint16_t cost, uint16_t budget) const;
+        /** @brief @p budget less @p sent, never below 0. */
+        static uint16_t _spend(uint16_t budget, uint16_t sent) {
+            return sent < budget ? (uint16_t)(budget - sent) : 0;
+        }
+        /** @brief What pricing charges for a move onto a row from elsewhere. */
+        static constexpr uint16_t ROW_ENTRY_BYTES  = 7;
+        /** @brief What pricing charges for one half of a DL/IL pair: a move to
+         *  column 0 and the escape. */
+        static constexpr int32_t  SLIDE_BYTES      = 11;
         /** @brief Emit the paced FRONT-vs-BACK cell diff. @return true when the
          *  screen is fully reconciled; false when work is left for the next tick. */
         bool _emit_diff();
@@ -310,12 +337,11 @@ namespace Botanik { namespace Terminal {
          *  @name Text output & character attributes
          *  @{ */
 
-        /** @brief Stamp characters at the draw cursor into the FRONT grid;
-         *  @p insert shifts the row's existing cells right first. Grid-only.
+        /** @brief Stamp characters at the draw cursor into the FRONT grid.
          *  @return how many were stamped, NOT always @p len: nothing goes past
          *  the last row, and with auto-wrap off the run parks at the right
          *  edge and the rest is dropped. */
-        uint16_t write_chars(const char *buf, uint16_t len, bool insert = false);
+        uint16_t write_chars(const char *buf, uint16_t len);
 
         void set_inverted(bool enable);
         void set_auto_wrap(bool enable);
@@ -350,10 +376,10 @@ namespace Botanik { namespace Terminal {
         }
 
         /** @brief Send present()'s row walk back to the top of every class.
-         *  Call it when the content changed as an ordered whole (a band scroll,
-         *  a page switch, a full repaint), or a walk parked mid-screen by the
+         *  Call it when the content changed as an ordered whole (a page switch,
+         *  a full repaint), or a walk parked mid-screen by the
          *  previous frame decides where the next one starts painting.
-         *  scroll_region() and establish_screen() call it themselves. */
+         *  establish_screen() and every slide present() emits call it. */
         void restart_scan();
 
         /** @brief Declare where the visible cursor belongs. The renderer owning
@@ -373,27 +399,17 @@ namespace Botanik { namespace Terminal {
          *  @name Content manipulation
          *  @{ */
 
-        /** @brief Shift the row's cells left by @p len at the draw cursor,
-         *  blanking the freed cells at the right edge (grid-only). */
-        void delete_chars(uint16_t len);
         void clear_to_eol();
         void clear_screen();
         void clear_screen_now();
-        void scroll_region(uint16_t top, uint16_t bottom, bool up, uint16_t n = 1);
-
-        void clear_rows(uint16_t top, uint16_t bottom) {
-            if (top > bottom) return;
-            scroll_region(top, bottom, /*up=*/true, (uint16_t)(bottom - top + 1));
-        }
-
-        void newline(bool carriage_return);
+        /** @brief Blank rows [@p top, @p bottom] of FRONT. */
+        void clear_rows(uint16_t top, uint16_t bottom);
 
         /** @}
          *  @name Screen bring-up / low-level ops (for the Console)
          *  @{ */
 
         void establish_screen();
-
 
         /** @}
          *  @name Serial / TX
@@ -413,8 +429,8 @@ namespace Botanik { namespace Terminal {
          *  @name Frame reconciliation
          *  @{ */
 
-        /** @brief Reconcile the FRONT grid to the wire: emit any pending band
-         *  scrolls, then the minimal cell diff, paced under this tick's byte
+        /** @brief Reconcile the FRONT grid to the wire: the row slides it
+         *  finds, then the minimal cell diff, paced under this tick's byte
          *  budget. Called once per loop by the Console after renderers have drawn. */
         void present();
 

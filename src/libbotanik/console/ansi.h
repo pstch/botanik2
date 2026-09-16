@@ -108,7 +108,7 @@ namespace Botanik { namespace Terminal { namespace Ansi {
      *  on (see is_minitel()). */
     enum class TerminalType : uint8_t {
         VT100      = 0,  ///< plain X3.64, no setup handshake
-        VT102      = 1,  ///< VT100 plus IRM/DCH - what the editor's splice path wants
+        VT102      = 1,  ///< VT100 plus IRM/DCH, which sideways slides need
         MINITEL_1B = 2,  ///< Minitel 1B, teleinformatique mode (PRO2 handshake)
         MINITEL_2  = 3,  ///< Minitel 2, same PRO2 handshake
     };

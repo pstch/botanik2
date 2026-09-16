@@ -82,7 +82,7 @@ TEST_CASE("pages: LOGS converges at every supported geometry") {
         f.paint(page);
         f.converged(page, "LOGS after focus");
 
-        // Not convergence while scrolled: begin_redraw() resets _view_offset,
+        // Not convergence while scrolled: focus() resets the view,
         // so Ctrl+L on a scrolled log deliberately jumps to the newest and a
         // repaint is a DIFFERENT screen by design (pages/scrollback.h). What
         // is worth asserting is that the scroll moved the view at all, and

@@ -54,7 +54,6 @@ namespace Botanik { namespace Terminal {
         char*    buf;      /**< `buf_cap` bytes, one reserved for the NUL. */
         uint16_t buf_cap;
         RowView* layout;   /**< `max_rows` entries. */
-        RowView* pre;      /**< `max_rows` entries, distinct from `layout`. */
         uint16_t max_rows;
     };
 
@@ -64,16 +63,14 @@ namespace Botanik { namespace Terminal {
     struct EditorBuffers {
         char    buf[BUF];
         RowView layout[ROWS];
-        RowView pre[ROWS];
 
-        EditorStorage storage() { return EditorStorage{ buf, BUF, layout, pre, ROWS }; }
+        EditorStorage storage() { return EditorStorage{ buf, BUF, layout, ROWS }; }
     };
 
     /**
      * @class TextEditor
-     * @brief Multi-row line editor. An edit relays out the buffer, announces
-     *        the band scroll and the one IL/DL that slide the rows it only
-     *        displaced, and repaints the viewport.
+     * @brief Multi-row line editor. An edit relays out the buffer and repaints
+     *        the viewport; the terminal finds whatever rows only slid.
      * @note An insert that would cross the owner's row cap is refused.
      */
     class TextEditor {
@@ -86,7 +83,7 @@ namespace Botanik { namespace Terminal {
 
         char*    _buf;                 /**< Borrowed. */
         uint16_t _buf_cap;             /**< NUL included. */
-        uint16_t _max_rows;            /**< Capacity of both row arrays. */
+        uint16_t _max_rows;            /**< Capacity of the row array. */
         uint16_t _len    = 0;          /**< Bytes in _buf. */
         uint16_t _pos    = 0;          /**< Cursor offset in _buf. */
         uint16_t _origin = 0;          /**< Screen row of the viewport's top. */
@@ -110,7 +107,6 @@ namespace Botanik { namespace Terminal {
         bool     _dirty = false;
 
         TextView _layout{};            /**< Rows as laid out now. */
-        TextView _pre{};               /**< Rows as laid out before the edit. */
 
         /** @brief Prompt bytes and lengths, indexed by RowPrompt. */
         char     _ps_buf[3][Config::EDITOR_PROMPT_MAX];
@@ -130,8 +126,8 @@ namespace Botanik { namespace Terminal {
         /** @brief Discard the text and show an empty prompt. Marks dirty. */
         void reset();
 
-        /** @brief Start a fresh line after a submitted one. The caller has
-         *  line-fed past the text, which stays on screen as transcript. */
+        /** @brief Start a fresh line after a submitted one; the rows the text
+         *  gave up are the owner's to repaint. */
         void commit();
 
         /** @brief Repaint the viewport from the buffer, blank rows included. */
@@ -328,13 +324,6 @@ namespace Botanik { namespace Terminal {
          *  @return true if the rows ran out before the buffer did. */
         bool _rebuild_layout();
 
-        /** @brief Copy `_layout` into `_pre`, element-wise: the views borrow
-         *  distinct arrays. */
-        void _snapshot_pre();
-
-        /** @brief Put `_pre` back as the layout, for a refused edit. */
-        void _restore_pre();
-
         /** @brief Make @p len bytes of @p text (a slice of the buffer, or null)
          *  the whole buffer, cursor at @p cursor, and lay it out. No reconcile.
          *  @return false if a tail was dropped, for want of buffer or rows. */
@@ -388,9 +377,8 @@ namespace Botanik { namespace Terminal {
             return e > _layout.count ? _layout.count : e;
         }
 
-        /** @brief Scroll the viewport if the cursor left it, so the paint that
-         *  follows finds the kept rows in place. @return whether it moved. */
-        bool _follow_cursor();
+        /** @brief Move the viewport over the cursor if it left it. */
+        void _follow_cursor();
 
         /** @} */
 
@@ -452,38 +440,9 @@ namespace Botanik { namespace Terminal {
         /** @name Reconciliation
          *  @{ */
 
-        /** @brief Post rows from `absorbed_post` on are the pre rows from
-         *  `absorbed_pre` on, only displaced. */
-        struct SpliceSpan {
-            uint16_t absorbed_post;
-            uint16_t absorbed_pre;
-        };
+        /** @brief After an edit: origin, viewport, repaint, cursor. */
+        void _reconcile();
 
-        /** @brief Bytes of post row @p i that pre row @p j showed, after an
-         *  edit of @p span_len bytes at @p span_start. */
-        int32_t _kept(uint16_t i, uint16_t j, uint16_t span_start,
-                      uint16_t span_len, bool is_insert) const;
-
-        /** @brief The boundary whose IL/DL keeps the most bytes on the screen
-         *  row already showing them. */
-        SpliceSpan _find_splice_span(uint16_t span_start, uint16_t span_len,
-                                     bool is_insert, int32_t row_delta) const;
-
-        /** @brief The one IL/DL that slides the absorbed tail, bounded to the
-         *  viewport. */
-        void _reposition_tail(const SpliceSpan& span, int32_t row_delta);
-
-        /** @brief After an edit of @p span_len bytes at @p span_start: band
-         *  scrolls, the IL/DL, viewport, repaint, cursor. */
-        void _reconcile(uint16_t span_start, uint16_t span_len, bool is_insert);
-
-        /** @brief Bottom-anchored: scroll the content band up so the added
-         *  rows fit, never above row 1. @return the origin the shrink aims for. */
-        uint16_t _grow_editor();
-
-        /** @brief Bottom-anchored: slide the content band down by the rows the
-         *  text gave back. */
-        void _shrink_editor(uint16_t new_origin);
 
         /** @} */
     };

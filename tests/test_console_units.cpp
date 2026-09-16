@@ -130,8 +130,7 @@ TEST_CASE("line buffer: a prefix wider than the segment does not underflow") {
 
 // Scrollback
 
-/** @brief A Scrollback with a terminal under it, since every navigation call
- *  paints as it moves. */
+/** @brief A Scrollback over the band a 24-row console gives it. */
 struct BackFixture : botanik_test::PageFixture {
     Pages::LogsScrollback sb;
 
@@ -144,8 +143,7 @@ struct BackFixture : botanik_test::PageFixture {
         }
     }
     bool scroll(bool up, uint16_t n = 1) {
-        return sb.scroll(console.terminal(), up, n, 1,
-                         (uint16_t)(console.rows() - 1));
+        return sb.scroll(up, n, (uint16_t)(console.rows() - 1));
     }
 };
 
@@ -478,21 +476,24 @@ TEST_CASE("terminal: only the changed cells reach the wire") {
     CHECK(sent.size() < 20);
 }
 
-TEST_CASE("terminal: a scrolled region shifts the grid, not just the wire") {
+TEST_CASE("terminal: rows repainted one higher go out as a row slide") {
     TermFixture f;
-    for (uint16_t r = 1; r <= 5; r++) {
-        char line[16];
-        snprintf(line, sizeof(line), "row %u", (unsigned)r);
-        f.put(r, 0, line);
+    // Rows that differ throughout, so rewriting one over its neighbour costs.
+    char line[6][61];
+    for (uint16_t r = 0; r < 6; r++) {
+        for (uint16_t c = 0; c < 60; c++) line[r][c] = (char)('a' + (r * 7 + c * 3) % 26);
+        line[r][60] = '\0';
+        f.put((uint16_t)(r + 1), 0, line[r]);
     }
     f.flush();
 
-    f.term.scroll_region(1, 5, /*up=*/true, 1);
-    // The back-buffer has to move with the screen, or the next diff is computed
-    // against rows that are no longer where it thinks.
-    CHECK(f.row(1) == "row 2");
-    CHECK(f.row(4) == "row 5");
-    CHECK(f.row(5) == "");
+    for (uint16_t r = 0; r < 5; r++) f.put((uint16_t)(r + 1), 0, line[r + 1]);
+    f.put(6, 0, "                                                            ");
+    const std::string sent = f.flush();
+    INFO("sent: '" << sent << "'");
+    CHECK(sent.find("\x1b[M") != std::string::npos);      // one DL
+    CHECK(sent.size() < 30);                               // and no repaint
+    CHECK(f.row(1) == std::string(line[1]));
 }
 
 TEST_CASE("terminal: a row's priority is a standing property") {

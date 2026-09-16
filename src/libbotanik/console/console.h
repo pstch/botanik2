@@ -60,6 +60,8 @@ namespace Botanik { namespace Terminal {
         Pages::Page*        _pages[MAX_PAGES];
         uint8_t             _pages_len  = 0;
         uint8_t             _page_index = 0;
+        /** @brief Input reached the active page since it last ticked. */
+        bool                _input_routed = false;
 
         /** @}
          *  @name Its own configuration
@@ -145,7 +147,7 @@ namespace Botanik { namespace Terminal {
         bool reconfigure(Ansi::TerminalType type, uint16_t cols, uint16_t rows);
 
         /** @}
-         *  @name Content-area geometry & scrolling
+         *  @name Content-area geometry
          *  @{ */
 
         /** @brief Rows available to pages: physical height minus the reserved
@@ -158,11 +160,6 @@ namespace Botanik { namespace Terminal {
         /** @brief Erase the page content area (rows 1..N-1), keeping the status
          *  bar (and the alarm bar, when reserved). */
         void clear_content();
-
-        /** @brief Emit a line feed within the content band, scrolling the band up
-         *  when at its bottom so row 0 (status) and the reserved bottom row are
-         *  never touched. */
-        void line_feed(bool carriage_return = true);
 
         /** @}
          *  @name Pages

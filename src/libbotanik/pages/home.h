@@ -11,9 +11,7 @@
  * table, the page owns the geometry).
  *
  * Also a LogWriter: the bottom HOME_SCROLLBACK_LINES rows are a live tail (no
- * scroll-up) replayed from a small HomeScrollback. begin_redraw() over the
- * whole content area bottom-aligns the lines, so the band needs no bespoke
- * render.
+ * scroll-up) painted from a small HomeScrollback.
  */
 
 #include <cstdint>

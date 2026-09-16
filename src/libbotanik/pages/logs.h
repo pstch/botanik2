@@ -36,8 +36,7 @@ namespace Botanik { namespace Pages {
         AnsiTerminal& _terminal;
         /** @brief This sink's ring, lent to the BufferedLogWriter base. */
         Logs::LogEntry _slots[Config::LOG_QUEUE_LOGS];
-        /** @brief Circular log line buffer + throttled redraw for page-switch
-         *         replay. */
+        /** @brief The log lines, painted as a window. */
         LogsScrollback _scrollback;
         /** @brief Mirrors tick(active) so write() knows whether it may
          *  paint. */
@@ -78,8 +77,7 @@ namespace Botanik { namespace Pages {
         /** @name Internals
          *  @{ */
 
-        /** @brief Store a timestamped "--- MARK ---" line (SPACE), painted by
-         *         the next drain_tail. */
+        /** @brief Store a timestamped "--- MARK ---" line (SPACE). */
         void _emit_mark();
 
         /** @} */
