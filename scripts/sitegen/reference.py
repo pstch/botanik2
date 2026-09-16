@@ -17,15 +17,15 @@ KINDS = [
     ('STATUS', 'Status values', 'computed by a law; published when it has a register',
      'name type def digits unit reg desc notes'),
     ('INPUT',  'Inputs',     'read from the field; each has a quality companion',
-     'name type device fc reg regs unit desc notes'),
+     'name type device fc reg regs obj unit desc notes'),
     ('OUTPUT', 'Outputs',    'driven to the field',
-     'name type device fc reg safe desc notes'),
+     'name type device fc reg safe obj desc notes'),
     ('QUALITY', 'Quality companions', 'the quality of the row before it',
      'name reg desc'),
 ]
 
 # The CSV's keys are terse where a reference table wants words.
-HEADINGS = {'def': 'default', 'desc': 'description',
+HEADINGS = {'def': 'default', 'desc': 'description', 'obj': 'device object',
             'on_s': 'on (s)', 'off_s': 'off (s)', 'recent_s': 'recent (s)',
             'hold_s': 'hold (s)', 'regs': 'registers'}
 # What a factory pins where the CSV does not carry it.

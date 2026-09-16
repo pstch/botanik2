@@ -152,23 +152,23 @@ One section per kind, in the order `Vars::Kind` declares them.
 
 `K_INPUT`: read from the field; each has a quality companion.
 
-| name | type | device | fc | reg | registers | unit | description | notes |
-|---|---|---|---|---|---|---|---|---|
-| air_temp_hi1 | T_F32 | 50 | 4 | 0 | 2 | degC | air temperature high level 1 | the sensor the law reads |
-| air_temp_hi2 | T_F32 | 50 | 4 | 2 | 2 | degC | air temperature high level 2 | a second sensor on the same device |
-| tank_flow_Lpm | T_F32 | 50 | 4 | 4 | 2 | L/min | tank inflow | - |
-| bus_dc_V1 | T_F32 | 11 | 4 | 0 | 1 | V | DC supply 1 bus voltage | - |
-| bus_dc_V2 | T_F32 | 11 | 4 | 1 | 1 | V | DC supply 2 bus voltage | the two share one calibration: same rail |
+| name | type | device | fc | reg | registers | device object | unit | description | notes |
+|---|---|---|---|---|---|---|---|---|---|
+| air_temp_hi1 | T_F32 | 50 | 4 | 0 | 2 | - | degC | air temperature high level 1 | the sensor the law reads |
+| air_temp_hi2 | T_F32 | 50 | 4 | 2 | 2 | - | degC | air temperature high level 2 | a second sensor on the same device |
+| tank_flow_Lpm | T_F32 | 50 | 4 | 4 | 2 | - | L/min | tank inflow | - |
+| bus_dc_V1 | T_F32 | 11 | 4 | 0 | 1 | - | V | DC supply 1 bus voltage | - |
+| bus_dc_V2 | T_F32 | 11 | 4 | 1 | 1 | - | V | DC supply 2 bus voltage | the two share one calibration: same rail |
 
 ## Outputs
 
 `K_OUTPUT`: driven to the field.
 
-| name | type | device | fc | reg | safe | description | notes |
-|---|---|---|---|---|---|---|---|
-| vent_drive | T_F32 | 16 | 6 | 0 | 0.0f | vent actuator command | safe is shut: an unattended vent closes |
-| vent_drive2 | T_F32 | 16 | 6 | 1 | 0.0f | second vent actuator command | shares the first one's calibration: same actuator type |
-| vent_lock | T_BOOL | 16 | 5 | 0 | true | vent interlock relay | wired normally-closed, so the row is inverted: safe is LOCKED |
+| name | type | device | fc | reg | safe | device object | description | notes |
+|---|---|---|---|---|---|---|---|---|
+| vent_drive | T_F32 | 16 | 6 | 0 | 0.0f | - | vent actuator command | safe is shut: an unattended vent closes |
+| vent_drive2 | T_F32 | 16 | 6 | 1 | 0.0f | - | second vent actuator command | shares the first one's calibration: same actuator type |
+| vent_lock | T_BOOL | 16 | 5 | 0 | true | - | vent interlock relay | wired normally-closed, so the row is inverted: safe is LOCKED |
 
 ## Quality companions
 

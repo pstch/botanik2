@@ -29,19 +29,24 @@ ROWS = {
     'A':   ('alarms',      'name code on_s off_s recent_s hold_s reg desc notes'),
     'SV':  ('status',      'name type def digits unit reg desc notes retained'),
     'SVE': ('status_enum', 'name def label reg desc notes'),
-    'MI':  ('modbus_in',   'name type device fc reg regs lo hi lo_row hi_row def timeout_ms digits unit desc notes poll_ms word_swap'),
-    'MO':  ('modbus_out',  'name type device fc reg regs safe digits unit desc notes word_swap'),
-    'AI':  ('analog_in',   'name cal device fc reg regs wire def timeout_ms digits unit desc notes poll_ms word_swap'),
-    'AO':  ('analog_out',  'name cal device fc reg regs wire safe digits unit desc notes word_swap'),
+    'MI':  ('modbus_in',   'name type device fc reg regs lo hi lo_row hi_row def timeout_ms digits unit desc notes poll_ms word_swap obj'),
+    'MO':  ('modbus_out',  'name type device fc reg regs safe digits unit desc notes word_swap obj'),
+    'AI':  ('analog_in',   'name cal device fc reg regs wire def timeout_ms digits unit desc notes poll_ms word_swap obj'),
+    'AO':  ('analog_out',  'name cal device fc reg regs wire safe digits unit desc notes word_swap obj'),
     'DI':  ('digital_in',  'name device fc reg def timeout_ms invert desc notes poll_ms'),
     'DO':  ('digital_out', 'name device fc reg safe invert desc notes'),
     'RO':  ('relay_out',   'name device coil safe invert desc notes'),
     'PI':  ('pulse_in',    'name channel edge desc notes'),
 }
 
+# Columns a table declares for a READER: the variables page prints them and the
+# firmware never sees them, so they cost no flash on a row.
+DOC_COLS = {'obj'}
+
 # What each factory takes, in order. Equal to the CSV's columns except where the
-# generator supplies one.
-FAC_COLS = dict((f, c.split()) for f, (_s, c) in ROWS.items())
+# generator supplies one, minus the documentation-only ones.
+FAC_COLS = dict((f, [c for c in cols.split() if c not in DOC_COLS])
+                for f, (_s, cols) in ROWS.items())
 for _f in ('SV', 'MI', 'AI', 'DI', 'PI'):
     FAC_COLS[_f].append('qlt')
 FAC_COLS['SVE'] += ['retained', 'qlt']
@@ -147,11 +152,17 @@ def as_int(v, defs):
 
 
 def read_table(path, cols):
+    """One table, as dicts. A file may stop short of the last columns, which is
+    what lets a column be added to a factory without every site's file moving;
+    the columns it does carry have to be the first ones, in order."""
     if not os.path.exists(path): return []
     with open(path, newline='') as fh:
         rd = csv.reader(fh)
         head = [h.strip() for h in next(rd)]
-        if head != cols: sys.exit('%s: header %s != %s' % (path, head, cols))
+        if head != cols[:len(head)]:
+            sys.exit('%s: header %s is not the first %d of %s'
+                     % (path, head, len(head), cols))
+        tail = dict((c, '') for c in cols[len(head):])
         out = []
         for n, r in enumerate(rd, start=2):
             if not r or not any(c.strip() for c in r): continue
@@ -160,7 +171,9 @@ def read_table(path, cols):
             if len(r) != len(head):
                 sys.exit('%s:%d has %d fields, the header has %d'
                          % (path, n, len(r), len(head)))
-            out.append(dict(zip(head, [c.strip() for c in r])))
+            row = dict(tail)
+            row.update(zip(head, [c.strip() for c in r]))
+            out.append(row)
         return out
 
 
