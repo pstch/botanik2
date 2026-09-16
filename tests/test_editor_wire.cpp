@@ -84,6 +84,11 @@ static const Scenario SCENARIOS[] = {
       [](EditorFixture& f) { fill(f, 100); f.editor.move_to_line_start(); },
       [](EditorFixture& f) { type(f, "Z"); }, 25 },
 
+    // The last row keeps 8 characters: too few to have looked worth a slide.
+    { "insert at the head of a wrap with a short last row", SHELL,
+      [](EditorFixture& f) { fill(f, 71 + 78 + 8); f.editor.move_to_line_start(); },
+      [](EditorFixture& f) { type(f, "Z"); }, 33 },
+
     { "insert at the head of a 3-row wrap", SHELL,
       [](EditorFixture& f) { fill(f, 180); f.editor.move_to_line_start(); },
       [](EditorFixture& f) { type(f, "Z"); }, 33 },
@@ -183,6 +188,16 @@ static const Scenario SCENARIOS[] = {
     { "NOTES insert mid a 3-row line", NOTES,
       [](EditorFixture& f) { fill(f, 180); seek(f, 40); },
       [](EditorFixture& f) { type(f, "Z"); }, 30 },
+
+    // Period-11 text: each row, slid one to the right, lines up with the row
+    // above it, which a row slide priced without the sideways slide mistook
+    // for a move.
+    { "NOTES insert at the head of a periodic 3-row line", NOTES,
+      [](EditorFixture& f) {
+          for (int i = 0; i < 19; i++) type(f, " 0123456890");
+          f.editor.move_to_start();
+      },
+      [](EditorFixture& f) { type(f, "X"); }, 27 },
 
     { "NOTES delete_forward mid a 3-row line", NOTES,
       [](EditorFixture& f) { fill(f, 180); seek(f, 40); },

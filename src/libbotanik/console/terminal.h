@@ -188,7 +188,6 @@ namespace Botanik { namespace Terminal {
 
         static constexpr uint8_t  MAX_SLIDES       = 4;   ///< row slides looked for per frame
         static constexpr uint8_t  MAX_OFFSETS      = 12;  ///< row offsets one search tries
-        static constexpr uint16_t SHIFT_MIN_SPAN   = 12;  ///< narrowest changed span worth a shift
         static constexpr uint16_t HOP_BYTES        = 4;   ///< a move between two runs of a row
         static constexpr uint16_t BRIDGE_CELLS     = 3;   ///< widest gap rewritten rather than moved over
         static constexpr uint16_t ROW_ENTRY_BYTES  = 7;   ///< a move onto a row from elsewhere
@@ -209,9 +208,9 @@ namespace Botanik { namespace Terminal {
         /** @brief Reconcile one row: its sideways slide, then its changed runs.
          *  @return false when the tick's budget or the ring ran out. */
         bool _reconcile_row(uint16_t row, uint16_t& budget);
-        /** @brief The sideways slide that beats rewriting @p row, in @p out.
-         *  @return false when none does. */
-        bool _find_shift(uint16_t row, Shift& out) const;
+        /** @brief What reconciling row @p bk into row @p fr costs: a rewrite, or
+         *  the sideways slide that beats it, returned in @p out (`n` 0 for none). */
+        uint16_t _row_price(const uint8_t* fr, const uint8_t* bk, Shift* out = nullptr) const;
         /** @brief Emit the changed cells of @p row in [@p from, @p to), spending
          *  @p budget. @return false when it ran out. */
         bool _emit_runs(uint16_t row, uint16_t from, uint16_t to, uint16_t& budget);

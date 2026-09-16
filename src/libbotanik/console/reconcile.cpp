@@ -152,15 +152,16 @@ namespace Botanik { namespace Terminal {
         if (r == rows) return false;
 
         // What each FRONT row costs against the BACK row it would face: its own
-        // (`stay`, 0 when they match), a blank one, and below, the one an offset
-        // brings. Prefix sums, so any band is priced in O(1).
+        // (`stay`, 0 when they match, and a sideways slide when that is how it
+        // would go out), a blank one, and below, the one an offset brings.
+        // Prefix sums, so any band is priced in O(1).
         uint8_t blank_row[GRID_COLS];
         memset(blank_row, CELL_BLANK, _cols);
         int32_t stay[GRID_ROWS + 1], blank[GRID_ROWS + 1], moved[GRID_ROWS + 1];
         stay[0] = blank[0] = moved[0] = 0;
         for (r = 0; r < rows; r++) {
             const uint8_t* fr = &_front[_idx(r, 0)];
-            stay [r + 1] = stay [r] + _row_cost(fr, &_back[_idx(r, 0)]);
+            stay [r + 1] = stay [r] + _row_price(fr, &_back[_idx(r, 0)]);
             blank[r + 1] = blank[r] + _row_cost(fr, blank_row);
         }
 
@@ -242,15 +243,11 @@ namespace Botanik { namespace Terminal {
         memset(&_back[_idx(freed, 0)], CELL_BLANK, (size_t)s.n * _cols);
     }
 
-    bool AnsiTerminal::_find_shift(uint16_t row, Shift& out) const {
-        const uint8_t* fr = &_front[_idx(row, 0)];
-        const uint8_t* bk = &_back [_idx(row, 0)];
+    uint16_t AnsiTerminal::_row_price(const uint8_t* fr, const uint8_t* bk, Shift* out) const {
+        if (out) out->n = 0;
         uint16_t first = 0;
         while (first < _cols && fr[first] == bk[first]) first++;
-        uint16_t last = (uint16_t)(_cols - 1);
-        while (last > first && fr[last] == bk[last]) last--;
-        // Short diffs are cheaper to just rewrite than to bracket in an escape.
-        if (first >= _cols || (uint16_t)(last - first + 1) < SHIFT_MIN_SPAN) return false;
+        if (first >= _cols) return 0;
 
         // The run loop's price for the row, and in `spent[c]` for what precedes
         // column c, which a slide starting there still has to write.
@@ -259,19 +256,21 @@ namespace Botanik { namespace Terminal {
 
         // For each width, the longest suffix that is BACK slid by it, and the
         // column the slide starts at. A right slide writes the n cells it opens
-        // inside SM4/RM4; a left slide is one DCH, then whatever FRONT wants in
-        // the n cells it blanks at the edge. The scan from the right stops at
+        // inside SM4/RM4, free when an earlier row of the frame left insert mode
+        // on; a left slide is one DCH, then whatever FRONT wants in the n cells
+        // it blanks at the edge. The scan from the right stops at
         // the first mismatch, which for a width that is not the slide is usually
         // the first cell. A slide carrying only blanks moves nothing a rewrite
         // would pay for.
+        const int32_t irm = _hw_insert ? 0 : 8;
         int32_t gain = 0;
-        for (uint16_t n = 1; (uint16_t)(n + SHIFT_MIN_SPAN) <= _cols; n++) {
-            if (plain - (int32_t)n - 8 <= gain) break;   // no wider slide can beat it
+        for (uint16_t n = 1; n < _cols; n++) {
+            if (plain - (int32_t)n - irm <= gain) break;   // no wider slide can beat it
             bool moves = false;
             uint16_t c = (uint16_t)(_cols - n);
             while (c > first && fr[c - 1 + n] == bk[c - 1]) { moves |= bk[c - 1] != CELL_BLANK; c--; }
-            int32_t g = plain - ((int32_t)spent[c] + (int32_t)n + 8);
-            if (moves && g > gain) { gain = g; out = { c, n, true }; }
+            int32_t g = plain - ((int32_t)spent[c] + (int32_t)n + irm);
+            if (moves && g > gain) { gain = g; if (out) *out = { c, n, true }; }
 
             moves = false;
             c = (uint16_t)(_cols - n);
@@ -280,9 +279,9 @@ namespace Botanik { namespace Terminal {
             for (uint16_t t = (uint16_t)(_cols - n); t < _cols; t++)
                 if (fr[t] != CELL_BLANK) tail++;
             g = plain - ((int32_t)spent[c] + 6 + tail + (tail != 0 ? 8 : 0));
-            if (moves && g > gain) { gain = g; out = { c, n, false }; }
+            if (moves && g > gain) { gain = g; if (out) *out = { c, n, false }; }
         }
-        return gain > 0;
+        return (uint16_t)(plain + ROW_ENTRY_BYTES - gain);
     }
 
     bool AnsiTerminal::_emit_runs(uint16_t row, uint16_t from, uint16_t to, uint16_t& budget) {
@@ -320,8 +319,9 @@ namespace Botanik { namespace Terminal {
         // hold is owed the next tick, not the whole-row rewrite, which would
         // escape the very budget the slide was refused for.
         Shift sh;
-        if (_find_shift(row, sh)) {
-            const uint16_t escape = sh.right ? (uint16_t)(4 + sh.n + 4 + 5) : (uint16_t)(6 + 5);
+        (void)_row_price(&_front[_idx(row, 0)], &_back[_idx(row, 0)], &sh);
+        if (sh.n != 0) {
+            const uint16_t escape = sh.right ? (uint16_t)((_hw_insert ? 0 : 8) + sh.n + 5) : (uint16_t)(6 + 5);
             if (!_fits((uint16_t)(_run_cost(row, 0, sh.at) + escape), budget)) return false;
             if (!_emit_runs(row, 0, sh.at, budget) || !_go({row, sh.at})) return false;
             const uint16_t before = tx_used();
