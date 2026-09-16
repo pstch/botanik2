@@ -384,6 +384,21 @@ namespace Botanik { namespace Terminal {
         _nscrolls = 0;
     }
 
+    uint16_t AnsiTerminal::_run_end(uint16_t row, uint16_t a, uint16_t limit) const {
+        const uint8_t* fr = &_front[_idx(row, 0)];
+        const uint8_t* bk = &_back [_idx(row, 0)];
+        uint16_t b = a;
+        for (;;) {
+            while (b < limit && fr[b] != bk[b]) b++;
+            // Rewriting a gap as the wire already shows it is no dearer than the
+            // move over it, as long as the pen need not change for it.
+            uint16_t g = b;
+            while (g < limit && fr[g] == bk[g] && (fr[g] & CELL_INV) == (fr[b - 1] & CELL_INV)) g++;
+            if (g >= limit || fr[g] == bk[g] || (uint16_t)(g - b) > BRIDGE_CELLS) return b;
+            b = g;
+        }
+    }
+
     uint16_t AnsiTerminal::_shift_row(uint16_t row, uint16_t budget, bool& defer) {
         defer = false;
         // A row whose content slid sideways (the editor inserting a character, a
@@ -472,8 +487,7 @@ namespace Botanik { namespace Terminal {
         uint16_t col = first;
         while (col < a) {
             if (fr[col] == bk[col]) { col++; continue; }
-            uint16_t b = col;
-            while (b < a && fr[b] != bk[b]) b++;
+            const uint16_t b = _run_end(row, col, a);
             if (_put_run(row, col, b) == 0) return (uint16_t)(tx_used() - before);
             col = b;
         }
@@ -526,8 +540,7 @@ namespace Botanik { namespace Terminal {
         uint16_t col = 0;
         while (col < until) {
             if (_front[_idx(row, col)] == _back[_idx(row, col)]) { col++; continue; }
-            uint16_t a = col, b = col;
-            while (b < until && _front[_idx(row, b)] != _back[_idx(row, b)]) b++;
+            const uint16_t a = col, b = _run_end(row, col, until);
             uint16_t cost = _run_cost(row, a, b);
             if (_serial.availableForWrite() < cost) return false;  // ring full
             // A run that needs the whole budget or more can never fit inside one,

@@ -65,19 +65,19 @@ static const Scenario SCENARIOS[] = {
     { "SHELL typing wraps onto a second row over a transcript",
       // 71 characters fill PS1's row exactly; the 72nd opens the second.
       [](ShellRig& f) { f.transcript(30); f.two_rows(); f.key(Command::BACKSPACE, 29); (void)f.paint(f.page); },
-      [](ShellRig& f) { f.type("0"); }, 19 },
+      [](ShellRig& f) { f.type("0"); }, 17 },
 
     { "SHELL backspace joins two rows over a transcript",
       [](ShellRig& f) { f.transcript(30); f.two_rows(); },
-      [](ShellRig& f) { f.key(Command::BACKSPACE, 30); }, 43 },
+      [](ShellRig& f) { f.key(Command::BACKSPACE, 30); }, 41 },
 
     { "SHELL Ctrl-U clears a two-row input over a transcript",
       [](ShellRig& f) { f.transcript(30); f.two_rows(); },
-      [](ShellRig& f) { f.key(Command::CTRL_U); }, 39 },
+      [](ShellRig& f) { f.key(Command::CTRL_U); }, 37 },
 
     { "SHELL Enter submits a two-row input over a transcript",
       [](ShellRig& f) { f.transcript(30); f.two_rows(); },
-      [](ShellRig& f) { f.key(Command::ENTER); }, 177 },
+      [](ShellRig& f) { f.key(Command::ENTER); }, 173 },
 };
 
 static constexpr size_t N_SCENARIOS = sizeof(SCENARIOS) / sizeof(SCENARIOS[0]);

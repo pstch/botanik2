@@ -193,6 +193,13 @@ namespace Botanik { namespace Terminal {
         /** @brief Estimated worst-case bytes to emit run [@p a, @p b) of @p row
          *  (leading move + SGR toggles + glyphs), for the budget gate. */
         uint16_t _run_cost(uint16_t row, uint16_t a, uint16_t b) const;
+        /** @brief One past the last cell of the write starting at differing cell
+         *  @p a of @p row, bounded by @p limit: it runs on across any gap of at
+         *  most BRIDGE_CELLS unchanged cells under the same pen. */
+        uint16_t _run_end(uint16_t row, uint16_t a, uint16_t limit) const;
+        /** @brief Widest gap a write rewrites rather than moves over: `CSI n C`
+         *  costs 3 bytes for one cell and 4 up to nine. */
+        static constexpr uint16_t BRIDGE_CELLS     = 3;
         /** @brief Reconcile @p row as changed cells followed by a horizontal
          *  shift (SM4/RM4 insert or DCH) of everything after them. @return
          *  bytes emitted, 0 if no slide applies or none beats a rewrite.
