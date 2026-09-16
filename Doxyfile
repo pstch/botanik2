@@ -24,7 +24,10 @@ CREATE_SUBDIRS         = NO
 INPUT                  = src \
                          tests \
                          docs
-FILE_PATTERNS          = *.h *.cpp *.c *.md
+FILE_PATTERNS          = *.h *.cpp *.c *.md *.st
+# Doxygen has no ST parser and scans .st as C++; the filter hands it an empty
+# file, so an ST source is listed and browsable without parse warnings.
+FILTER_PATTERNS        = *.st=true
 USE_MDFILE_AS_MAINPAGE = docs/index.md
 RECURSIVE              = YES
 # A diagram lives with the page that references it, in the section's own
