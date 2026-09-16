@@ -426,7 +426,7 @@ struct TermFixture {
 
     std::string row(uint16_t r) {
         char buf[160];
-        const uint16_t n = term.front_row(r, buf, sizeof buf);
+        const uint16_t n = term.front_cells(r, 0, buf, sizeof buf);
         std::string out(buf, n);
         while (!out.empty() && out.back() == ' ') out.pop_back();
         return out;

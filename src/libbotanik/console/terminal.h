@@ -91,6 +91,9 @@ namespace Botanik { namespace Terminal {
         inline uint16_t _idx(uint16_t row, uint16_t col) const {
             return (uint16_t)(row * _cols + col);
         }
+        /** @brief Blank the active region of both grids - after a physical
+         *  clear, the wire is blank and nothing is drawn. */
+        void _reset_grids();
 
         /** @brief Draw cursor: where the next write_chars stamps. _draw_col may
          *  equal _cols (parked past the last column after a row-filling write, so a
@@ -111,15 +114,6 @@ namespace Botanik { namespace Terminal {
          *  (a status/alarm bar) would drag the cursor off the edit point. */
         CursorPos _live_cursor_pos = {0, 0};
 
-        /** @brief A band slide present() found by comparing FRONT with BACK:
-         *  rows [top, bottom] move @p n rows, emitted as a DL/IL pair. */
-        struct Slide { uint16_t top, bottom, n; bool up; };
-        /** @brief Slides present() looks for per frame, each against the BACK
-         *  the previous one left. */
-        static constexpr uint8_t MAX_SLIDES = 4;
-        /** @brief Distinct row offsets one search tries. */
-        static constexpr uint8_t MAX_OFFSETS = 12;
-
         /** @brief Per-row priority class, the order present() reconciles rows in.
          *  Filled by the constructor: a brace-initialiser would set only the first
          *  row and leave the rest at 0, which is PRIO_INPUT. */
@@ -137,7 +131,6 @@ namespace Botanik { namespace Terminal {
 
         CursorPos           _hw_pos         = {0, 0};   ///< real cursor position
         bool                _hw_inverted    = false;    ///< real reverse-video
-        bool                _hw_auto_wrap   = true;      ///< DECAWM (kept off UI-wide)
         bool                _hw_at_eol      = false;    ///< parked at last col (pending wrap)
         bool                _hw_insert      = false;    ///< IRM (SM4) on the wire
         bool                _hw_cursor_visible = false; ///< DECTCEM on the wire
@@ -160,6 +153,13 @@ namespace Botanik { namespace Terminal {
          *  rather than being deferred forever. */
         static constexpr uint16_t TX_HEADROOM_BYTES = Config::TX_HEADROOM_BYTES;
 
+        static constexpr uint16_t tx_capacity() { return Utils::BufferedSerial::tx_capacity(); }
+        /** @brief Bytes the TX ring holds now. */
+        uint16_t tx_used() const {
+            const uint16_t freed = _serial.availableForWrite();
+            return freed <= tx_capacity() ? (uint16_t)(tx_capacity() - freed) : 0;
+        }
+
         /** @brief Bytes that drain in @p target_ms at @p baud (8N1: baud/10 B/s),
          *  clamped to a small floor and to leave TX_HEADROOM_BYTES of ring free.
          *  The latency target turned into a byte depth. */
@@ -174,75 +174,71 @@ namespace Botanik { namespace Terminal {
         }
 
         /** @}
-         *  @name present() internals
+         *  @name Reconciliation (reconcile.cpp)
+         *  present() finds what slid, then writes what is left. Every choice is
+         *  priced in estimated wire bytes, from the constants below.
          *  @{ */
 
-        /** @brief Position the real cursor at @p target with the minimal sequence
-         *  from _hw_pos (relative where cheaper, absolute for diagonals), tracking
-         *  _hw_pos. Emits to the ring. @return false if the ring could not hold it. */
-        bool _go(const CursorPos& target);
-        /** @brief Sync the wire's reverse-video (SGR) state to @p inv, emitting
-         *  the escape only when it changes. */
-        void _set_hw_inverted(bool inv);
-        /** @brief Sync the wire's insert mode (SM4/RM4) to @p on, emitting only
-         *  on a change. @return false if the ring could not hold it. */
-        bool _set_hw_insert(bool on);
-        /** @brief Emit cells [@p a, @p b) of grid @p row from _front (positioning
-         *  the cursor, toggling reverse-video per cell), copy them into _back, and
-         *  return the byte cost. @p insert emits them in insert mode. */
-        uint16_t _put_run(uint16_t row, uint16_t a, uint16_t b, bool insert = false);
-        /** @brief Estimated worst-case bytes to emit run [@p a, @p b) of @p row
-         *  (leading move + SGR toggles + glyphs), for the budget gate. */
-        uint16_t _run_cost(uint16_t row, uint16_t a, uint16_t b) const;
-        /** @brief One past the last cell of the write starting at differing cell
-         *  @p a of @p row, bounded by @p limit: it runs on across any gap of at
-         *  most BRIDGE_CELLS unchanged cells under the same pen. */
-        uint16_t _run_end(uint16_t row, uint16_t a, uint16_t limit) const;
-        /** @brief Widest gap a write rewrites rather than moves over: `CSI n C`
-         *  costs 3 bytes for one cell and 4 up to nine. */
-        static constexpr uint16_t BRIDGE_CELLS     = 3;
-        /** @brief Reconcile @p row as changed cells followed by a horizontal
-         *  shift (SM4/RM4 insert or DCH) of everything after them. @return
-         *  bytes emitted, 0 if no slide applies or none beats a rewrite.
-         *  @note @p defer set means only the budget stood in the shift's way,
-         *  so the row is owed the next tick rather than a full rewrite. */
-        uint16_t _shift_row(uint16_t row, uint16_t budget, bool& defer);
-        /** @brief Smallest changed span worth expressing as a shift. */
-        static constexpr uint16_t SHIFT_MIN_SPAN   = 12;
-        /** @brief What pricing charges for the cursor move between two runs of
-         *  one row: a relative CUF/CUB with a count. */
-        static constexpr uint16_t HOP_BYTES        = 4;
-        /** @brief Stale cells in a row's blank tail from which one EL beats
-         *  writing the spaces: the escape is three bytes. */
-        static constexpr uint16_t EL_MIN_CELLS     = 4;
-        /** @brief Mirror a slide that reached the wire in BACK: the band's
-         *  rows move, the rows it frees are blank. */
-        void _shift_back(const Slide& s);
-        /** @brief Blank the active region of both grids - after a physical
-         *  clear, the wire is blank and nothing is drawn. */
-        void _reset_grids();
+        /** @brief A row slide: rows [top, bottom] move @p n rows, emitted as a
+         *  DL/IL pair. */
+        struct Slide { uint16_t top, bottom, n; bool up; };
+        /** @brief A sideways slide in one row: the cells from @p at move
+         *  @p n columns, by SM4/RM4 insert (@p right) or DCH. */
+        struct Shift { uint16_t at, n; bool right; };
 
-        /** @} */
+        static constexpr uint8_t  MAX_SLIDES       = 4;   ///< row slides looked for per frame
+        static constexpr uint8_t  MAX_OFFSETS      = 12;  ///< row offsets one search tries
+        static constexpr uint16_t SHIFT_MIN_SPAN   = 12;  ///< narrowest changed span worth a shift
+        static constexpr uint16_t HOP_BYTES        = 4;   ///< a move between two runs of a row
+        static constexpr uint16_t BRIDGE_CELLS     = 3;   ///< widest gap rewritten rather than moved over
+        static constexpr uint16_t ROW_ENTRY_BYTES  = 7;   ///< a move onto a row from elsewhere
+        static constexpr int32_t  SLIDE_BYTES      = 11;  ///< half a DL/IL pair: a move and the escape
+        static constexpr uint16_t EL_MIN_CELLS     = 4;   ///< stale tail cells from which one EL pays
 
-        /** @name present() phases
-         *  @{ */
-        /** @brief The cheapest band slide that pays for its escapes, in @p out.
+        /** @brief The cheapest row slide that pays for its escapes, in @p out.
          *  @return false when none does. */
         bool _find_slide(Slide& out) const;
         /** @brief Emit @p s as its DL/IL pair; BACK follows only if it all went. */
         bool _emit_slide(const Slide& s);
+        /** @brief Mirror a slide that reached the wire in BACK. */
+        void _shift_back(const Slide& s);
+
+        /** @brief Emit the paced FRONT-vs-BACK cell diff. @return true when the
+         *  screen is fully reconciled; false when work is left for the next tick. */
+        bool _emit_diff();
+        /** @brief Reconcile one row: its sideways slide, then its changed runs.
+         *  @return false when the tick's budget or the ring ran out. */
+        bool _reconcile_row(uint16_t row, uint16_t& budget);
+        /** @brief The sideways slide that beats rewriting @p row, in @p out.
+         *  @return false when none does. */
+        bool _find_shift(uint16_t row, Shift& out) const;
+        /** @brief Emit the changed cells of @p row in [@p from, @p to), spending
+         *  @p budget. @return false when it ran out. */
+        bool _emit_runs(uint16_t row, uint16_t from, uint16_t to, uint16_t& budget);
+        /** @brief Emit cells [@p a, @p b) of @p row from FRONT, @p insert in insert
+         *  mode, and copy them into BACK. @return the bytes sent. */
+        uint16_t _put_run(uint16_t row, uint16_t a, uint16_t b, bool insert = false);
+        /** @brief Reconcile cursor visibility and park it: at the edit point when
+         *  a renderer wants it visible, else idle in the bottom-right corner. */
+        void _park_cursor();
+
         /** @brief The run loop's estimated price for turning row @p bk into row
-         *  @p fr, each @ref _cols cells. */
-        uint16_t _row_cost(const uint8_t* fr, const uint8_t* bk) const;
+         *  @p fr, each @ref _cols cells.
+         *  @param spent when given, `_cols + 1` entries: the cells and gaps
+         *         before each column, the move onto the row and the tail left out. */
+        uint16_t _row_cost(const uint8_t* fr, const uint8_t* bk, uint16_t* spent = nullptr) const;
+        /** @brief Worst-case bytes for run [@p a, @p b) of @p row: a move, an SGR
+         *  per attribute change and the glyphs. For the budget gate. */
+        uint16_t _run_cost(uint16_t row, uint16_t a, uint16_t b) const;
+        /** @brief What clearing @p stale cells of a blank tail costs: spaces,
+         *  or one EL once that is cheaper. */
+        static uint16_t _el_cost(uint16_t stale) { return stale >= EL_MIN_CELLS ? 3 : stale; }
         /** @brief Where @p row's blank tail starts: one past its last glyph. */
         uint16_t _blank_tail(const uint8_t* row) const {
             uint16_t e = _cols;
             while (e > 0 && row[e - 1] == CELL_BLANK) e--;
             return e;
         }
-        /** @brief What clearing @p stale cells of a blank tail costs: spaces,
-         *  or one EL once that is cheaper. */
-        static uint16_t _el_cost(uint16_t stale) { return stale >= EL_MIN_CELLS ? 3 : stale; }
         /** @brief Whether a write of @p cost bytes may go out now, against the
          *  ring and this tick's @p budget. */
         bool _fits(uint16_t cost, uint16_t budget) const;
@@ -250,20 +246,15 @@ namespace Botanik { namespace Terminal {
         static uint16_t _spend(uint16_t budget, uint16_t sent) {
             return sent < budget ? (uint16_t)(budget - sent) : 0;
         }
-        /** @brief What pricing charges for a move onto a row from elsewhere. */
-        static constexpr uint16_t ROW_ENTRY_BYTES  = 7;
-        /** @brief What pricing charges for one half of a DL/IL pair: a move to
-         *  column 0 and the escape. */
-        static constexpr int32_t  SLIDE_BYTES      = 11;
-        /** @brief Emit the paced FRONT-vs-BACK cell diff. @return true when the
-         *  screen is fully reconciled; false when work is left for the next tick. */
-        bool _emit_diff();
-        /** @brief Reconcile one row: its sideways slide, then its changed runs.
-         *  @return false when the tick's budget or the ring ran out. */
-        bool _reconcile_row(uint16_t row, uint16_t& budget);
-        /** @brief Reconcile cursor visibility and park it: at the edit point when
-         *  a renderer wants it visible, else idle in the bottom-right corner. */
-        void _park_cursor();
+
+        /** @brief Move the real cursor to @p target by the shortest sequence
+         *  from _hw_pos. @return false if the ring could not hold it. */
+        bool _go(const CursorPos& target);
+        /** @brief Sync the wire's reverse video to @p inv, emitting only on a change. */
+        void _set_hw_inverted(bool inv);
+        /** @brief Sync the wire's insert mode to @p on, emitting only on a change.
+         *  @return false if the ring could not hold it. */
+        bool _set_hw_insert(bool on);
 
         /** @} */
 
@@ -281,9 +272,6 @@ namespace Botanik { namespace Terminal {
          *  once before the first render. */
         void setup_terminal();
 
-        /** @brief Which terminal is on the wire. */
-        Ansi::TerminalType terminal_type() const { return _type; }
-
         /** @brief Re-declare what is on the console wire: its make and its
          *  size. @p cols / @p rows are clamped as the constructor clamps them.
          *  @note Blanks the screen and re-emits the setup handshake when the
@@ -299,7 +287,6 @@ namespace Botanik { namespace Terminal {
          *  wire cursor is present()'s business). */
         void move_to(const CursorPos& position);
 
-        inline CursorPos cursor_pos() const { return { _draw_row, _draw_col }; }
         inline bool inverted() const { return _draw_inv; }
         inline bool screen_ready() const { return _screen_ready; }
 
@@ -320,11 +307,6 @@ namespace Botanik { namespace Terminal {
             return n;
         }
 
-        /** @brief The whole of FRONT row @p row. @see front_cells */
-        uint16_t front_row(uint16_t row, char* out, uint16_t cap) const {
-            return front_cells(row, 0, out, cap);
-        }
-
         /** @brief Whether FRONT holds (@p row, @p col) in reverse video; false
          *  off-grid. The attribute front_cells() strips, so a caller comparing
          *  the whole cell can reach it. */
@@ -338,13 +320,11 @@ namespace Botanik { namespace Terminal {
          *  @{ */
 
         /** @brief Stamp characters at the draw cursor into the FRONT grid.
-         *  @return how many were stamped, NOT always @p len: nothing goes past
-         *  the last row, and with auto-wrap off the run parks at the right
-         *  edge and the rest is dropped. */
+         *  @return how many were stamped, NOT always @p len: the run parks at
+         *  the right edge and the rest is dropped. */
         uint16_t write_chars(const char *buf, uint16_t len);
 
         void set_inverted(bool enable);
-        void set_auto_wrap(bool enable);
         void set_cursor_visible(bool show);
 
         /** @brief Hold a wanted cursor off the screen without clearing the wish
@@ -416,14 +396,6 @@ namespace Botanik { namespace Terminal {
          *  @{ */
 
         const BufferedSerial& serial() const { return _serial; }
-        uint16_t tx_used() const {
-            uint16_t cap = Utils::BufferedSerial::tx_capacity();
-            uint16_t freed = _serial.availableForWrite();
-            return (freed <= cap) ? (uint16_t)(cap - freed) : 0;
-        }
-        static constexpr uint16_t tx_capacity() {
-            return Utils::BufferedSerial::tx_capacity();
-        }
 
         /** @}
          *  @name Frame reconciliation

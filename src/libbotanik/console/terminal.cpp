@@ -88,10 +88,7 @@ namespace Botanik { namespace Terminal {
         if (len == 0 || _draw_row >= _rows) return 0;
         uint8_t pen = _draw_inv ? CELL_INV : 0;
         for (uint16_t i = 0; i < len; i++) {
-            if (_draw_col >= _cols) {
-                if (_hw_auto_wrap) { _draw_col = 0; if (++_draw_row >= _rows) { _draw_row = _rows - 1; return i; } }
-                else { _draw_col = _cols; break; }   // no wrap: park at EOL, drop the rest
-            }
+            if (_draw_col >= _cols) return i;     // parked at EOL: drop the rest
             _front[_idx(_draw_row, _draw_col)] = (uint8_t)((s[i] & CELL_CH) | pen);
             if (_draw_col + 1 >= _cols) { _draw_col = _cols; }   // parked past last col
             else _draw_col++;
@@ -100,12 +97,6 @@ namespace Botanik { namespace Terminal {
     }
 
     void AnsiTerminal::set_inverted(bool enable) { _draw_inv = enable; }
-
-    void AnsiTerminal::set_auto_wrap(bool enable) {
-        // A one-time wire mode (DECAWM); emit it directly and track it (the draw
-        // model reads it to decide wrap vs. park).
-        if (Ansi::set_auto_wrap(_serial, enable)) _hw_auto_wrap = enable;
-    }
 
     void AnsiTerminal::set_cursor_visible(bool show) {
 #ifdef TARGET_SIMULATOR
@@ -192,7 +183,7 @@ namespace Botanik { namespace Terminal {
         _hw_at_eol = false;
         if (!_screen_ready) { _serial.write("ACAB", 4); _hw_pos.col = 4; }
         // Auto-wrap off UI-wide; hide the cursor by default; SGR normal, replace mode.
-        set_auto_wrap(false);
+        Ansi::set_auto_wrap(_serial, false);
         _hw_cursor_visible = true; _want_cursor_visible = false;
         if (Ansi::set_cursor_visible(_serial, false)) _hw_cursor_visible = false;
         // A fresh screen starts in replace mode whatever the last frame left.

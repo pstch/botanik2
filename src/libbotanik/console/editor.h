@@ -42,13 +42,6 @@ namespace Botanik { namespace Terminal {
         bool     hard_break; /**< True iff the slice is closed by `\\n` */
     };
 
-    /** @brief The buffer sliced into rows.
-     *  @note `rows` is BORROWED and never shared between two views. */
-    struct TextView {
-        RowView* rows  = nullptr;
-        uint16_t count = 0;
-    };
-
     /** @brief The buffers a TextEditor works over, owned by whoever built it. */
     struct EditorStorage {
         char*    buf;      /**< `buf_cap` bytes, one reserved for the NUL. */
@@ -106,7 +99,8 @@ namespace Botanik { namespace Terminal {
         /** @brief Set by every edit, cleared by the owner once it has saved. */
         bool     _dirty = false;
 
-        TextView _layout{};            /**< Rows as laid out now. */
+        RowView* _rows;                /**< The buffer sliced into rows; borrowed. */
+        uint16_t _row_count = 1;
 
         /** @brief Prompt bytes and lengths, indexed by RowPrompt. */
         char     _ps_buf[3][Config::EDITOR_PROMPT_MAX];
@@ -160,7 +154,7 @@ namespace Botanik { namespace Terminal {
          *  last. */
         void place_cursor() { _place_cursor(_map_cursor_pos(_pos)); }
 
-        uint16_t occupied_rows() const { return _layout.count; }
+        uint16_t occupied_rows() const { return _row_count; }
 
         /** @brief Pin the viewport's top row. Bottom-anchored, the editor
          *  re-pins it to the content bottom as the text grows and shrinks. */
@@ -184,7 +178,6 @@ namespace Botanik { namespace Terminal {
          *  @{ */
 
         void insert_characters(const char* buf, uint16_t len);
-        void remove_characters(uint16_t len);
 
         /** @brief Delete @p count chars before / at the cursor, one reconcile. */
         void backspace(uint16_t count = 1);
@@ -243,13 +236,6 @@ namespace Botanik { namespace Terminal {
         void clear_mark();
         void toggle_mark();
 
-        bool mark_active() const { return _mark_set; }
-
-        /** @brief The region as an ordered half-open span.
-         *  @return false, @p from and @p to untouched, with no mark. */
-        bool region(uint16_t& from, uint16_t& to) const;
-
-        bool kill_region();
         bool copy_region();
 
         /** @brief The region when there is one, else the word before the
@@ -299,12 +285,10 @@ namespace Botanik { namespace Terminal {
             _ps_len[(uint8_t)p] = len;
         }
 
-        RowPrompt _row_prompt(uint16_t row_idx) const;
-
         /** @brief PS1 first, PS3 after a hard break, PS2 otherwise. */
-        static RowPrompt _row_prompt_in(const TextView& v, uint16_t idx) {
+        RowPrompt _row_prompt(uint16_t idx) const {
             if (idx == 0) return RowPrompt::PS1;
-            return v.rows[idx - 1].hard_break ? RowPrompt::PS3 : RowPrompt::PS2;
+            return _rows[idx - 1].hard_break ? RowPrompt::PS3 : RowPrompt::PS2;
         }
 
         const char* _prompt_buf(RowPrompt p) const { return _ps_buf[(uint8_t)p]; }
@@ -332,12 +316,12 @@ namespace Botanik { namespace Terminal {
         /** @brief Row holding buffer offset @p pos. The `\n` belongs to its
          *  row, a soft-wrap boundary to the continuation row, the end of the
          *  buffer to the last row. */
-        static uint16_t _owner_row(uint16_t pos, const TextView& v) {
-            for (uint16_t i = 0; i < v.count; i++) {
-                uint16_t stride = (uint16_t)(v.rows[i].buf_len + (v.rows[i].hard_break ? 1 : 0));
-                if (pos < (uint16_t)(v.rows[i].buf_start + stride)) return i;
+        uint16_t _owner_row(uint16_t pos) const {
+            for (uint16_t i = 0; i < _row_count; i++) {
+                const uint16_t stride = (uint16_t)(_rows[i].buf_len + (_rows[i].hard_break ? 1 : 0));
+                if (pos < (uint16_t)(_rows[i].buf_start + stride)) return i;
             }
-            return v.count > 0 ? (uint16_t)(v.count - 1) : 0;
+            return (uint16_t)(_row_count - 1);
         }
 
         CursorPos _map_cursor_pos(uint16_t pos) const;
@@ -347,15 +331,8 @@ namespace Botanik { namespace Terminal {
         /** @name Viewport
          *  @{ */
 
-        /** @brief Content-area height; out of line, `Console` being only
-         *  forward-declared here. */
-        uint16_t _console_rows() const;
-
-        uint16_t _view_height() const {
-            if (_view_rows != 0) return _view_rows;
-            uint16_t rows = _console_rows();
-            return rows > _origin ? (uint16_t)(rows - _origin) : 0;
-        }
+        /** @brief Viewport height: the one set, else down to the content bottom. */
+        uint16_t _view_height() const;
 
         /** @brief Last screen row the editor may paint, never below the
          *  content area. */
@@ -374,7 +351,7 @@ namespace Botanik { namespace Terminal {
         /** @brief One past the last layout row on screen. */
         uint16_t _visible_end() const {
             uint16_t e = (uint16_t)(_view_top + _view_height());
-            return e > _layout.count ? _layout.count : e;
+            return e > _row_count ? _row_count : e;
         }
 
         /** @brief Move the viewport over the cursor if it left it. */
@@ -385,13 +362,11 @@ namespace Botanik { namespace Terminal {
         /** @name Cursor motion
          *  @{ */
 
-        /** @brief What every motion ends with: viewport, repaint, cursor.
-         *  Drops the goal column unless @p keep_goal. */
+        /** @brief What every motion ends with: a reconcile. Drops the goal
+         *  column unless @p keep_goal. */
         void _settle_cursor(bool keep_goal = false) {
             if (!keep_goal) _goal_valid = false;
-            _follow_cursor();
-            _paint_view();
-            _place_cursor(_map_cursor_pos(_pos));
+            _reconcile();
         }
 
         /** @brief Move @p delta display rows, holding the goal column; past
@@ -405,6 +380,13 @@ namespace Botanik { namespace Terminal {
 
         /** @name Kill and yank
          *  @{ */
+
+        void remove_characters(uint16_t len);
+
+        /** @brief The region as an ordered half-open span.
+         *  @return false, @p from and @p to untouched, with no mark. */
+        bool region(uint16_t& from, uint16_t& to) const;
+        bool kill_region();
 
         /** @brief Cut `[from, to)` into the kill ring and remove what it took.
          *  @return false if the span was empty or nothing fit. */

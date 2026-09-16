@@ -125,21 +125,24 @@ namespace Botanik { namespace Terminal {
         return cost >= _tx_cold_depth ? budget != 0 : cost <= budget;
     }
 
-    uint16_t AnsiTerminal::_row_cost(const uint8_t* fr, const uint8_t* bk) const {
+    uint16_t AnsiTerminal::_row_cost(const uint8_t* fr, const uint8_t* bk, uint16_t* spent) const {
+        // Each differing cell is a byte, and each gap between them its width up
+        // to HOP_BYTES; the stale blank tail is spaces or one EL.
         const uint16_t e = _blank_tail(fr);
-        uint16_t cost = 0, stale = 0, end = 0;
+        uint16_t cells = 0, stale = 0, end = 0;
         bool reached = false;
         for (uint16_t c = 0; c < _cols; c++) {
+            if (spent) spent[c] = cells;
             if (fr[c] == bk[c]) continue;
             if (c >= e) { stale++; continue; }
-            cost = (uint16_t)(cost + 1 + (reached ? std::min<uint16_t>((uint16_t)(c - end), (uint16_t)HOP_BYTES)
-                                                  : (uint16_t)ROW_ENTRY_BYTES));
+            if (reached) cells = (uint16_t)(cells + std::min<uint16_t>((uint16_t)(c - end), (uint16_t)HOP_BYTES));
+            cells = (uint16_t)(cells + 1);
             reached = true;
             end = (uint16_t)(c + 1);
         }
-        if (stale != 0)
-            cost = (uint16_t)(cost + _el_cost(stale) + (reached ? 0 : ROW_ENTRY_BYTES));
-        return cost;
+        if (spent) spent[_cols] = cells;
+        if (!reached && stale == 0) return 0;
+        return (uint16_t)(ROW_ENTRY_BYTES + cells + (stale != 0 ? _el_cost(stale) : 0));
     }
 
     bool AnsiTerminal::_find_slide(Slide& out) const {
@@ -239,78 +242,36 @@ namespace Botanik { namespace Terminal {
         memset(&_back[_idx(freed, 0)], CELL_BLANK, (size_t)s.n * _cols);
     }
 
-    uint16_t AnsiTerminal::_run_end(uint16_t row, uint16_t a, uint16_t limit) const {
+    bool AnsiTerminal::_find_shift(uint16_t row, Shift& out) const {
         const uint8_t* fr = &_front[_idx(row, 0)];
         const uint8_t* bk = &_back [_idx(row, 0)];
-        uint16_t b = a;
-        for (;;) {
-            while (b < limit && fr[b] != bk[b]) b++;
-            // Rewriting a gap as the wire already shows it is no dearer than the
-            // move over it, as long as the pen need not change for it.
-            uint16_t g = b;
-            while (g < limit && fr[g] == bk[g] && (fr[g] & CELL_INV) == (fr[b - 1] & CELL_INV)) g++;
-            if (g >= limit || fr[g] == bk[g] || (uint16_t)(g - b) > BRIDGE_CELLS) return b;
-            b = g;
-        }
-    }
-
-    uint16_t AnsiTerminal::_shift_row(uint16_t row, uint16_t budget, bool& defer) {
-        defer = false;
-        // A row whose content slid sideways (the editor inserting a character, a
-        // column widening) differs from BACK at every column past the edit, so
-        // the plain run diff rewrites the whole tail. One escape does it instead:
-        // SM4/RM4 insert mode to open cells, DCH to close them, both shifting the
-        // cells *with* their attributes. What changed BEFORE the slide is
-        // rewritten in place first, so a prompt that changed over content that
-        // slid by some other amount is still the one escape.
-        //
-        // @return bytes emitted, or 0 when a shift does not apply or does not pay
-        // (the caller's run loop then reconciles the row the ordinary way).
-        const uint8_t* fr     = &_front[_idx(row, 0)];
-        uint8_t* const bk_row = &_back[_idx(row, 0)];
-        const uint8_t* bk     = bk_row;
         uint16_t first = 0;
         while (first < _cols && fr[first] == bk[first]) first++;
-        if (first >= _cols) return 0;                      // row already matches
         uint16_t last = (uint16_t)(_cols - 1);
         while (last > first && fr[last] == bk[last]) last--;
         // Short diffs are cheaper to just rewrite than to bracket in an escape.
-        if ((uint16_t)(last - first + 1) < SHIFT_MIN_SPAN) return 0;
+        if (first >= _cols || (uint16_t)(last - first + 1) < SHIFT_MIN_SPAN) return false;
 
-        // What the run loop would pay for the whole row, and for any prefix of
-        // it: `changed[c]` and `travel[c]` sum the differing cells in [first, c)
-        // and the gaps between them, each priced at its width up to HOP_BYTES.
-        uint16_t changed[GRID_COLS + 1];
-        uint16_t travel[GRID_COLS + 1];
-        changed[0] = 0;
-        travel[0]  = 0;
-        uint16_t end = first;           // one past the last differing cell so far
-        for (uint16_t c = 0; c < _cols; c++) {
-            const bool diff = c >= first && fr[c] != bk[c];
-            changed[c + 1] = (uint16_t)(changed[c] + (diff ? 1 : 0));
-            travel[c + 1]  = (uint16_t)(travel[c] + (diff && c > end ? std::min<uint16_t>((uint16_t)(c - end), (uint16_t)HOP_BYTES) : 0));
-            if (diff) end = (uint16_t)(c + 1);
-        }
-        const int32_t plain = (int32_t)_row_cost(fr, bk) - ROW_ENTRY_BYTES;
+        // The run loop's price for the row, and in `spent[c]` for what precedes
+        // column c, which a slide starting there still has to write.
+        uint16_t spent[GRID_COLS + 1];
+        const int32_t plain = (int32_t)_row_cost(fr, bk, spent) - ROW_ENTRY_BYTES;
 
         // For each width, the longest suffix that is BACK slid by it, and the
-        // column the slide starts at, priced the same way. A right slide writes
-        // the changed prefix and the n cells it opens, inside SM4/RM4. A left
-        // slide writes the prefix, one DCH, and whatever FRONT wants in the n
-        // cells the DCH blanks at the edge. The scan from the right stops at
-        // the first mismatch, which for a width that is not the slide is
-        // usually the first cell.
-        int32_t  gain  = 0;
-        uint16_t n_best = 0, a_best = 0;
-        bool     right = false;
+        // column the slide starts at. A right slide writes the n cells it opens
+        // inside SM4/RM4; a left slide is one DCH, then whatever FRONT wants in
+        // the n cells it blanks at the edge. The scan from the right stops at
+        // the first mismatch, which for a width that is not the slide is usually
+        // the first cell. A slide carrying only blanks moves nothing a rewrite
+        // would pay for.
+        int32_t gain = 0;
         for (uint16_t n = 1; (uint16_t)(n + SHIFT_MIN_SPAN) <= _cols; n++) {
             if (plain - (int32_t)n - 8 <= gain) break;   // no wider slide can beat it
-            // A slide that carries only blanks moves nothing a rewrite would pay for.
             bool moves = false;
             uint16_t c = (uint16_t)(_cols - n);
             while (c > first && fr[c - 1 + n] == bk[c - 1]) { moves |= bk[c - 1] != CELL_BLANK; c--; }
-            int32_t g = plain - ((int32_t)changed[c] + travel[c] + (int32_t)n + 8);
-            if (moves && g > gain) { gain = g; n_best = n; a_best = c; right = true; }
+            int32_t g = plain - ((int32_t)spent[c] + (int32_t)n + 8);
+            if (moves && g > gain) { gain = g; out = { c, n, true }; }
 
             moves = false;
             c = (uint16_t)(_cols - n);
@@ -318,83 +279,81 @@ namespace Botanik { namespace Terminal {
             int32_t tail = 0;
             for (uint16_t t = (uint16_t)(_cols - n); t < _cols; t++)
                 if (fr[t] != CELL_BLANK) tail++;
-            g = plain - ((int32_t)changed[c] + travel[c] + 6 + tail + (tail != 0 ? 8 : 0));
-            if (moves && g > gain) { gain = g; n_best = n; a_best = c; right = false; }
+            g = plain - ((int32_t)spent[c] + 6 + tail + (tail != 0 ? 8 : 0));
+            if (moves && g > gain) { gain = g; out = { c, n, false }; }
         }
-        if (gain <= 0) return 0;
-        const uint16_t n = n_best, a = a_best;
-        // The prefix and the escape go out together or not at all; what a left
-        // slide leaves at the edge is the run loop's.
-        uint16_t cost = _run_cost(row, first, a);
-        cost = (uint16_t)(cost + (right ? 4 + n + 4 + 5 : 6 + 5));
-        // A shift the tick's budget cannot hold is owed the next tick, not the
-        // fallback: the run loop's whole-row rewrite is oversized, so it escapes
-        // the very budget the shift was just refused for.
-        if (!_fits(cost, budget)) { defer = true; return 0; }
-
-        const uint16_t before = tx_used();
-        uint16_t col = first;
-        while (col < a) {
-            if (fr[col] == bk[col]) { col++; continue; }
-            const uint16_t b = _run_end(row, col, a);
-            if (_put_run(row, col, b) == 0) return (uint16_t)(tx_used() - before);
-            col = b;
-        }
-        if (!_go({row, a})) return (uint16_t)(tx_used() - before);
-
-        if (right) {
-            // Insert mode: the glyphs written push the rest of the row right.
-            // Mirror that in BACK first, so the run stamps the opened cells.
-            if (!_set_hw_insert(true)) return (uint16_t)(tx_used() - before);
-            memmove(&bk_row[a + n], &bk_row[a], (size_t)(_cols - a - n));
-            _put_run(row, a, (uint16_t)(a + n), /*insert=*/true);
-        } else {
-            // DCH fills the cells it frees using the current attributes on
-            // terminals with background-colour erase, so drop reverse video first
-            // or those cells come back inverted.
-            _set_hw_inverted(false);
-            if (!Ansi::delete_chars(_serial, n)) return (uint16_t)(tx_used() - before);
-            memmove(&bk_row[a], &bk_row[a + n], (size_t)(_cols - a - n));
-            memset(&bk_row[_cols - n], CELL_BLANK, n);
-            _hw_at_eol = false;
-        }
-        return (uint16_t)(tx_used() - before);
+        return gain > 0;
     }
 
-    bool AnsiTerminal::_reconcile_row(uint16_t row, uint16_t& budget) {
-        // Nothing pending: skip in one memcmp rather than two per-cell walks.
-        if (memcmp(&_front[_idx(row, 0)], &_back[_idx(row, 0)], _cols) == 0) return true;
-        // A sideways slide is one escape; try that before rewriting cells. It may
-        // leave a remainder (the cells it could not express), which the run loop
-        // below then reconciles normally.
-        bool defer = false;
-        uint16_t moved = _shift_row(row, budget, defer);
-        if (defer) return false;      // owed the next tick, not a full rewrite
-        budget = _spend(budget, moved);
-        if (moved != 0 && budget == 0) return false;
-        // Where FRONT's plain blank tail begins, and how many stale cells the
-        // wire still shows there. Past a few, one EL erases them for three
-        // bytes where the run loop would write a space per cell; the loop is
-        // then bounded to what precedes the tail, and the EL goes out last so
-        // the cursor is already near it.
-        const uint16_t e = _blank_tail(&_front[_idx(row, 0)]);
-        uint16_t stale = 0;
-        for (uint16_t c = e; c < _cols; c++)
-            if (_back[_idx(row, c)] != CELL_BLANK) stale++;
-        const bool     erase = stale >= EL_MIN_CELLS;
-        const uint16_t until = erase ? e : _cols;
-        uint16_t col = 0;
-        while (col < until) {
-            if (_front[_idx(row, col)] == _back[_idx(row, col)]) { col++; continue; }
-            const uint16_t a = col, b = _run_end(row, col, until);
-            const uint16_t cost = _run_cost(row, a, b);
+    bool AnsiTerminal::_emit_runs(uint16_t row, uint16_t from, uint16_t to, uint16_t& budget) {
+        const uint8_t* fr = &_front[_idx(row, 0)];
+        const uint8_t* bk = &_back [_idx(row, 0)];
+        for (uint16_t col = from; col < to;) {
+            if (fr[col] == bk[col]) { col++; continue; }
+            // A run goes on across a gap no wider than BRIDGE_CELLS under the same
+            // pen: rewriting what the wire already shows is no dearer than the move.
+            uint16_t b = col;
+            for (;;) {
+                while (b < to && fr[b] != bk[b]) b++;
+                uint16_t g = b;
+                while (g < to && fr[g] == bk[g] && (fr[g] & CELL_INV) == (fr[b - 1] & CELL_INV)) g++;
+                if (g >= to || fr[g] == bk[g] || (uint16_t)(g - b) > BRIDGE_CELLS) break;
+                b = g;
+            }
+            const uint16_t cost = _run_cost(row, col, b);
             if (!_fits(cost, budget)) return false;
-            const uint16_t sent = _put_run(row, a, b);
+            const uint16_t sent = _put_run(row, col, b);
             if (sent == 0) return false;
             budget = _spend(budget, sent);
             if (cost >= _tx_cold_depth || budget == 0) return false;
             col = b;
         }
+        return true;
+    }
+
+    bool AnsiTerminal::_reconcile_row(uint16_t row, uint16_t& budget) {
+        // Nothing pending: skip in one memcmp rather than two per-cell walks.
+        if (memcmp(&_front[_idx(row, 0)], &_back[_idx(row, 0)], _cols) == 0) return true;
+
+        // A sideways slide is one escape, after the cells that changed before
+        // it. Both go out this tick or neither does: a slide the budget cannot
+        // hold is owed the next tick, not the whole-row rewrite, which would
+        // escape the very budget the slide was refused for.
+        Shift sh;
+        if (_find_shift(row, sh)) {
+            const uint16_t escape = sh.right ? (uint16_t)(4 + sh.n + 4 + 5) : (uint16_t)(6 + 5);
+            if (!_fits((uint16_t)(_run_cost(row, 0, sh.at) + escape), budget)) return false;
+            if (!_emit_runs(row, 0, sh.at, budget) || !_go({row, sh.at})) return false;
+            const uint16_t before = tx_used();
+            uint8_t* const bk = &_back[_idx(row, 0)];
+            if (sh.right) {
+                // Insert mode: the glyphs written push the rest of the row right.
+                // Mirror that in BACK first, so the run stamps the opened cells.
+                if (!_set_hw_insert(true)) return false;
+                memmove(&bk[sh.at + sh.n], &bk[sh.at], (size_t)(_cols - sh.at - sh.n));
+                _put_run(row, sh.at, (uint16_t)(sh.at + sh.n), /*insert=*/true);
+            } else {
+                // DCH fills the cells it frees using the current attributes on
+                // terminals with background-colour erase, so the pen goes plain.
+                _set_hw_inverted(false);
+                if (!Ansi::delete_chars(_serial, sh.n)) return false;
+                memmove(&bk[sh.at], &bk[sh.at + sh.n], (size_t)(_cols - sh.at - sh.n));
+                memset(&bk[_cols - sh.n], CELL_BLANK, sh.n);
+                _hw_at_eol = false;
+            }
+            budget = _spend(budget, (uint16_t)(tx_used() - before));
+            if (budget == 0) return false;
+        }
+
+        // Past a few stale cells in FRONT's blank tail, one EL erases them for
+        // three bytes where the runs would write a space each; it goes out last,
+        // so the cursor is already near it.
+        const uint16_t e = _blank_tail(&_front[_idx(row, 0)]);
+        uint16_t stale = 0;
+        for (uint16_t c = e; c < _cols; c++)
+            if (_back[_idx(row, c)] != CELL_BLANK) stale++;
+        const bool erase = stale >= EL_MIN_CELLS;
+        if (!_emit_runs(row, 0, erase ? e : _cols, budget)) return false;
         if (!erase) return true;
         // Move + EL + a possible SGR: EL fills with the current attributes on
         // a terminal with background-colour erase, so the pen goes plain first.

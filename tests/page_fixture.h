@@ -135,7 +135,7 @@ namespace tests { namespace botanik_test {
         /** @brief FRONT row @p r as text, right-trimmed. */
         std::string _front_row_text(uint16_t r) const {
             char buf[VtScreen::MAX_COLS + 1];
-            const uint16_t n = console.terminal().front_row(r, buf, sizeof buf);
+            const uint16_t n = console.terminal().front_cells(r, 0, buf, sizeof buf);
             std::string s(buf, n);
             while (!s.empty() && s.back() == ' ') s.pop_back();
             return s;
@@ -148,7 +148,7 @@ namespace tests { namespace botanik_test {
             const uint16_t n_rows = console.terminal().rows_total();
             if (last > n_rows) last = n_rows;
             for (uint16_t r = first; r < last; r++) {
-                const uint16_t n = console.terminal().front_row(r, row, sizeof row);
+                const uint16_t n = console.terminal().front_cells(r, 0, row, sizeof row);
                 std::string s(row, n);
                 while (!s.empty() && s.back() == ' ') s.pop_back();
                 out.push_back(s);
