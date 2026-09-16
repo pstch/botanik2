@@ -403,17 +403,25 @@ namespace Botanik { namespace Terminal {
         // Short diffs are cheaper to just rewrite than to bracket in an escape.
         if ((uint16_t)(last - first + 1) < SHIFT_MIN_SPAN) return 0;
 
-        // What the run loop would pay, in cells: one per differing cell before
-        // FRONT's blank tail, and one EL for the tail. `changed[c]` counts the
-        // differing cells in [first, c), so any prefix is priced in O(1).
+        // What the run loop would pay: one byte per differing cell before FRONT's
+        // blank tail, one EL for the tail, and the travel between runs, a gap
+        // priced at its width up to HOP_BYTES. `changed[c]` and `travel[c]` sum
+        // both over [first, c), so any prefix is priced in O(1).
         uint16_t changed[GRID_COLS + 1];
+        uint16_t travel[GRID_COLS + 1];
         changed[0] = 0;
-        for (uint16_t c = 0; c < _cols; c++)
-            changed[c + 1] = (uint16_t)(changed[c] + (c >= first && fr[c] != bk[c] ? 1 : 0));
+        travel[0]  = 0;
+        uint16_t end = first;           // one past the last differing cell so far
+        for (uint16_t c = 0; c < _cols; c++) {
+            const bool diff = c >= first && fr[c] != bk[c];
+            changed[c + 1] = (uint16_t)(changed[c] + (diff ? 1 : 0));
+            travel[c + 1]  = (uint16_t)(travel[c] + (diff && c > end ? std::min<uint16_t>((uint16_t)(c - end), (uint16_t)HOP_BYTES) : 0));
+            if (diff) end = (uint16_t)(c + 1);
+        }
         uint16_t e = _cols;
         while (e > 0 && fr[e - 1] == CELL_BLANK) e--;
         const int32_t stale = changed[_cols] - changed[e];
-        const int32_t plain = changed[e] + (stale >= EL_MIN_CELLS ? 3 : stale);
+        const int32_t plain = changed[e] + travel[e] + (stale >= EL_MIN_CELLS ? 3 : stale);
 
         // For each width, the longest suffix that is BACK slid by it, and the
         // column the slide starts at, priced the same way. A right slide writes
@@ -427,18 +435,21 @@ namespace Botanik { namespace Terminal {
         bool     right = false;
         for (uint16_t n = 1; (uint16_t)(n + SHIFT_MIN_SPAN) <= _cols; n++) {
             if (plain - (int32_t)n - 8 <= gain) break;   // no wider slide can beat it
+            // A slide that carries only blanks moves nothing a rewrite would pay for.
+            bool moves = false;
             uint16_t c = (uint16_t)(_cols - n);
-            while (c > first && fr[c - 1 + n] == bk[c - 1]) c--;
-            int32_t g = plain - ((int32_t)changed[c] + (int32_t)n + 8);
-            if (g > gain) { gain = g; n_best = n; a_best = c; right = true; }
+            while (c > first && fr[c - 1 + n] == bk[c - 1]) { moves |= bk[c - 1] != CELL_BLANK; c--; }
+            int32_t g = plain - ((int32_t)changed[c] + travel[c] + (int32_t)n + 8);
+            if (moves && g > gain) { gain = g; n_best = n; a_best = c; right = true; }
 
+            moves = false;
             c = (uint16_t)(_cols - n);
-            while (c > first && fr[c - 1] == bk[c - 1 + n]) c--;
+            while (c > first && fr[c - 1] == bk[c - 1 + n]) { moves |= fr[c - 1] != CELL_BLANK; c--; }
             int32_t tail = 0;
             for (uint16_t t = (uint16_t)(_cols - n); t < _cols; t++)
                 if (fr[t] != CELL_BLANK) tail++;
-            g = plain - ((int32_t)changed[c] + 6 + tail + (tail != 0 ? 8 : 0));
-            if (g > gain) { gain = g; n_best = n; a_best = c; right = false; }
+            g = plain - ((int32_t)changed[c] + travel[c] + 6 + tail + (tail != 0 ? 8 : 0));
+            if (moves && g > gain) { gain = g; n_best = n; a_best = c; right = false; }
         }
         if (gain <= 0) return 0;
         const uint16_t n = n_best, a = a_best;

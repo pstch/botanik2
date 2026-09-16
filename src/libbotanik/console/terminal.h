@@ -201,6 +201,9 @@ namespace Botanik { namespace Terminal {
         uint16_t _shift_row(uint16_t row, uint16_t budget, bool& defer);
         /** @brief Smallest changed span worth expressing as a shift. */
         static constexpr uint16_t SHIFT_MIN_SPAN   = 12;
+        /** @brief What pricing charges for the cursor move between two runs of
+         *  one row: a relative CUF/CUB with a count. */
+        static constexpr uint16_t HOP_BYTES        = 4;
         /** @brief Stale cells in a row's blank tail from which one EL beats
          *  writing the spaces: the escape is three bytes. */
         static constexpr uint16_t EL_MIN_CELLS     = 4;

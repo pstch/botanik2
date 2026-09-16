@@ -161,6 +161,15 @@ static const Scenario SCENARIOS[] = {
           for (int i = 0; i < 10; i++) f.editor.move_right();
       }, 25 },
 
+    // Repeated words: sliding right by one changes only the cells around each
+    // space, so a rewrite looks cheap until the cursor has to reach them all.
+    { "insert at the head of 3 rows of repeated words", SHELL,
+      [](EditorFixture& f) {
+          for (int i = 0; i < 12; i++) type(f, "aaaaaaaaaaaaaaaaaa ");
+          f.editor.move_to_start();
+      },
+      [](EditorFixture& f) { type(f, "x"); }, 41 },
+
     { "cursor up a row in a 3-row wrap", SHELL,
       [](EditorFixture& f) { fill(f, 180); },
       [](EditorFixture& f) { f.editor.move_up(); }, 3 },
