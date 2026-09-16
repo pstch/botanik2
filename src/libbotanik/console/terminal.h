@@ -138,6 +138,7 @@ namespace Botanik { namespace Terminal {
         bool                _hw_inverted    = false;    ///< real reverse-video
         bool                _hw_auto_wrap   = true;      ///< DECAWM (kept off UI-wide)
         bool                _hw_at_eol      = false;    ///< parked at last col (pending wrap)
+        bool                _hw_insert      = false;    ///< IRM (SM4) on the wire
         bool                _hw_cursor_visible = false; ///< DECTCEM on the wire
         bool                _screen_ready = false;      ///< screen established once
         /** @brief Which terminal is on the wire (constructor). */
@@ -182,10 +183,13 @@ namespace Botanik { namespace Terminal {
         /** @brief Sync the wire's reverse-video (SGR) state to @p inv, emitting
          *  the escape only when it changes. */
         void _set_hw_inverted(bool inv);
+        /** @brief Sync the wire's insert mode (SM4/RM4) to @p on, emitting only
+         *  on a change. @return false if the ring could not hold it. */
+        bool _set_hw_insert(bool on);
         /** @brief Emit cells [@p a, @p b) of grid @p row from _front (positioning
          *  the cursor, toggling reverse-video per cell), copy them into _back, and
-         *  return the byte cost. */
-        uint16_t _put_run(uint16_t row, uint16_t a, uint16_t b);
+         *  return the byte cost. @p insert emits them in insert mode. */
+        uint16_t _put_run(uint16_t row, uint16_t a, uint16_t b, bool insert = false);
         /** @brief Estimated worst-case bytes to emit run [@p a, @p b) of @p row
          *  (leading move + SGR toggles + glyphs), for the budget gate. */
         uint16_t _run_cost(uint16_t row, uint16_t a, uint16_t b) const;

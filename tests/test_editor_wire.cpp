@@ -82,15 +82,15 @@ static const Scenario SCENARIOS[] = {
 
     { "insert at the head of a 2-row wrap", SHELL,
       [](EditorFixture& f) { fill(f, 100); f.editor.move_to_line_start(); },
-      [](EditorFixture& f) { type(f, "Z"); }, 33 },
+      [](EditorFixture& f) { type(f, "Z"); }, 25 },
 
     { "insert at the head of a 3-row wrap", SHELL,
       [](EditorFixture& f) { fill(f, 180); f.editor.move_to_line_start(); },
-      [](EditorFixture& f) { type(f, "Z"); }, 49 },
+      [](EditorFixture& f) { type(f, "Z"); }, 33 },
 
     { "insert mid a 3-row wrap", SHELL,
       [](EditorFixture& f) { fill(f, 180); seek(f, 40); },
-      [](EditorFixture& f) { type(f, "Z"); }, 49 },
+      [](EditorFixture& f) { type(f, "Z"); }, 33 },
 
     { "append past the end of a 2-row wrap", SHELL,
       [](EditorFixture& f) { fill(f, 100); },
@@ -167,7 +167,7 @@ static const Scenario SCENARIOS[] = {
 
     { "NOTES insert mid a 3-row line", NOTES,
       [](EditorFixture& f) { fill(f, 180); seek(f, 40); },
-      [](EditorFixture& f) { type(f, "Z"); }, 46 },
+      [](EditorFixture& f) { type(f, "Z"); }, 30 },
 
     { "NOTES delete_forward mid a 3-row line", NOTES,
       [](EditorFixture& f) { fill(f, 180); seek(f, 40); },
@@ -179,7 +179,7 @@ static const Scenario SCENARIOS[] = {
 
     { "NOTES hard break mid a 3-row line", NOTES,
       [](EditorFixture& f) { fill(f, 180); seek(f, 40); },
-      [](EditorFixture& f) { type(f, "\n"); }, 84 },
+      [](EditorFixture& f) { type(f, "\n"); }, 76 },
 
     { "NOTES split at a wrap boundary", NOTES,
       [](EditorFixture& f) {

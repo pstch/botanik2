@@ -252,9 +252,9 @@ namespace Botanik { namespace Terminal {
         set_auto_wrap(false);
         _hw_cursor_visible = true; _want_cursor_visible = false;
         if (Ansi::set_cursor_visible(_serial, false)) _hw_cursor_visible = false;
-        // _shift_row() DOES set SM4, per insert-shift; this is what guarantees
-        // a fresh screen starts in replace mode whatever the last frame left.
+        // A fresh screen starts in replace mode whatever the last frame left.
         Ansi::set_insert_mode(_serial, false);
+        _hw_insert = false;
         _screen_ready = true;
         // The screen is now physically blank: both grids blank, draw cursor home,
         // and the diff walks the repaint that follows from the top.
@@ -312,9 +312,17 @@ namespace Botanik { namespace Terminal {
         _hw_inverted = inv;
     }
 
-    uint16_t AnsiTerminal::_put_run(uint16_t row, uint16_t a, uint16_t b) {
+    bool AnsiTerminal::_set_hw_insert(bool on) {
+        if (on == _hw_insert) return true;
+        if (!Ansi::set_insert_mode(_serial, on)) return false;
+        _hw_insert = on;
+        return true;
+    }
+
+    uint16_t AnsiTerminal::_put_run(uint16_t row, uint16_t a, uint16_t b, bool insert) {
         uint16_t before = tx_used();
         if (!_go({row, a})) return 0;
+        if (!_set_hw_insert(insert)) return 0;
         char buf[GRID_COLS];
         uint16_t k = a;
         while (k < b) {
@@ -341,6 +349,9 @@ namespace Botanik { namespace Terminal {
         // Park only once the frame is fully reconciled: mid-repaint the runs are
         // moving the cursor anyway, so re-homing it would burn a move per tick.
         if (_emit_diff()) _park_cursor();
+        // IRM survives cursor motion, so a frame's insert-shifts on several rows
+        // share one SM4; the wire leaves the frame in replace mode.
+        (void)_set_hw_insert(false);
     }
 
     void AnsiTerminal::_emit_scrolls() {
@@ -457,11 +468,10 @@ namespace Botanik { namespace Terminal {
         if (right) {
             // Insert mode: the glyphs written push the rest of the row right.
             // Mirror that in BACK first, so the run stamps the opened cells.
-            if (!Ansi::set_insert_mode(_serial, true)) return (uint16_t)(tx_used() - before);
+            if (!_set_hw_insert(true)) return (uint16_t)(tx_used() - before);
             for (uint16_t c = (uint16_t)(_cols - 1); c >= (uint16_t)(a + n); c--)
                 _back[_idx(row, c)] = _back[_idx(row, (uint16_t)(c - n))];
-            _put_run(row, a, (uint16_t)(a + n));
-            Ansi::set_insert_mode(_serial, false);
+            _put_run(row, a, (uint16_t)(a + n), /*insert=*/true);
         } else {
             // DCH fills the cells it frees using the current attributes on
             // terminals with background-colour erase, so drop reverse video first
