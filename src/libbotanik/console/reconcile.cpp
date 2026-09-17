@@ -254,17 +254,19 @@ namespace Botanik { namespace Terminal {
         // Dragging the rows under the band costs nothing where the walk was going
         // to write them anyway, and saves the escape that would put them back.
         const uint16_t asked = _row_hint.bottom;
+        int32_t price = _band_price();
         if (asked + 1 < _rows) {
-            const int32_t here = _band_price();
             _row_hint.bottom = (uint16_t)(_rows - 1);
-            if (_band_price() > here) _row_hint.bottom = asked;
+            const int32_t extended = _band_price();
+            if (extended > price) _row_hint.bottom = asked;
+            else                  price = extended;
         }
         const bool     up = _row_hint.delta < 0;
         const uint16_t n  = (uint16_t)(up ? -_row_hint.delta : _row_hint.delta);
         const Slide    s  = { _row_hint.top, _row_hint.bottom, n, up };
         // Room for the whole pair before the first escape goes: half a pair on
         // the wire with BACK unshifted is a screen nothing repairs.
-        if (_band_price() >= 0)                                              _row_hint.delta = 0;
+        if (price >= 0)                                                      _row_hint.delta = 0;
         else if (_serial.availableForWrite() >= SLIDE_ROOM && _emit_slide(s)) _row_hint.delta = 0;
         else if (++_row_hint.age > HINT_MAX_BEATS)                            _drop_hints();
     }
