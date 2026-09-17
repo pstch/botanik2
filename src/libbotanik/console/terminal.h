@@ -219,7 +219,7 @@ namespace Botanik { namespace Terminal {
          *  alone, then each column move over its row with the band already in BACK. A renderer hints what it
          *  drew, and the wire may be frames behind it, so what pays is asked of
          *  BACK, not of the renderer. */
-        int32_t _band_price() const;
+        int32_t _band_saved(uint16_t from, uint16_t to) const;
         bool _col_hint_pays(uint16_t row) const;
         /** @brief What the walk pays for @p stale cells left past FRONT's blank
          *  tail: past a few of them it erases the tail rather than writing it. */

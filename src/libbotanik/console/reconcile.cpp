@@ -231,13 +231,10 @@ namespace Botanik { namespace Terminal {
         return saved + _tail_cost(stale_now) - _tail_cost(stale_then);
     }
 
-    int32_t AnsiTerminal::_band_price() const {
+    int32_t AnsiTerminal::_band_saved(uint16_t from, uint16_t to) const {
         int32_t saved = 0;
-        for (uint16_t r = _row_hint.top; r <= _row_hint.bottom && r < _rows; r++) saved += _saved(r, false);
-        // A band ending on the last row needs no second escape: there is nothing
-        // under it to put back.
-        const int32_t cost = (_row_hint.bottom + 1 == _rows) ? SLIDE_BYTES : 2 * SLIDE_BYTES;
-        return cost - saved;
+        for (uint16_t r = from; r <= to && r < _rows; r++) saved += _saved(r, false);
+        return saved;
     }
 
     bool AnsiTerminal::_col_hint_pays(uint16_t row) const {
@@ -251,13 +248,27 @@ namespace Botanik { namespace Terminal {
 
     void AnsiTerminal::_apply_row_hint() {
         if (_row_hint.delta == 0) return;
+        // Neither candidate band reaches above its top, and a row the walk has
+        // nothing to do on cannot save it anything: with none of them dirty the
+        // move can only make work, which is worth knowing before any scan.
+        if ((_dirty & (~0u << _row_hint.top)) == 0) { _row_hint.delta = 0; return; }
+
         // Dragging the rows under the band costs nothing where the walk was going
         // to write them anyway, and saves the escape that would put them back.
         const uint16_t asked = _row_hint.bottom;
-        int32_t price = _band_price();
+        const int32_t  saved = _band_saved(_row_hint.top, asked);
+        int32_t price = ((asked + 1 == _rows) ? SLIDE_BYTES : 2 * SLIDE_BYTES) - saved;
         if (asked + 1 < _rows) {
+            // The extension changes only the rows it adds - a row outside the band
+            // prices at nothing - and, for a band moving up, the rows at the old
+            // edge that stop being freed.
+            const uint16_t n    = (uint16_t)(_row_hint.delta < 0 ? -_row_hint.delta : 0);
+            const uint16_t edge = (n != 0 && asked >= n) ? (uint16_t)(asked - n + 1) : _row_hint.top;
+            const int32_t  was  = n != 0 ? _band_saved(edge, asked) : 0;
             _row_hint.bottom = (uint16_t)(_rows - 1);
-            const int32_t extended = _band_price();
+            const int32_t  now  = n != 0 ? _band_saved(edge, asked) : 0;
+            const int32_t extended = SLIDE_BYTES - (saved - was + now
+                                   + _band_saved((uint16_t)(asked + 1), (uint16_t)(_rows - 1)));
             if (extended > price) _row_hint.bottom = asked;
             else                  price = extended;
         }
