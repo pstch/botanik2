@@ -118,6 +118,8 @@ namespace Botanik { namespace Terminal {
          *  Filled by the constructor: a brace-initialiser would set only the first
          *  row and leave the rest at 0, which is PRIO_INPUT. */
         uint8_t _row_prio[GRID_ROWS];
+        /** @brief The same classes as one bit per row. */
+        uint32_t _prio_rows[PRIO_COUNT] = { 0, 0, 0 };
 
         /** @brief Per class, the row present() resumes its scan at - wherever the
          *  tick's budget ran out. The walk only ever runs downward from there and
@@ -194,9 +196,53 @@ namespace Botanik { namespace Terminal {
         static constexpr int32_t  SLIDE_BYTES      = 11;  ///< half a DL/IL pair: a move and the escape
         static constexpr uint16_t EL_MIN_CELLS     = 4;   ///< stale tail cells from which one EL pays
 
+        /** @brief The row offsets every search tries, whose prices are kept. */
+        static constexpr uint8_t FIXED_OFFSETS = 6;
+        /** @brief The @p k th of them: -1, 1, -2, 2, -3, 3. */
+        static int16_t _fixed_offset(uint8_t k) {
+            return (int16_t)((k & 1) ? k / 2 + 1 : -(k / 2 + 1));
+        }
+
+        /** @name Price memo
+         *  What a search priced, kept per row until a row it read changes. A bit
+         *  per row says a price is known; every price is a pure function of the
+         *  rows it names (and of insert mode, for the stay price). @{ */
+        uint32_t _stay_known = 0, _stay_insert = 0;
+        uint16_t _stay_price[GRID_ROWS];
+        Shift    _stay_shift[GRID_ROWS];
+        uint32_t _tail_known[2] = { 0, 0 };
+        uint8_t  _tail[2][GRID_ROWS];         ///< _blank_tail of FRONT [0] and BACK [1] rows
+        uint32_t _blank_known = 0;
+        uint16_t _blank_price[GRID_ROWS];
+        uint32_t _moved_known[FIXED_OFFSETS] = { 0 };
+        uint16_t _moved_price[FIXED_OFFSETS][GRID_ROWS];
+        /** @brief Rows that may differ between FRONT and BACK: a row's bit is
+         *  set when either grid's row changes and clears once they compare equal. */
+        uint32_t _unsettled = 0xFFFFFFFFu;
+        /** @brief No row moved since a search found nothing, in this insert mode. */
+        bool     _none_known = false, _none_insert = false;
+        static_assert(GRID_ROWS <= 32, "the memo keeps one bit per row");
+        /** @} */
+
+        /** @brief A cell of FRONT / BACK row @p row changed: forget the prices that read it. */
+        void _front_row_moved(uint16_t row);
+        void _back_row_moved(uint16_t row);
+        void _all_rows_moved();
+        /** @brief Whether FRONT and BACK row @p row are equal, compared only when
+         *  a change may have made them differ. */
+        bool _row_settled(uint16_t row);
+        /** @brief One bit per row of the active screen. */
+        uint32_t _active_rows() const { return _rows >= 32 ? 0xFFFFFFFFu : (1u << _rows) - 1u; }
+        /** @brief Where FRONT (@p grid 0) or BACK (1) row @p row's blank tail starts. */
+        uint16_t _row_tail(uint8_t grid, uint16_t row);
+        /** @brief Row @p row's own price, and its sideways slide in _stay_shift. */
+        uint16_t _row_stay(uint16_t row);
+
         /** @brief The cheapest row slide that pays for its escapes, in @p out.
          *  @return false when none does. */
-        bool _find_slide(Slide& out) const;
+        bool _find_slide(Slide& out);
+        /** @brief _find_slide's search itself, run when the memo cannot answer. */
+        bool _search_slide(Slide& out);
         /** @brief Emit @p s as its DL/IL pair; BACK follows only if it all went. */
         bool _emit_slide(const Slide& s);
         /** @brief Mirror a slide that reached the wire in BACK. */
@@ -208,9 +254,9 @@ namespace Botanik { namespace Terminal {
         /** @brief Reconcile one row: its sideways slide, then its changed runs.
          *  @return false when the tick's budget or the ring ran out. */
         bool _reconcile_row(uint16_t row, uint16_t& budget);
-        /** @brief What reconciling row @p bk into row @p fr costs: a rewrite, or
-         *  the sideways slide that beats it, returned in @p out (`n` 0 for none). */
-        uint16_t _row_price(const uint8_t* fr, const uint8_t* bk, Shift* out = nullptr) const;
+        /** @brief What reconciling BACK row @p row into FRONT's costs: a rewrite,
+         *  or the sideways slide that beats it, in @p out (`n` 0 for none). */
+        uint16_t _row_price(uint16_t row, Shift* out);
         /** @brief Emit the changed cells of @p row in [@p from, @p to), spending
          *  @p budget. @return false when it ran out. */
         bool _emit_runs(uint16_t row, uint16_t from, uint16_t to, uint16_t& budget);
@@ -223,9 +269,11 @@ namespace Botanik { namespace Terminal {
 
         /** @brief The run loop's estimated price for turning row @p bk into row
          *  @p fr, each @ref _cols cells.
+         *  @param fr_tail, bk_tail where each row's blank tail starts (_blank_tail)
          *  @param spent when given, `_cols + 1` entries: the cells and gaps
          *         before each column, the move onto the row and the tail left out. */
-        uint16_t _row_cost(const uint8_t* fr, const uint8_t* bk, uint16_t* spent = nullptr) const;
+        uint16_t _row_cost(const uint8_t* fr, uint16_t fr_tail, const uint8_t* bk, uint16_t bk_tail,
+                           uint16_t* spent = nullptr) const;
         /** @brief Worst-case bytes for run [@p a, @p b) of @p row: a move, an SGR
          *  per attribute change and the glyphs. For the budget gate. */
         uint16_t _run_cost(uint16_t row, uint16_t a, uint16_t b) const;
