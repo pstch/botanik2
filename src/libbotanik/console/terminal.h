@@ -193,6 +193,7 @@ namespace Botanik { namespace Terminal {
         static constexpr uint16_t SLIDE_ROOM       = 2 * (8 + 16);
         static constexpr uint16_t EL_MIN_CELLS     = 4;   ///< stale tail cells from which one EL pays
         static constexpr uint16_t EL_BYTES         = 11;  ///< a move onto the tail and the EL
+        static_assert(GRID_ROWS <= 32, "the dirty set is one word");
 
         /** @name Hints
          *  What a renderer says moved. A hint only reorders BACK in step with
@@ -226,9 +227,10 @@ namespace Botanik { namespace Terminal {
         /** @brief Bytes the walk no longer writes on @p row once the pending hints
          *  have gone, runs and the moves onto them counted as it counts them. */
         int32_t _saved(uint16_t row, bool cols) const;
-        /** @brief Cell (@p row, @p col) of BACK once the band has gone, and with it
-         *  the row's column move when @p cols. */
-        uint8_t _after_hints(uint16_t row, uint16_t col, bool cols) const;
+        /** @brief Row @p row of BACK once the band has gone, and with it the row's
+         *  column move when @p cols. Returns BACK itself where the row moves whole,
+         *  and @p buf (GRID_COLS wide) where cells had to be placed.  */
+        const uint8_t* _after_row(uint16_t row, bool cols, uint8_t* buf) const;
         /** @brief Emit row @p row's column move. @return false if the ring could
          *  not take it, which leaves the hint pending. */
         bool _apply_col_hint(uint16_t row);
@@ -236,6 +238,17 @@ namespace Botanik { namespace Terminal {
          *  row, so the run repairing what it did not carry is a step away rather
          *  than an address. @return false while it is still owed. */
         bool _take_col_hint(uint16_t row);
+        /** @brief Rows whose grids may differ, one bit each. A clear bit is a
+         *  promise the walk can skip the row without reading it, so every write
+         *  to either grid sets it and only the walk clears it. */
+        uint32_t _dirty = 0;
+        void _touch(uint16_t row)  { _dirty |= 1u << row; }
+        void _touch_all()          { _dirty = ~0u; }
+        /** @brief Under DEBUG, that a clear bit really means the two grids agree:
+         *  a write path that forgets to touch its row would otherwise show as a
+         *  screen that never repairs itself. */
+        void _check_dirty() const;
+
         /** @brief Rows the band still owes, which the walk leaves alone. */
         uint32_t _band_rows() const;
         /** @brief Forget every hint: the screen they described is gone. */

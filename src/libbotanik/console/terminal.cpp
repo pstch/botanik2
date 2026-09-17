@@ -73,12 +73,14 @@ namespace Botanik { namespace Terminal {
         // is gone with it.
         _drop_hints();
         _restart_walk();
+        _touch_all();
     }
 
     void AnsiTerminal::_reset_grids() {
         for (uint16_t r = 0; r < _rows; r++)
             for (uint16_t c = 0; c < _cols; c++)
                 _front[_idx(r, c)] = _back[_idx(r, c)] = CELL_BLANK;
+        _dirty = 0;             // blank against blank: nothing for the walk
     }
 
     // Draw cursor & geometry
@@ -94,6 +96,7 @@ namespace Botanik { namespace Terminal {
 
     uint16_t AnsiTerminal::write_chars(const char *s, uint16_t len) {
         if (len == 0 || _draw_row >= _rows) return 0;
+        _touch(_draw_row);
         uint8_t pen = _draw_inv ? CELL_INV : 0;
         for (uint16_t i = 0; i < len; i++) {
             if (_draw_col >= _cols) return i;     // parked at EOL: drop the rest
@@ -128,14 +131,17 @@ namespace Botanik { namespace Terminal {
 
     void AnsiTerminal::clear_to_eol() {
         if (_draw_row >= _rows || _draw_col >= _cols) return;   // parked past last col
+        _touch(_draw_row);
         const uint8_t v = (uint8_t)(CELL_BLANK | (_draw_inv ? CELL_INV : 0));
         for (uint16_t c = _draw_col; c < _cols; c++) _front[_idx(_draw_row, c)] = v;
     }
 
 
     void AnsiTerminal::clear_rows(uint16_t top, uint16_t bottom) {
-        for (uint16_t r = top; r <= bottom && r < _rows; r++)
+        for (uint16_t r = top; r <= bottom && r < _rows; r++) {
+            _touch(r);
             for (uint16_t c = 0; c < _cols; c++) _front[_idx(r, c)] = CELL_BLANK;
+        }
     }
 
     // Field painter (shared by StatusBar and MetricPage) - built on the primitives

@@ -351,11 +351,19 @@ namespace Botanik { namespace Terminal {
          *  content area. */
         uint16_t _view_bottom_hw() const;
 
-        /** @brief Screen row showing layout row @p i, meaningful when
-         *  `_visible(i)`. */
+        /** @brief What one visible row did since the last paint: the rows it moved
+         *  by, the columns it slid by, and the column its text came from. */
+        struct RowMove { int16_t moved; int16_t slid; uint16_t from_col; };
+
         /** @brief Tell the terminal what the edit moved, in rows and in columns,
          *  worked out from the layout it last painted. */
         void _hint_moves();
+        /** @brief The move that best explains row @p j, mapping its bytes back
+         *  through an edit of @p k bytes at offset @p p. */
+        RowMove _row_move(uint16_t j, uint16_t p, int16_t k) const;
+        /** @brief Hint the longest run of rows that moved together, starting at
+         *  screen row @p first. @return the delta that band carried, 0 for none. */
+        int16_t _hint_band(const RowMove* mv, uint16_t n, uint16_t first);
         /** @brief Take the layout, viewport and length just painted as the ones
          *  the screen holds. */
         void _remember_paint();

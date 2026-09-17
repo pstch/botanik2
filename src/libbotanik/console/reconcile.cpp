@@ -14,8 +14,7 @@
 #include <cstring>
 
 #include "libbotanik/console/ansi.h"
-#include <cstdio>
-#include <cstdlib>
+#include "libbotanik/utils/assert.h"
 
 
 namespace Botanik { namespace Terminal {
@@ -100,7 +99,16 @@ namespace Botanik { namespace Terminal {
         return (uint16_t)(tx_used() - before);
     }
 
+    void AnsiTerminal::_check_dirty() const {
+#ifdef DEBUG
+        for (uint16_t r = 0; r < _rows; r++)
+            if ((_dirty & (1u << r)) == 0)
+                BOTANIK_ASSERT(memcmp(&_front[_idx(r, 0)], &_back[_idx(r, 0)], _cols) == 0);
+#endif
+    }
+
     void AnsiTerminal::present() {
+        _check_dirty();
         // The band goes first: it moves whole rows, and the walk reads the rows
         // it lands on. A column move waits for the walk to reach its row.
         _apply_row_hint();
@@ -138,6 +146,7 @@ namespace Botanik { namespace Terminal {
     }
 
     void AnsiTerminal::hint_cols(uint16_t row, uint16_t col, int16_t delta) {
+        _touch(row);            // the walk owns the row until the move has gone
         if (delta == 0 || row >= _rows || col >= _cols) return;
         ColHint& h = _col_hint[row];
         if (h.delta != 0) {
@@ -165,24 +174,33 @@ namespace Botanik { namespace Terminal {
         return rows;
     }
 
-    uint8_t AnsiTerminal::_after_hints(uint16_t row, uint16_t col, bool cols) const {
+    const uint8_t* AnsiTerminal::_after_row(uint16_t row, bool cols, uint8_t* buf) const {
+        // Where the row's cells come from once the band has gone.
         uint16_t src = row;
+        bool     freed = false;
         if (_row_hint.delta != 0 && row >= _row_hint.top && row <= _row_hint.bottom) {
             const int32_t from = (int32_t)row - _row_hint.delta;
-            if (from < (int32_t)_row_hint.top || from > (int32_t)_row_hint.bottom) return CELL_BLANK;
-            src = (uint16_t)from;
+            if (from < (int32_t)_row_hint.top || from > (int32_t)_row_hint.bottom) freed = true;
+            else src = (uint16_t)from;
         }
         const ColHint& h = _col_hint[row];
-        if (!cols || h.delta == 0) return _back[_idx(src, col)];
-        const uint16_t n = (uint16_t)(h.delta < 0 ? -h.delta : h.delta);
+        if (!freed && (!cols || h.delta == 0)) return &_back[_idx(src, 0)];   // no copy: the row moves whole
+        if (freed) { memset(buf, CELL_BLANK, _cols); return buf; }
+        const uint8_t* bk = &_back[_idx(src, 0)];
+        const uint16_t n  = (uint16_t)(h.delta < 0 ? -h.delta : h.delta);
         if (h.delta > 0) {
-            if (col < h.col)                      return _back[_idx(src, col)];
-            if (col < (uint16_t)(h.col + n))      return _front[_idx(row, col)];   // the cells it opens
-            return _back[_idx(src, (uint16_t)(col - n))];
+            memcpy(buf, bk, h.col);
+            // The cells the insert opens are the ones FRONT put there.
+            memcpy(&buf[h.col], &_front[_idx(row, h.col)], std::min(n, (uint16_t)(_cols - h.col)));
+            if ((uint16_t)(h.col + n) < _cols)
+                memcpy(&buf[h.col + n], &bk[h.col], (size_t)(_cols - h.col - n));
+        } else {
+            const uint16_t at = (uint16_t)(h.col > n ? h.col - n : 0);
+            memcpy(buf, bk, at);
+            if (h.col < _cols) memcpy(&buf[at], &bk[h.col], (size_t)(_cols - h.col));
+            memset(&buf[_cols - n], CELL_BLANK, n);
         }
-        if (col < (uint16_t)(h.col - n))          return _back[_idx(src, col)];
-        if ((uint16_t)(col + n) < _cols)          return _back[_idx(src, (uint16_t)(col + n))];
-        return CELL_BLANK;
+        return buf;
     }
 
     int32_t AnsiTerminal::_tail_cost(uint16_t stale) {
@@ -192,21 +210,23 @@ namespace Botanik { namespace Terminal {
     }
 
     int32_t AnsiTerminal::_saved(uint16_t row, bool cols) const {
-        const uint8_t* fr = &_front[_idx(row, 0)];
-        const uint8_t* bk = &_back [_idx(row, 0)];
-        const uint16_t e  = _blank_tail(fr);
+        uint8_t        after[GRID_COLS];
+        const uint8_t* fr  = &_front[_idx(row, 0)];
+        const uint8_t* bk  = &_back [_idx(row, 0)];
+        const uint8_t* aft = _after_row(row, cols, after);
+        const uint16_t e   = _blank_tail(fr);
         bool run_now = false, run_then = false;
         int32_t saved = 0;
         // What the walk writes now, less what it still writes after: a run costs
         // its cells and the move onto them.
         for (uint16_t c = 0; c < e; c++) {
-            if (fr[c] != bk[c])                         { saved += run_now  ? 1 : 1 + ROW_ENTRY_BYTES; run_now  = true; } else run_now  = false;
-            if (fr[c] != _after_hints(row, c, cols))    { saved -= run_then ? 1 : 1 + ROW_ENTRY_BYTES; run_then = true; } else run_then = false;
+            if (fr[c] != bk[c])  { saved += run_now  ? 1 : 1 + ROW_ENTRY_BYTES; run_now  = true; } else run_now  = false;
+            if (fr[c] != aft[c]) { saved -= run_then ? 1 : 1 + ROW_ENTRY_BYTES; run_then = true; } else run_then = false;
         }
         uint16_t stale_now = 0, stale_then = 0;
         for (uint16_t c = e; c < _cols; c++) {
-            if (bk[c] != CELL_BLANK)                        stale_now++;
-            if (_after_hints(row, c, cols) != CELL_BLANK)   stale_then++;
+            if (bk [c] != CELL_BLANK) stale_now++;
+            if (aft[c] != CELL_BLANK) stale_then++;
         }
         return saved + _tail_cost(stale_now) - _tail_cost(stale_then);
     }
@@ -257,6 +277,7 @@ namespace Botanik { namespace Terminal {
     }
 
     bool AnsiTerminal::_apply_col_hint(uint16_t row) {
+        _touch(row);
         const ColHint& h  = _col_hint[row];
         const uint16_t n  = (uint16_t)(h.delta < 0 ? -h.delta : h.delta);
         uint8_t* const bk = &_back[_idx(row, 0)];
@@ -317,6 +338,7 @@ namespace Botanik { namespace Terminal {
         memmove(&_back[_idx(s.up ? s.top : (uint16_t)(s.top + s.n), 0)],
                 &_back[_idx(s.up ? (uint16_t)(s.top + s.n) : s.top, 0)], (size_t)kept * _cols);
         memset(&_back[_idx(freed, 0)], CELL_BLANK, (size_t)s.n * _cols);
+        for (uint16_t r = s.top; r <= s.bottom && r < _rows; r++) _touch(r);
     }
 
     bool AnsiTerminal::_fits(uint16_t cost, uint16_t budget) const {
@@ -370,7 +392,7 @@ namespace Botanik { namespace Terminal {
             if (!_take_col_hint(row))            return false;
         }
         // Nothing pending: skip in one memcmp rather than a per-cell walk.
-        if (memcmp(&_front[_idx(row, 0)], &_back[_idx(row, 0)], _cols) == 0) return true;
+        if (memcmp(&_front[_idx(row, 0)], &_back[_idx(row, 0)], _cols) == 0) { _dirty &= ~(1u << row); return true; }
 
         // Past a few stale cells in FRONT's blank tail, one EL erases them for
         // three bytes where the runs would write a space each; it goes out last,
@@ -381,7 +403,7 @@ namespace Botanik { namespace Terminal {
             if (_back[_idx(row, c)] != CELL_BLANK) stale++;
         const bool erase = stale >= EL_MIN_CELLS;
         if (!_emit_runs(row, 0, erase ? e : _cols, budget)) return false;
-        if (!erase) return true;
+        if (!erase) { _dirty &= ~(1u << row); return true; }
         // Move + EL + a possible SGR: EL fills with the current attributes on
         // a terminal with background-colour erase, so the pen goes plain first.
         if (!_fits((uint16_t)(8 + 3 + (_hw_inverted ? 5 : 0)), budget)) return false;
@@ -391,6 +413,7 @@ namespace Botanik { namespace Terminal {
         if (!Ansi::erase_to_eol(_serial)) return false;
         memset(&_back[_idx(row, e)], CELL_BLANK, (size_t)(_cols - e));
         budget = _spend(budget, (uint16_t)(tx_used() - before));
+        _dirty &= ~(1u << row);
         return true;
     }
 
@@ -399,6 +422,12 @@ namespace Botanik { namespace Terminal {
         // all-or-nothing (the ring drops silently, so a partial run would be a
         // torn frame) and paced under this tick's budget. @return true when the
         // screen is fully reconciled.
+        // Neither grid moved and no band is owed: the wire already shows FRONT,
+        // so there is nothing to walk. This is most beats.
+        if (_dirty == 0 && _row_hint.delta == 0) {
+            for (uint8_t prio = 0; prio < PRIO_COUNT; prio++) _resume[prio] = 0;
+            return true;
+        }
         uint16_t used   = tx_used();
         uint16_t budget = (used < _tx_cold_depth) ? (uint16_t)(_tx_cold_depth - used) : 0;
         // A row a hint still owes is left alone: writing it now would pay for the
@@ -417,6 +446,9 @@ namespace Botanik { namespace Terminal {
                 // goes out in a tick stays in row order, so a page never arrives
                 // bottom first.
                 if ((owed & (1u << row)) != 0) { _resume[prio] = (uint8_t)row; return false; }
+                // A row neither grid has touched needs no reading at all: that is
+                // what the dirty word buys, and it is most of an idle beat.
+                if ((_dirty & (1u << row)) == 0 && _col_hint[row].delta == 0) continue;
                 if (!_reconcile_row(row, budget)) {
                     // Pick this row up again next tick: it is either unfinished or
                     // untried, and either way it is owed the next slot.

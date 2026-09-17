@@ -500,6 +500,77 @@ namespace Botanik { namespace Terminal {
 
     // hints
 
+    TextEditor::RowMove TextEditor::_row_move(uint16_t j, uint16_t p, int16_t k) const {
+        RowMove best = { 0, 0, 0 };
+        const RowView& row = _rows[j];
+        // This row's range in the offsets the screen was painted from: bytes
+        // before the edit kept theirs, bytes after moved by k, and the ones an
+        // insert added have none.
+        const int32_t s = row.buf_start, e = s + row.buf_len;
+        const int32_t s_old = (s < (int32_t)p) ? s : std::max<int32_t>((int32_t)p, s - k);
+        const int32_t e_old = (e <= (int32_t)p) ? e : e - k;
+        if (e_old <= s_old) return best;
+
+        int32_t best_overlap = 0;
+        uint8_t best_tier    = 0;
+        for (uint16_t i = 0; i < _painted_count; i++) {
+            const int32_t rlo = std::max<int32_t>(s_old, _painted[i].buf_start);
+            const int32_t rhi = std::min<int32_t>(e_old, (int32_t)(_painted[i].buf_start + _painted[i].buf_len));
+            if (rhi <= rlo) continue;
+            // The overlap split at the edit: the bytes before it kept their
+            // place, the ones after took the shift.
+            for (uint8_t half = 0; half < 2; half++) {
+                const int32_t lo = half == 0 ? rlo : std::max<int32_t>(rlo, (int32_t)p);
+                const int32_t hi = half == 0 ? std::min<int32_t>(rhi, (int32_t)p) : rhi;
+                if (hi <= lo) continue;
+                const int32_t now = (lo < (int32_t)p) ? lo : lo + k;
+                if (now < s || now >= e) continue;          // that run left this row
+                const int16_t  m  = (int16_t)((int32_t)_hw_row(j) - (int32_t)(_painted_origin + i - _painted_view_top));
+                const uint16_t wc = (uint16_t)(_indent + _painted_prompt_len(i) + (lo - _painted[i].buf_start));
+                const uint16_t nc = (uint16_t)(_indent + _prompt_len(_row_prompt(j)) + (now - s));
+                const int16_t  sl = (int16_t)((int32_t)nc - wc);
+                // One escape beats two, and two beat none: a whole row that moved
+                // is a band, a row that stayed and slid is a column move, a run
+                // that did both needs the pair, and a run that sat still carries
+                // nothing. Length only breaks a tie.
+                const uint8_t tier = (m != 0 && sl == 0) ? 3 : (m == 0 && sl != 0) ? 2 : (m != 0) ? 1 : 0;
+                if (best_overlap != 0 && (tier < best_tier || (tier == best_tier && (hi - lo) <= best_overlap)))
+                    continue;
+                best_overlap = hi - lo; best_tier = tier;
+                // Both halves of the one move: the band brings the run to this
+                // row, the column shift places it.
+                best.moved = m; best.slid = sl; best.from_col = wc;
+            }
+        }
+        return best;
+    }
+
+    int16_t TextEditor::_hint_band(const RowMove* mv, uint16_t n, uint16_t first) {
+        uint16_t best_at = 0, best_len = 0;
+        for (uint16_t a = 0; a < n;) {
+            if (mv[a].moved == 0) { a++; continue; }
+            uint16_t b = a;
+            while (b < n && mv[b].moved == mv[a].moved) b++;
+            if ((uint16_t)(b - a) > best_len) { best_len = (uint16_t)(b - a); best_at = a; }
+            a = b;
+        }
+        if (best_len == 0) return 0;
+        // The band is the rows that moved and the rows they came from, as far as
+        // this editor's own rows reach - which includes the ones it is vacating,
+        // since shrinking moves its content down into them.
+        const int16_t  d      = mv[best_at].moved;
+        const int32_t  to_lo  = (int32_t)_hw_row((uint16_t)(first + best_at));
+        const int32_t  to_hi  = (int32_t)_hw_row((uint16_t)(first + best_at + best_len - 1));
+        int32_t top = (d < 0 ? to_lo : to_lo - d);
+        int32_t bot = (d < 0 ? to_hi - d : to_hi);
+        const int32_t own_top = (int32_t)std::min(_origin, _painted_origin);
+        if (top < own_top)                     top = own_top;
+        if (bot > (int32_t)_view_bottom_hw())  bot = _view_bottom_hw();
+        if (top >= bot) return 0;
+        _terminal->hint_rows((uint16_t)top, (uint16_t)bot, d);
+        return d;
+    }
+
     void TextEditor::_hint_moves() {
         const uint16_t first = _view_top, end = _visible_end();
         const int16_t  k     = _edit_delta;
@@ -508,98 +579,23 @@ namespace Botanik { namespace Terminal {
         if (!_painted_valid || first >= end) { _remember_paint(); return; }
 
         // What each visible row is mostly made of: the painted row it shares the
-        // most bytes with, found by mapping this row's bytes back through the
-        // edit. A byte at or past the edit moved by k, so a row's old range is
-        // its own less that. The row a break pushed text into is then read by
-        // the row that text came from, not by the byte that rippled in first.
-        int16_t  moved[Config::EDITOR_MAX_ROWS];
-        int16_t  slid [Config::EDITOR_MAX_ROWS];
-        uint16_t from_col[Config::EDITOR_MAX_ROWS];
+        // most bytes with. The row a break pushed text into is then read by the
+        // row that text came from, not by the byte that rippled in first.
+        RowMove  mv[Config::EDITOR_MAX_ROWS];
         uint16_t n = 0;
-        for (uint16_t j = first; j < end && n < Config::EDITOR_MAX_ROWS; j++, n++) {
-            moved[n] = INT16_MIN;
-            slid[n]  = 0;
-            const RowView& row = _rows[j];
-            // This row's range in the offsets the screen was painted from: bytes
-            // before the edit kept theirs, bytes after moved by k, and the ones
-            // an insert added have none.
-            const int32_t s = row.buf_start, e = s + row.buf_len;
-            const int32_t s_old = (s < (int32_t)p) ? s : std::max<int32_t>((int32_t)p, s - k);
-            const int32_t e_old = (e <= (int32_t)p) ? e : e - k;
-            if (e_old <= s_old) continue;
+        for (uint16_t j = first; j < end && n < Config::EDITOR_MAX_ROWS; j++, n++)
+            mv[n] = _row_move(j, p, k);
 
-            // Each painted row it overlaps gives a run, split at the edit: the
-            // bytes before it kept their place, the ones after took the shift.
-            // The run worth hinting is ranked by what the wire can do with it,
-            // and only then by length.
-            int32_t best_overlap = 0;
-            uint8_t best_tier    = 0;
-            for (uint16_t i = 0; i < _painted_count; i++) {
-                const int32_t rlo = std::max<int32_t>(s_old, _painted[i].buf_start);
-                const int32_t rhi = std::min<int32_t>(e_old, (int32_t)(_painted[i].buf_start + _painted[i].buf_len));
-                if (rhi <= rlo) continue;
-                for (uint8_t half = 0; half < 2; half++) {
-                    const int32_t lo = half == 0 ? rlo : std::max<int32_t>(rlo, (int32_t)p);
-                    const int32_t hi = half == 0 ? std::min<int32_t>(rhi, (int32_t)p) : rhi;
-                    if (hi <= lo) continue;
-                    const int32_t now = (lo < (int32_t)p) ? lo : lo + k;
-                    if (now < s || now >= e) continue;          // that run left this row
-                    const int16_t  m  = (int16_t)((int32_t)_hw_row(j) - (int32_t)(_painted_origin + i - _painted_view_top));
-                    const uint16_t wc = (uint16_t)(_indent + _painted_prompt_len(i) + (lo - _painted[i].buf_start));
-                    const uint16_t nc = (uint16_t)(_indent + _prompt_len(_row_prompt(j)) + (now - s));
-                    const int16_t  sl = (int16_t)((int32_t)nc - wc);
-                    // One escape beats two, and two beat none: a whole row that
-                    // moved is a band, a row that stayed and slid is a column
-                    // move, a run that did both needs the pair, and a run that
-                    // sat still carries nothing.
-                    const uint8_t tier = (m != 0 && sl == 0) ? 3 : (m == 0 && sl != 0) ? 2 : (m != 0) ? 1 : 0;
-                    if (best_overlap != 0 && (tier < best_tier || (tier == best_tier && (hi - lo) <= best_overlap)))
-                        continue;
-                    best_overlap = hi - lo; best_tier = tier;
-                    // Both halves of the one move: the band brings the run to this
-                    // row, the column shift places it. The terminal prices them
-                    // apart, so a band it refuses drops its column move too.
-                    moved[n] = m; slid[n] = sl; from_col[n] = wc;
-                }
-            }
-            if (best_overlap == 0) continue;
-        }
-
-        // The rows that moved together are one band move over the rows this
-        // editor owns; whatever moved differently the terminal writes out.
-        uint16_t best_at = 0, best_len = 0;
-        for (uint16_t a = 0; a < n;) {
-            if (moved[a] == INT16_MIN || moved[a] == 0) { a++; continue; }
-            uint16_t b = a;
-            while (b < n && moved[b] == moved[a]) b++;
-            if ((uint16_t)(b - a) > best_len) { best_len = (uint16_t)(b - a); best_at = a; }
-            a = b;
-        }
-        if (best_len != 0) {
-            // The band is the rows that moved and the rows they came from, as far
-            // as this editor's own rows reach.
-            const int16_t  d      = moved[best_at];
-            const uint16_t bottom = _view_bottom_hw();
-            const int32_t  to_hi  = (int32_t)_hw_row((uint16_t)(first + best_at + best_len - 1));
-            const int32_t  to_lo  = (int32_t)_hw_row((uint16_t)(first + best_at));
-            int32_t top = (d < 0 ? to_lo : to_lo - d);
-            int32_t bot = (d < 0 ? to_hi - d : to_hi);
-            // The rows this editor owns include the ones it is vacating: shrinking
-            // moves its content down into them.
-            const int32_t own_top = (int32_t)std::min(_origin, _painted_origin);
-            if (top < own_top) top = own_top;
-            if (bot > (int32_t)bottom)  bot = bottom;
-            if (top < bot) _terminal->hint_rows((uint16_t)top, (uint16_t)bot, d);
-        }
         // A row the band carries can have slid sideways too: its prompt may have
         // changed width, or text rippled into it. Its columns are the ones the
         // band leaves behind, which is what the terminal applies them to.
-        const int16_t carried = best_len != 0 ? moved[best_at] : 0;
+        const int16_t carried = _hint_band(mv, n, first);
         for (uint16_t a = 0; a < n; a++)
-            if (slid[a] != 0 && (moved[a] == 0 || moved[a] == carried))
-                _terminal->hint_cols(_hw_row((uint16_t)(first + a)), from_col[a], slid[a]);
+            if (mv[a].slid != 0 && (mv[a].moved == 0 || mv[a].moved == carried))
+                _terminal->hint_cols(_hw_row((uint16_t)(first + a)), mv[a].from_col, mv[a].slid);
         _remember_paint();
     }
+
 
     void TextEditor::_remember_paint() {
         for (uint16_t i = 0; i < _row_count && i < _max_rows; i++) _painted[i] = _rows[i];
