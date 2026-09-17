@@ -24,10 +24,16 @@ namespace Botanik { namespace Pages {
     void ScrollTablePage::_follow_selection() {
         uint16_t win = _window();
         if (win == 0) return;
+        const uint16_t was = _top;
         if (_selected < _top)             _top = _selected;
         else if (_selected >= _top + win) _top = (uint16_t)(_selected - win + 1);
         uint16_t maxtop = _max_top();
         if (_top > maxtop) _top = maxtop;
+        // Record i is drawn on _data_top() + i - _top, so the window's rows move
+        // by what _top did, backwards.
+        if (_top != was && win > 1)
+            _terminal.hint_rows(_data_top(), (uint16_t)(_data_top() + win - 1),
+                                (int16_t)((int32_t)was - (int32_t)_top));
     }
 
     bool ScrollTablePage::_nav_command(Command cmd) {

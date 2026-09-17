@@ -43,6 +43,14 @@ namespace Botanik { namespace Pages {
          *  @see reflow() */
         uint16_t _wrap_cols = 0;
 
+        /** @name What the screen holds
+         *  Where the window was painted and which line sat on its bottom row, so
+         *  the next paint can say how far the lines moved. @{ */
+        uint16_t _painted_first = 0, _painted_rows = 0;
+        uint32_t _painted_bottom = 0;
+        bool     _painted_valid = false;
+        /** @} */
+
         /** @} */
 
         /** @brief @p n lines were stored: a live view reveals them paced, a
@@ -64,6 +72,7 @@ namespace Botanik { namespace Pages {
         void clear() {
             Base::clear();
             _pending = _view_offset = _wrap_cols = 0;
+            _painted_valid = false;
         }
 
         /** @brief Drop the history if it was wrapped at a different width.
@@ -121,6 +130,7 @@ namespace Botanik { namespace Pages {
          *  the window. */
         void paint(AnsiTerminal& t, uint16_t first_row, uint16_t rows) {
             _pending = (uint16_t)(_pending - std::min<uint16_t>(_pending, (uint16_t)Config::LOG_ROWS_PER_TICK));
+            _hint_move(t, first_row, rows);
             t.set_inverted(false);
             for (uint16_t i = 0; i < rows; i++) {
                 // The bottom row shows the newest revealed line, 1 step back.
@@ -142,6 +152,33 @@ namespace Botanik { namespace Pages {
         }
 
         /** @} */
+
+    private:
+        /** @brief Say how far the window's lines moved since the last paint.
+         *
+         *  A line sits at `first_row + rows - 1 - (bottom - line)`, so every line
+         *  in the window moves by the same rows when the band or the newest line
+         *  shown changes: a line arriving, a scroll back, a band resized. */
+        void _hint_move(AnsiTerminal& t, uint16_t first_row, uint16_t rows) {
+            const uint32_t bottom = this->serial() - _pending - _view_offset;
+            if (_painted_valid && rows != 0 && _painted_rows != 0) {
+                const int32_t delta = ((int32_t)first_row + rows) - ((int32_t)_painted_first + _painted_rows)
+                                    - ((int32_t)bottom - (int32_t)_painted_bottom);
+                // The union of the two bands: content can arrive from outside the
+                // old one, as a submitted input line does when it joins the
+                // transcript. What did not move the walk writes out.
+                const uint16_t top = std::min(first_row, _painted_first);
+                const uint16_t bot = std::max((uint16_t)(first_row + rows), (uint16_t)(_painted_first + _painted_rows));
+                if (delta != 0 && bot > top)
+                    t.hint_rows(top, (uint16_t)(bot - 1), (int16_t)delta);
+            }
+            _painted_first  = first_row;
+            _painted_rows   = rows;
+            _painted_bottom = bottom;
+            _painted_valid  = true;
+        }
+
+    public:
     };
 
     /** @brief Shell page scrollback (input echo + interleaved log replay). */

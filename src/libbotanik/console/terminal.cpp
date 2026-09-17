@@ -11,6 +11,7 @@
 #include <algorithm>
 #include <cstdint>
 #include <cstring>
+#include <cstdlib>
 
 #include "libbotanik/config/terminal.h"
 
@@ -32,7 +33,6 @@ namespace Botanik { namespace Terminal {
         _tx_cold_depth = depth_for_baud(ConsoleConfig().baud, Config::TX_COLD_TARGET_MS);
         for (uint16_t i = 0; i < GRID_CELLS; i++) { _front[i] = CELL_BLANK; _back[i] = CELL_BLANK; }
         for (uint16_t r = 0; r < GRID_ROWS; r++) _row_prio[r] = PRIO_STRUCT;
-        _prio_rows[PRIO_STRUCT] = 0xFFFFFFFFu;
     }
 
     bool AnsiTerminal::reconfigure(Ansi::TerminalType type, uint16_t cols, uint16_t rows) {
@@ -48,8 +48,6 @@ namespace Botanik { namespace Terminal {
         // the caller's repaint runs; reset them so rows the old layout claimed do
         // not keep a class the new one never gave them.
         for (uint16_t i = 0; i < GRID_ROWS; i++) _row_prio[i] = PRIO_STRUCT;
-        _prio_rows[PRIO_INPUT] = _prio_rows[PRIO_CHROME] = 0;
-        _prio_rows[PRIO_STRUCT] = 0xFFFFFFFFu;
         // The handshake is a property of the make, so a swapped make needs it
         // again - and it must precede the clear below, exactly as at bring-up.
         if (retyped) setup_terminal();
@@ -62,22 +60,25 @@ namespace Botanik { namespace Terminal {
     }
 
     void AnsiTerminal::set_row_priority(uint16_t top, uint16_t bottom, RowPriority prio) {
-        for (uint16_t r = top; r <= bottom && r < GRID_ROWS; r++) {
+        for (uint16_t r = top; r <= bottom && r < GRID_ROWS; r++)
             _row_prio[r] = (uint8_t)prio;
-            for (uint8_t p = 0; p < PRIO_COUNT; p++) _prio_rows[p] &= ~(1u << r);
-            _prio_rows[prio] |= 1u << r;
-        }
+    }
+
+    void AnsiTerminal::_restart_walk() {
+        for (uint8_t p = 0; p < PRIO_COUNT; p++) _resume[p] = 0;
     }
 
     void AnsiTerminal::restart_scan() {
-        for (uint8_t p = 0; p < PRIO_COUNT; p++) _resume[p] = 0;
+        // The content changed as a whole, so whatever a pending hint described
+        // is gone with it.
+        _drop_hints();
+        _restart_walk();
     }
 
     void AnsiTerminal::_reset_grids() {
         for (uint16_t r = 0; r < _rows; r++)
             for (uint16_t c = 0; c < _cols; c++)
                 _front[_idx(r, c)] = _back[_idx(r, c)] = CELL_BLANK;
-        _all_rows_moved();
     }
 
     // Draw cursor & geometry
@@ -94,19 +95,13 @@ namespace Botanik { namespace Terminal {
     uint16_t AnsiTerminal::write_chars(const char *s, uint16_t len) {
         if (len == 0 || _draw_row >= _rows) return 0;
         uint8_t pen = _draw_inv ? CELL_INV : 0;
-        uint8_t moved = 0;
-        uint16_t i = 0;
-        for (; i < len; i++) {
-            if (_draw_col >= _cols) break;        // parked at EOL: drop the rest
-            uint8_t& cell = _front[_idx(_draw_row, _draw_col)];
-            const uint8_t v = (uint8_t)((s[i] & CELL_CH) | pen);
-            moved |= (uint8_t)(cell ^ v);
-            cell = v;
+        for (uint16_t i = 0; i < len; i++) {
+            if (_draw_col >= _cols) return i;     // parked at EOL: drop the rest
+            _front[_idx(_draw_row, _draw_col)] = (uint8_t)((s[i] & CELL_CH) | pen);
             if (_draw_col + 1 >= _cols) { _draw_col = _cols; }   // parked past last col
             else _draw_col++;
         }
-        if (moved) _front_row_moved(_draw_row);
-        return i;
+        return len;
     }
 
     void AnsiTerminal::set_inverted(bool enable) { _draw_inv = enable; }
@@ -134,26 +129,13 @@ namespace Botanik { namespace Terminal {
     void AnsiTerminal::clear_to_eol() {
         if (_draw_row >= _rows || _draw_col >= _cols) return;   // parked past last col
         const uint8_t v = (uint8_t)(CELL_BLANK | (_draw_inv ? CELL_INV : 0));
-        uint8_t moved = 0;
-        for (uint16_t c = _draw_col; c < _cols; c++) {
-            uint8_t& cell = _front[_idx(_draw_row, c)];
-            moved |= (uint8_t)(cell ^ v);
-            cell = v;
-        }
-        if (moved) _front_row_moved(_draw_row);
+        for (uint16_t c = _draw_col; c < _cols; c++) _front[_idx(_draw_row, c)] = v;
     }
 
 
     void AnsiTerminal::clear_rows(uint16_t top, uint16_t bottom) {
-        for (uint16_t r = top; r <= bottom && r < _rows; r++) {
-            uint8_t moved = 0;
-            for (uint16_t c = 0; c < _cols; c++) {
-                uint8_t& cell = _front[_idx(r, c)];
-                moved |= (uint8_t)(cell ^ CELL_BLANK);
-                cell = CELL_BLANK;
-            }
-            if (moved) _front_row_moved(r);
-        }
+        for (uint16_t r = top; r <= bottom && r < _rows; r++)
+            for (uint16_t c = 0; c < _cols; c++) _front[_idx(r, c)] = CELL_BLANK;
     }
 
     // Field painter (shared by StatusBar and MetricPage) - built on the primitives

@@ -47,6 +47,7 @@ namespace Botanik { namespace Terminal {
         char*    buf;      /**< `buf_cap` bytes, one reserved for the NUL. */
         uint16_t buf_cap;
         RowView* layout;   /**< `max_rows` entries. */
+        RowView* painted;  /**< `max_rows` entries: the layout last painted. */
         uint16_t max_rows;
     };
 
@@ -56,8 +57,9 @@ namespace Botanik { namespace Terminal {
     struct EditorBuffers {
         char    buf[BUF];
         RowView layout[ROWS];
+        RowView painted[ROWS];
 
-        EditorStorage storage() { return EditorStorage{ buf, BUF, layout, ROWS }; }
+        EditorStorage storage() { return EditorStorage{ buf, BUF, layout, painted, ROWS }; }
     };
 
     /**
@@ -100,7 +102,18 @@ namespace Botanik { namespace Terminal {
         bool     _dirty = false;
 
         RowView* _rows;                /**< The buffer sliced into rows; borrowed. */
+        RowView* _painted;             /**< The layout the screen holds; borrowed. */
         uint16_t _row_count = 1;
+
+        /** @name What the screen holds
+         *  The layout, viewport and edit the hints are worked out against. @{ */
+        uint16_t _painted_count = 0, _painted_origin = 0, _painted_view_top = 0, _painted_len = 0;
+        bool     _painted_valid = false;
+        /** @brief The buffer offset an edit happened at, and the bytes it added
+         *  (negative for a removal). Consumed by the hints, then forgotten. */
+        uint16_t _edit_pos   = 0;
+        int16_t  _edit_delta = 0;
+        /** @} */
 
         /** @brief Prompt bytes and lengths, indexed by RowPrompt. */
         char     _ps_buf[3][Config::EDITOR_PROMPT_MAX];
@@ -340,6 +353,26 @@ namespace Botanik { namespace Terminal {
 
         /** @brief Screen row showing layout row @p i, meaningful when
          *  `_visible(i)`. */
+        /** @brief Tell the terminal what the edit moved, in rows and in columns,
+         *  worked out from the layout it last painted. */
+        void _hint_moves();
+        /** @brief Take the layout, viewport and length just painted as the ones
+         *  the screen holds. */
+        void _remember_paint();
+        /** @brief Which painted row held buffer offset @p pos. */
+        uint16_t _painted_row(uint16_t pos) const {
+            for (uint16_t i = 0; i < _painted_count; i++) {
+                const uint16_t stride = (uint16_t)(_painted[i].buf_len + (_painted[i].hard_break ? 1 : 0));
+                if (pos < (uint16_t)(_painted[i].buf_start + stride)) return i;
+            }
+            return _painted_count;
+        }
+        /** @brief Prompt width painted row @p i carried. */
+        uint16_t _painted_prompt_len(uint16_t i) const {
+            if (i == 0) return _prompt_len(RowPrompt::PS1);
+            return _prompt_len(_painted[i - 1].hard_break ? RowPrompt::PS3 : RowPrompt::PS2);
+        }
+
         uint16_t _hw_row(uint16_t i) const {
             return (uint16_t)(_origin + (i - _view_top));
         }

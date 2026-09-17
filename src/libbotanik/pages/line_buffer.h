@@ -35,6 +35,8 @@ namespace Botanik { namespace Pages {
         uint16_t _head  = 0;
         /** @brief Number of stored lines (<= L). */
         uint16_t _count = 0;
+        /** @brief Lines ever stored: names a line whatever the ring did since. */
+        uint32_t _serial = 0;
 
         /** @} */
 
@@ -48,6 +50,7 @@ namespace Botanik { namespace Pages {
             memcpy(_buf[_head], buf, store_len);
             _lens[_head] = store_len;
             _head = (uint16_t)((_head + 1) % L);
+            _serial++;
             if (_count < L) _count++;
         }
 
@@ -103,6 +106,9 @@ namespace Botanik { namespace Pages {
             _head  = 0;
             _count = 0;
         }
+
+        /** @brief How many lines have ever been stored. */
+        uint32_t serial() const { return _serial; }
 
         /** @brief Number of stored lines. */
         uint16_t count() const { return _count; }

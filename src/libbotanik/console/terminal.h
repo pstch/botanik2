@@ -177,86 +177,89 @@ namespace Botanik { namespace Terminal {
 
         /** @}
          *  @name Reconciliation (reconcile.cpp)
-         *  present() finds what slid, then writes what is left. Every choice is
-         *  priced in estimated wire bytes, from the constants below.
+         *  present() emits what the hints say moved, then writes what is left.
          *  @{ */
 
-        /** @brief A row slide: rows [top, bottom] move @p n rows, emitted as a
+        /** @brief A band move: rows [top, bottom] move @p n rows, emitted as a
          *  DL/IL pair. */
         struct Slide { uint16_t top, bottom, n; bool up; };
-        /** @brief A sideways slide in one row: the cells from @p at move
-         *  @p n columns, by SM4/RM4 insert (@p right) or DCH. */
-        struct Shift { uint16_t at, n; bool right; };
 
-        static constexpr uint8_t  MAX_SLIDES       = 4;   ///< row slides looked for per frame
-        static constexpr uint8_t  MAX_OFFSETS      = 12;  ///< row offsets one search tries
-        static constexpr uint16_t HOP_BYTES        = 4;   ///< a move between two runs of a row
         static constexpr uint16_t BRIDGE_CELLS     = 3;   ///< widest gap rewritten rather than moved over
         static constexpr uint16_t ROW_ENTRY_BYTES  = 7;   ///< a move onto a row from elsewhere
-        static constexpr int32_t  SLIDE_BYTES      = 11;  ///< half a DL/IL pair: a move and the escape
+        static constexpr uint16_t SLIDE_BYTES      = 11;  ///< half a DL/IL pair: a move and the escape
+        /** @brief Ring the whole DL/IL pair needs before its first escape goes:
+         *  a move and an escape at each end, each escape reserving ANSI_MAX_SEQ.
+         *  Half a pair on the wire with BACK unshifted is a screen nothing repairs. */
+        static constexpr uint16_t SLIDE_ROOM       = 2 * (8 + 16);
         static constexpr uint16_t EL_MIN_CELLS     = 4;   ///< stale tail cells from which one EL pays
+        static constexpr uint16_t EL_BYTES         = 11;  ///< a move onto the tail and the EL
 
-        /** @brief The row offsets every search tries, whose prices are kept. */
-        static constexpr uint8_t FIXED_OFFSETS = 6;
-        /** @brief The @p k th of them: -1, 1, -2, 2, -3, 3. */
-        static int16_t _fixed_offset(uint8_t k) {
-            return (int16_t)((k & 1) ? k / 2 + 1 : -(k / 2 + 1));
-        }
+        /** @name Hints
+         *  What a renderer says moved. A hint only reorders BACK in step with
+         *  the wire, so a wrong one costs bytes, never a wrong screen. @{ */
 
-        /** @name Price memo
-         *  What a search priced, kept per row until a row it read changes. A bit
-         *  per row says a price is known; every price is a pure function of the
-         *  rows it names (and of insert mode, for the stay price). @{ */
-        uint32_t _stay_known = 0, _stay_insert = 0;
-        uint16_t _stay_price[GRID_ROWS];
-        Shift    _stay_shift[GRID_ROWS];
-        uint32_t _tail_known[2] = { 0, 0 };
-        uint8_t  _tail[2][GRID_ROWS];         ///< _blank_tail of FRONT [0] and BACK [1] rows
-        uint32_t _blank_known = 0;
-        uint16_t _blank_price[GRID_ROWS];
-        uint32_t _moved_known[FIXED_OFFSETS] = { 0 };
-        uint16_t _moved_price[FIXED_OFFSETS][GRID_ROWS];
-        /** @brief Rows that may differ between FRONT and BACK: a row's bit is
-         *  set when either grid's row changes and clears once they compare equal. */
-        uint32_t _unsettled = 0xFFFFFFFFu;
-        /** @brief No row moved since a search found nothing, in this insert mode. */
-        bool     _none_known = false, _none_insert = false;
-        static_assert(GRID_ROWS <= 32, "the memo keeps one bit per row");
-        /** @} */
+        /** @brief Beats a hint waits for room on the wire before it is dropped
+         *  and the rows it covers are rewritten instead. */
+        static constexpr uint8_t HINT_MAX_BEATS = 4;
 
-        /** @brief A cell of FRONT / BACK row @p row changed: forget the prices that read it. */
-        void _front_row_moved(uint16_t row);
-        void _back_row_moved(uint16_t row);
-        void _all_rows_moved();
-        /** @brief Whether FRONT and BACK row @p row are equal, compared only when
-         *  a change may have made them differ. */
-        bool _row_settled(uint16_t row);
-        /** @brief One bit per row of the active screen. */
-        uint32_t _active_rows() const { return _rows >= 32 ? 0xFFFFFFFFu : (1u << _rows) - 1u; }
-        /** @brief Where FRONT (@p grid 0) or BACK (1) row @p row's blank tail starts. */
-        uint16_t _row_tail(uint8_t grid, uint16_t row);
-        /** @brief Row @p row's own price, and its sideways slide in _stay_shift. */
-        uint16_t _row_stay(uint16_t row);
+        /** @brief The one pending band move, `delta` 0 when there is none. */
+        struct RowHint { uint16_t top, bottom; int16_t delta; uint8_t age; };
+        RowHint _row_hint = { 0, 0, 0, 0 };
 
-        /** @brief The cheapest row slide that pays for its escapes, in @p out.
-         *  @return false when none does. */
-        bool _find_slide(Slide& out);
-        /** @brief _find_slide's search itself, run when the memo cannot answer. */
-        bool _search_slide(Slide& out);
-        /** @brief Emit @p s as its DL/IL pair; BACK follows only if it all went. */
+        /** @brief Per row, the pending column move, `delta` 0 when there is none. */
+        struct ColHint { uint8_t col; int8_t delta; uint8_t age; };
+        ColHint _col_hint[GRID_ROWS] = {};
+        static_assert(GRID_COLS <= 255, "a column hint holds a column in a byte");
+
+        /** @brief Emit the band move, dropping it once it has waited too long. */
+        void _apply_row_hint();
+        /** @brief What a hint costs the wire less what it saves the walk, in bytes:
+         *  it goes out when that is negative. The band is priced over its rows
+         *  alone, then each column move over its row with the band already in BACK. A renderer hints what it
+         *  drew, and the wire may be frames behind it, so what pays is asked of
+         *  BACK, not of the renderer. */
+        int32_t _band_price() const;
+        bool _col_hint_pays(uint16_t row) const;
+        /** @brief What the walk pays for @p stale cells left past FRONT's blank
+         *  tail: past a few of them it erases the tail rather than writing it. */
+        static int32_t _tail_cost(uint16_t stale);
+        /** @brief Bytes the walk no longer writes on @p row once the pending hints
+         *  have gone, runs and the moves onto them counted as it counts them. */
+        int32_t _saved(uint16_t row, bool cols) const;
+        /** @brief Cell (@p row, @p col) of BACK once the band has gone, and with it
+         *  the row's column move when @p cols. */
+        uint8_t _after_hints(uint16_t row, uint16_t col, bool cols) const;
+        /** @brief Emit row @p row's column move. @return false if the ring could
+         *  not take it, which leaves the hint pending. */
+        bool _apply_col_hint(uint16_t row);
+        /** @brief Settle row @p row's column move where the walk stands on the
+         *  row, so the run repairing what it did not carry is a step away rather
+         *  than an address. @return false while it is still owed. */
+        bool _take_col_hint(uint16_t row);
+        /** @brief Rows the band still owes, which the walk leaves alone. */
+        uint32_t _band_rows() const;
+        /** @brief Forget every hint: the screen they described is gone. */
+        void _drop_hints();
+        /** @brief Send the row walk back to the top of every class, without
+         *  touching the hints: a band move reorders the rows under it. */
+        void _restart_walk();
+
+        /** @}
+         *  @name The walk
+         *  @{ */
+
+        /** @brief Emit the band move @p s as its DL/IL pair; BACK follows only if
+         *  it all went. */
         bool _emit_slide(const Slide& s);
-        /** @brief Mirror a slide that reached the wire in BACK. */
+        /** @brief Mirror a band move that reached the wire in BACK. */
         void _shift_back(const Slide& s);
 
         /** @brief Emit the paced FRONT-vs-BACK cell diff. @return true when the
          *  screen is fully reconciled; false when work is left for the next tick. */
         bool _emit_diff();
-        /** @brief Reconcile one row: its sideways slide, then its changed runs.
+        /** @brief Reconcile one row's changed runs and its stale tail.
          *  @return false when the tick's budget or the ring ran out. */
         bool _reconcile_row(uint16_t row, uint16_t& budget);
-        /** @brief What reconciling BACK row @p row into FRONT's costs: a rewrite,
-         *  or the sideways slide that beats it, in @p out (`n` 0 for none). */
-        uint16_t _row_price(uint16_t row, Shift* out);
         /** @brief Emit the changed cells of @p row in [@p from, @p to), spending
          *  @p budget. @return false when it ran out. */
         bool _emit_runs(uint16_t row, uint16_t from, uint16_t to, uint16_t& budget);
@@ -267,19 +270,9 @@ namespace Botanik { namespace Terminal {
          *  a renderer wants it visible, else idle in the bottom-right corner. */
         void _park_cursor();
 
-        /** @brief The run loop's estimated price for turning row @p bk into row
-         *  @p fr, each @ref _cols cells.
-         *  @param fr_tail, bk_tail where each row's blank tail starts (_blank_tail)
-         *  @param spent when given, `_cols + 1` entries: the cells and gaps
-         *         before each column, the move onto the row and the tail left out. */
-        uint16_t _row_cost(const uint8_t* fr, uint16_t fr_tail, const uint8_t* bk, uint16_t bk_tail,
-                           uint16_t* spent = nullptr) const;
         /** @brief Worst-case bytes for run [@p a, @p b) of @p row: a move, an SGR
          *  per attribute change and the glyphs. For the budget gate. */
         uint16_t _run_cost(uint16_t row, uint16_t a, uint16_t b) const;
-        /** @brief What clearing @p stale cells of a blank tail costs: spaces,
-         *  or one EL once that is cheaper. */
-        static uint16_t _el_cost(uint16_t stale) { return stale >= EL_MIN_CELLS ? 3 : stale; }
         /** @brief Where @p row's blank tail starts: one past its last glyph. */
         uint16_t _blank_tail(const uint8_t* row) const {
             uint16_t e = _cols;
@@ -408,6 +401,18 @@ namespace Botanik { namespace Terminal {
          *  previous frame decides where the next one starts painting.
          *  establish_screen() and every slide present() emits call it. */
         void restart_scan();
+
+        /** @brief Rows [@p top, @p bottom] now show, at row y, what row
+         *  y - @p delta showed: a scrollback revealing a line, a table stepping,
+         *  an editor growing. The walk repairs whatever the move did not carry.
+         *  @note One band at a time: a second hint over the same band adds to
+         *  it, over any other replaces it. */
+        void hint_rows(uint16_t top, uint16_t bottom, int16_t delta);
+
+        /** @brief On @p row, what started at column @p col now starts at
+         *  @p col + @p delta: a character inserted into a wrapped line, a prompt
+         *  that changed width. One per row, merged while it continues. */
+        void hint_cols(uint16_t row, uint16_t col, int16_t delta);
 
         /** @brief Declare where the visible cursor belongs. The renderer owning
          *  the cursor (the editor) calls this whenever it moves; present() parks

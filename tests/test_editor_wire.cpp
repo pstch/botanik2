@@ -39,6 +39,8 @@ static std::string varied(uint16_t n) {
     return s;
 }
 
+
+
 static void type(EditorFixture& f, const char* s) {
     f.editor.insert_characters(s, (uint16_t)strlen(s));
 }
@@ -107,19 +109,19 @@ static const Scenario SCENARIOS[] = {
 
     { "backspace mid a 3-row wrap", SHELL,
       [](EditorFixture& f) { fill(f, 180); seek(f, 40); },
-      [](EditorFixture& f) { f.editor.backspace(1); }, 46 },
+      [](EditorFixture& f) { f.editor.backspace(1); }, 48 },
 
     { "delete_forward mid a 3-row wrap", SHELL,
       [](EditorFixture& f) { fill(f, 180); seek(f, 5); },
-      [](EditorFixture& f) { f.editor.delete_forward(1); }, 43 },
+      [](EditorFixture& f) { f.editor.delete_forward(1); }, 47 },
 
     { "hard break at the head of a 3-row input", SHELL,
       [](EditorFixture& f) { fill(f, 180); f.editor.move_to_line_start(); },
-      [](EditorFixture& f) { type(f, "\n"); }, 71 },
+      [](EditorFixture& f) { type(f, "\n"); }, 73 },
 
     { "hard break mid a 3-row input", SHELL,
       [](EditorFixture& f) { fill(f, 180); seek(f, 40); },
-      [](EditorFixture& f) { type(f, "\n"); }, 77 },
+      [](EditorFixture& f) { type(f, "\n"); }, 97 },
 
     { "join of two lines", SHELL,
       [](EditorFixture& f) {
@@ -127,11 +129,11 @@ static const Scenario SCENARIOS[] = {
           f.editor.move_to_start();
           f.editor.move_down();
       },
-      [](EditorFixture& f) { f.editor.backspace(1); }, 52 },
+      [](EditorFixture& f) { f.editor.backspace(1); }, 53 },
 
     { "kill_to_line_end mid a 3-row wrap", SHELL,
       [](EditorFixture& f) { fill(f, 180); seek(f, 40); },
-      [](EditorFixture& f) { (void)f.editor.kill_to_line_end(); }, 21 },
+      [](EditorFixture& f) { (void)f.editor.kill_to_line_end(); }, 16 },
 
     { "kill_word_back mid-line", SHELL,
       [](EditorFixture& f) { type(f, "the quick brown fox jumps"); },
@@ -147,14 +149,14 @@ static const Scenario SCENARIOS[] = {
 
     { "replace_all onto one row", SHELL,
       [](EditorFixture& f) { fill(f, 100); },
-      [](EditorFixture& f) { f.editor.replace_all("clear", 5); }, 25 },
+      [](EditorFixture& f) { f.editor.replace_all("clear", 5); }, 26 },
 
     { "replace_all onto two rows", SHELL,
       [](EditorFixture& f) { type(f, "hi"); },
       [](EditorFixture& f) {
           const std::string s = varied(100);
           f.editor.replace_all(s.data(), 100);
-      }, 125 },
+      }, 123 },
 
     { "region raised over a word", SHELL,
       [](EditorFixture& f) {
@@ -201,15 +203,15 @@ static const Scenario SCENARIOS[] = {
 
     { "NOTES delete_forward mid a 3-row line", NOTES,
       [](EditorFixture& f) { fill(f, 180); seek(f, 40); },
-      [](EditorFixture& f) { f.editor.delete_forward(1); }, 40 },
+      [](EditorFixture& f) { f.editor.delete_forward(1); }, 44 },
 
     { "NOTES hard break at the head of a 3-row line", NOTES,
       [](EditorFixture& f) { fill(f, 180); f.editor.move_to_line_start(); },
-      [](EditorFixture& f) { type(f, "\n"); }, 19 },
+      [](EditorFixture& f) { type(f, "\n"); }, 11 },
 
     { "NOTES hard break mid a 3-row line", NOTES,
       [](EditorFixture& f) { fill(f, 180); seek(f, 40); },
-      [](EditorFixture& f) { type(f, "\n"); }, 76 },
+      [](EditorFixture& f) { type(f, "\n"); }, 112 },
 
     { "NOTES split at a wrap boundary", NOTES,
       [](EditorFixture& f) {
