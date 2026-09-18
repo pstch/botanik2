@@ -219,40 +219,45 @@ namespace Botanik { namespace Terminal {
         q.left = n < 0 ? q.left >> -n : q.left << n;
     }
 
-    bool AnsiTerminal::_slide_pays(const LayoutChange& c, uint16_t& bottom) const {
-        // A band ending on the last row is half a pair. Extending one to the
-        // last row drags the rows under it, which costs nothing where they come
-        // out right: a submitted input line moving with the transcript it
-        // just joined.
-        const uint16_t last = (uint16_t)(_rows - 1);
-        bottom = c.bottom;
-        int32_t gain = _gain(c.top, c.bottom, c.n) - (c.bottom == last ? SLIDE_BYTES : 2 * SLIDE_BYTES);
-        if (c.bottom < last) {
-            const int32_t extended = _gain(c.top, last, c.n) - SLIDE_BYTES;
-            if (extended >= gain) { gain = extended; bottom = last; }
-        }
-        return gain > 0;
-    }
-
     uint16_t AnsiTerminal::_row_diff(const uint8_t* a, const uint8_t* b) const {
+        // A word at a time, counting bytes only inside a word that differs.
+        static const uint8_t blank[4] = { CELL_BLANK, CELL_BLANK, CELL_BLANK, CELL_BLANK };
         uint16_t n = 0;
-        for (uint16_t c = 0; c < _cols; c++)
-            if (a[c] != (b != nullptr ? b[c] : CELL_BLANK) && ++n >= DIFF_CAP) break;
+        for (uint16_t c = 0; c < _cols && n < DIFF_CAP; c += 4) {
+            const uint8_t* pb = b != nullptr ? b + c : blank;
+            uint32_t wa, wb;
+            memcpy(&wa, a + c, 4); memcpy(&wb, pb, 4);
+            if (wa == wb) continue;
+            for (uint16_t k = 0; k < 4 && c + k < _cols; k++) n = (uint16_t)(n + (a[c + k] != pb[k]));
+        }
         return n;
     }
 
-    int32_t AnsiTerminal::_gain(uint16_t top, uint16_t bottom, int16_t n) const {
+    bool AnsiTerminal::_slide_pays(const LayoutChange& c, uint16_t& bottom) const {
         // What the walk writes now, less what it writes once the rows have
         // moved, each row counted to DIFF_CAP: past that it is rewritten either
-        // way, and what matters is the row that comes out right.
-        int32_t saved = 0;
-        for (uint16_t r = top; r <= bottom; r++) {
-            const int32_t src = (int32_t)r - n;
-            const uint8_t* land = (src >= top && src <= bottom) ? &_back[_idx((uint16_t)src, 0)] : nullptr;
-            saved += _row_diff(&_front[_idx(r, 0)], &_back[_idx(r, 0)]);
-            saved -= _row_diff(&_front[_idx(r, 0)], land);
+        // way, and what matters is the row that comes out right. A band ending
+        // on the last row is half a pair, so the band extended down to it is
+        // the other candidate: dragging the rows under it costs nothing where
+        // they come out right, as a submitted input line does when it moves
+        // with the transcript it just joined. One pass prices both: the two
+        // differ only on the rows the extension adds and on the rows of the
+        // asked band whose source the extension puts something in.
+        const uint16_t last = (uint16_t)(_rows - 1);
+        int32_t asked = 0, extended = 0;
+        for (uint16_t r = c.top; r <= last; r++) {
+            const uint8_t* fr  = &_front[_idx(r, 0)];
+            const int32_t  src = (int32_t)r - c.n;
+            const int32_t  now = _row_diff(fr, &_back[_idx(r, 0)]);
+            const int32_t  aft = _row_diff(fr, (src >= c.top && src <= last) ? &_back[_idx((uint16_t)src, 0)] : nullptr);
+            extended += now - aft;
+            if (r > c.bottom) continue;
+            asked += now - ((src > c.bottom) ? _row_diff(fr, nullptr) : aft);
         }
-        return saved;
+        asked    -= c.bottom == last ? SLIDE_BYTES : 2 * SLIDE_BYTES;
+        extended -= SLIDE_BYTES;
+        bottom = extended >= asked ? last : c.bottom;
+        return (extended >= asked ? extended : asked) > 0;
     }
 
     bool AnsiTerminal::_shift(uint16_t row, uint16_t at, int16_t n, uint16_t& budget) {
@@ -449,9 +454,9 @@ namespace Botanik { namespace Terminal {
 
     void AnsiTerminal::present() {
         _check_dirty();
-        // The changes go first: they move whole rows and cells the walk would
-        // otherwise write, and the walk reads the rows they land on.
-        _apply_changes();
+        // The scrolls go first: they move whole rows, and the walk reads the
+        // rows they land on.
+        if (_queued != 0) _apply_changes();
         // Park only once the frame is fully reconciled: mid-repaint the runs are
         // moving the cursor anyway.
         if (_emit_diff()) _park_cursor();

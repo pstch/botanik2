@@ -260,9 +260,6 @@ namespace Botanik { namespace Terminal {
          *  null is a blank row. */
         uint16_t _row_diff(const uint8_t* a, const uint8_t* b) const;
         static constexpr uint16_t DIFF_CAP = 16;   ///< cells past which a row is rewritten either way
-        /** @brief Cells the walk stops writing on rows [@p top, @p bottom] once
-         *  they have moved @p n rows, less the ones it starts writing. */
-        int32_t _gain(uint16_t top, uint16_t bottom, int16_t n) const;
         /** @brief Rows [@p top, @p bottom] move @p n rows on the wire, as a
          *  DL/IL pair; BACK follows only if the whole pair went. */
         bool _slide(uint16_t top, uint16_t bottom, int16_t n);
