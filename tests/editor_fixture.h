@@ -52,12 +52,13 @@ namespace tests { namespace botanik_test {
             } else {
                 set_ps("botanik> ", "> ", "...> ");   // @see ShellPage::_setup_editor
             }
+            // Geometry from the console, which reserves the alarm bar's row.
             if (notes_page) {
                 editor.set_anchor(Botanik::Terminal::Anchor::TOP);
                 editor.set_origin(1);
-                editor.set_view_rows((uint16_t)(rows - 2));
+                editor.set_view_rows((uint16_t)(console.rows() - 2));   // @see NotesPage::focus
             } else {
-                editor.set_origin((uint16_t)(rows - 1));   // @see ShellPage::_setup_editor
+                editor.set_origin((uint16_t)(console.rows() - 1));       // @see ShellPage::_setup_editor
             }
             // Blank before the first paint: reset() stamps the prompt into
             // FRONT, and a blank that lands after it leaves the editor
@@ -95,6 +96,7 @@ namespace tests { namespace botanik_test {
          *  the same two calls it makes. */
         std::vector<std::string> repainted() {
             console.terminal().establish_screen();
+            console.repaint_alarm_bar();
             editor.redraw();
             show_cursor();
             (void)pump();          // keep the VT tracking what the wire got

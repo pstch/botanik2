@@ -51,13 +51,17 @@ namespace tests { namespace botanik_test {
     struct PageFixture {
         PipeSerial          wire;
         uint64_t            now = 0;
+        /** @brief No sources, but present: the console then reserves the
+         *  bottom row for the alarm bar, as it does in the field, and a
+         *  measurement here is of the layout the operator has. */
+        Botanik::Alarms::AlarmController alarms{Botanik::SetupContext(), nullptr};
         Botanik::Terminal::Console console;
         /** @brief An independent VT fed every byte that left the ring. FRONT
          *  says what the renderer meant, this what the operator sees. */
         VtScreen            vt;
 
         explicit PageFixture(uint16_t rows = 24, uint16_t cols = 80)
-            : console(Botanik::SetupContext(), wire.serial, &now) {
+            : console(Botanik::SetupContext(), wire.serial, &now, nullptr, &alarms) {
             console.reconfigure(Botanik::Terminal::ConsoleConfig().type, cols, rows);
             // Far above any real link. A paced paint would leave the grid
             // holding what the wire has not carried yet, and every assertion
@@ -93,6 +97,7 @@ namespace tests { namespace botanik_test {
         void reset_wire() {
             console.terminal().establish_screen();
             console.terminal().establish_screen();
+            console.repaint_alarm_bar();
             (void)pump();
         }
 
@@ -221,6 +226,7 @@ namespace tests { namespace botanik_test {
             INFO(std::string(what) << ": the page painted nothing at all");
             CHECK(drawn > 0);
             console.terminal().establish_screen();
+            console.repaint_alarm_bar();
             page.redraw();
             (void)paint(page);
             same(incremental, content(), what);

@@ -114,6 +114,11 @@ namespace Botanik { namespace Terminal {
          *  (both PRESENT). */
         void register_tasks() override;
 
+        /** @brief Paint the alarm bar onto a screen just blanked, claiming its
+         *  row again. A fixture painting a page without the beat calls it, so
+         *  it measures against the frame the field has. */
+        void repaint_alarm_bar();
+
         /** @brief The VT device: renderers (pages, editor, bars) paint through
          *  this reference. */
         AnsiTerminal&       terminal()       { return _term; }

@@ -143,7 +143,7 @@ static const Scenario SCENARIOS[] = {
 
     { "kill_to_line_end mid a 3-row wrap", SHELL,
       [](EditorFixture& f) { fill(f, 180); seek(f, 40); },
-      [](EditorFixture& f) { (void)f.editor.kill_to_line_end(); }, 16 },
+      [](EditorFixture& f) { (void)f.editor.kill_to_line_end(); }, 24 },
 
     { "kill_word_back mid-line", SHELL,
       [](EditorFixture& f) { type(f, "the quick brown fox jumps"); },
@@ -161,12 +161,13 @@ static const Scenario SCENARIOS[] = {
       [](EditorFixture& f) { fill(f, 100); },
       [](EditorFixture& f) { f.editor.replace_all("clear", 5); }, 26 },
 
+    // Obeyed, the origin's band carries the 9-cell prompt for a 22-byte pair.
     { "replace_all onto two rows", SHELL,
       [](EditorFixture& f) { type(f, "hi"); },
       [](EditorFixture& f) {
           const std::string s = varied(100);
           f.editor.replace_all(s.data(), 100);
-      }, 123 },
+      }, 133 },
 
     { "region raised over a word", SHELL,
       [](EditorFixture& f) {
@@ -176,7 +177,7 @@ static const Scenario SCENARIOS[] = {
       [](EditorFixture& f) {
           f.editor.set_mark();
           for (int i = 0; i < 10; i++) f.editor.move_right();
-      }, 25 },
+      }, 28 },
 
     // Repeated words: sliding right by one changes only the cells around each
     // space, so a rewrite looks cheap until the cursor has to reach them all.

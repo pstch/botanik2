@@ -123,18 +123,22 @@ namespace Botanik { namespace Terminal {
         _serial.transmit();
     }
 
+    void Console::repaint_alarm_bar() {
+        _alarm_bar.claim_row();
+        _alarm_bar.mark_dirty();      // the clear wiped the alarm-bar row
+        _alarm_bar.step();
+    }
+
     void Console::_repaint_frame() {
         // A reconfigure() hands every row back as plain structure (and moves the
         // alarm bar's row besides), so the two bars re-declare their class here
         // rather than only in their constructors - otherwise a resize demotes the
         // chrome for good and a tight budget paints it after the page it frames.
-        _status_bar.claim_row();
-        _alarm_bar.claim_row();
         // Chrome first, then the page: if a paced frame only gets partway, the
         // frame lands before what it frames.
+        _status_bar.claim_row();
         _status_bar.draw_row();
-        _alarm_bar.mark_dirty();      // the clear wiped the alarm-bar row
-        _alarm_bar.step();
+        repaint_alarm_bar();
         if (_pages_len > 0 && _pages[_page_index] != nullptr) {
             _reset_content_priority();
             _pages[_page_index]->focus();
