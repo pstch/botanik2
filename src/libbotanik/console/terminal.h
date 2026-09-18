@@ -214,23 +214,6 @@ namespace Botanik { namespace Terminal {
 
         /** @brief Emit the band move, dropping it once it has waited too long. */
         void _apply_row_hint();
-        /** @brief What a hint costs the wire less what it saves the walk, in bytes:
-         *  it goes out when that is negative. The band is priced over its rows
-         *  alone, then each column move over its row with the band already in BACK. A renderer hints what it
-         *  drew, and the wire may be frames behind it, so what pays is asked of
-         *  BACK, not of the renderer. */
-        int32_t _band_price() const;
-        bool _col_hint_pays(uint16_t row) const;
-        /** @brief What the walk pays for @p stale cells left past FRONT's blank
-         *  tail: past a few of them it erases the tail rather than writing it. */
-        static int32_t _tail_cost(uint16_t stale);
-        /** @brief Bytes the walk no longer writes on @p row once the pending hints
-         *  have gone, runs and the moves onto them counted as it counts them. */
-        int32_t _saved(uint16_t row, bool cols) const;
-        /** @brief Row @p row of BACK once the band has gone, and with it the row's
-         *  column move when @p cols. Returns BACK itself where the row moves whole,
-         *  and @p buf (GRID_COLS wide) where cells had to be placed.  */
-        const uint8_t* _after_row(uint16_t row, bool cols, uint8_t* buf) const;
         /** @brief Emit row @p row's column move. @return false if the ring could
          *  not take it, which leaves the hint pending. */
         bool _apply_col_hint(uint16_t row);
@@ -243,7 +226,7 @@ namespace Botanik { namespace Terminal {
          *  to either grid sets it and only the walk clears it. */
         uint32_t _dirty = 0;
         void _touch(uint16_t row)  { _dirty |= 1u << row; }
-        void _touch_all()          { _dirty = ~0u; }
+        void _touch_all()          { _dirty = (_rows >= 32 ? ~0u : ((1u << _rows) - 1)); }
         /** @brief Under DEBUG, that a clear bit really means the two grids agree:
          *  a write path that forgets to touch its row would otherwise show as a
          *  screen that never repairs itself. */

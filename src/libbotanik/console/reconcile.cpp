@@ -174,103 +174,18 @@ namespace Botanik { namespace Terminal {
         return rows;
     }
 
-    const uint8_t* AnsiTerminal::_after_row(uint16_t row, bool cols, uint8_t* buf) const {
-        // Where the row's cells come from once the band has gone.
-        uint16_t src = row;
-        bool     freed = false;
-        if (_row_hint.delta != 0 && row >= _row_hint.top && row <= _row_hint.bottom) {
-            const int32_t from = (int32_t)row - _row_hint.delta;
-            if (from < (int32_t)_row_hint.top || from > (int32_t)_row_hint.bottom) freed = true;
-            else src = (uint16_t)from;
-        }
-        const ColHint& h = _col_hint[row];
-        if (!freed && (!cols || h.delta == 0)) return &_back[_idx(src, 0)];   // no copy: the row moves whole
-        if (freed) { memset(buf, CELL_BLANK, _cols); return buf; }
-        const uint8_t* bk = &_back[_idx(src, 0)];
-        const uint16_t n  = (uint16_t)(h.delta < 0 ? -h.delta : h.delta);
-        if (h.delta > 0) {
-            memcpy(buf, bk, h.col);
-            // The cells the insert opens are the ones FRONT put there.
-            memcpy(&buf[h.col], &_front[_idx(row, h.col)], std::min(n, (uint16_t)(_cols - h.col)));
-            if ((uint16_t)(h.col + n) < _cols)
-                memcpy(&buf[h.col + n], &bk[h.col], (size_t)(_cols - h.col - n));
-        } else {
-            const uint16_t at = (uint16_t)(h.col > n ? h.col - n : 0);
-            memcpy(buf, bk, at);
-            if (h.col < _cols) memcpy(&buf[at], &bk[h.col], (size_t)(_cols - h.col));
-            memset(&buf[_cols - n], CELL_BLANK, n);
-        }
-        return buf;
-    }
-
-    int32_t AnsiTerminal::_tail_cost(uint16_t stale) {
-        if (stale == 0)               return 0;
-        if (stale >= EL_MIN_CELLS)    return EL_BYTES;
-        return (int32_t)stale + 1 + ROW_ENTRY_BYTES;
-    }
-
-    int32_t AnsiTerminal::_saved(uint16_t row, bool cols) const {
-        uint8_t        after[GRID_COLS];
-        const uint8_t* fr  = &_front[_idx(row, 0)];
-        const uint8_t* bk  = &_back [_idx(row, 0)];
-        const uint8_t* aft = _after_row(row, cols, after);
-        const uint16_t e   = _blank_tail(fr);
-        bool run_now = false, run_then = false;
-        int32_t saved = 0;
-        // What the walk writes now, less what it still writes after: a run costs
-        // its cells and the move onto them.
-        for (uint16_t c = 0; c < e; c++) {
-            if (fr[c] != bk[c])  { saved += run_now  ? 1 : 1 + ROW_ENTRY_BYTES; run_now  = true; } else run_now  = false;
-            if (fr[c] != aft[c]) { saved -= run_then ? 1 : 1 + ROW_ENTRY_BYTES; run_then = true; } else run_then = false;
-        }
-        uint16_t stale_now = 0, stale_then = 0;
-        for (uint16_t c = e; c < _cols; c++) {
-            if (bk [c] != CELL_BLANK) stale_now++;
-            if (aft[c] != CELL_BLANK) stale_then++;
-        }
-        return saved + _tail_cost(stale_now) - _tail_cost(stale_then);
-    }
-
-    int32_t AnsiTerminal::_band_price() const {
-        int32_t saved = 0;
-        for (uint16_t r = _row_hint.top; r <= _row_hint.bottom && r < _rows; r++) saved += _saved(r, false);
-        // A band ending on the last row needs no second escape: there is nothing
-        // under it to put back.
-        const int32_t cost = (_row_hint.bottom + 1 == _rows) ? SLIDE_BYTES : 2 * SLIDE_BYTES;
-        return cost - saved;
-    }
-
-    bool AnsiTerminal::_col_hint_pays(uint16_t row) const {
-        const ColHint& h = _col_hint[row];
-        const uint16_t n = (uint16_t)(h.delta < 0 ? -h.delta : h.delta);
-        // The move onto the row, the escape, and for an insert the glyphs it opens.
-        const int32_t cost  = h.delta > 0 ? (int32_t)(4 + 4 + n) : (int32_t)(4 + 5);
-        const int32_t saved = _saved(row, true);
-        return saved > cost;
-    }
-
     void AnsiTerminal::_apply_row_hint() {
         if (_row_hint.delta == 0) return;
-        // Dragging the rows under the band costs nothing where the walk was going
-        // to write them anyway, and saves the escape that would put them back.
-        const uint16_t asked = _row_hint.bottom;
-        if (asked + 1 < _rows) {
-            const int32_t here = _band_price();
-            _row_hint.bottom = (uint16_t)(_rows - 1);
-            if (_band_price() > here) _row_hint.bottom = asked;
-        }
         const bool     up = _row_hint.delta < 0;
         const uint16_t n  = (uint16_t)(up ? -_row_hint.delta : _row_hint.delta);
         const Slide    s  = { _row_hint.top, _row_hint.bottom, n, up };
         // Room for the whole pair before the first escape goes: half a pair on
         // the wire with BACK unshifted is a screen nothing repairs.
-        if (_band_price() >= 0)                                              _row_hint.delta = 0;
-        else if (_serial.availableForWrite() >= SLIDE_ROOM && _emit_slide(s)) _row_hint.delta = 0;
-        else if (++_row_hint.age > HINT_MAX_BEATS)                            _drop_hints();
+        if (_serial.availableForWrite() >= SLIDE_ROOM && _emit_slide(s)) _row_hint.delta = 0;
+        else if (++_row_hint.age > HINT_MAX_BEATS)                       _drop_hints();
     }
 
     bool AnsiTerminal::_take_col_hint(uint16_t row) {
-        if (!_col_hint_pays(row))                  { _col_hint[row].delta = 0; return true; }
         if (_apply_col_hint(row))                  { _col_hint[row].delta = 0; return true; }
         if (++_col_hint[row].age > HINT_MAX_BEATS) { _col_hint[row].delta = 0; return true; }
         return false;

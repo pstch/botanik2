@@ -42,8 +42,9 @@ def test_a_wildcard_filter_narrows_a_table(spawn):
 
     def names():
         rows = [l for l in term.view() if l.startswith("  | ")]
-        return [n for n in (r.split("|")[2].strip() for r in rows)
-                if n and n != "VARIABLE"]
+        cells = [r.split("|") for r in rows]
+        return [c[2].strip() for c in cells
+                if len(c) > 2 and c[2].strip() and c[2].strip() != "VARIABLE"]
 
     def narrowed():
         return names() == ["sol_fromSet_min"]
