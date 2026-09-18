@@ -298,15 +298,14 @@ namespace Botanik { namespace Terminal {
     void AnsiTerminal::blank_rows(uint16_t top, uint16_t bottom) {
         clear_rows(top, bottom);
         if (top > bottom || bottom >= _rows) return;
-        // One DL/IL pair leaves the band blank on the wire at once, the rows
-        // under it put back where they were; without the room for the whole
-        // pair the walk blanks it row by row instead. DL/IL fill with the
-        // current attributes on terminals with background-colour erase.
+        // One EL per row, the cursor stepping down: nothing on screen moves
+        // and the bars are untouched, which no ED or DL/IL can offer. EL fills
+        // with the current attributes on terminals with background-colour erase.
         const uint16_t n = (uint16_t)(bottom - top + 1);
-        if (_serial.availableForWrite() < SLIDE_ROOM) return;
+        if (_serial.availableForWrite() < (uint16_t)(8 + n * 8)) return;   // the walk blanks it row by row
         _set_hw_inverted(false);
-        if (!_go({top, 0}) || !Ansi::delete_rows(_serial, n)) return;
-        if (bottom < (uint16_t)(_rows - 1)) (void)Ansi::insert_rows(_serial, n);   // room for both was checked
+        for (uint16_t r = top; r <= bottom; r++)
+            if (!_go({r, 0}) || !Ansi::erase_to_eol(_serial)) return;
         memset(&_back[_idx(top, 0)], CELL_BLANK, (size_t)n * _cols);
         _dirty &= ~_mask(top, bottom);         // blank against blank
         _drop_changes();
