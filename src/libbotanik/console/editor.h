@@ -323,7 +323,8 @@ namespace Botanik { namespace Terminal {
          *  what the announcer works out once the new layout is in. */
         struct Edit {
             enum Kind : uint8_t {
-                NONE,    /**< A motion or a load: only the viewport moved. */
+                NONE,    /**< A motion: only the viewport moved. */
+                LOAD,    /**< The text was replaced: nothing on screen moved. */
                 PLAIN,   /**< Bytes with no newline: the line rippled. */
                 SPLIT,   /**< One newline in: a row split at the edit point. */
                 JOIN,    /**< One newline out: two lines became one. */
@@ -449,7 +450,7 @@ namespace Botanik { namespace Terminal {
          *  cursor. A motion or a load passes no edit, and only the viewport's
          *  move is announced. */
         void _reconcile(Edit& e);
-        void _reconcile() { Edit e; _reconcile(e); }
+        void _reconcile(Edit::Kind k = Edit::NONE) { Edit e; e.kind = k; _reconcile(e); }
 
         /** @} */
     };

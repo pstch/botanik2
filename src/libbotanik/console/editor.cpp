@@ -41,12 +41,12 @@ namespace Botanik { namespace Terminal {
     void TextEditor::reset() {
         (void)_load(nullptr, 0, 0);
         _dirty = true;              // reset() discards content; commit() does not
-        _reconcile();
+        _reconcile(Edit::LOAD);
     }
 
     void TextEditor::commit() {
         (void)_load(nullptr, 0, 0);
-        _reconcile();
+        _reconcile(Edit::LOAD);
     }
 
     void TextEditor::redraw() {
@@ -312,7 +312,7 @@ namespace Botanik { namespace Terminal {
     bool TextEditor::commit_loaded(uint16_t len) {
         const bool fitted = _load(_buf, len, 0);
         _dirty = false;
-        _reconcile();
+        _reconcile(Edit::LOAD);
         return fitted;
     }
 
@@ -320,7 +320,7 @@ namespace Botanik { namespace Terminal {
         if (text == nullptr) len = 0;
         (void)_load(text, len, len);    // a recalled line is ready to be extended
         _dirty = true;
-        _reconcile();
+        _reconcile(Edit::LOAD);
     }
 
     // cursor motion
@@ -569,6 +569,9 @@ namespace Botanik { namespace Terminal {
         e.m0 = ((int32_t)_origin - e.origin_was) - ((int32_t)_view_top - e.view_top_was);
         e.d  = (int32_t)_row_count - e.count;
         e.mB = e.m0 + e.d;
+        // A load moved no content, but a bottom-anchored editor that shrank
+        // gave rows back: the band blanks them and keeps the prompt row.
+        if (e.kind == Edit::LOAD) { if (_anchor == Anchor::BOTTOM && e.m0 > 0) _band(e, 0, 0); return; }
         if (e.kind == Edit::NONE) { if (e.m0 != 0) _band(e, 0, 0); return; }
         e.off   = (int32_t)e.pos - e.row_a.buf_start;
         e.col_a = _indent + e.ps_a + e.off;
@@ -577,7 +580,7 @@ namespace Botanik { namespace Terminal {
         case Edit::SPLIT: _announce_split(e); return;
         case Edit::JOIN:  _announce_join(e);  return;
         case Edit::OTHER: _band(e, e.a, e.L + 1); return;
-        case Edit::NONE:  return;
+        case Edit::NONE: case Edit::LOAD: return;
         }
     }
 
@@ -658,7 +661,7 @@ namespace Botanik { namespace Terminal {
 
     void TextEditor::_reconcile(Edit& e) {
         e.origin_was = _origin; e.view_top_was = _view_top;
-        if (e.kind == Edit::NONE) e.count = _row_count;     // nothing added: the layout is the one painted
+        if (e.kind == Edit::NONE || e.kind == Edit::LOAD) e.count = _row_count;     // nothing added: the layout is the one painted
         // Bottom-anchored, the text's last row stays on the content bottom and
         // it grows upwards, never above row 1 (the status bar's row is 0).
         if (_anchor == Anchor::BOTTOM) {
