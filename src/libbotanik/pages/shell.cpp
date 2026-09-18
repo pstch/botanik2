@@ -222,7 +222,7 @@ namespace Botanik { namespace Pages {
         uint16_t n = std::min(_editor.buffer_len(), (uint16_t)(cap - 1));
         memcpy(line, _editor.buffer(), n);
         line[n] = '\0';
-        _record_command(line, n);
+        _record_command();
         _editor.commit();
         return n;
     }
@@ -237,29 +237,14 @@ namespace Botanik { namespace Pages {
         _echo_and_reset(line, sizeof(line));
     }
 
-    void ShellPage::_record_command(const char* cmd, uint16_t cmd_len) {
-        uint16_t cols = (uint16_t)_terminal.cols();
-        char     echo[Config::SCROLLBACK_LINE_LEN];
-        uint16_t pos = 0, row = 0;
-        for (;; row++) {
-            bool        first = (row == 0);
-            const char* pstr  = first ? _editor.ps1()     : _editor.ps2();
-            uint16_t    plen  = first ? _editor.ps1_len() : _editor.ps2_len();
-            // >= 1 char/row so a prompt wider than the terminal can't underflow
-            // the cap (and the loop always progresses).
-            uint16_t    cap   = (cols > plen) ? (uint16_t)(cols - plen) : 1;
-            uint16_t    rlen  = Utils::scan_line_segment(cmd, pos, cmd_len, cap);
-            uint16_t elen = std::min((uint16_t)(plen + rlen), (uint16_t)sizeof(echo));
-            memcpy(echo, pstr, std::min(plen, elen));
-            if (plen < elen) memcpy(echo + plen, cmd + pos, elen - plen);
-            _scrollback.store(echo, elen);
-            bool hard = (pos + rlen < cmd_len) && (cmd[pos + rlen] == '\n');
-            pos += rlen + (hard ? 1 : 0);
-            if (pos >= cmd_len) break;
-        }
-        // The echo is the editor's rows as they stand; the transcript carries
-        // them along rather than writing them again.
-        if (row + 1 == _editor.occupied_rows()) _scrollback.adopt((uint16_t)(row + 1));
+    void ShellPage::_record_command() {
+        // The echo is the editor's rows as they stand, prompts included, so
+        // the transcript can carry them along rather than write them again.
+        char echo[Config::SCROLLBACK_LINE_LEN];
+        const uint16_t rows = _editor.occupied_rows();
+        for (uint16_t i = 0; i < rows; i++)
+            _scrollback.store(echo, _editor.row_text(i, echo, sizeof echo));
+        _scrollback.adopt(rows);
     }
 
 }}

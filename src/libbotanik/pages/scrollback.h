@@ -91,7 +91,7 @@ namespace Botanik { namespace Pages {
          *  The next paint then moves them with the band instead of writing
          *  them again. */
         void adopt(uint16_t rows) {
-            if (!_painted_valid) return;
+            if (!_painted_valid || _painted_rows == 0) return;
             _painted_rows   = (uint16_t)(_painted_rows + rows);
             _painted_bottom += rows;
         }

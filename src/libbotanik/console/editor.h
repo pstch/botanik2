@@ -132,11 +132,6 @@ namespace Botanik { namespace Terminal {
         void set_ps2(const char* buf, uint16_t len) { _set_ps(RowPrompt::PS2, buf, len); }
         void set_ps3(const char* buf, uint16_t len) { _set_ps(RowPrompt::PS3, buf, len); }
 
-        const char* ps1() const { return _ps_buf[0]; }
-        uint16_t    ps1_len() const { return _ps_len[0]; }
-        const char* ps2() const { return _ps_buf[1]; }
-        uint16_t    ps2_len() const { return _ps_len[1]; }
-
         /** @} */
 
         /** @name Geometry
@@ -150,6 +145,10 @@ namespace Botanik { namespace Terminal {
         void place_cursor() { _place_cursor(_map_cursor_pos(_pos)); }
 
         uint16_t occupied_rows() const { return _row_count; }
+
+        /** @brief Layout row @p i as painted, prompt then text, into @p out.
+         *  @return the bytes written, at most @p cap. */
+        uint16_t row_text(uint16_t i, char* out, uint16_t cap) const;
 
         /** @brief Pin the viewport's top row; bottom-anchored, it follows the text. */
         void set_origin(uint16_t row);

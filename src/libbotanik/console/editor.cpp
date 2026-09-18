@@ -107,6 +107,16 @@ namespace Botanik { namespace Terminal {
         return fitted;
     }
 
+    uint16_t TextEditor::row_text(uint16_t i, char* out, uint16_t cap) const {
+        if (i >= _row_count) return 0;
+        const RowPrompt p    = _row_prompt(i);
+        const uint16_t  plen = std::min(_prompt_len(p), cap);
+        const uint16_t  tlen = std::min(_rows[i].buf_len, (uint16_t)(cap - plen));
+        memcpy(out, _prompt_buf(p), plen);
+        memcpy(out + plen, &_buf[_rows[i].buf_start], tlen);
+        return (uint16_t)(plen + tlen);
+    }
+
     CursorPos TextEditor::_map_cursor_pos(uint16_t pos) const {
         uint16_t i      = _owner_row(pos);
         uint16_t prompt = _prompt_len(_row_prompt(i));

@@ -148,7 +148,7 @@ namespace Botanik { namespace Pages {
 
         /** @brief Store each display row of a submitted command in the
          *  scrollback (screen content is already visible). */
-        void _record_command(const char* cmd, uint16_t len);
+        void _record_command();
 
         /** @} */
     };
