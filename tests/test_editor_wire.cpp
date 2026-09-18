@@ -167,7 +167,7 @@ static const Scenario SCENARIOS[] = {
       [](EditorFixture& f) {
           const std::string s = varied(100);
           f.editor.replace_all(s.data(), 100);
-      }, 133 },
+      }, 131 },
 
     { "region raised over a word", SHELL,
       [](EditorFixture& f) {

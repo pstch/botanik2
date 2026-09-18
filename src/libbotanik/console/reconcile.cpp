@@ -37,8 +37,11 @@ namespace Botanik { namespace Terminal {
             else if (target.col > _hw_pos.col)   ok = Ansi::move_right(_serial, (uint16_t)(target.col - _hw_pos.col));
             else                                 ok = true;
         } else if (target.col == _hw_pos.col) {
-            if (target.row < _hw_pos.row) ok = Ansi::move_up(_serial, (uint16_t)(_hw_pos.row - target.row));
-            else                          ok = Ansi::move_down(_serial, (uint16_t)(target.row - _hw_pos.row));
+            const uint16_t down = (uint16_t)(target.row - _hw_pos.row);
+            // A line feed a row, off the last row where it would scroll.
+            if (target.row < _hw_pos.row)                    ok = Ansi::move_up(_serial, (uint16_t)(_hw_pos.row - target.row));
+            else if (down <= 2 && target.row < (uint16_t)(_rows - 1)) ok = Ansi::feed_lines(_serial, down);
+            else                                             ok = Ansi::move_down(_serial, down);
         } else if (target.col == 0 && target.row > _hw_pos.row &&
                    (target.row - _hw_pos.row) < 4 && target.row < (uint16_t)(_rows - 1)) {
             ok = Ansi::down_to_row_start(_serial, (uint16_t)(target.row - _hw_pos.row));

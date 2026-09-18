@@ -77,7 +77,7 @@ static const Scenario SCENARIOS[] = {
 
     { "SHELL Enter submits a two-row input over a transcript",
       [](ShellRig& f) { f.transcript(30); f.two_rows(); },
-      [](ShellRig& f) { f.key(Command::ENTER); }, 170 },
+      [](ShellRig& f) { f.key(Command::ENTER); }, 168 },
 };
 
 static constexpr size_t N_SCENARIOS = sizeof(SCENARIOS) / sizeof(SCENARIOS[0]);
