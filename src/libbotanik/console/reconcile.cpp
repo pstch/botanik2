@@ -219,11 +219,11 @@ namespace Botanik { namespace Terminal {
         q.left = n < 0 ? q.left >> -n : q.left << n;
     }
 
-    uint16_t AnsiTerminal::_row_diff(const uint8_t* a, const uint8_t* b) const {
+    uint16_t AnsiTerminal::_row_diff(const uint8_t* a, const uint8_t* b, uint16_t cap) const {
         // A word at a time, counting bytes only inside a word that differs.
         static const uint8_t blank[4] = { CELL_BLANK, CELL_BLANK, CELL_BLANK, CELL_BLANK };
         uint16_t n = 0;
-        for (uint16_t c = 0; c < _cols && n < DIFF_CAP; c += 4) {
+        for (uint16_t c = 0; c < _cols && n < cap; c += 4) {
             const uint8_t* pb = b != nullptr ? b + c : blank;
             uint32_t wa, wb;
             memcpy(&wa, a + c, 4); memcpy(&wb, pb, 4);
@@ -242,17 +242,20 @@ namespace Botanik { namespace Terminal {
         // they come out right, as a submitted input line does when it moves
         // with the transcript it just joined. One pass prices both: the two
         // differ only on the rows the extension adds and on the rows of the
-        // asked band whose source the extension puts something in.
+        // asked band whose source the extension puts something in. The rows
+        // dragged are few and priced exactly: capped, a row patched in a few
+        // cells reads the same as one rewritten from blank.
         const uint16_t last = (uint16_t)(_rows - 1);
         int32_t asked = 0, extended = 0;
         for (uint16_t r = c.top; r <= last; r++) {
             const uint8_t* fr  = &_front[_idx(r, 0)];
             const int32_t  src = (int32_t)r - c.n;
-            const int32_t  now = _row_diff(fr, &_back[_idx(r, 0)]);
-            const int32_t  aft = _row_diff(fr, (src >= c.top && src <= last) ? &_back[_idx((uint16_t)src, 0)] : nullptr);
+            const uint16_t cap = r > c.bottom ? _cols : DIFF_CAP;
+            const int32_t  now = _row_diff(fr, &_back[_idx(r, 0)], cap);
+            const int32_t  aft = _row_diff(fr, (src >= c.top && src <= last) ? &_back[_idx((uint16_t)src, 0)] : nullptr, cap);
             extended += now - aft;
             if (r > c.bottom) continue;
-            asked += now - ((src > c.bottom) ? _row_diff(fr, nullptr) : aft);
+            asked += now - ((src > c.bottom) ? _row_diff(fr, nullptr, cap) : aft);
         }
         asked    -= c.bottom == last ? SLIDE_BYTES : 2 * SLIDE_BYTES;
         extended -= SLIDE_BYTES;

@@ -260,9 +260,9 @@ namespace Botanik { namespace Terminal {
         /** @brief Serve the ripples pending on @p row, each after the cells
          *  left of it. @return false when the budget ran out. */
         bool _ripple_row(uint16_t row, uint16_t& budget);
-        /** @brief Cells [@p a] and [@p b] differ in, counted to DIFF_CAP; @p b
+        /** @brief Cells [@p a] and [@p b] differ in, counted to @p cap; @p b
          *  null is a blank row. */
-        uint16_t _row_diff(const uint8_t* a, const uint8_t* b) const;
+        uint16_t _row_diff(const uint8_t* a, const uint8_t* b, uint16_t cap) const;
         static constexpr uint16_t DIFF_CAP = 16;   ///< cells past which a row is rewritten either way
         /** @brief Rows [@p top, @p bottom] move @p n rows on the wire, as a
          *  DL/IL pair; BACK follows only if the whole pair went. */
