@@ -37,10 +37,12 @@ namespace Botanik { namespace Terminal {
             else                                 ok = true;
         } else if (target.col == _hw_pos.col) {
             const uint16_t down = (uint16_t)(target.row - _hw_pos.row);
-            // A line feed a row while that beats CUD's four bytes, and off the
-            // last row, where it would scroll.
+            // A line feed a row while that beats CUD's four bytes, off the last
+            // row, where it would scroll, and only in column 0: a terminal in
+            // new-line mode, or a tty with ONLCR, returns the carriage with it.
             if (target.row < _hw_pos.row)                    ok = Ansi::move_up(_serial, (uint16_t)(_hw_pos.row - target.row));
-            else if (down < LF_MAX_ROWS && target.row < (uint16_t)(_rows - 1)) ok = Ansi::feed_lines(_serial, down);
+            else if (target.col == 0 && down < LF_MAX_ROWS && target.row < (uint16_t)(_rows - 1))
+                                                             ok = Ansi::feed_lines(_serial, down);
             else                                             ok = Ansi::move_down(_serial, down);
         } else if (target.col == 0 && target.row > _hw_pos.row &&
                    (target.row - _hw_pos.row) < LF_MAX_ROWS && target.row < (uint16_t)(_rows - 1)) {

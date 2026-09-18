@@ -156,8 +156,9 @@ namespace Botanik { namespace Terminal { namespace Ansi {
     /** @brief Drop to the start of the row @p count lines below (CR + line
      *  feeds).
      *  @warning The caller must ensure the feeds won't scroll the screen. */
-    /** @brief @p count line feeds: down a row each, same column (LNM reset,
-     *  the VT default). Scrolls on the last row, so never emitted there. */
+    /** @brief @p count line feeds: down a row each. Only from column 0: new-line
+     *  mode, or a tty's ONLCR, returns the carriage too. Scrolls on the last
+     *  row, so never emitted there. */
     bool feed_lines(ByteSink& _serial, uint16_t count);
     bool down_to_row_start(ByteSink& _serial, uint16_t count);
 

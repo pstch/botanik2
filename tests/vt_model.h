@@ -108,7 +108,11 @@ namespace tests { namespace botanik_test {
             case GROUND:
                 if      (b == 0x1B)                _state = ESC_SEEN;
                 else if (b == '\r')                cc = 0;
-                else if (b == '\n')                _line_feed();
+                // A received LF returns the carriage too: a terminal in new-line
+                // mode does, and so does a tty with ONLCR (the simulator's PTY).
+                // The model takes the harsher reading, so a bare LF sent from any
+                // column but 0 shows as a misplaced screen.
+                else if (b == '\n')                { cc = 0; _line_feed(); }
                 else if (b >= 0x20 && b <= 0x7E)   _put((char)b);
                 else FAIL("VtScreen: unmodelled control byte 0x"
                           << std::hex << (unsigned)b);
