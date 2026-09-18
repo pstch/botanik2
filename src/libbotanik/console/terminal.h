@@ -233,6 +233,7 @@ namespace Botanik { namespace Terminal {
          *  @{ */
 
         static constexpr uint16_t BRIDGE_CELLS = 3;   /**< Widest unchanged gap a run crosses. */
+        static constexpr uint16_t LF_MAX_ROWS  = 4;   /**< Rows down from which a CSI move beats line feeds. */
         static constexpr uint16_t EL_MIN_CELLS = 4;   /**< Stale tail cells from which one EL pays. */
 
         /** @brief The paced FRONT-vs-BACK diff. @return true once the screen
@@ -275,9 +276,14 @@ namespace Botanik { namespace Terminal {
         /** @} */
 
     public:
-        /** @brief Cells a column shift must carry to beat writing them. A
-         *  producer choosing which side of a split to move reads it too. */
-        static constexpr uint16_t SHIFT_MIN_CARRY = 8;
+        /** @name What the wire charges
+         *  The terminal's own prices, which a producer choosing between two
+         *  true descriptions of one edit reads too. @{ */
+        static constexpr uint16_t SHIFT_MIN_CARRY = 8;   /**< Cells a column shift must carry to beat writing them. */
+        static constexpr uint16_t MOVE_BYTES      = 8;   /**< A move onto a row from elsewhere. */
+        static constexpr uint16_t SLIDE_BYTES     = 11;  /**< Half a DL/IL pair: a move and the escape. */
+        static constexpr uint16_t SHIFT_BYTES     = 12;  /**< A move and a shift escape. */
+        /** @} */
 
         /** @name Lifecycle
          *  @{ */

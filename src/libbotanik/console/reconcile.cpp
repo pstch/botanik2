@@ -37,12 +37,13 @@ namespace Botanik { namespace Terminal {
             else                                 ok = true;
         } else if (target.col == _hw_pos.col) {
             const uint16_t down = (uint16_t)(target.row - _hw_pos.row);
-            // A line feed a row, off the last row where it would scroll.
+            // A line feed a row while that beats CUD's four bytes, and off the
+            // last row, where it would scroll.
             if (target.row < _hw_pos.row)                    ok = Ansi::move_up(_serial, (uint16_t)(_hw_pos.row - target.row));
-            else if (down <= 2 && target.row < (uint16_t)(_rows - 1)) ok = Ansi::feed_lines(_serial, down);
+            else if (down < LF_MAX_ROWS && target.row < (uint16_t)(_rows - 1)) ok = Ansi::feed_lines(_serial, down);
             else                                             ok = Ansi::move_down(_serial, down);
         } else if (target.col == 0 && target.row > _hw_pos.row &&
-                   (target.row - _hw_pos.row) < 4 && target.row < (uint16_t)(_rows - 1)) {
+                   (target.row - _hw_pos.row) < LF_MAX_ROWS && target.row < (uint16_t)(_rows - 1)) {
             ok = Ansi::down_to_row_start(_serial, (uint16_t)(target.row - _hw_pos.row));
         } else {
             ok = Ansi::goto_absolute(_serial, target);
@@ -133,7 +134,6 @@ namespace Botanik { namespace Terminal {
         if (c.kind == LayoutChange::RIPPLE && (c.col >= _cols || c.lead >= _cols)) return;
         if (c.kind == LayoutChange::SCROLL ? _merge_scroll(c) : _merge_ripple(c)) return;
         if (_queued == CHANGE_QUEUE) { _drop_changes(); return; }   // a beat that busy is repainted
-        if (_queued == 0) _queue_age = 0;      // the wait is the oldest change's
         _queue[_queued++] = Queued{ c, _rows_of(c) };
     }
 
@@ -380,7 +380,7 @@ namespace Botanik { namespace Terminal {
         if (_dirty == 0 && _queued == 0) { _restart_walk(); return true; }
         // Beats without a change going out: a ripple the walk never reaches
         // or a scroll the ring never takes is dropped, and its rows written.
-        if (++_queue_age > CHANGE_MAX_BEATS) _drop_changes();
+        if (_queued != 0 && ++_queue_age > CHANGE_MAX_BEATS) _drop_changes();
         uint16_t used   = tx_used();
         uint16_t budget = (used < _tx_cold_depth) ? (uint16_t)(_tx_cold_depth - used) : 0;
         const uint32_t owed = _owed();

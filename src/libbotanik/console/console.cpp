@@ -195,8 +195,7 @@ namespace Botanik { namespace Terminal {
                 _term.clear_screen();
                 // Chrome first (status bar, then alarm bar), then the page.
                 _status_bar.draw_row();
-                _alarm_bar.mark_dirty();   // clear_screen wiped the alarm-bar row
-                _alarm_bar.step();
+                repaint_alarm_bar();
                 page->redraw();
                 break;
             }

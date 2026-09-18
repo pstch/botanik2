@@ -174,9 +174,9 @@ namespace Botanik { namespace Pages {
             if (_painted_valid && rows != 0 && _painted_rows != 0) {
                 const int32_t delta = ((int32_t)first_row + rows) - ((int32_t)_painted_first + _painted_rows)
                                     - ((int32_t)bottom - (int32_t)_painted_bottom);
-                // The union of the two bands: content can arrive from outside the
-                // old one, as a submitted input line does when it joins the
-                // transcript. What did not move the walk writes out.
+                // The union of the two bands, which a band resized needs; rows
+                // adopt() took in are part of the old one. What did not move the
+                // walk writes out.
                 const uint16_t top = std::min(first_row, _painted_first);
                 const uint16_t bot = std::max((uint16_t)(first_row + rows), (uint16_t)(_painted_first + _painted_rows));
                 if (delta != 0 && bot > top)

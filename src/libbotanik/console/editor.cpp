@@ -22,11 +22,10 @@
 
 namespace Botanik { namespace Terminal {
 
-    // What the wire charges, as the announcers price a realisation: a move
-    // onto a row, one half of a DL/IL pair, a move and a shift escape.
-    static constexpr int32_t MOVE_BYTES  = 8;
-    static constexpr int32_t SLIDE_BYTES = 11;
-    static constexpr int32_t SHIFT_BYTES = 12;
+    // The terminal's prices, as the announcers weigh a realisation.
+    static constexpr int32_t MOVE_BYTES  = AnsiTerminal::MOVE_BYTES;
+    static constexpr int32_t SHIFT_BYTES = AnsiTerminal::SHIFT_BYTES;
+    static constexpr int32_t SLIDE_BYTES = AnsiTerminal::SLIDE_BYTES;
     static constexpr int32_t PAIR_BYTES  = 2 * SLIDE_BYTES;
 
     // lifecycle
