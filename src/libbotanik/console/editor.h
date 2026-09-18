@@ -47,7 +47,6 @@ namespace Botanik { namespace Terminal {
         char*    buf;      /**< `buf_cap` bytes, one reserved for the NUL. */
         uint16_t buf_cap;
         RowView* layout;   /**< `max_rows` entries. */
-        RowView* painted;  /**< `max_rows` entries: the layout last painted. */
         uint16_t max_rows;
     };
 
@@ -57,15 +56,15 @@ namespace Botanik { namespace Terminal {
     struct EditorBuffers {
         char    buf[BUF];
         RowView layout[ROWS];
-        RowView painted[ROWS];
 
-        EditorStorage storage() { return EditorStorage{ buf, BUF, layout, painted, ROWS }; }
+        EditorStorage storage() { return EditorStorage{ buf, BUF, layout, ROWS }; }
     };
 
     /**
      * @class TextEditor
-     * @brief Multi-row line editor. An edit relays out the buffer and repaints
-     *        the viewport; the terminal finds whatever rows only slid.
+     * @brief Multi-row line editor. An edit relays out the buffer, tells the
+     *        terminal what the layout did (a band of rows that moved, a run of
+     *        cells that rippled) and repaints the viewport.
      * @note An insert that would cross the owner's row cap is refused.
      */
     class TextEditor {
@@ -102,18 +101,7 @@ namespace Botanik { namespace Terminal {
         bool     _dirty = false;
 
         RowView* _rows;                /**< The buffer sliced into rows; borrowed. */
-        RowView* _painted;             /**< The layout the screen holds; borrowed. */
         uint16_t _row_count = 1;
-
-        /** @name What the screen holds
-         *  The layout, viewport and edit the hints are worked out against. @{ */
-        uint16_t _painted_count = 0, _painted_origin = 0, _painted_view_top = 0, _painted_len = 0;
-        bool     _painted_valid = false;
-        /** @brief The buffer offset an edit happened at, and the bytes it added
-         *  (negative for a removal). Consumed by the hints, then forgotten. */
-        uint16_t _edit_pos   = 0;
-        int16_t  _edit_delta = 0;
-        /** @} */
 
         /** @brief Prompt bytes and lengths, indexed by RowPrompt. */
         char     _ps_buf[3][Config::EDITOR_PROMPT_MAX];
@@ -351,35 +339,47 @@ namespace Botanik { namespace Terminal {
          *  content area. */
         uint16_t _view_bottom_hw() const;
 
-        /** @brief What one visible row did since the last paint: the rows it moved
-         *  by, the columns it slid by, and the column its text came from. */
-        struct RowMove { int16_t moved; int16_t slid; uint16_t from_col; };
+        /** @brief One edit, as the layout before it saw it: enough to say what
+         *  the rows and cells did without keeping that layout. */
+        struct Edit {
+            enum Kind : uint8_t {
+                PLAIN,   /**< Bytes with no newline: the line rippled. */
+                SPLIT,   /**< One newline in: a row split at the edit point. */
+                JOIN,    /**< One newline out: two lines became one. */
+                OTHER,   /**< Newlines crossed: only the rows after moved as one. */
+            };
+            Kind     kind;
+            uint16_t pos;                /**< Buffer offset of the edit. */
+            int16_t  delta;              /**< Bytes added; negative for removed. */
+            uint16_t a, L;               /**< Row holding pos, and the last row of
+                                          *   the last line the edit touched. */
+            RowView  row_a, row_b, row_L;/**< Rows a, a+1 and L before the edit. */
+            uint16_t ps_a;               /**< Prompt width row a had. */
+            uint16_t count;              /**< Rows before the edit. */
+        };
 
-        /** @brief Tell the terminal what the edit moved, in rows and in columns,
-         *  worked out from the layout it last painted. */
-        void _hint_moves();
-        /** @brief The move that best explains row @p j, mapping its bytes back
-         *  through an edit of @p k bytes at offset @p p. */
-        RowMove _row_move(uint16_t j, uint16_t p, int16_t k) const;
-        /** @brief Hint the longest run of rows that moved together, starting at
-         *  screen row @p first. @return the delta that band carried, 0 for none. */
-        int16_t _hint_band(const RowMove* mv, uint16_t n, uint16_t first);
-        /** @brief Take the layout, viewport and length just painted as the ones
-         *  the screen holds. */
-        void _remember_paint();
-        /** @brief Which painted row held buffer offset @p pos. */
-        uint16_t _painted_row(uint16_t pos) const {
-            for (uint16_t i = 0; i < _painted_count; i++) {
-                const uint16_t stride = (uint16_t)(_painted[i].buf_len + (_painted[i].hard_break ? 1 : 0));
-                if (pos < (uint16_t)(_painted[i].buf_start + stride)) return i;
-            }
-            return _painted_count;
+        /** @brief Read what @p removed bytes at @p pos, or @p text of @p len
+         *  bytes inserted there, are about to do to the layout. */
+        Edit _capture(uint16_t pos, uint16_t removed, const char* text, uint16_t len) const;
+        /** @brief Last row of the line holding row @p i. */
+        uint16_t _line_end(uint16_t i) const {
+            while (i + 1 < _row_count && !_rows[i].hard_break) i++;
+            return i;
         }
-        /** @brief Prompt width painted row @p i carried. */
-        uint16_t _painted_prompt_len(uint16_t i) const {
-            if (i == 0) return _prompt_len(RowPrompt::PS1);
-            return _prompt_len(_painted[i - 1].hard_break ? RowPrompt::PS3 : RowPrompt::PS2);
-        }
+
+        /** @brief Tell the terminal what the edit did to the screen, worked out
+         *  from @p e and the viewport before it. */
+        void _announce(const Edit* e, uint16_t origin_was, uint16_t view_top_was);
+        /** @brief Announce the band of rows the edit moved as one: old rows
+         *  [0, @p T] moved @p m0 screen rows and old rows [@p B, count) moved
+         *  @p mB, with the rows between them gone or new. One band, the larger
+         *  side when they disagree. */
+        void _band(int32_t T, int32_t B, int32_t m0, int32_t mB, const Edit* e,
+                   uint16_t origin_was, uint16_t view_top_was);
+        /** @brief Announce that on screen row @p top what started at column
+         *  @p from now starts at @p to, and the rows down to @p bottom followed
+         *  at the PS2 column; @p tail cells right of the change on @p bottom. */
+        void _ripple(int32_t top, int32_t bottom, int32_t from, int32_t to, int32_t tail);
 
         uint16_t _hw_row(uint16_t i) const {
             return (uint16_t)(_origin + (i - _view_top));
@@ -463,8 +463,10 @@ namespace Botanik { namespace Terminal {
         /** @name Reconciliation
          *  @{ */
 
-        /** @brief After an edit: origin, viewport, repaint, cursor. */
-        void _reconcile();
+        /** @brief After an edit: origin, viewport, what moved, repaint, cursor.
+         *  @p e is the edit; null when the text is as it was (a motion) or
+         *  unrelated to it (a load), and only the viewport's move is announced. */
+        void _reconcile(const Edit* e = nullptr);
 
 
         /** @} */

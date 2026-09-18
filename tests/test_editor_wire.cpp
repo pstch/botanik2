@@ -109,11 +109,11 @@ static const Scenario SCENARIOS[] = {
 
     { "backspace mid a 3-row wrap", SHELL,
       [](EditorFixture& f) { fill(f, 180); seek(f, 40); },
-      [](EditorFixture& f) { f.editor.backspace(1); }, 48 },
+      [](EditorFixture& f) { f.editor.backspace(1); }, 46 },
 
     { "delete_forward mid a 3-row wrap", SHELL,
       [](EditorFixture& f) { fill(f, 180); seek(f, 5); },
-      [](EditorFixture& f) { f.editor.delete_forward(1); }, 47 },
+      [](EditorFixture& f) { f.editor.delete_forward(1); }, 43 },
 
     { "hard break at the head of a 3-row input", SHELL,
       [](EditorFixture& f) { fill(f, 180); f.editor.move_to_line_start(); },
@@ -151,12 +151,14 @@ static const Scenario SCENARIOS[] = {
       [](EditorFixture& f) { fill(f, 100); },
       [](EditorFixture& f) { f.editor.replace_all("clear", 5); }, 26 },
 
+    // A DL would carry the 9-cell prompt up a row for 11 bytes; at row
+    // granularity that is not a win, and the whole row is written instead.
     { "replace_all onto two rows", SHELL,
       [](EditorFixture& f) { type(f, "hi"); },
       [](EditorFixture& f) {
           const std::string s = varied(100);
           f.editor.replace_all(s.data(), 100);
-      }, 123 },
+      }, 125 },
 
     { "region raised over a word", SHELL,
       [](EditorFixture& f) {
@@ -203,7 +205,7 @@ static const Scenario SCENARIOS[] = {
 
     { "NOTES delete_forward mid a 3-row line", NOTES,
       [](EditorFixture& f) { fill(f, 180); seek(f, 40); },
-      [](EditorFixture& f) { f.editor.delete_forward(1); }, 44 },
+      [](EditorFixture& f) { f.editor.delete_forward(1); }, 40 },
 
     { "NOTES hard break at the head of a 3-row line", NOTES,
       [](EditorFixture& f) { fill(f, 180); f.editor.move_to_line_start(); },
