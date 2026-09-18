@@ -497,21 +497,6 @@ TEST_CASE("terminal: a hinted row move goes out as a row slide") {
     CHECK(f.row(1) == std::string(line[1]));
 }
 
-TEST_CASE("terminal: a row's priority is a standing property") {
-    TermFixture f;
-    CHECK(f.term.row_priority(4) == Terminal::PRIO_STRUCT);   // the default
-
-    f.term.set_row_priority(0, Terminal::PRIO_CHROME);
-    f.term.set_row_priority(4, 8, Terminal::PRIO_INPUT);
-    CHECK(f.term.row_priority(0) == Terminal::PRIO_CHROME);
-    CHECK(f.term.row_priority(4) == Terminal::PRIO_INPUT);
-    CHECK(f.term.row_priority(8) == Terminal::PRIO_INPUT);
-    CHECK(f.term.row_priority(9) == Terminal::PRIO_STRUCT);   // past the band
-
-    // Out of range answers rather than reading off the end.
-    CHECK(f.term.row_priority(60000) == Terminal::PRIO_STRUCT);
-}
-
 TEST_CASE("terminal: the urgent row goes first when the budget is short") {
     // At 4800 baud a tick carries a handful of bytes, which is the whole reason
     // the classes exist: the edit point must not queue behind a page repaint.

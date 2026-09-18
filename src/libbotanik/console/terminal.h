@@ -130,6 +130,8 @@ namespace Botanik { namespace Terminal {
         /** @brief Blank the active region of both grids - after a physical
          *  clear, the wire is blank and nothing is drawn. */
         void _reset_grids();
+        /** @brief Blank rows [@p top, @p bottom] of FRONT. */
+        void clear_rows(uint16_t top, uint16_t bottom);
 
         /** @brief Rows whose grids may differ, one bit each. A clear bit is a
          *  promise the walk can skip the row without reading it, so every write
@@ -382,8 +384,8 @@ namespace Botanik { namespace Terminal {
         }
 
         /** @brief Whether FRONT holds (@p row, @p col) in reverse video; false
-         *  off-grid. The attribute front_cells() strips, so a caller comparing
-         *  the whole cell can reach it. */
+         *  off-grid. The attribute front_cells() strips; the test kit's VT
+         *  check compares it. */
         bool front_inverted(uint16_t row, uint16_t col) const {
             if (row >= _rows || col >= _cols) return false;
             return (_front[_idx(row, col)] & CELL_INV) != 0;
@@ -420,11 +422,6 @@ namespace Botanik { namespace Terminal {
          *  the Console resets the content band on a page switch, and the incoming
          *  page declares its own in focus(). Default PRIO_STRUCT. */
         void set_row_priority(uint16_t top, uint16_t bottom, RowPriority prio);
-        /** @brief What class @p row is in. For a caller checking the frame
-         *  still outranks what it frames. */
-        RowPriority row_priority(uint16_t row) const {
-            return (row < GRID_ROWS) ? (RowPriority)_row_prio[row] : PRIO_STRUCT;
-        }
         void set_row_priority(uint16_t row, RowPriority prio) {
             set_row_priority(row, row, prio);
         }
@@ -460,8 +457,6 @@ namespace Botanik { namespace Terminal {
         void clear_to_eol();
         void clear_screen();
         void clear_screen_now();
-        /** @brief Blank rows [@p top, @p bottom] of FRONT. */
-        void clear_rows(uint16_t top, uint16_t bottom);
         /** @brief Blank rows [@p top, @p bottom] on the wire now, as well as
          *  in FRONT: what a page switch wants, so the incoming page paints on
          *  a blank band rather than over the outgoing one. Drops every
