@@ -466,6 +466,11 @@ namespace Botanik { namespace Terminal {
         void clear_screen_now();
         /** @brief Blank rows [@p top, @p bottom] of FRONT. */
         void clear_rows(uint16_t top, uint16_t bottom);
+        /** @brief Blank rows [@p top, @p bottom] on the wire now, as well as
+         *  in FRONT: what a page switch wants, so the incoming page paints on
+         *  a blank band rather than over the outgoing one. Drops every
+         *  pending change. */
+        void blank_rows(uint16_t top, uint16_t bottom);
 
         /** @}
          *  @name Screen bring-up / low-level ops (for the Console)

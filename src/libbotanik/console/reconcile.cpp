@@ -352,6 +352,32 @@ namespace Botanik { namespace Terminal {
         return true;
     }
 
+    void AnsiTerminal::blank_rows(uint16_t top, uint16_t bottom) {
+        clear_rows(top, bottom);
+        if (top > bottom || bottom >= _rows) return;
+        // One DL/IL pair leaves the band blank on the wire at once, the rows
+        // under it put back where they were; without the room for the whole
+        // pair the walk blanks it row by row instead. DL/IL fill with the
+        // current attributes on terminals with background-colour erase.
+        const uint16_t n = (uint16_t)(bottom - top + 1);
+        if (_serial.availableForWrite() < SLIDE_ROOM) return;
+        _set_hw_inverted(false);
+        if (!_go({top, 0}) || !Ansi::delete_rows(_serial, n)) return;
+        if (bottom < (uint16_t)(_rows - 1) && !Ansi::insert_rows(_serial, n)) {
+            // The DL went alone: BACK follows it, and the walk puts back what
+            // it moved.
+            memmove(&_back[_idx(top, 0)], &_back[_idx((uint16_t)(bottom + 1), 0)], (size_t)(_rows - 1 - bottom) * _cols);
+            memset(&_back[_idx((uint16_t)(_rows - n), 0)], CELL_BLANK, (size_t)n * _cols);
+            _dirty |= _mask(top, (uint16_t)(_rows - 1));
+            _drop_changes(); _restart_walk();
+            return;
+        }
+        memset(&_back[_idx(top, 0)], CELL_BLANK, (size_t)n * _cols);
+        _dirty &= ~_mask(top, bottom);         // blank against blank
+        _drop_changes();
+        _restart_walk();
+    }
+
     // The walk
 
     bool AnsiTerminal::_emit_runs(uint16_t row, uint16_t from, uint16_t to, uint16_t& budget) {
