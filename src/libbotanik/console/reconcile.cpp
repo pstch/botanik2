@@ -131,6 +131,7 @@ namespace Botanik { namespace Terminal {
         if (c.kind == LayoutChange::RIPPLE && (c.col >= _cols || c.lead >= _cols)) return;
         if (c.kind == LayoutChange::SCROLL ? _merge_scroll(c) : _merge_ripple(c)) return;
         if (_queued == CHANGE_QUEUE) { _drop_changes(); return; }
+        if (_queued == 0) _queue_age = 0;      // the wait is the oldest change's
         _queue[_queued++] = Queued{ c, _rows_of(c) };
     }
 
