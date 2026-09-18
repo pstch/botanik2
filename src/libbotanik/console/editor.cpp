@@ -15,7 +15,6 @@
 #include <cstring>
 #include <cstdio>
 #include <cstdlib>
-#include <climits>
 
 #include "libbotanik/console/console.h"
 #include "libbotanik/console/kill_ring.h"
@@ -596,28 +595,22 @@ namespace Botanik { namespace Terminal {
     }
 
     void TextEditor::_announce_split(const Edit& e) {
-        // Row a split at the edit point. Three ways to put that on screen,
+        // Row a split at the edit point. Two ways to put that on screen,
         // priced by the cells each writes and shifts: the tail is pushed onto
-        // the head of the next row and the line ripples on from there; a row
-        // opens under the head, takes the tail, and pulls from the next row
-        // what its width leaves; or a row opens over the tail, takes the head,
-        // and the tail slides to the PS3 column.
+        // the head of the next row and the line ripples on from there; or a
+        // row opens over the tail, takes the head, and the tail slides to the
+        // PS3 column.
         const int32_t a = e.a, L = e.L, d = e.d, len_L = e.row_L.buf_len;
         const int32_t head = e.off, t = e.row_a.buf_len - e.off, rows = L - a, j = L + d;
         const int32_t ps3 = _prompt_len(RowPrompt::PS3), pair = 22;
         const int32_t s_push = t + e.lead3 - e.lead2;
-        const int32_t s_pull = e.cap3 - t;
         const int32_t s_over = e.col_a - e.lead3;
         const int32_t push = 8 + 11 + ps3 + t + rows * (8 + s_push) + (d == 1 && L + 1 < e.count ? pair : 0);
-        const int32_t pull = d == 1 ? pair + 11 + e.lead2 + e.cap2 + rows * (12 + s_pull) : INT32_MAX;
         const int32_t over = pair + e.ps_a + head + (s_over != 0 ? 12 + std::abs(s_over) : 0)
                            + rows * (12 + std::abs(s_over));
-        if (push <= pull && push <= over && s_push < e.cap2) {
+        if (push <= over && s_push < e.cap2) {
             _band(e, L, L + 1);
             _ripple(_now(a + 1), _now(L), e.lead2, e.lead3 + t, len_L);
-        } else if (pull <= over) {
-            _band(e, a, a + 1);
-            if (rows > 0) _ripple(_now(a + 2), _now(j), e.lead2 + s_pull, e.lead2, _carried(len_L, -s_pull));
         } else {
             _band(e, a - 1, a);
             if (rows == 0)   _ripple(_now(a + 1), _now(a + 1), e.col_a, e.lead3, t);
