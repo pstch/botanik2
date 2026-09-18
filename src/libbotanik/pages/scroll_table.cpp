@@ -203,50 +203,13 @@ namespace Botanik { namespace Pages {
         return false;
     }
 
-    ScrollTablePage::EditKey ScrollTablePage::_edit_kind(Command cmd) {
-        switch (cmd) {
-            case Command::BACKSPACE: case Command::DELETE: case Command::CTRL_D:
-            case Command::CTRL_U:    case Command::CTRL_K: case Command::CTRL_W:
-            case Command::CTRL_Y:
-                return EDIT_CHANGED;
-            case Command::LEFT:  case Command::CTRL_B:
-            case Command::RIGHT: case Command::CTRL_F:
-            case Command::HOME:  case Command::CTRL_A:
-            case Command::END:   case Command::CTRL_E:
-            case Command::CTRL_SPACE: case Command::CTRL_G: case Command::ALT_W:
-                return EDIT_MOVED;
-            default:
-                return EDIT_IGNORED;
-        }
+    ScrollTablePage::EditKey ScrollTablePage::_edit_kind(const Terminal::TextEditor& ed, Command cmd) {
+        return cmd == Command::CTRL_U ? EditKey::CHANGED : ed.key_kind(cmd);
     }
 
-    void ScrollTablePage::_edit_apply(Terminal::TextEditor& ed, Command cmd,
-                                      uint16_t count) {
-        switch (cmd) {
-            case Command::BACKSPACE:  ed.backspace(count);            break;
-            case Command::DELETE:
-            case Command::CTRL_D:     ed.delete_forward(count);       break;
-            case Command::LEFT:
-            case Command::CTRL_B:     ed.move_left();                 break;
-            case Command::RIGHT:
-            case Command::CTRL_F:     ed.move_right();                break;
-            case Command::HOME:
-            case Command::CTRL_A:     ed.move_to_line_start();        break;
-            case Command::END:
-            case Command::CTRL_E:     ed.move_to_line_end();          break;
-            case Command::CTRL_U:
-                ed.move_to_line_start();
-                ed.delete_forward(ed.buffer_len());                   break;
-            // The same cut/paste as the shell prompt, over the same ring: Alt+W
-            // on the table puts a name in it, and this is where it lands.
-            case Command::CTRL_K:     ed.kill_to_line_end();          break;
-            case Command::CTRL_W:     ed.kill_region_or_word();       break;
-            case Command::CTRL_SPACE: ed.toggle_mark();               break;
-            case Command::CTRL_G:     ed.clear_mark();                break;
-            case Command::ALT_W:      ed.copy_region();               break;
-            case Command::CTRL_Y:     ed.yank();                      break;
-            default: break;
-        }
+    void ScrollTablePage::_edit_apply(Terminal::TextEditor& ed, Command cmd, uint16_t count) {
+        if (cmd == Command::CTRL_U) ed.reset();      // a field has nothing to lose
+        else (void)ed.handle_key(cmd, count);
     }
 
     void ScrollTablePage::_draw_line(uint16_t row, const char* line, uint16_t n) {

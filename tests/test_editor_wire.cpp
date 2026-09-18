@@ -76,20 +76,20 @@ static const Scenario SCENARIOS[] = {
       [](EditorFixture& f) { type(f, "x"); }, 1 },
 
     { "insert at the head of a filled row", SHELL,
-      [](EditorFixture& f) { fill(f, 60); f.editor.move_to_line_start(); },
+      [](EditorFixture& f) { fill(f, 60); (void)f.editor.handle_key(Botanik::Terminal::InputEvent::Command::HOME); },
       [](EditorFixture& f) { type(f, "Z"); }, 9 },
 
     { "insert at the head of a 2-row wrap", SHELL,
-      [](EditorFixture& f) { fill(f, 100); f.editor.move_to_line_start(); },
+      [](EditorFixture& f) { fill(f, 100); (void)f.editor.handle_key(Botanik::Terminal::InputEvent::Command::HOME); },
       [](EditorFixture& f) { type(f, "Z"); }, 25 },
 
     // The last row keeps 8 characters: too few to have looked worth a slide.
     { "insert at the head of a wrap with a short last row", SHELL,
-      [](EditorFixture& f) { fill(f, 71 + 78 + 8); f.editor.move_to_line_start(); },
+      [](EditorFixture& f) { fill(f, 71 + 78 + 8); (void)f.editor.handle_key(Botanik::Terminal::InputEvent::Command::HOME); },
       [](EditorFixture& f) { type(f, "Z"); }, 33 },
 
     { "insert at the head of a 3-row wrap", SHELL,
-      [](EditorFixture& f) { fill(f, 180); f.editor.move_to_line_start(); },
+      [](EditorFixture& f) { fill(f, 180); (void)f.editor.handle_key(Botanik::Terminal::InputEvent::Command::HOME); },
       [](EditorFixture& f) { type(f, "Z"); }, 33 },
 
     { "insert mid a 3-row wrap", SHELL,
@@ -102,18 +102,18 @@ static const Scenario SCENARIOS[] = {
 
     { "backspace at the head of a 2-row wrap", SHELL,
       [](EditorFixture& f) { fill(f, 100); seek(f, 1); },
-      [](EditorFixture& f) { f.editor.backspace(1); }, 30 },
+      [](EditorFixture& f) { (void)f.editor.handle_key(Botanik::Terminal::InputEvent::Command::BACKSPACE, 1); }, 30 },
 
     { "backspace mid a 3-row wrap", SHELL,
       [](EditorFixture& f) { fill(f, 180); seek(f, 40); },
-      [](EditorFixture& f) { f.editor.backspace(1); }, 46 },
+      [](EditorFixture& f) { (void)f.editor.handle_key(Botanik::Terminal::InputEvent::Command::BACKSPACE, 1); }, 46 },
 
     { "delete_forward mid a 3-row wrap", SHELL,
       [](EditorFixture& f) { fill(f, 180); seek(f, 5); },
-      [](EditorFixture& f) { f.editor.delete_forward(1); }, 43 },
+      [](EditorFixture& f) { (void)f.editor.handle_key(Botanik::Terminal::InputEvent::Command::DELETE, 1); }, 43 },
 
     { "hard break at the head of a 3-row input", SHELL,
-      [](EditorFixture& f) { fill(f, 180); f.editor.move_to_line_start(); },
+      [](EditorFixture& f) { fill(f, 180); (void)f.editor.handle_key(Botanik::Terminal::InputEvent::Command::HOME); },
       [](EditorFixture& f) { type(f, "\n"); }, 73 },
 
     { "hard break mid a 3-row input", SHELL,
@@ -123,36 +123,36 @@ static const Scenario SCENARIOS[] = {
     { "join of two lines", SHELL,
       [](EditorFixture& f) {
           fill(f, 30); type(f, "\n"); fill(f, 30);
-          f.editor.move_to_start();
-          f.editor.move_down();
+          botanik_test::to_start(f.editor);
+          (void)f.editor.handle_key(Botanik::Terminal::InputEvent::Command::DOWN);
       },
-      [](EditorFixture& f) { f.editor.backspace(1); }, 53 },
+      [](EditorFixture& f) { (void)f.editor.handle_key(Botanik::Terminal::InputEvent::Command::BACKSPACE, 1); }, 53 },
 
     // The joined line is long: its text slides right under the head rather
     // than being written after it.
     { "join of a short line with a wrapped one", SHELL,
       [](EditorFixture& f) {
           fill(f, 10); type(f, "\n"); fill(f, 100);
-          f.editor.move_to_start();
-          f.editor.move_down();
+          botanik_test::to_start(f.editor);
+          (void)f.editor.handle_key(Botanik::Terminal::InputEvent::Command::DOWN);
       },
-      [](EditorFixture& f) { f.editor.backspace(1); }, 67 },
+      [](EditorFixture& f) { (void)f.editor.handle_key(Botanik::Terminal::InputEvent::Command::BACKSPACE, 1); }, 67 },
 
     { "kill_to_line_end mid a 3-row wrap", SHELL,
       [](EditorFixture& f) { fill(f, 180); seek(f, 40); },
-      [](EditorFixture& f) { (void)f.editor.kill_to_line_end(); }, 24 },
+      [](EditorFixture& f) { (void)f.editor.handle_key(Botanik::Terminal::InputEvent::Command::CTRL_K); }, 24 },
 
     { "kill_word_back mid-line", SHELL,
       [](EditorFixture& f) { type(f, "the quick brown fox jumps"); },
-      [](EditorFixture& f) { (void)f.editor.kill_word_back(); }, 10 },
+      [](EditorFixture& f) { (void)f.editor.handle_key(Botanik::Terminal::InputEvent::Command::CTRL_W); }, 10 },
 
     { "yank a word mid-line", SHELL,
       [](EditorFixture& f) {
           type(f, "the quick brown fox");
-          (void)f.editor.kill_word_back();
+          (void)f.editor.handle_key(Botanik::Terminal::InputEvent::Command::CTRL_W);
           seek(f, 4);
       },
-      [](EditorFixture& f) { (void)f.editor.yank(); }, 11 },
+      [](EditorFixture& f) { (void)f.editor.handle_key(Botanik::Terminal::InputEvent::Command::CTRL_Y); }, 11 },
 
     { "replace_all onto one row", SHELL,
       [](EditorFixture& f) { fill(f, 100); },
@@ -168,11 +168,11 @@ static const Scenario SCENARIOS[] = {
     { "region raised over a word", SHELL,
       [](EditorFixture& f) {
           type(f, "the quick brown fox");
-          f.editor.move_to_line_start();
+          (void)f.editor.handle_key(Botanik::Terminal::InputEvent::Command::HOME);
       },
       [](EditorFixture& f) {
-          f.editor.set_mark();
-          for (int i = 0; i < 10; i++) f.editor.move_right();
+          (void)f.editor.handle_key(Botanik::Terminal::InputEvent::Command::CTRL_SPACE);
+          for (int i = 0; i < 10; i++) (void)f.editor.handle_key(Botanik::Terminal::InputEvent::Command::RIGHT);
       }, 28 },
 
     // Repeated words: sliding right by one changes only the cells around each
@@ -180,19 +180,19 @@ static const Scenario SCENARIOS[] = {
     { "insert at the head of 3 rows of repeated words", SHELL,
       [](EditorFixture& f) {
           for (int i = 0; i < 12; i++) type(f, "aaaaaaaaaaaaaaaaaa ");
-          f.editor.move_to_start();
+          botanik_test::to_start(f.editor);
       },
       [](EditorFixture& f) { type(f, "x"); }, 41 },
 
     // 72 characters wrap one onto a second row; the first backspace brings the
     // text back to exactly the last column, which parks the cursor past it.
     { "backspace twice from one past a full row", SHELL,
-      [](EditorFixture& f) { fill(f, 72); f.editor.backspace(1); },
-      [](EditorFixture& f) { f.editor.backspace(1); }, 9 },
+      [](EditorFixture& f) { fill(f, 72); (void)f.editor.handle_key(Botanik::Terminal::InputEvent::Command::BACKSPACE, 1); },
+      [](EditorFixture& f) { (void)f.editor.handle_key(Botanik::Terminal::InputEvent::Command::BACKSPACE, 1); }, 9 },
 
     { "cursor up a row in a 3-row wrap", SHELL,
       [](EditorFixture& f) { fill(f, 180); },
-      [](EditorFixture& f) { f.editor.move_up(); }, 3 },
+      [](EditorFixture& f) { (void)f.editor.handle_key(Botanik::Terminal::InputEvent::Command::UP); }, 3 },
 
     { "NOTES insert mid a 3-row line", NOTES,
       [](EditorFixture& f) { fill(f, 180); seek(f, 40); },
@@ -204,16 +204,16 @@ static const Scenario SCENARIOS[] = {
     { "NOTES insert at the head of a periodic 3-row line", NOTES,
       [](EditorFixture& f) {
           for (int i = 0; i < 19; i++) type(f, " 0123456890");
-          f.editor.move_to_start();
+          botanik_test::to_start(f.editor);
       },
       [](EditorFixture& f) { type(f, "X"); }, 27 },
 
     { "NOTES delete_forward mid a 3-row line", NOTES,
       [](EditorFixture& f) { fill(f, 180); seek(f, 40); },
-      [](EditorFixture& f) { f.editor.delete_forward(1); }, 40 },
+      [](EditorFixture& f) { (void)f.editor.handle_key(Botanik::Terminal::InputEvent::Command::DELETE, 1); }, 40 },
 
     { "NOTES hard break at the head of a 3-row line", NOTES,
-      [](EditorFixture& f) { fill(f, 180); f.editor.move_to_line_start(); },
+      [](EditorFixture& f) { fill(f, 180); (void)f.editor.handle_key(Botanik::Terminal::InputEvent::Command::HOME); },
       [](EditorFixture& f) { type(f, "\n"); }, 25 },
 
     { "NOTES hard break mid a 3-row line", NOTES,
@@ -223,42 +223,42 @@ static const Scenario SCENARIOS[] = {
     { "NOTES split at a wrap boundary", NOTES,
       [](EditorFixture& f) {
           fill(f, 100);
-          for (int i = 0; i < 22; i++) f.editor.move_left();
+          for (int i = 0; i < 22; i++) (void)f.editor.handle_key(Botanik::Terminal::InputEvent::Command::LEFT);
       },
       [](EditorFixture& f) { type(f, "\n"); }, 5 },
 
     { "NOTES join of two lines", NOTES,
       [](EditorFixture& f) {
           type(f, "first\nsecond");
-          f.editor.move_to_start();
-          f.editor.move_down();
+          botanik_test::to_start(f.editor);
+          (void)f.editor.handle_key(Botanik::Terminal::InputEvent::Command::DOWN);
       },
-      [](EditorFixture& f) { f.editor.backspace(1); }, 23 },
+      [](EditorFixture& f) { (void)f.editor.handle_key(Botanik::Terminal::InputEvent::Command::BACKSPACE, 1); }, 23 },
 
     { "NOTES join of a short line with a wrapped one", NOTES,
       [](EditorFixture& f) {
           fill(f, 10); type(f, "\n"); fill(f, 100);
-          f.editor.move_to_start();
-          f.editor.move_down();
+          botanik_test::to_start(f.editor);
+          (void)f.editor.handle_key(Botanik::Terminal::InputEvent::Command::DOWN);
       },
-      [](EditorFixture& f) { f.editor.backspace(1); }, 60 },
+      [](EditorFixture& f) { (void)f.editor.handle_key(Botanik::Terminal::InputEvent::Command::BACKSPACE, 1); }, 60 },
 
     // 31 rows of text over a 22-row viewport: the cursor leaves the window by
     // one row in each direction, and the band should slide rather than repaint.
     { "NOTES viewport slides down a row", NOTES,
       [](EditorFixture& f) {
           lines(f, 30);
-          for (int i = 0; i < 21; i++) f.editor.move_up();
+          for (int i = 0; i < 21; i++) (void)f.editor.handle_key(Botanik::Terminal::InputEvent::Command::UP);
       },
-      [](EditorFixture& f) { f.editor.move_up(); }, 35 },
+      [](EditorFixture& f) { (void)f.editor.handle_key(Botanik::Terminal::InputEvent::Command::UP); }, 35 },
 
     { "NOTES viewport slides up a row", NOTES,
       [](EditorFixture& f) {
           lines(f, 30);
-          f.editor.move_to_start();
-          for (int i = 0; i < 21; i++) f.editor.move_down();
+          botanik_test::to_start(f.editor);
+          for (int i = 0; i < 21; i++) (void)f.editor.handle_key(Botanik::Terminal::InputEvent::Command::DOWN);
       },
-      [](EditorFixture& f) { f.editor.move_down(); }, 34 },
+      [](EditorFixture& f) { (void)f.editor.handle_key(Botanik::Terminal::InputEvent::Command::DOWN); }, 34 },
 };
 
 static constexpr size_t N_SCENARIOS = sizeof(SCENARIOS) / sizeof(SCENARIOS[0]);

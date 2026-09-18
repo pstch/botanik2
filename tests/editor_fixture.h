@@ -111,10 +111,21 @@ namespace tests { namespace botanik_test {
         uint32_t below(uint32_t n) { return n ? next() % n : 0; }
     };
 
+    /** @brief The cursor to the start / end of the text, by the keys an
+     *  operator has: Up on the first row and Down on the last go there. */
+    inline void to_start(Botanik::Terminal::TextEditor& e) {
+        for (int i = 0; i < 64 && e.cursor_offset() != 0; i++)
+            (void)e.handle_key(Botanik::Terminal::InputEvent::Command::UP);
+    }
+    inline void to_end(Botanik::Terminal::TextEditor& e) {
+        for (int i = 0; i < 64 && e.cursor_offset() != e.buffer_len(); i++)
+            (void)e.handle_key(Botanik::Terminal::InputEvent::Command::DOWN);
+    }
+
     /** @brief The cursor to offset @p pos, by the keys an operator has. */
     inline void seek(EditorFixture& f, uint16_t pos) {
-        f.editor.move_to_start();
-        for (uint16_t i = 0; i < pos; i++) f.editor.move_right();
+        to_start(f.editor);
+        for (uint16_t i = 0; i < pos; i++) (void)f.editor.handle_key(Botanik::Terminal::InputEvent::Command::RIGHT);
     }
 
     /** @brief FRONT after the incremental path equals FRONT after a repaint.

@@ -317,6 +317,60 @@ namespace Botanik { namespace Terminal {
         remove_characters(count);
     }
 
+    TextEditor::Key TextEditor::key_kind(InputEvent::Command cmd) const {
+        using Command = InputEvent::Command;
+        switch (cmd) {
+            case Command::BACKSPACE: case Command::DELETE: case Command::CTRL_D:
+            case Command::CTRL_K:    case Command::CTRL_W: case Command::CTRL_Y:
+                return Key::CHANGED;
+            case Command::LEFT:  case Command::CTRL_B: case Command::RIGHT: case Command::CTRL_F:
+            case Command::HOME:  case Command::CTRL_A: case Command::END:   case Command::CTRL_E:
+            case Command::ALT_B: case Command::ALT_F:
+            case Command::CTRL_SPACE: case Command::CTRL_G: case Command::ALT_W:
+                return Key::MOVED;
+            case Command::UP:   case Command::CTRL_P: case Command::DOWN: case Command::CTRL_N:
+            case Command::PAGE_UP: case Command::PAGE_DOWN:
+                return _single_line ? Key::IGNORED : Key::MOVED;     // no rows to move between
+            default:
+                return Key::IGNORED;
+        }
+    }
+
+    TextEditor::Key TextEditor::handle_key(InputEvent::Command cmd, uint16_t count) {
+        using Command = InputEvent::Command;
+        const Key kind = key_kind(cmd);
+        if (kind == Key::IGNORED) return kind;
+        switch (cmd) {
+            case Command::BACKSPACE:  backspace(count);             break;
+            case Command::DELETE:
+            case Command::CTRL_D:     delete_forward(count);        break;
+            case Command::CTRL_K:     (void)kill_to_line_end();     break;
+            case Command::CTRL_W:     (void)kill_region_or_word();  break;
+            case Command::CTRL_Y:     (void)yank();                 break;
+            case Command::LEFT:
+            case Command::CTRL_B:     move_left();                  break;
+            case Command::RIGHT:
+            case Command::CTRL_F:     move_right();                 break;
+            case Command::HOME:
+            case Command::CTRL_A:     move_to_line_start();         break;
+            case Command::END:
+            case Command::CTRL_E:     move_to_line_end();           break;
+            case Command::ALT_B:      move_word_left();             break;
+            case Command::ALT_F:      move_word_right();            break;
+            case Command::CTRL_SPACE: toggle_mark();                break;
+            case Command::CTRL_G:     clear_mark();                 break;
+            case Command::ALT_W:      (void)copy_region();          break;
+            case Command::UP:
+            case Command::CTRL_P:     move_up();                    break;
+            case Command::DOWN:
+            case Command::CTRL_N:     move_down();                  break;
+            case Command::PAGE_UP:    page_up();                    break;
+            case Command::PAGE_DOWN:  page_down();                  break;
+            default: break;
+        }
+        return kind;
+    }
+
     // bulk content
 
     bool TextEditor::commit_loaded(uint16_t len) {
@@ -356,10 +410,6 @@ namespace Botanik { namespace Terminal {
         while (_pos < _len && _buf[_pos] != '\n') _pos++;
         _settle_cursor();
     }
-
-    void TextEditor::move_to_start() { _pos = 0;    _settle_cursor(); }
-
-    void TextEditor::move_to_end()   { _pos = _len; _settle_cursor(); }
 
     void TextEditor::_move_row(int32_t delta) {
         if (_row_count == 0 || delta == 0) return;

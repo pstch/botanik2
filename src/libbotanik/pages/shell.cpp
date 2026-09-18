@@ -67,56 +67,21 @@ namespace Botanik { namespace Pages {
         // Every other key returns to the live bottom first.
         _scrollback.reset_view();
         switch (cmd) {
-            case Command::ENTER:
-                _submit_command();
-                break;
-            case Command::SHIFT_ENTER: {
-                _editor.insert_characters("\n", 1);
-                break;
-            }
+            case Command::ENTER:       _submit_command();                  break;
+            case Command::SHIFT_ENTER: _editor.insert_characters("\n", 1); break;
+            case Command::CTRL_U:      _editor.reset();                    break;
 
-
-            case Command::CTRL_U:     _editor.reset();              break;
-
-            // Deletion - `count` may be >1 (parser coalesced a held key); pass
-            // through for one editor reconcile.
-            case Command::BACKSPACE:  _editor.backspace(count);     break;
-            case Command::DELETE:
-            case Command::CTRL_D:     _editor.delete_forward(count); break;
-
-            // Kill / yank
-            case Command::CTRL_K:     _editor.kill_to_line_end();   break;
-            case Command::CTRL_Y:     _editor.yank();               break;
-
-            // Mark and region (the editor owns what these mean).
-            case Command::CTRL_SPACE: _editor.toggle_mark();        break;
-            case Command::CTRL_G:     _editor.clear_mark();         break;
-            case Command::CTRL_W:     _editor.kill_region_or_word(); break;
-            case Command::ALT_W:      _editor.copy_region();        break;
-
-            // Cursor movement
-            case Command::LEFT:
-            case Command::CTRL_B:     _editor.move_left();          break;
-            case Command::RIGHT:
-            case Command::CTRL_F:     _editor.move_right();         break;
-            case Command::HOME:
-            case Command::CTRL_A:     _editor.move_to_line_start(); break;
-            case Command::END:
-            case Command::CTRL_E:     _editor.move_to_line_end();   break;
-            case Command::ALT_B:      _editor.move_word_left();     break;
-            case Command::ALT_F:      _editor.move_word_right();    break;
-
-            // History - stubs (not yet implemented)
+            // History, where the editor would move between rows.
             case Command::UP:
-            case Command::CTRL_P:     _shell.history_prev();        break;
+            case Command::CTRL_P:      _shell.history_prev();              break;
             case Command::DOWN:
-            case Command::CTRL_N:     _shell.history_next();        break;
+            case Command::CTRL_N:      _shell.history_next();              break;
 
-            // Stubs
-            case Command::CTRL_R:     /* TODO: history search */     break;
-            case Command::TAB:        /* TODO: completion */          break;
+            case Command::CTRL_R:      /* TODO: history search */           break;
+            case Command::TAB:         /* TODO: completion */               break;
 
-            default: break;
+            // `count` may be >1 (the parser coalesced a held key): one reconcile.
+            default:                   (void)_editor.handle_key(cmd, count); break;
         }
     }
 

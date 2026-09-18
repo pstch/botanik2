@@ -11,6 +11,7 @@
 
 #include "libbotanik/config/terminal.h"
 
+#include "libbotanik/console/parser.h"
 #include "libbotanik/console/terminal.h"
 
 
@@ -171,61 +172,18 @@ namespace Botanik { namespace Terminal {
 
         void insert_characters(const char* buf, uint16_t len);
 
-        /** @brief Delete @p count chars before / at the cursor, one reconcile. */
-        void backspace(uint16_t count = 1);
-        void delete_forward(uint16_t count = 1);
+        /** @brief What a key did, for an owner that repaints or re-filters on it. */
+        enum class Key : uint8_t { IGNORED, MOVED, CHANGED };
 
-        /** @} */
+        /** @brief What @p cmd would do, without doing it: motion, deletion,
+         *  kill and yank, mark and region are the editor's keys; vertical
+         *  motion is not, single-line. Enter, Ctrl-U and whatever else an
+         *  owner binds are the owner's. */
+        Key key_kind(InputEvent::Command cmd) const;
 
-        /** @name Cursor motion
-         *  None changes the buffer; each ends in a reconcile. @{ */
-
-        void move_left();
-        void move_right();
-        void move_to_line_start();
-        void move_to_line_end();
-
-        void move_word_left();
-        void move_word_right();
-
-        /** @brief One display row up / down, holding the goal column; on the
-         *  first / last row, to the start / end of the buffer. */
-        void move_up();
-        void move_down();
-
-        /** @brief One viewport height up / down. */
-        void page_up();
-        void page_down();
-
-        void move_to_start();
-        void move_to_end();
-
-        /** @} */
-
-        /** @name Kill and yank
-         *  Over the console-wide kill ring; a kill takes only what the ring
-         *  holds. Each returns false when there was nothing to do. @{ */
-
-        /** @brief Ctrl-K: to the end of the logical line, or the newline itself. */
-        bool kill_to_line_end();
-        /** @brief Ctrl-W: the word before the cursor and the whitespace after it. */
-        bool kill_word_back();
-        /** @brief Ctrl-Y. */
-        bool yank();
-
-        /** @} */
-
-        /** @name Mark and region
-         *  The span from the mark to the cursor; any edit drops the mark. @{ */
-
-        void set_mark();
-        void clear_mark();
-        void toggle_mark();
-
-        bool copy_region();
-
-        /** @brief The region when there is one, else kill_word_back(). */
-        bool kill_region_or_word();
+        /** @brief Apply an editing key. @param count repeats, for a coalesced
+         *  BACKSPACE or DELETE. @return key_kind(@p cmd). */
+        Key handle_key(InputEvent::Command cmd, uint16_t count = 1);
 
         /** @} */
 
@@ -259,6 +217,44 @@ namespace Botanik { namespace Terminal {
         /** @} */
 
     private:
+        /** @name Editing keys
+         *  What handle_key() dispatches to. None changes the buffer unless it
+         *  says so; each ends in a reconcile. @{ */
+
+        /** @brief Delete @p count chars before / at the cursor, one reconcile. */
+        void backspace(uint16_t count = 1);
+        void delete_forward(uint16_t count = 1);
+
+        void move_left();
+        void move_right();
+        void move_to_line_start();
+        void move_to_line_end();
+        void move_word_left();
+        void move_word_right();
+        /** @brief One display row up / down, holding the goal column; on the
+         *  first / last row, to the start / end of the buffer. */
+        void move_up();
+        void move_down();
+        /** @brief One viewport height up / down. */
+        void page_up();
+        void page_down();
+
+        /** @brief Over the console-wide kill ring; a kill takes only what the
+         *  ring holds. Each returns false when there was nothing to do. */
+        bool kill_to_line_end();
+        bool kill_word_back();
+        bool yank();
+
+        /** @brief The span from the mark to the cursor; any edit drops the mark. */
+        void set_mark();
+        void clear_mark();
+        void toggle_mark();
+        bool copy_region();
+        /** @brief The region when there is one, else kill_word_back(). */
+        bool kill_region_or_word();
+
+        /** @} */
+
         /** @name Prompts
          *  @{ */
 

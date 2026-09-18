@@ -47,7 +47,7 @@ TEST_CASE("editor: backspacing a wrapped line back to one row converges") {
     const std::string text(100, 'x');
     f.editor.insert_characters(text.data(), (uint16_t)text.size());
     REQUIRE(f.editor.occupied_rows() == 2);
-    f.editor.backspace(50);
+    (void)f.editor.handle_key(Botanik::Terminal::InputEvent::Command::BACKSPACE, 50);
     REQUIRE(f.editor.occupied_rows() == 1);
     check_converged(f, "shrunk back to one row");
 }
@@ -94,7 +94,7 @@ TEST_CASE("editor: splitting a wrapped NOTES line converges") {
     const std::string text(100, 'A');
     f.editor.insert_characters(text.data(), (uint16_t)text.size());
     REQUIRE(f.editor.occupied_rows() == 2);
-    for (int i = 0; i < 22; i++) f.editor.move_left();
+    for (int i = 0; i < 22; i++) (void)f.editor.handle_key(Botanik::Terminal::InputEvent::Command::LEFT);
     f.editor.insert_characters("\n", 1);
     check_converged(f, "ENTER at a wrap boundary");
 }
@@ -103,9 +103,9 @@ TEST_CASE("editor: joining two NOTES lines converges") {
     EditorFixture f(24, 80, /*notes_prompts=*/true);
     f.editor.insert_characters("first\nsecond", 12);
     REQUIRE(f.editor.occupied_rows() == 2);
-    f.editor.move_to_start();
-    f.editor.move_down();
-    f.editor.backspace(1);              // remove the newline: one row again
+    botanik_test::to_start(f.editor);
+    (void)f.editor.handle_key(Botanik::Terminal::InputEvent::Command::DOWN);
+    (void)f.editor.handle_key(Botanik::Terminal::InputEvent::Command::BACKSPACE, 1);              // remove the newline: one row again
     REQUIRE(f.editor.occupied_rows() == 1);
     check_converged(f, "backspace over a newline");
 }
@@ -119,15 +119,15 @@ TEST_CASE("editor: a NOTES reflow then a word kill leaves no stray glyph") {
     const std::string alpha = std::string("abcdefghijklmnopqrstuvwxyz")
                             + "abcdefghijklmnopqrstuvwxyz";
     f.editor.insert_characters(alpha.data(), (uint16_t)alpha.size());
-    f.editor.page_up();
+    (void)f.editor.handle_key(Botanik::Terminal::InputEvent::Command::PAGE_UP);
     f.editor.insert_characters("the quick brown fox ", 20);
     f.editor.insert_characters("0123456789", 10);
-    f.editor.page_up();
-    f.editor.page_down();
+    (void)f.editor.handle_key(Botanik::Terminal::InputEvent::Command::PAGE_UP);
+    (void)f.editor.handle_key(Botanik::Terminal::InputEvent::Command::PAGE_DOWN);
     f.editor.insert_characters("\n", 1);
-    f.editor.move_up();
-    f.editor.move_to_line_end();
-    (void)f.editor.kill_word_back();
+    (void)f.editor.handle_key(Botanik::Terminal::InputEvent::Command::UP);
+    (void)f.editor.handle_key(Botanik::Terminal::InputEvent::Command::END);
+    (void)f.editor.handle_key(Botanik::Terminal::InputEvent::Command::CTRL_W);
     check_converged(f, "reflow then kill_word_back");
 }
 

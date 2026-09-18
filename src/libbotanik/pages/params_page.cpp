@@ -309,11 +309,11 @@ namespace Botanik { namespace Pages {
     void ParamsPage::_handle_edit_command(Command cmd, uint16_t count) {
         if (cmd == Command::ENTER) { _commit_edit(); return; }
         if (cmd == Command::ESC)   { _cancel_edit(); return; }
-        const EditKey k = _edit_kind(cmd);
-        if (k == EDIT_IGNORED) return;
+        const EditKey k = _edit_kind(_editor, cmd);
+        if (k == EditKey::IGNORED) return;
         // Before the edit, not after: the marker is drawn from the field's END,
         // which the edit is about to move.
-        if (k == EDIT_CHANGED && _edit_error) _clear_error();
+        if (k == EditKey::CHANGED && _edit_error) _clear_error();
         _edit_apply(_editor, cmd, count);
     }
 }}

@@ -17,55 +17,16 @@ namespace Botanik { namespace Pages {
     void NotesPage::handle_command(Command cmd, uint16_t count) {
         // TAB and CTRL_L never arrive: the console takes them for page
         // switching and redraw before a page is offered the event.
+        // Motion is the cursor's here, not history: there is no shell under
+        // this page. Cut and paste run over the console-wide ring, so a line
+        // cut here yanks at the shell prompt and back. CTRL_U is deliberately
+        // unbound: it would clear the note, with nothing to put it back.
         switch (cmd) {
             case Command::ENTER:
             case Command::SHIFT_ENTER: _editor.insert_characters("\n", 1); break;
-
-            case Command::BACKSPACE:   _editor.backspace(count);           break;
-            case Command::DELETE:
-            case Command::CTRL_D:      _editor.delete_forward(count);      break;
-
-            case Command::LEFT:
-            case Command::CTRL_B:      _editor.move_left();                break;
-            case Command::RIGHT:
-            case Command::CTRL_F:      _editor.move_right();               break;
-
-            // Cursor motion, not history: that is a CommandShell notion and
-            // this page has no shell under it.
-            case Command::UP:
-            case Command::CTRL_P:      _editor.move_up();                  break;
-            case Command::DOWN:
-            case Command::CTRL_N:      _editor.move_down();                break;
-
-            case Command::PAGE_UP:     _editor.page_up();                  break;
-            case Command::PAGE_DOWN:   _editor.page_down();                break;
-
-            case Command::HOME:
-            case Command::CTRL_A:      _editor.move_to_line_start();       break;
-            case Command::END:
-            case Command::CTRL_E:      _editor.move_to_line_end();         break;
-
-            case Command::ALT_B:       _editor.move_word_left();           break;
-            case Command::ALT_F:       _editor.move_word_right();          break;
-
-            // Cut and paste over the console-wide ring: a line cut here yanks
-            // at the shell prompt and back. Safe to bind despite deleting,
-            // since CTRL_Y restores.
-            case Command::CTRL_K:      _editor.kill_to_line_end();         break;
-            case Command::CTRL_Y:      _editor.yank();                     break;
-
-            // Mark and region (the editor owns what these mean).
-            case Command::CTRL_SPACE:  _editor.toggle_mark();              break;
-            case Command::CTRL_G:      _editor.clear_mark();               break;
-            case Command::CTRL_W:      _editor.kill_region_or_word();      break;
-            case Command::ALT_W:       _editor.copy_region();              break;
-
             case Command::CTRL_O:      _save();                            break;
-
-            // CTRL_U is deliberately unbound: it clears the buffer in the
-            // shell, and here the buffer IS the note, with nothing to put it
-            // back (unlike the kills above).
-            default: break;
+            case Command::CTRL_U:                                          break;
+            default:                   (void)_editor.handle_key(cmd, count); break;
         }
         _settle();
     }

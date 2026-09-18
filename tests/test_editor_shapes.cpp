@@ -41,12 +41,12 @@ TEST_CASE("editor: no edit costs more than the repaint of its screen") {
         switch (r.below(8)) {
             case 0: op = "insert char"; { char c = 'a' + (char)r.below(26); f.editor.insert_characters(&c, 1); } break;
             case 1: op = "insert newline"; f.editor.insert_characters("\n", 1); break;
-            case 2: op = "backspace"; f.editor.backspace(1); break;
-            case 3: op = "delete_forward"; f.editor.delete_forward(1); break;
-            case 4: op = "kill_to_line_end"; (void)f.editor.kill_to_line_end(); break;
-            case 5: op = "kill_word_back"; (void)f.editor.kill_word_back(); break;
+            case 2: op = "backspace"; (void)f.editor.handle_key(Botanik::Terminal::InputEvent::Command::BACKSPACE, 1); break;
+            case 3: op = "delete_forward"; (void)f.editor.handle_key(Botanik::Terminal::InputEvent::Command::DELETE, 1); break;
+            case 4: op = "kill_to_line_end"; (void)f.editor.handle_key(Botanik::Terminal::InputEvent::Command::CTRL_K); break;
+            case 5: op = "kill_word_back"; (void)f.editor.handle_key(Botanik::Terminal::InputEvent::Command::CTRL_W); break;
             case 6: op = "insert word"; { std::string w = " " + words(r, 1, 0); f.editor.insert_characters(w.data(), (uint16_t)w.size()); } break;
-            case 7: op = "backspace x3"; f.editor.backspace(3); break;
+            case 7: op = "backspace x3"; (void)f.editor.handle_key(Botanik::Terminal::InputEvent::Command::BACKSPACE, 3); break;
         }
         const std::string bytes = f.pump();
         f.check_wire(op);
