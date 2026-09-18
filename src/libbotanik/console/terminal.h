@@ -235,7 +235,6 @@ namespace Botanik { namespace Terminal {
 
         static constexpr uint8_t CHANGE_QUEUE     = 6;   ///< changes a beat may leave pending
         static constexpr uint8_t CHANGE_MAX_BEATS = 4;   ///< beats a change waits for the ring
-        static constexpr uint16_t SLIDE_BYTES     = 11;  ///< half a DL/IL pair: a move and the escape
         /** @brief Ring the whole DL/IL pair needs before its first escape goes:
          *  a move and an escape at each end, each escape reserving ANSI_MAX_SEQ.
          *  Half a pair on the wire with BACK unshifted is a screen nothing repairs. */
@@ -253,9 +252,6 @@ namespace Botanik { namespace Terminal {
         /** @brief Put the pending scrolls on the wire, oldest first, stopping
          *  at the first the ring cannot take; a ripple stays for the walk. */
         void _apply_changes();
-        /** @brief Whether scroll @p c saves the walk more than its escapes
-         *  cost, and how far down it should reach. */
-        bool _slide_pays(const LayoutChange& c, uint16_t& bottom) const;
         /** @brief Serve the ripples pending on @p row, each after the cells
          *  left of it. @return false when the budget ran out. */
         bool _ripple_row(uint16_t row, uint16_t& budget);

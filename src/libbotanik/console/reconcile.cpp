@@ -192,31 +192,18 @@ namespace Botanik { namespace Terminal {
             }
             if (q.c.kind == LayoutChange::NONE) continue;
             if ((_dirty & _rows_of(q.c)) == 0) continue;
-            uint16_t bottom = 0;
-            if (_slide_pays(q.c, bottom)) {
-                if (!_slide(q.c.top, bottom, q.c.n)) {
-                    // The ring is full: it and everything after it wait.
-                    memmove(&_queue[kept], &_queue[i], (size_t)(_queued - i) * sizeof _queue[0]);
-                    kept = (uint8_t)(kept + _queued - i);
-                    break;
-                }
-                moved = true;
-                for (uint8_t k = 0; k < kept; k++)
-                    if ((_rows_of(_queue[k].c) & _mask(q.c.top, bottom)) != 0) _queue[k].left = 0;
+            if (!_slide(q.c.top, q.c.bottom, q.c.n)) {
+                // The ring is full: it and everything after it wait.
+                memmove(&_queue[kept], &_queue[i], (size_t)(_queued - i) * sizeof _queue[0]);
+                kept = (uint8_t)(kept + _queued - i);
+                break;
             }
+            moved = true;
+            for (uint8_t k = 0; k < kept; k++)
+                if ((_rows_of(_queue[k].c) & _rows_of(q.c)) != 0) _queue[k].left = 0;
         }
         _queued = kept;
         if (_queued == 0 || moved) _queue_age = 0;
-    }
-
-    bool AnsiTerminal::_slide_pays(const LayoutChange& c, uint16_t& bottom) const {
-        // Obeyed, not judged: the renderer said the rows moved. A band ending on
-        // the last row is half a pair, so it reaches down to it when every row
-        // it would drag was going to be written anyway.
-        const uint16_t last = (uint16_t)(_rows - 1);
-        const uint32_t under = c.bottom < last ? _mask((uint16_t)(c.bottom + 1), last) : 0;
-        bottom = (under & ~_dirty) == 0 ? last : c.bottom;
-        return true;
     }
 
     bool AnsiTerminal::_shift(uint16_t row, uint16_t at, int16_t n, uint16_t& budget) {
