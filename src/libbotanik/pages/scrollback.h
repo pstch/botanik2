@@ -86,6 +86,16 @@ namespace Botanik { namespace Pages {
             _wrap_cols = cols;
         }
 
+        /** @brief The @p rows rows under the painted band already show the
+         *  @p rows lines stored last: an input line echoed where it was typed.
+         *  The next paint then moves them with the band instead of writing
+         *  them again. */
+        void adopt(uint16_t rows) {
+            if (!_painted_valid) return;
+            _painted_rows   = (uint16_t)(_painted_rows + rows);
+            _painted_bottom += rows;
+        }
+
         /** @brief Store one display row, shown at once. */
         void store(const char* buf, size_t len) {
             Base::store(buf, len);
