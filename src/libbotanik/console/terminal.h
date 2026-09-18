@@ -136,7 +136,9 @@ namespace Botanik { namespace Terminal {
          *  to either grid sets it and only the walk clears it. */
         uint32_t _dirty = 0;
         void _touch(uint16_t row)  { _dirty |= 1u << row; }
-        void _touch_all()          { _dirty = ~0u; }
+        /** @brief Only the rows on screen: a bit past _rows would never be
+         *  cleared, and the idle beat would walk for nothing. */
+        void _touch_all()          { _dirty = _mask(0, (uint16_t)(_rows - 1)); }
         static uint32_t _mask(uint16_t top, uint16_t bottom) {
             return (bottom >= 31 ? ~0u : ((1u << (bottom + 1)) - 1)) & (~0u << top);
         }
