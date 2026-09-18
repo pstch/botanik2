@@ -131,6 +131,16 @@ static const Scenario SCENARIOS[] = {
       },
       [](EditorFixture& f) { f.editor.backspace(1); }, 53 },
 
+    // The joined line is long: its text slides right under the head rather
+    // than being written after it.
+    { "join of a short line with a wrapped one", SHELL,
+      [](EditorFixture& f) {
+          fill(f, 10); type(f, "\n"); fill(f, 100);
+          f.editor.move_to_start();
+          f.editor.move_down();
+      },
+      [](EditorFixture& f) { f.editor.backspace(1); }, 67 },
+
     { "kill_to_line_end mid a 3-row wrap", SHELL,
       [](EditorFixture& f) { fill(f, 180); seek(f, 40); },
       [](EditorFixture& f) { (void)f.editor.kill_to_line_end(); }, 16 },
@@ -229,6 +239,14 @@ static const Scenario SCENARIOS[] = {
           f.editor.move_down();
       },
       [](EditorFixture& f) { f.editor.backspace(1); }, 23 },
+
+    { "NOTES join of a short line with a wrapped one", NOTES,
+      [](EditorFixture& f) {
+          fill(f, 10); type(f, "\n"); fill(f, 100);
+          f.editor.move_to_start();
+          f.editor.move_down();
+      },
+      [](EditorFixture& f) { f.editor.backspace(1); }, 50 },
 
     // 31 rows of text over a 22-row viewport: the cursor leaves the window by
     // one row in each direction, and the band should slide rather than repaint.

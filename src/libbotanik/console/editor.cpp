@@ -629,26 +629,38 @@ namespace Botanik { namespace Terminal {
     }
 
     void TextEditor::_announce_join(const Moved& m) {
-        // The line after row a joined it. Its first row either fits whole, and
-        // a row goes, or row a's free cells take its head and the rest of the
-        // line ripples after them.
+        // The line after row a joined it. Two ways to put that on screen,
+        // priced by the cells each writes and shifts: row a keeps its place
+        // and takes what fits of the next row, which is written, and the rest
+        // of the line pulls left after it; or row a's screen row goes, its
+        // text is written over the head of the next row, whose text slides
+        // right by that much, and the rest of the line pushes on from there.
         const Edit& e = *m.e;
-        const int32_t a = e.a, L = e.L, j = L + m.d, len_a = e.row_a.buf_len, len_b = e.row_b.buf_len;
+        const int32_t a = e.a, L = e.L, d = m.d, len_a = e.row_a.buf_len, len_b = e.row_b.buf_len, len_L = e.row_L.buf_len;
+        const int32_t ps3   = _prompt_len(RowPrompt::PS3), pair = 22, rows = L - a;
         const int32_t cap_a = std::max<int32_t>(_terminal->cols() - _indent - e.ps_a, 1);
         const int32_t take  = std::min(len_b, cap_a - len_a);
         const int32_t col_p = _indent + e.ps_a + len_a;
-        if (a + 1 == L && take == len_b) {
-            if (take >= (int32_t)AnsiTerminal::SHIFT_MIN_CARRY && e.ps_a + len_a + 8 < take) {
-                _band(m, a - 1, a + 1);
-                _ripple(_now(a), _now(a), m.lead3, col_p, take);
-            } else {
-                _band(m, a, a + 2);
-            }
+        const bool    whole = rows == 1 && take == len_b;         // the next row fits on row a
+        const int32_t s_pull = m.lead3 + take - m.lead2;
+        const int32_t s_push = col_p - m.lead3;
+        const int32_t pull = (whole ? pair : 0) + 8 + take + (whole ? 0 : rows * (12 + std::abs(s_pull)));
+        const int32_t push = pair + 8 + ps3 + rows * (8 + std::abs(s_push));
+        const auto was = [&](int32_t i) { return (int32_t)m.origin_was + i - (int32_t)m.view_top_was; };
+        if (push < pull && (whole ? take : len_L) >= (int32_t)AnsiTerminal::SHIFT_MIN_CARRY) {
+            // Old row a+1 becomes row a, its line's rows move up one; when the
+            // push overflows old row L into a new row, the rows after the line
+            // stay and the band is the line's rows alone.
+            if (d == -1) _band(m, a - 1, a + 1);
+            else _terminal->change(LayoutChange::scroll((uint16_t)std::max<int32_t>(was(a), _origin),
+                                                        (uint16_t)std::min<int32_t>(was(L), _view_bottom_hw()), -1));
+            _ripple(_now(a), _now(L - 1), m.lead3, col_p, len_L);
             return;
         }
-        _band(m, std::min(L, L + m.d), L + 1);
-        const int32_t n    = m.lead2 - m.lead3 - take;
-        const int32_t tail = j == a + 1 ? len_b - take : _carried(j == L ? e.row_L.buf_len : m.cap2, n);
+        if (whole) { _band(m, a, a + 2); return; }
+        _band(m, std::min(L, L + d), L + 1);
+        const int32_t j    = L + d;
+        const int32_t tail = j == a + 1 ? len_b - take : _carried(j == L ? len_L : m.cap2, -s_pull);
         _ripple(_now(a + 1), _now(j), m.lead3 + take, m.lead2, tail);
     }
 
