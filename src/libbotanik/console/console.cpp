@@ -287,18 +287,14 @@ namespace Botanik { namespace Terminal {
         // Clear only the content band: the row-0 status bar and the bottom alarm
         // bar survive. The page already shown repaints what is there, so its
         // band is blanked in FRONT alone and the diff sends the difference.
-        if (same) _term.clear_rows(1, _content_bottom());
-        else      clear_content();
+        if (same) { _term.clear_rows(1, _content_bottom()); _term.restart_scan(); }
+        else      clear_content();      // which also sends the walk back to the top
         // A switch reflows the whole strip (the active tab expands to "N:NAME"),
         // so repaint it as a unit.
         _status_bar.draw_tabs();
         // The alarm bar is NOT redrawn: clear_content() preserves its row, and
         // its step() repaints only when the alarm set moves.
         //
-        // The whole content band is about to be redrawn, so send the diff's walk
-        // back to the top, or the new page paints from wherever the outgoing
-        // page's budget ran out and fills in above it afterwards.
-        _term.restart_scan();
         _reset_content_priority();
         _pages[_page_index]->focus();
     }

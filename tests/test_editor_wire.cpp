@@ -48,10 +48,7 @@ static void fill(EditorFixture& f, uint16_t n) {
     const std::string s = varied(n);
     f.editor.insert_characters(s.data(), n);
 }
-static void seek(EditorFixture& f, uint16_t pos) {
-    f.editor.move_to_start();
-    for (uint16_t i = 0; i < pos; i++) f.editor.move_right();
-}
+using botanik_test::seek;
 /** @brief @p n hard-broken lines, ten characters each. */
 static void lines(EditorFixture& f, uint16_t n) {
     for (uint16_t i = 0; i < n; i++) { fill(f, 10); type(f, "\n"); }

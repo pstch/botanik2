@@ -22,6 +22,13 @@
 
 namespace Botanik { namespace Terminal {
 
+    // What the wire charges, as the announcers price a realisation: a move
+    // onto a row, one half of a DL/IL pair, a move and a shift escape.
+    static constexpr int32_t MOVE_BYTES  = 8;
+    static constexpr int32_t SLIDE_BYTES = 11;
+    static constexpr int32_t SHIFT_BYTES = 12;
+    static constexpr int32_t PAIR_BYTES  = 2 * SLIDE_BYTES;
+
     // lifecycle
 
     TextEditor::TextEditor(Console* console, const EditorStorage& store)
@@ -52,10 +59,13 @@ namespace Botanik { namespace Terminal {
 
     // layout
 
+    int32_t TextEditor::_cap(RowPrompt p) const {
+        const int32_t cols = _terminal->cols();
+        return std::max(cols - _lead(p), 1);
+    }
+
     uint16_t TextEditor::_row_cap(uint16_t row_idx) const {
-        uint16_t cols = _terminal->cols();
-        uint16_t used = (uint16_t)(_prompt_len(_row_prompt(row_idx)) + _indent);
-        return cols > used ? (uint16_t)(cols - used) : 1;
+        return (uint16_t)_cap(_row_prompt(row_idx));
     }
 
     RowView TextEditor::_scan_row(uint16_t pos, uint16_t cap) const {
@@ -507,9 +517,8 @@ namespace Botanik { namespace Terminal {
         e.row_L = _rows[e.L];
         e.ps_a  = _prompt_len(_row_prompt(e.a));
         e.count = _row_count;
-        bool newline = false;
-        if (removed != 0) { for (uint16_t i = 0; i < removed; i++) newline |= _buf[pos + i] == '\n'; }
-        else              { for (uint16_t i = 0; i < len; i++)     newline |= text[i] == '\n'; }
+        const bool newline = removed != 0 ? memchr(&_buf[pos], '\n', removed) != nullptr
+                                          : memchr(text, '\n', len) != nullptr;
         if (!newline)                       e.kind = Edit::PLAIN;
         else if (removed == 0 && len == 1)  e.kind = Edit::SPLIT;
         else if (removed == 1)              e.kind = Edit::JOIN;
@@ -518,11 +527,8 @@ namespace Botanik { namespace Terminal {
     }
 
     void TextEditor::_band(const Edit& e, int32_t T, int32_t B) {
-        const int32_t lo    = std::min(_origin, e.origin_was);
-        const int32_t hi    = _view_bottom_hw();
-        const int32_t count = e.kind != Edit::NONE ? e.count : _row_count;
-        // Screen row an old layout row had.
-        const auto was = [&](int32_t i) { return (int32_t)e.origin_was + i - (int32_t)e.view_top_was; };
+        const int32_t lo = std::min(_origin, e.origin_was);
+        const int32_t hi = _view_bottom_hw();
         int32_t top = lo, bottom = hi, n = e.m0;
         if (e.m0 != e.mB) {
             // The side above the edit and the side below moved differently; the
@@ -530,8 +536,8 @@ namespace Botanik { namespace Terminal {
             // A band moving up ends on the last row it empties, one moving down
             // starts on the first, so the new row lands where the old one was.
             int32_t t_bot = -1, b_top = hi + 1;
-            if (e.m0 != 0 && T >= 0)    t_bot = std::max(was(T), _now(T));
-            if (e.mB != 0 && B < count) b_top = std::min(was(B), _now(B + e.d));
+            if (e.m0 != 0 && T >= 0)      t_bot = std::max(e.was(T), _now(T));
+            if (e.mB != 0 && B < e.count) b_top = std::min(e.was(B), _now(B + e.d));
             if (t_bot - lo >= hi - b_top) { bottom = t_bot; }
             else                          { top = b_top; n = e.mB; }
         }
@@ -542,9 +548,9 @@ namespace Botanik { namespace Terminal {
     }
 
     void TextEditor::_ripple(int32_t top, int32_t bottom, int32_t from, int32_t to, int32_t tail) {
-        const int32_t  lead = _indent + _prompt_len(RowPrompt::PS2);
+        const int32_t  lead = _lead(RowPrompt::PS2);
         const int32_t  n    = to - from;
-        const int32_t  mag  = n < 0 ? -n : n;
+        const int32_t  mag  = std::abs(n);
         const uint16_t cols = _terminal->cols();
         if (n == 0 || mag >= cols - lead) return;
         // Above the viewport the run starts on its first row, as a continuation
@@ -562,14 +568,9 @@ namespace Botanik { namespace Terminal {
 
     void TextEditor::_announce(Edit& e) {
         e.m0 = ((int32_t)_origin - e.origin_was) - ((int32_t)_view_top - e.view_top_was);
-        e.d  = e.kind != Edit::NONE ? (int32_t)_row_count - e.count : 0;
+        e.d  = (int32_t)_row_count - e.count;
         e.mB = e.m0 + e.d;
-        if (e.kind == Edit::NONE) { _band(e, 0, 0); return; }
-        const int32_t cols = _terminal->cols();
-        e.lead2 = _indent + _prompt_len(RowPrompt::PS2);
-        e.lead3 = _indent + _prompt_len(RowPrompt::PS3);
-        e.cap2  = std::max(cols - e.lead2, 1);
-        e.cap3  = std::max(cols - e.lead3, 1);
+        if (e.kind == Edit::NONE) { if (e.m0 != 0) _band(e, 0, 0); return; }
         e.off   = (int32_t)e.pos - e.row_a.buf_start;
         e.col_a = _indent + e.ps_a + e.off;
         switch (e.kind) {
@@ -585,12 +586,12 @@ namespace Botanik { namespace Terminal {
         // Cells entered or left at the edit point and every row of the line
         // down to its end took the overflow of the row above; the rows after
         // the line moved as one.
-        const int32_t a = e.a, L = e.L, k = e.delta, mag = k < 0 ? -k : k, j = L + e.d;
+        const int32_t a = e.a, L = e.L, k = e.delta, mag = std::abs(k), j = L + e.d;
         _band(e, std::min(L, L + e.d), L + 1);
         int32_t tail;
         if (k > 0) tail = e.d > 0 ? 0 : (j == a ? e.row_a.buf_len - e.off : e.row_L.buf_len);
         else       tail = j == a ? e.row_a.buf_len - e.off - mag
-                                 : _carried(j == L ? e.row_L.buf_len : e.cap2, k);
+                                 : _carried(j == L ? e.row_L.buf_len : _cap(RowPrompt::PS2), k);
         _ripple(_now(a), _now(j), k < 0 ? e.col_a + mag : e.col_a, k < 0 ? e.col_a : e.col_a + mag, tail);
     }
 
@@ -602,19 +603,20 @@ namespace Botanik { namespace Terminal {
         // PS3 column.
         const int32_t a = e.a, L = e.L, d = e.d, len_L = e.row_L.buf_len;
         const int32_t head = e.off, t = e.row_a.buf_len - e.off, rows = L - a, j = L + d;
-        const int32_t ps3 = _prompt_len(RowPrompt::PS3), pair = 22;
-        const int32_t s_push = t + e.lead3 - e.lead2;
-        const int32_t s_over = e.col_a - e.lead3;
-        const int32_t push = 8 + 11 + ps3 + t + rows * (8 + s_push) + (d == 1 && L + 1 < e.count ? pair : 0);
-        const int32_t over = pair + e.ps_a + head + (s_over != 0 ? 12 + std::abs(s_over) : 0)
-                           + rows * (12 + std::abs(s_over));
-        if (push <= over && s_push < e.cap2) {
+        const int32_t lead2 = _lead(RowPrompt::PS2), lead3 = _lead(RowPrompt::PS3);
+        const int32_t s_push = t + lead3 - lead2;
+        const int32_t s_over = e.col_a - lead3;
+        const int32_t push = MOVE_BYTES + SLIDE_BYTES + (lead3 - _indent) + t + rows * (MOVE_BYTES + s_push)
+                           + (d == 1 && L + 1 < e.count ? PAIR_BYTES : 0);
+        const int32_t over = PAIR_BYTES + e.ps_a + head + (s_over != 0 ? SHIFT_BYTES + std::abs(s_over) : 0)
+                           + rows * (SHIFT_BYTES + std::abs(s_over));
+        if (push <= over && s_push < _cap(RowPrompt::PS2)) {
             _band(e, L, L + 1);
-            _ripple(_now(a + 1), _now(L), e.lead2, e.lead3 + t, len_L);
+            _ripple(_now(a + 1), _now(L), lead2, lead3 + t, len_L);
         } else {
             _band(e, a - 1, a);
-            if (rows == 0)   _ripple(_now(a + 1), _now(a + 1), e.col_a, e.lead3, t);
-            else if (d == 1) _ripple(_now(a + 1), _now(j), e.col_a, e.lead3, _carried(len_L, -s_over));
+            if (rows == 0)   _ripple(_now(a + 1), _now(a + 1), e.col_a, lead3, t);
+            else if (d == 1) _ripple(_now(a + 1), _now(j), e.col_a, lead3, _carried(len_L, -s_over));
         }
     }
 
@@ -626,37 +628,38 @@ namespace Botanik { namespace Terminal {
         // text is written over the head of the next row, whose text slides
         // right by that much, and the rest of the line pushes on from there.
         const int32_t a = e.a, L = e.L, d = e.d, len_a = e.row_a.buf_len, len_b = e.row_b.buf_len, len_L = e.row_L.buf_len;
-        const int32_t ps3   = _prompt_len(RowPrompt::PS3), pair = 22, rows = L - a;
+        const int32_t lead2 = _lead(RowPrompt::PS2), lead3 = _lead(RowPrompt::PS3), rows = L - a;
         const int32_t cap_a = std::max<int32_t>(_terminal->cols() - _indent - e.ps_a, 1);
         const int32_t take  = std::min(len_b, cap_a - len_a);
         const int32_t col_p = _indent + e.ps_a + len_a;
         const bool    whole = rows == 1 && take == len_b;         // the next row fits on row a
-        const int32_t s_pull = e.lead3 + take - e.lead2;
-        const int32_t s_push = col_p - e.lead3;
-        const int32_t pull = (whole ? pair : 0) + 8 + take + (whole ? 0 : rows * (12 + std::abs(s_pull)));
-        const int32_t push = pair + 8 + ps3 + rows * (8 + std::abs(s_push));
-        const auto was = [&](int32_t i) { return (int32_t)e.origin_was + i - (int32_t)e.view_top_was; };
+        const int32_t s_pull = lead3 + take - lead2;
+        const int32_t s_push = col_p - lead3;
+        const int32_t pull = (whole ? PAIR_BYTES : 0) + MOVE_BYTES + take
+                           + (whole ? 0 : rows * (SHIFT_BYTES + std::abs(s_pull)));
+        const int32_t push = PAIR_BYTES + MOVE_BYTES + (lead3 - _indent) + rows * (MOVE_BYTES + std::abs(s_push));
         if (push < pull && (whole ? take : len_L) >= (int32_t)AnsiTerminal::SHIFT_MIN_CARRY) {
             // Old row a+1 becomes row a, its line's rows move up one; when the
             // push overflows old row L into a new row, the rows after the line
             // stay and the band is the line's rows alone.
             if (d == -1) _band(e, a - 1, a + 1);
-            else _terminal->change(LayoutChange::scroll((uint16_t)std::max<int32_t>(was(a), _origin),
-                                                        (uint16_t)std::min<int32_t>(was(L), _view_bottom_hw()), -1));
-            _ripple(_now(a), _now(L - 1), e.lead3, col_p, len_L);
+            else _terminal->change(LayoutChange::scroll((uint16_t)std::max<int32_t>(e.was(a), _origin),
+                                                        (uint16_t)std::min<int32_t>(e.was(L), _view_bottom_hw()), -1));
+            _ripple(_now(a), _now(L - 1), lead3, col_p, len_L);
             return;
         }
         if (whole) { _band(e, a, a + 2); return; }
         _band(e, std::min(L, L + d), L + 1);
         const int32_t j    = L + d;
-        const int32_t tail = j == a + 1 ? len_b - take : _carried(j == L ? len_L : e.cap2, -s_pull);
-        _ripple(_now(a + 1), _now(j), e.lead3 + take, e.lead2, tail);
+        const int32_t tail = j == a + 1 ? len_b - take : _carried(j == L ? len_L : _cap(RowPrompt::PS2), -s_pull);
+        _ripple(_now(a + 1), _now(j), lead3 + take, lead2, tail);
     }
 
     // reconciliation
 
-    void TextEditor::_reconcile(Edit e) {
+    void TextEditor::_reconcile(Edit& e) {
         e.origin_was = _origin; e.view_top_was = _view_top;
+        if (e.kind == Edit::NONE) e.count = _row_count;     // nothing added: the layout is the one painted
         // Bottom-anchored, the text's last row stays on the content bottom and
         // it grows upwards, never above row 1 (the status bar's row is 0).
         if (_anchor == Anchor::BOTTOM) {

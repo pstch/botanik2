@@ -11,6 +11,7 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <cstdlib>
 #include <cstring>
 
 #include "libbotanik/console/ansi.h"
@@ -18,8 +19,6 @@
 
 
 namespace Botanik { namespace Terminal {
-
-    static inline uint16_t _abs16(int16_t n) { return (uint16_t)(n < 0 ? -n : n); }
 
     // Wire state
 
@@ -129,8 +128,8 @@ namespace Botanik { namespace Terminal {
     // Layout changes
 
     void AnsiTerminal::change(const LayoutChange& c) {
-        if (c.kind == LayoutChange::NONE || c.n == 0 || c.top > c.bottom || c.bottom >= _rows) return;
-        if (c.kind == LayoutChange::SCROLL && _abs16(c.n) > (uint16_t)(c.bottom - c.top)) return;   // nothing of it stays
+        if (c.n == 0 || c.top > c.bottom || c.bottom >= _rows) return;
+        if (c.kind == LayoutChange::SCROLL && std::abs(c.n) > c.bottom - c.top) return;   // nothing of it stays
         if (c.kind == LayoutChange::RIPPLE && (c.col >= _cols || c.lead >= _cols)) return;
         if (c.kind == LayoutChange::SCROLL ? _merge_scroll(c) : _merge_ripple(c)) return;
         if (_queued == CHANGE_QUEUE) { _drop_changes(); return; }   // a beat that busy is repainted
@@ -158,10 +157,10 @@ namespace Botanik { namespace Terminal {
         // move: the transcript sliding under an editor that grew is the common
         // one. A ripple queued between them stands only if the band does not
         // reach its rows, since it is in the coordinates of after.
+        const uint32_t rows = _rows_of(c);
         for (uint8_t i = _queued; i-- > 0;) {
             Queued& q = _queue[i];
-            if (q.c.kind == LayoutChange::RIPPLE) { if ((_rows_of(q.c) & _rows_of(c)) != 0) return false; continue; }
-            if (q.c.kind != LayoutChange::SCROLL) continue;
+            if (q.c.kind == LayoutChange::RIPPLE) { if ((_rows_of(q.c) & rows) != 0) return false; continue; }
             if (q.c.bottom + 1 < c.top || q.c.top > c.bottom + 1) return false;
             // Another band over the same rows, moving differently: the later
             // word stands and the walk writes what the first one described.
@@ -193,8 +192,8 @@ namespace Botanik { namespace Terminal {
                 if (q.left != 0) _queue[kept++] = q;
                 continue;
             }
-            if (q.c.kind == LayoutChange::NONE) continue;
-            if ((_dirty & _rows_of(q.c)) == 0) continue;
+            const uint32_t rows = _rows_of(q.c);
+            if ((_dirty & rows) == 0) continue;
             if (!_slide(q.c.top, q.c.bottom, q.c.n)) {
                 // The ring is full: it and everything after it wait.
                 memmove(&_queue[kept], &_queue[i], (size_t)(_queued - i) * sizeof _queue[0]);
@@ -203,14 +202,14 @@ namespace Botanik { namespace Terminal {
             }
             moved = true;
             for (uint8_t k = 0; k < kept; k++)
-                if ((_rows_of(_queue[k].c) & _rows_of(q.c)) != 0) _queue[k].left = 0;
+                if ((_rows_of(_queue[k].c) & rows) != 0) _queue[k].left = 0;
         }
         _queued = kept;
         if (_queued == 0 || moved) _queue_age = 0;
     }
 
     bool AnsiTerminal::_shift(uint16_t row, uint16_t at, int16_t n, uint16_t& budget) {
-        const uint16_t mag = _abs16(n);
+        const uint16_t mag = (uint16_t)std::abs(n);
         uint8_t* const bk  = &_back[_idx(row, 0)];
         if (at + mag >= _cols) return true;             // nothing of the row stays
         _touch(row);
@@ -243,13 +242,23 @@ namespace Botanik { namespace Terminal {
         return true;
     }
 
+    bool AnsiTerminal::_erase_from(uint16_t row, uint16_t col) {
+        // EL fills with the current attributes on terminals with
+        // background-colour erase, so the pen goes plain first.
+        if (!_go({row, col})) return false;
+        _set_hw_inverted(false);
+        if (!Ansi::erase_to_eol(_serial)) return false;
+        memset(&_back[_idx(row, col)], CELL_BLANK, (size_t)(_cols - col));
+        return true;
+    }
+
     bool AnsiTerminal::_ripple_row(uint16_t row, uint16_t& budget) {
         const uint32_t bit = 1u << row;
         for (uint8_t i = 0; i < _queued; i++) {
             Queued& q = _queue[i];
             if (q.c.kind != LayoutChange::RIPPLE || (q.left & bit) == 0) continue;
             const LayoutChange& c = q.c;
-            const uint16_t mag     = _abs16(c.n);
+            const uint16_t mag     = (uint16_t)std::abs(c.n);
             const uint16_t at      = (row == c.top) ? c.col : c.lead;
             const uint16_t carried = (row == c.bottom) ? c.tail
                                    : (_cols > at + mag ? (uint16_t)(_cols - at - mag) : 0);
@@ -271,7 +280,7 @@ namespace Botanik { namespace Terminal {
         // the wire with BACK unshifted is a screen nothing repairs.
         if (_serial.availableForWrite() < SLIDE_ROOM) return false;
         const bool     up      = n < 0;
-        const uint16_t mag     = _abs16(n);
+        const uint16_t mag     = (uint16_t)std::abs(n);
         const bool     restore = bottom < (uint16_t)(_rows - 1);
         const uint16_t back    = (uint16_t)(bottom - mag + 1);
         // DL/IL fill the rows they free with the current attributes on terminals
@@ -301,18 +310,17 @@ namespace Botanik { namespace Terminal {
     void AnsiTerminal::blank_rows(uint16_t top, uint16_t bottom) {
         clear_rows(top, bottom);
         if (top > bottom || bottom >= _rows) return;
-        // One EL per row, the cursor stepping down: nothing on screen moves
-        // and the bars are untouched, which no ED or DL/IL can offer. EL fills
-        // with the current attributes on terminals with background-colour erase.
-        const uint16_t n = (uint16_t)(bottom - top + 1);
-        if (_serial.availableForWrite() < (uint16_t)(8 + n * 8)) return;   // the walk blanks it row by row
-        _set_hw_inverted(false);
-        for (uint16_t r = top; r <= bottom; r++)
-            if (!_go({r, 0}) || !Ansi::erase_to_eol(_serial)) return;
-        memset(&_back[_idx(top, 0)], CELL_BLANK, (size_t)n * _cols);
-        _dirty &= ~_mask(top, bottom);         // blank against blank
+        // The content changed as a whole: pending changes describe a screen
+        // that is gone, and the walk starts over. One EL per row, the cursor
+        // stepping down: nothing on screen moves and the bars are untouched,
+        // which no ED or DL/IL can offer.
         _drop_changes();
         _restart_walk();
+        const uint16_t n = (uint16_t)(bottom - top + 1);
+        if (_serial.availableForWrite() < (uint16_t)(8 + n * 8)) return;   // the walk blanks it row by row
+        for (uint16_t r = top; r <= bottom; r++)
+            if (!_erase_from(r, 0)) return;
+        _dirty &= ~_mask(top, bottom);         // blank against blank
     }
 
     // The walk
@@ -358,14 +366,9 @@ namespace Botanik { namespace Terminal {
         const bool erase = stale >= EL_MIN_CELLS;
         if (!_emit_runs(row, 0, erase ? e : _cols, budget)) return false;
         if (!erase) { _dirty &= ~(1u << row); return true; }
-        // Move + EL + a possible SGR: EL fills with the current attributes on
-        // a terminal with background-colour erase, so the pen goes plain first.
         if (!_fits((uint16_t)(8 + 3 + (_hw_inverted ? 5 : 0)), budget)) return false;
         const uint16_t before = tx_used();
-        if (!_go({row, e})) return false;
-        _set_hw_inverted(false);
-        if (!Ansi::erase_to_eol(_serial)) return false;
-        memset(&_back[_idx(row, e)], CELL_BLANK, (size_t)(_cols - e));
+        if (!_erase_from(row, e)) return false;
         budget = _spend(budget, (uint16_t)(tx_used() - before));
         _dirty &= ~(1u << row);
         return true;

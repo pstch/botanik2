@@ -341,9 +341,9 @@ namespace Botanik { namespace Terminal {
             /** @name Worked out by _announce() */
             int32_t  d = 0;              /**< Rows the edit added. */
             int32_t  m0 = 0, mB = 0;     /**< Screen rows the sides above and below the edit moved. */
-            int32_t  lead2 = 0, lead3 = 0; /**< Text column of a PS2 and a PS3 row. */
-            int32_t  cap2 = 0, cap3 = 0; /**< Text width of a PS2 and a PS3 row. */
             int32_t  col_a = 0, off = 0; /**< The edit's column on row a, and offset in its text. */
+            /** @brief Screen row layout row @p i had before the edit. */
+            int32_t was(int32_t i) const { return (int32_t)origin_was + i - (int32_t)view_top_was; }
         };
 
         /** @brief Read what @p removed bytes at @p pos, or @p text of @p len
@@ -356,6 +356,9 @@ namespace Botanik { namespace Terminal {
         }
         /** @brief Screen row of layout row @p i, which may lie outside the viewport. */
         int32_t _now(int32_t i) const { return (int32_t)_origin + i - (int32_t)_view_top; }
+        /** @brief Text column, and text width, of a row with prompt @p p. */
+        int32_t _lead(RowPrompt p) const { return _indent + _prompt_len(p); }
+        int32_t _cap(RowPrompt p) const;
 
         /** @brief Tell the terminal what the edit did to the screen. */
         void _announce(Edit& e);
@@ -372,9 +375,7 @@ namespace Botanik { namespace Terminal {
          *  at the PS2 column; @p tail cells right of the change on @p bottom. */
         void _ripple(int32_t top, int32_t bottom, int32_t from, int32_t to, int32_t tail);
 
-        uint16_t _hw_row(uint16_t i) const {
-            return (uint16_t)(_origin + (i - _view_top));
-        }
+        uint16_t _hw_row(uint16_t i) const { return (uint16_t)_now(i); }
 
         bool _visible(uint16_t i) const {
             return i >= _view_top && (uint16_t)(i - _view_top) < _view_height();
@@ -447,8 +448,8 @@ namespace Botanik { namespace Terminal {
         /** @brief After an edit: origin, viewport, what moved, repaint,
          *  cursor. A motion or a load passes no edit, and only the viewport's
          *  move is announced. */
-        void _reconcile(Edit e);
-        void _reconcile() { _reconcile(Edit()); }
+        void _reconcile(Edit& e);
+        void _reconcile() { Edit e; _reconcile(e); }
 
         /** @} */
     };

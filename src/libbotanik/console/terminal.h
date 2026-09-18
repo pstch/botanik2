@@ -52,7 +52,6 @@ namespace Botanik { namespace Terminal {
      *  a wrong one costs bytes and never a wrong screen. */
     struct LayoutChange {
         enum Kind : uint8_t {
-            NONE,
             SCROLL,   /**< Rows [top, bottom] show at row y what row y - n showed. */
             RIPPLE,   /**< On `top`, n cells entered at `col` (n > 0) or left it
                        *   (n < 0) and what was right of them followed; each row
@@ -74,7 +73,7 @@ namespace Botanik { namespace Terminal {
         static LayoutChange ripple(uint16_t top, uint16_t bottom, uint16_t col,
                                    uint16_t lead, uint16_t tail, int16_t n) {
             return LayoutChange{ RIPPLE, (uint8_t)top, (uint8_t)bottom, (uint8_t)col,
-                                 (uint8_t)lead, (uint8_t)(tail > 255 ? 255 : tail), n };
+                                 (uint8_t)lead, (uint8_t)tail, n };
         }
     };
 
@@ -213,6 +212,9 @@ namespace Botanik { namespace Terminal {
         /** @brief Serve the ripples pending on @p row, each after the cells
          *  left of it. @return false when the budget ran out. */
         bool _ripple_row(uint16_t row, uint16_t& budget);
+        /** @brief EL from (@p row, @p col), BACK following. @return false if
+         *  the ring could not hold it. */
+        bool _erase_from(uint16_t row, uint16_t col);
         /** @brief Rows [@p top, @p bottom] move @p n rows, as a DL/IL pair;
          *  BACK follows only if the whole pair went. */
         bool _slide(uint16_t top, uint16_t bottom, int16_t n);

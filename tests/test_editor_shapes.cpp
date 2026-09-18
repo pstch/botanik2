@@ -16,8 +16,9 @@
 #include "editor_fixture.h"
 namespace tests { namespace editor_shapes {
 using botanik_test::EditorFixture;
-struct Rng { uint32_t s; uint32_t next() { s ^= s << 13; s ^= s >> 17; s ^= s << 5; return s; } uint32_t below(uint32_t n) { return n ? next() % n : 0; } };
-static std::string words(Rng& r, int n, int nl_pct) {
+using botanik_test::Lcg;
+using botanik_test::seek;
+static std::string words(Lcg& r, int n, int nl_pct) {
     static const char* W[] = {"the","north","vents","open","when","roof","sensor","reads","above","day","target","and","they","close","on","rain","or","wind","storm","threshold","status","set","zone","humidity","ventilation"};
     std::string s;
     for (int i = 0; i < n; i++) { if (i) s += (int)r.below(100) < nl_pct ? "\n" : " "; s += W[r.below(25)]; }
@@ -28,13 +29,13 @@ TEST_CASE("editor: no edit costs more than the repaint of its screen") {
     std::vector<Case> dear; size_t total = 0, worst_ratio_pct = 0;
     const int N = getenv("PROBE_N") ? atoi(getenv("PROBE_N")) : 400;
     for (uint32_t seed = 1; seed <= (uint32_t)N; seed++) {
-        Rng r{seed * 2654435761u};
+        Lcg r(seed * 2654435761u);
         const bool notes = r.below(2) == 0;
         EditorFixture f(24, 80, notes, notes);
         const std::string text = words(r, 3 + (int)r.below(notes ? 60 : 30), notes ? 12 : 3);
         f.editor.insert_characters(text.data(), (uint16_t)text.size());
         const uint16_t pos = (uint16_t)r.below((uint32_t)text.size() + 1);
-        f.editor.move_to_start(); for (uint16_t i = 0; i < pos; i++) f.editor.move_right();
+        seek(f, pos);
         (void)f.repaint_from_scratch(); f.drain();
         const char* op = "";
         switch (r.below(8)) {

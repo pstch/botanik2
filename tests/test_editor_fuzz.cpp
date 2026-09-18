@@ -23,12 +23,7 @@ namespace tests { namespace editor_fuzz {
 
 using botanik_test::EditorFixture;
 
-struct Lcg {
-    uint32_t s;
-    explicit Lcg(uint32_t seed) : s(seed) {}
-    uint32_t next() { s = s * 1664525u + 1013904223u; return s >> 8; }
-    uint32_t below(uint32_t n) { return next() % n; }
-};
+using botanik_test::Lcg;
 
 /** @brief The operations, weighted by repetition: what an operator does
  *  most gets drawn most, and the rare bulk edits still come up. */

@@ -121,8 +121,7 @@ namespace Botanik { namespace Terminal { namespace Ansi {
     bool down_to_row_start(ByteSink& _serial, uint16_t count) {
         if (_serial.availableForWrite() < (uint16_t)(1 + count)) return false;
         _serial.write("\r", 1);
-        for (uint16_t i = 0; i < count; ++i) _serial.write("\n", 1);
-        return true;
+        return feed_lines(_serial, count);
     }
 
     // Content edition

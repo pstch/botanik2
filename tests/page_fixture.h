@@ -96,9 +96,15 @@ namespace tests { namespace botanik_test {
          *  the grids do not carry, and the second one's ED is what wipes it. */
         void reset_wire() {
             console.terminal().establish_screen();
+            establish();
+            (void)pump();
+        }
+
+        /** @brief A blank screen with the alarm bar on it, as the console
+         *  leaves one: what every repaint here starts from. */
+        void establish() {
             console.terminal().establish_screen();
             console.repaint_alarm_bar();
-            (void)pump();
         }
 
         /** @brief The first cell where the VT and FRONT disagree, described;
@@ -225,8 +231,7 @@ namespace tests { namespace botanik_test {
             for (const std::string& row : incremental) if (!row.empty()) drawn++;
             INFO(std::string(what) << ": the page painted nothing at all");
             CHECK(drawn > 0);
-            console.terminal().establish_screen();
-            console.repaint_alarm_bar();
+            establish();
             page.redraw();
             (void)paint(page);
             same(incremental, content(), what);

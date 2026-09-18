@@ -240,8 +240,8 @@ namespace Botanik { namespace Pages {
     void ShellPage::_record_command(const char* cmd, uint16_t cmd_len) {
         uint16_t cols = (uint16_t)_terminal.cols();
         char     echo[Config::SCROLLBACK_LINE_LEN];
-        uint16_t pos = 0, rows = 0;
-        for (uint16_t row = 0; ; row++, rows++) {
+        uint16_t pos = 0, row = 0;
+        for (;; row++) {
             bool        first = (row == 0);
             const char* pstr  = first ? _editor.ps1()     : _editor.ps2();
             uint16_t    plen  = first ? _editor.ps1_len() : _editor.ps2_len();
@@ -259,7 +259,7 @@ namespace Botanik { namespace Pages {
         }
         // The echo is the editor's rows as they stand; the transcript carries
         // them along rather than writing them again.
-        if (rows + 1 == _editor.occupied_rows()) _scrollback.adopt((uint16_t)(rows + 1));
+        if (row + 1 == _editor.occupied_rows()) _scrollback.adopt((uint16_t)(row + 1));
     }
 
 }}

@@ -95,14 +95,27 @@ namespace tests { namespace botanik_test {
          *  editor's own state left as it was. Ctrl+L on the real console; here
          *  the same two calls it makes. */
         std::vector<std::string> repainted() {
-            console.terminal().establish_screen();
-            console.repaint_alarm_bar();
+            establish();
             editor.redraw();
             show_cursor();
             (void)pump();          // keep the VT tracking what the wire got
             return screen();
         }
     };
+
+    /** @brief A small deterministic generator for the seeded edit streams. */
+    struct Lcg {
+        uint32_t s;
+        explicit Lcg(uint32_t seed) : s(seed) {}
+        uint32_t next() { s = s * 1664525u + 1013904223u; return s >> 8; }
+        uint32_t below(uint32_t n) { return n ? next() % n : 0; }
+    };
+
+    /** @brief The cursor to offset @p pos, by the keys an operator has. */
+    inline void seek(EditorFixture& f, uint16_t pos) {
+        f.editor.move_to_start();
+        for (uint16_t i = 0; i < pos; i++) f.editor.move_right();
+    }
 
     /** @brief FRONT after the incremental path equals FRONT after a repaint.
      *  Not PageFixture::converged(): a TextEditor is not a Page. */
