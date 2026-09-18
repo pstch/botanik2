@@ -612,7 +612,7 @@ namespace Botanik { namespace Terminal {
                            + (d == 1 && L + 1 < e.count ? PAIR_BYTES : 0);
         const int32_t over = PAIR_BYTES + e.ps_a + head + (s_over != 0 ? SHIFT_BYTES + std::abs(s_over) : 0)
                            + rows * (SHIFT_BYTES + std::abs(s_over));
-        if (push <= over && s_push < _cap(RowPrompt::PS2)) {
+        if (push <= over && _cap(RowPrompt::PS2) - s_push >= (int32_t)AnsiTerminal::SHIFT_MIN_CARRY) {
             _band(e, L, L + 1);
             _ripple(_now(a + 1), _now(L), lead2, lead3 + t, len_L);
         } else {
