@@ -130,7 +130,7 @@ namespace Botanik { namespace Terminal {
         if (c.kind == LayoutChange::SCROLL && _abs16(c.n) > (uint16_t)(c.bottom - c.top)) return;   // nothing of it stays
         if (c.kind == LayoutChange::RIPPLE && (c.col >= _cols || c.lead >= _cols)) return;
         if (c.kind == LayoutChange::SCROLL ? _merge_scroll(c) : _merge_ripple(c)) return;
-        if (_queued == CHANGE_QUEUE) { _drop_changes(); return; }
+        if (_queued == CHANGE_QUEUE) { _drop_changes(); return; }   // a beat that busy is repainted
         if (_queued == 0) _queue_age = 0;      // the wait is the oldest change's
         _queue[_queued++] = Queued{ c, _rows_of(c) };
     }
@@ -159,12 +159,6 @@ namespace Botanik { namespace Terminal {
             Queued& q = _queue[i];
             if (q.c.kind == LayoutChange::RIPPLE) { if ((_rows_of(q.c) & _rows_of(c)) != 0) return false; continue; }
             if (q.c.kind != LayoutChange::SCROLL) continue;
-            if (q.c.top == c.top && q.c.bottom == c.bottom) {
-                const int32_t sum = (int32_t)q.c.n + c.n;      // the band moved again
-                if (sum == 0 || _abs16((int16_t)sum) > (uint16_t)(c.bottom - c.top)) q.c.kind = LayoutChange::NONE;
-                else q.c.n = (int16_t)sum;
-                return true;
-            }
             if (q.c.bottom + 1 < c.top || q.c.top > c.bottom + 1) return false;
             // Another band over the same rows, moving differently: the later
             // word stands and the walk writes what the first one described.
@@ -185,8 +179,8 @@ namespace Botanik { namespace Terminal {
 
     void AnsiTerminal::_apply_changes() {
         // Scrolls go now, oldest first, and a ripple waits for the walk to
-        // reach its rows. A ripple announced before a scroll is in the
-        // coordinates the scroll moves, so its rows move with the band.
+        // reach its rows. A ripple announced before a scroll over its rows is
+        // in coordinates the scroll moves, and is forgotten.
         bool moved = false;
         uint8_t kept = 0;
         for (uint8_t i = 0; i < _queued; i++) {
@@ -207,19 +201,12 @@ namespace Botanik { namespace Terminal {
                     break;
                 }
                 moved = true;
-                for (uint8_t k = 0; k < kept; k++) _carry(_queue[k], q.c.top, bottom, q.c.n);
+                for (uint8_t k = 0; k < kept; k++)
+                    if ((_rows_of(_queue[k].c) & _mask(q.c.top, bottom)) != 0) _queue[k].left = 0;
             }
         }
         _queued = kept;
         if (_queued == 0 || moved) _queue_age = 0;
-    }
-
-    void AnsiTerminal::_carry(Queued& q, uint16_t top, uint16_t bottom, int16_t n) {
-        if (q.c.kind != LayoutChange::RIPPLE || q.c.top < top || q.c.bottom > bottom) return;
-        const int32_t t = (int32_t)q.c.top + n, b = (int32_t)q.c.bottom + n;
-        if (t < top || b > bottom) { q.left = 0; return; }   // moved out of the band: gone
-        q.c.top = (uint8_t)t; q.c.bottom = (uint8_t)b;
-        q.left = n < 0 ? q.left >> -n : q.left << n;
     }
 
     bool AnsiTerminal::_slide_pays(const LayoutChange& c, uint16_t& bottom) const {
@@ -332,15 +319,7 @@ namespace Botanik { namespace Terminal {
         if (_serial.availableForWrite() < SLIDE_ROOM) return;
         _set_hw_inverted(false);
         if (!_go({top, 0}) || !Ansi::delete_rows(_serial, n)) return;
-        if (bottom < (uint16_t)(_rows - 1) && !Ansi::insert_rows(_serial, n)) {
-            // The DL went alone: BACK follows it, and the walk puts back what
-            // it moved.
-            memmove(&_back[_idx(top, 0)], &_back[_idx((uint16_t)(bottom + 1), 0)], (size_t)(_rows - 1 - bottom) * _cols);
-            memset(&_back[_idx((uint16_t)(_rows - n), 0)], CELL_BLANK, (size_t)n * _cols);
-            _dirty |= _mask(top, (uint16_t)(_rows - 1));
-            _drop_changes(); _restart_walk();
-            return;
-        }
+        if (bottom < (uint16_t)(_rows - 1)) (void)Ansi::insert_rows(_serial, n);   // room for both was checked
         memset(&_back[_idx(top, 0)], CELL_BLANK, (size_t)n * _cols);
         _dirty &= ~_mask(top, bottom);         // blank against blank
         _drop_changes();

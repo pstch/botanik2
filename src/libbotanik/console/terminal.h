@@ -256,9 +256,6 @@ namespace Botanik { namespace Terminal {
         /** @brief Whether scroll @p c saves the walk more than its escapes
          *  cost, and how far down it should reach. */
         bool _slide_pays(const LayoutChange& c, uint16_t& bottom) const;
-        /** @brief Move ripple @p q with the band [@p top, @p bottom] that just
-         *  slid @p n rows, or forget it where it left the band. */
-        void _carry(Queued& q, uint16_t top, uint16_t bottom, int16_t n);
         /** @brief Serve the ripples pending on @p row, each after the cells
          *  left of it. @return false when the budget ran out. */
         bool _ripple_row(uint16_t row, uint16_t& budget);
