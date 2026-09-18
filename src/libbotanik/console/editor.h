@@ -339,23 +339,31 @@ namespace Botanik { namespace Terminal {
          *  content area. */
         uint16_t _view_bottom_hw() const;
 
-        /** @brief One edit, as the layout before it saw it: enough to say what
-         *  the rows and cells did without keeping that layout. */
+        /** @brief One edit: what the layout before it said about it, and
+         *  what the announcer works out once the new layout is in. */
         struct Edit {
             enum Kind : uint8_t {
+                NONE,    /**< A motion or a load: only the viewport moved. */
                 PLAIN,   /**< Bytes with no newline: the line rippled. */
                 SPLIT,   /**< One newline in: a row split at the edit point. */
                 JOIN,    /**< One newline out: two lines became one. */
                 OTHER,   /**< Newlines crossed: only the rows after moved as one. */
             };
-            Kind     kind;
-            uint16_t pos;                /**< Buffer offset of the edit. */
-            int16_t  delta;              /**< Bytes added; negative for removed. */
-            uint16_t a, L;               /**< Row holding pos, and the last row of
+            Kind     kind = NONE;
+            uint16_t pos = 0;            /**< Buffer offset of the edit. */
+            int16_t  delta = 0;          /**< Bytes added; negative for removed. */
+            uint16_t a = 0, L = 0;       /**< Row holding pos, and the last row of
                                           *   the last line the edit touched. */
             RowView  row_a, row_b, row_L;/**< Rows a, a+1 and L before the edit. */
-            uint16_t ps_a;               /**< Prompt width row a had. */
-            uint16_t count;              /**< Rows before the edit. */
+            uint16_t ps_a = 0;           /**< Prompt width row a had. */
+            uint16_t count = 0;          /**< Rows before the edit. */
+            uint16_t origin_was = 0, view_top_was = 0;
+            /** @name Worked out by _announce() */
+            int32_t  d = 0;              /**< Rows the edit added. */
+            int32_t  m0 = 0, mB = 0;     /**< Screen rows the sides above and below the edit moved. */
+            int32_t  lead2 = 0, lead3 = 0; /**< Text column of a PS2 and a PS3 row. */
+            int32_t  cap2 = 0, cap3 = 0; /**< Text width of a PS2 and a PS3 row. */
+            int32_t  col_a = 0, off = 0; /**< The edit's column on row a, and offset in its text. */
         };
 
         /** @brief Read what @p removed bytes at @p pos, or @p text of @p len
@@ -366,32 +374,19 @@ namespace Botanik { namespace Terminal {
             while (i + 1 < _row_count && !_rows[i].hard_break) i++;
             return i;
         }
-
-        /** @brief The edit and the viewport it happened in, as the announcers
-         *  read them: rows are layout indices, `m0` and `mB` screen rows. */
-        struct Moved {
-            const Edit* e;                 /**< Null for a motion or a load. */
-            uint16_t origin_was, view_top_was;
-            int32_t  d;                    /**< Rows the edit added. */
-            int32_t  m0, mB;               /**< Screen rows the sides above and below the edit moved. */
-            int32_t  lead2, lead3;         /**< Text column of a PS2 and a PS3 row. */
-            int32_t  cap2, cap3;           /**< Text width of a PS2 and a PS3 row. */
-            int32_t  col_a, off;           /**< The edit's column on row a, and offset in its text. */
-        };
         /** @brief Screen row of layout row @p i, which may lie outside the viewport. */
         int32_t _now(int32_t i) const { return (int32_t)_origin + i - (int32_t)_view_top; }
 
-        /** @brief Tell the terminal what the edit did to the screen, worked out
-         *  from @p e and the viewport before it. */
-        void _announce(const Edit* e, uint16_t origin_was, uint16_t view_top_was);
-        void _announce_plain(const Moved& m);
-        void _announce_split(const Moved& m);
-        void _announce_join(const Moved& m);
-        /** @brief Announce the band of rows the edit moved as one: old rows
-         *  [0, @p T] moved `m0` screen rows and old rows [@p B, count) moved
-         *  `mB`, with the rows between them gone or new. One band, the larger
-         *  side when they disagree. */
-        void _band(const Moved& m, int32_t T, int32_t B);
+        /** @brief Tell the terminal what the edit did to the screen. */
+        void _announce(Edit& e);
+        void _announce_plain(const Edit& e);
+        void _announce_split(const Edit& e);
+        void _announce_join(const Edit& e);
+        /** @brief Announce the band the edit moved as one: old rows [0, @p T]
+         *  moved `m0` screen rows and old rows [@p B, count) moved `mB`, the
+         *  rows between gone or new. One band, the larger side when they
+         *  disagree. */
+        void _band(const Edit& e, int32_t T, int32_t B);
         /** @brief Announce that on screen row @p top what started at column
          *  @p from now starts at @p to, and the rows down to @p bottom followed
          *  at the PS2 column; @p tail cells right of the change on @p bottom. */
@@ -479,11 +474,11 @@ namespace Botanik { namespace Terminal {
         /** @name Reconciliation
          *  @{ */
 
-        /** @brief After an edit: origin, viewport, what moved, repaint, cursor.
-         *  @p e is the edit; null when the text is as it was (a motion) or
-         *  unrelated to it (a load), and only the viewport's move is announced. */
-        void _reconcile(const Edit* e = nullptr);
-
+        /** @brief After an edit: origin, viewport, what moved, repaint,
+         *  cursor. A motion or a load passes no edit, and only the viewport's
+         *  move is announced. */
+        void _reconcile(Edit e);
+        void _reconcile() { _reconcile(Edit()); }
 
         /** @} */
     };
