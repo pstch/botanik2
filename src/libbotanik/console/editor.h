@@ -29,10 +29,8 @@ namespace Botanik { namespace Terminal {
 
     /** @brief Which edge of its band the editor is pinned to. */
     enum class Anchor : uint8_t {
-        BOTTOM, /**< Last row on the content bottom; growing scrolls the band
-                 *   up. The shell prompt. */
-        TOP,    /**< Origin fixed; a viewport scrolls over the text. The NOTES
-                 *   page. */
+        BOTTOM, /**< Last row on the content bottom, growing upward: the shell. */
+        TOP,    /**< Origin fixed, a viewport over the text: NOTES. */
     };
 
     /** @brief One screen row's slice of the buffer. */
@@ -62,10 +60,9 @@ namespace Botanik { namespace Terminal {
 
     /**
      * @class TextEditor
-     * @brief Multi-row line editor. An edit relays out the buffer, tells the
-     *        terminal what the layout did (a band of rows that moved, a run of
-     *        cells that rippled) and repaints the viewport.
-     * @note An insert that would cross the owner's row cap is refused.
+     * @brief Multi-row line editor. An edit relays out the buffer, announces
+     *        what the layout did (a band of rows, a ripple of cells) and
+     *        repaints the viewport. An insert past the row cap is refused.
      */
     class TextEditor {
 
@@ -88,8 +85,7 @@ namespace Botanik { namespace Terminal {
         uint16_t _view_rows = 0;       /**< Viewport height; 0 = to the content bottom. */
         Anchor   _anchor = Anchor::BOTTOM;
 
-        /** @brief Column vertical motion aims for; any other motion or edit
-         *  drops it. */
+        /** @brief Column vertical motion aims for; any other motion drops it. */
         uint16_t _goal_col   = 0;
         bool     _goal_valid = false;
 
@@ -114,8 +110,7 @@ namespace Botanik { namespace Terminal {
         /** @name Lifecycle
          *  @{ */
 
-        /** @brief Bound to @p console, over the caller-owned buffers in
-         *  @p store, which must outlive it. */
+        /** @brief Over the caller-owned buffers in @p store, which outlive it. */
         TextEditor(Console* console, const EditorStorage& store);
 
         /** @brief Discard the text and show an empty prompt. Marks dirty. */
@@ -151,20 +146,17 @@ namespace Botanik { namespace Terminal {
         CursorPos end_pos() const { return _map_cursor_pos(_len); }
 
         /** @brief Home the terminal at the edit point and declare it the
-         *  visible cursor's place. A page drawing around the editor calls it
-         *  last. */
+         *  visible cursor's place; a page drawing around the editor calls it last. */
         void place_cursor() { _place_cursor(_map_cursor_pos(_pos)); }
 
         uint16_t occupied_rows() const { return _row_count; }
 
-        /** @brief Pin the viewport's top row. Bottom-anchored, the editor
-         *  re-pins it to the content bottom as the text grows and shrinks. */
+        /** @brief Pin the viewport's top row; bottom-anchored, it follows the text. */
         void set_origin(uint16_t row);
 
         void set_anchor(Anchor a) { _anchor = a; }
 
-        /** @brief Viewport height from the origin; 0 (the default) runs to the
-         *  content bottom. */
+        /** @brief Viewport height; 0 (the default) runs to the content bottom. */
         void set_view_rows(uint16_t n) { _view_rows = n; }
 
         /** @brief Reserve @p col columns at the left for a caller-drawn label. */
@@ -187,8 +179,7 @@ namespace Botanik { namespace Terminal {
         /** @} */
 
         /** @name Cursor motion
-         *  Every one of these ends in _settle_cursor(): viewport, repaint,
-         *  cursor. None of them changes the buffer. @{ */
+         *  None changes the buffer; each ends in a reconcile. @{ */
 
         void move_left();
         void move_right();
@@ -213,25 +204,20 @@ namespace Botanik { namespace Terminal {
         /** @} */
 
         /** @name Kill and yank
-         *  Over the console-wide kill ring. A kill takes only what the ring
-         *  holds; each returns false when there was nothing to do. @{ */
+         *  Over the console-wide kill ring; a kill takes only what the ring
+         *  holds. Each returns false when there was nothing to do. @{ */
 
-        /** @brief Cut to the end of the logical line (Ctrl-K); on the newline
-         *  itself, cut the newline. */
+        /** @brief Ctrl-K: to the end of the logical line, or the newline itself. */
         bool kill_to_line_end();
-
-        /** @brief Cut the word before the cursor (Ctrl-W), with the whitespace
-         *  between it and the cursor. */
+        /** @brief Ctrl-W: the word before the cursor and the whitespace after it. */
         bool kill_word_back();
-
-        /** @brief Insert the ring's contents at the cursor (Ctrl-Y). */
+        /** @brief Ctrl-Y. */
         bool yank();
 
         /** @} */
 
         /** @name Mark and region
-         *  Ctrl-Space drops a mark; the region is the span to the cursor. Any
-         *  edit drops the mark. @{ */
+         *  The span from the mark to the cursor; any edit drops the mark. @{ */
 
         void set_mark();
         void clear_mark();
@@ -239,8 +225,7 @@ namespace Botanik { namespace Terminal {
 
         bool copy_region();
 
-        /** @brief The region when there is one, else the word before the
-         *  cursor (Ctrl-W). */
+        /** @brief The region when there is one, else kill_word_back(). */
         bool kill_region_or_word();
 
         /** @} */
@@ -248,18 +233,16 @@ namespace Botanik { namespace Terminal {
         /** @name Bulk content
          *  @{ */
 
-        /** @brief Buffer to read stored text straight into, and the bytes of
-         *  it usable. Pair with commit_loaded(). */
+        /** @brief Buffer to read stored text straight into; pair with commit_loaded(). */
         char*    load_buffer()         { return _buf; }
         uint16_t load_capacity() const { return (uint16_t)(_buf_cap - 1); }
 
         /** @brief Adopt @p len bytes written into load_buffer(), cursor at
-         *  the start, not dirty.
-         *  @return false if a tail was dropped, for want of buffer or rows. */
+         *  the start, not dirty. @return false if a tail was dropped. */
         bool commit_loaded(uint16_t len);
 
-        /** @brief Replace the whole text in one edit, cursor at the end, dirty.
-         *  @p text may be a slice of the buffer itself. */
+        /** @brief Replace the whole text, cursor at the end, dirty. @p text
+         *  may be a slice of the buffer itself. */
         void replace_all(const char* text, uint16_t len);
 
         /** @} */
@@ -310,13 +293,12 @@ namespace Botanik { namespace Terminal {
         bool _rebuild_layout();
 
         /** @brief Make @p len bytes of @p text (a slice of the buffer, or null)
-         *  the whole buffer, cursor at @p cursor, and lay it out. No reconcile.
-         *  @return false if a tail was dropped, for want of buffer or rows. */
+         *  the whole buffer, cursor at @p cursor, laid out, not reconciled.
+         *  @return false if a tail was dropped. */
         bool _load(const char* text, uint16_t len, uint16_t cursor);
 
-        /** @brief Row holding buffer offset @p pos. The `\n` belongs to its
-         *  row, a soft-wrap boundary to the continuation row, the end of the
-         *  buffer to the last row. */
+        /** @brief Row holding offset @p pos: a `\n` belongs to its row, a wrap
+         *  boundary to the continuation row, the end to the last row. */
         uint16_t _owner_row(uint16_t pos) const {
             for (uint16_t i = 0; i < _row_count; i++) {
                 const uint16_t stride = (uint16_t)(_rows[i].buf_len + (_rows[i].hard_break ? 1 : 0));
@@ -332,11 +314,9 @@ namespace Botanik { namespace Terminal {
         /** @name Viewport
          *  @{ */
 
-        /** @brief Viewport height: the one set, else down to the content bottom. */
+        /** @brief The height set, else down to the content bottom. */
         uint16_t _view_height() const;
-
-        /** @brief Last screen row the editor may paint, never below the
-         *  content area. */
+        /** @brief Last screen row the editor may paint. */
         uint16_t _view_bottom_hw() const;
 
         /** @brief One edit: what the layout before it said about it, and
@@ -414,15 +394,14 @@ namespace Botanik { namespace Terminal {
         /** @name Cursor motion
          *  @{ */
 
-        /** @brief What every motion ends with: a reconcile. Drops the goal
-         *  column unless @p keep_goal. */
+        /** @brief A reconcile, dropping the goal column unless @p keep_goal. */
         void _settle_cursor(bool keep_goal = false) {
             if (!keep_goal) _goal_valid = false;
             _reconcile();
         }
 
-        /** @brief Move @p delta display rows, holding the goal column; past
-         *  the layout, to the buffer start / end. */
+        /** @brief @p delta rows, holding the goal column; past the layout,
+         *  to the buffer's start or end. */
         void _move_row(int32_t delta);
 
         uint16_t _word_start() const;
@@ -435,13 +414,11 @@ namespace Botanik { namespace Terminal {
 
         void remove_characters(uint16_t len);
 
-        /** @brief The region as an ordered half-open span.
-         *  @return false, @p from and @p to untouched, with no mark. */
+        /** @brief The region as an ordered half-open span; false with no mark. */
         bool region(uint16_t& from, uint16_t& to) const;
         bool kill_region();
 
-        /** @brief Cut `[from, to)` into the kill ring and remove what it took.
-         *  @return false if the span was empty or nothing fit. */
+        /** @brief Cut `[from, to)` into the ring and remove what it took. */
         bool _kill_span(uint16_t from, uint16_t to);
 
         /** @} */
@@ -449,19 +426,12 @@ namespace Botanik { namespace Terminal {
         /** @name Painting
          *  @{ */
 
-        /** @brief Paint every row of the viewport into FRONT: prompt, content,
-         *  a clear to the margin; the clear alone past the text. */
+        /** @brief Every viewport row into FRONT: prompt, text, clear to the margin. */
         void _paint_view();
-
-        /** @brief Invert the region's cells over the rows _paint_view() wrote.
-         *  An EMPTY region inverts the one cell at the mark. */
+        /** @brief Invert the region's cells; an empty region inverts the mark's cell. */
         void _paint_region();
-
-        /** @brief Declare the rows the editor occupies for the diff's order. */
+        /** @brief Declare the editor's rows' priority. */
         void _place_rows();
-
-        /** @brief Home the terminal at @p p and declare it the visible
-         *  cursor's place. */
         void _place_cursor(const CursorPos& p) {
             _terminal->move_to(p);
             _terminal->set_cursor_pos(p);
