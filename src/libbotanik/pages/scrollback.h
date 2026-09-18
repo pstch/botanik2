@@ -170,7 +170,7 @@ namespace Botanik { namespace Pages {
                 const uint16_t top = std::min(first_row, _painted_first);
                 const uint16_t bot = std::max((uint16_t)(first_row + rows), (uint16_t)(_painted_first + _painted_rows));
                 if (delta != 0 && bot > top)
-                    t.hint_rows(top, (uint16_t)(bot - 1), (int16_t)delta);
+                    t.change(Terminal::LayoutChange::scroll(top, (uint16_t)(bot - 1), (int16_t)delta));
             }
             _painted_first  = first_row;
             _painted_rows   = rows;

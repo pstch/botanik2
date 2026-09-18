@@ -32,8 +32,8 @@ namespace Botanik { namespace Pages {
         // Record i is drawn on _data_top() + i - _top, so the window's rows move
         // by what _top did, backwards.
         if (_top != was && win > 1)
-            _terminal.hint_rows(_data_top(), (uint16_t)(_data_top() + win - 1),
-                                (int16_t)((int32_t)was - (int32_t)_top));
+            _terminal.change(Terminal::LayoutChange::scroll(
+                _data_top(), (uint16_t)(_data_top() + win - 1), (int16_t)((int32_t)was - (int32_t)_top)));
     }
 
     bool ScrollTablePage::_nav_command(Command cmd) {

@@ -489,7 +489,7 @@ TEST_CASE("terminal: a hinted row move goes out as a row slide") {
 
     for (uint16_t r = 0; r < 5; r++) f.put((uint16_t)(r + 1), 0, line[r + 1]);
     f.put(6, 0, "                                                            ");
-    f.term.hint_rows(1, 6, -1);
+    f.term.change(Terminal::LayoutChange::scroll(1, 6, -1));
     const std::string sent = f.flush();
     INFO("sent: '" << sent << "'");
     CHECK(sent.find("\x1b[M") != std::string::npos);      // one DL

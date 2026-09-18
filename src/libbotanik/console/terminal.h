@@ -6,9 +6,10 @@
  * @brief AnsiTerminal - a compositing screen over a VT device. Renderers draw
  *        immediate-mode into a FRONT cell grid; once a tick present() diffs it
  *        against BACK (the wire) and emits the minimal ANSI under a byte budget.
- * @warning Renderers must NOT track dirty regions, diff by hand or scroll:
- *          redrawing an unchanged cell costs nothing, and present() finds the
- *          rows and cells that only slid. See @ref dev_screen.
+ * @warning Renderers must NOT diff by hand or scroll: redrawing an unchanged
+ *          cell costs nothing. A renderer that moved rows or rippled a wrapped
+ *          line says so with a LayoutChange, and present() moves the wire the
+ *          same way before it diffs. See @ref dev_screen.
  */
 
 #include <cstdint>
@@ -55,6 +56,39 @@ namespace Botanik { namespace Terminal {
         PRIO_COUNT  = 3
     };
 
+    /** @brief What a renderer says the screen's structure did: rows that
+     *  scrolled, or cells that rippled along a wrapped line. present() moves
+     *  the wire the same way before it diffs, so the diff finds the cells the
+     *  move carried already in place. A wrong one costs bytes, never a wrong
+     *  screen: BACK follows every escape and the diff repairs the rest. */
+    struct LayoutChange {
+        enum Kind : uint8_t {
+            NONE,
+            SCROLL,   /**< Rows [top, bottom] show at row y what row y - n showed. */
+            RIPPLE,   /**< On `top`, n cells entered at `col` (n > 0) or left it
+                       *   (n < 0), and what was right of them followed; on each
+                       *   row down to `bottom` the same happened at `lead`, one
+                       *   row's overflow being the next row's entry. */
+        };
+        Kind    kind;
+        uint8_t top, bottom; /**< Rows involved, inclusive. */
+        uint8_t col;         /**< RIPPLE: the column on `top`. */
+        uint8_t lead;        /**< RIPPLE: the column on the rows under `top`. */
+        uint8_t tail;        /**< RIPPLE: cells a shift on `bottom` carries. Every
+                              *   row above it is full, so its carry is known. */
+        int16_t n;           /**< SCROLL: rows, down positive. RIPPLE: cells,
+                              *   entering positive. */
+
+        static LayoutChange scroll(uint16_t top, uint16_t bottom, int16_t n) {
+            return LayoutChange{ SCROLL, (uint8_t)top, (uint8_t)bottom, 0, 0, 0, n };
+        }
+        static LayoutChange ripple(uint16_t top, uint16_t bottom, uint16_t col,
+                                   uint16_t lead, uint16_t tail, int16_t n) {
+            return LayoutChange{ RIPPLE, (uint8_t)top, (uint8_t)bottom, (uint8_t)col,
+                                 (uint8_t)lead, (uint8_t)(tail > 255 ? 255 : tail), n };
+        }
+    };
+
     /** @class AnsiTerminal
      *  @brief Owns the serial link and a screen back-buffer; renderers paint into
      *  its FRONT grid and present() emits the minimal diff to the wire. See the
@@ -86,6 +120,8 @@ namespace Botanik { namespace Terminal {
         static constexpr uint8_t  CELL_INV   = 0x80;
         static constexpr uint8_t  CELL_CH    = 0x7F;
         static constexpr uint8_t  CELL_BLANK = ' ';
+        static_assert(GRID_ROWS <= 32,  "the dirty set is one word");
+        static_assert(GRID_COLS <= 255, "a LayoutChange holds a column in a byte");
         uint8_t _front[GRID_CELLS];
         uint8_t _back [GRID_CELLS];
         inline uint16_t _idx(uint16_t row, uint16_t col) const {
@@ -94,6 +130,20 @@ namespace Botanik { namespace Terminal {
         /** @brief Blank the active region of both grids - after a physical
          *  clear, the wire is blank and nothing is drawn. */
         void _reset_grids();
+
+        /** @brief Rows whose grids may differ, one bit each. A clear bit is a
+         *  promise the walk can skip the row without reading it, so every write
+         *  to either grid sets it and only the walk clears it. */
+        uint32_t _dirty = 0;
+        void _touch(uint16_t row)  { _dirty |= 1u << row; }
+        void _touch_all()          { _dirty = ~0u; }
+        static uint32_t _mask(uint16_t top, uint16_t bottom) {
+            return (bottom >= 31 ? ~0u : ((1u << (bottom + 1)) - 1)) & (~0u << top);
+        }
+        /** @brief Under DEBUG, that a clear bit really means the two grids agree:
+         *  a write path that forgets to touch its row would otherwise show as a
+         *  screen that never repairs itself. */
+        void _check_dirty() const;
 
         /** @brief Draw cursor: where the next write_chars stamps. _draw_col may
          *  equal _cols (parked past the last column after a row-filling write, so a
@@ -105,8 +155,7 @@ namespace Botanik { namespace Terminal {
         bool     _want_cursor_visible = false;
         /** @brief Transient suppression of a wanted cursor, kept apart from the
          *  wish above so releasing it needs nothing put back. Raised while a
-         *  region is up: the highlight already says where the edit point is, and
-         *  a cursor blinking inside it only competes with it. */
+         *  region is up: the highlight already says where the edit point is. */
         bool     _cursor_inhibited = false;
         /** @brief Where a visible cursor parks once present() has reconciled the
          *  screen. Set only by set_cursor_pos(), i.e. by the renderer that owns
@@ -118,8 +167,6 @@ namespace Botanik { namespace Terminal {
          *  Filled by the constructor: a brace-initialiser would set only the first
          *  row and leave the rest at 0, which is PRIO_INPUT. */
         uint8_t _row_prio[GRID_ROWS];
-        /** @brief The same classes as one bit per row. */
-        uint32_t _prio_rows[PRIO_COUNT] = { 0, 0, 0 };
 
         /** @brief Per class, the row present() resumes its scan at - wherever the
          *  tick's budget ran out. The walk only ever runs downward from there and
@@ -176,96 +223,66 @@ namespace Botanik { namespace Terminal {
         }
 
         /** @}
-         *  @name Reconciliation (reconcile.cpp)
-         *  present() emits what the hints say moved, then writes what is left.
-         *  @{ */
+         *  @name Layout changes (reconcile.cpp)
+         *  The changes renderers announced and present() has not yet put on
+         *  the wire, oldest first. Each is applied whole or left waiting; the
+         *  rows it covers wait with it, so the walk never writes cells a move
+         *  is about to carry. @{ */
 
-        /** @brief A band move: rows [top, bottom] move @p n rows, emitted as a
-         *  DL/IL pair. */
-        struct Slide { uint16_t top, bottom, n; bool up; };
-
-        static constexpr uint16_t BRIDGE_CELLS     = 3;   ///< widest gap rewritten rather than moved over
-        static constexpr uint16_t ROW_ENTRY_BYTES  = 7;   ///< a move onto a row from elsewhere
-        static constexpr uint16_t SLIDE_BYTES      = 11;  ///< half a DL/IL pair: a move and the escape
+        static constexpr uint8_t CHANGE_QUEUE     = 6;   ///< changes a beat may leave pending
+        static constexpr uint8_t CHANGE_MAX_BEATS = 4;   ///< beats a change waits for the ring
+        static constexpr uint16_t SLIDE_BYTES     = 11;  ///< half a DL/IL pair: a move and the escape
         /** @brief Ring the whole DL/IL pair needs before its first escape goes:
          *  a move and an escape at each end, each escape reserving ANSI_MAX_SEQ.
          *  Half a pair on the wire with BACK unshifted is a screen nothing repairs. */
-        static constexpr uint16_t SLIDE_ROOM       = 2 * (8 + 16);
-        static constexpr uint16_t EL_MIN_CELLS     = 4;   ///< stale tail cells from which one EL pays
-        static constexpr uint16_t EL_BYTES         = 11;  ///< a move onto the tail and the EL
-        static_assert(GRID_ROWS <= 32, "the dirty set is one word");
+        static constexpr uint16_t SLIDE_ROOM      = 2 * (8 + 16);
 
-        /** @name Hints
-         *  What a renderer says moved. A hint only reorders BACK in step with
-         *  the wire, so a wrong one costs bytes, never a wrong screen. @{ */
+        struct Queued { LayoutChange c; uint32_t left; };   ///< `left`: ripple rows still to shift
+        Queued  _queue[CHANGE_QUEUE];
+        uint8_t _queued    = 0;
+        uint8_t _queue_age = 0;   ///< beats since a change last went out
 
-        /** @brief Beats a hint waits for room on the wire before it is dropped
-         *  and the rows it covers are rewritten instead. */
-        static constexpr uint8_t HINT_MAX_BEATS = 4;
-
-        /** @brief The one pending band move, `delta` 0 when there is none. */
-        struct RowHint { uint16_t top, bottom; int16_t delta; uint8_t age; };
-        RowHint _row_hint = { 0, 0, 0, 0 };
-
-        /** @brief Per row, the pending column move, `delta` 0 when there is none. */
-        struct ColHint { uint8_t col; int8_t delta; uint8_t age; };
-        ColHint _col_hint[GRID_ROWS] = {};
-        static_assert(GRID_COLS <= 255, "a column hint holds a column in a byte");
-
-        /** @brief Emit the band move, dropping it once it has waited too long. */
-        void _apply_row_hint();
-        /** @brief What a hint costs the wire less what it saves the walk, in bytes:
-         *  it goes out when that is negative. The band is priced over its rows
-         *  alone, then each column move over its row with the band already in BACK. A renderer hints what it
-         *  drew, and the wire may be frames behind it, so what pays is asked of
-         *  BACK, not of the renderer. */
-        int32_t _band_saved(uint16_t from, uint16_t to) const;
-        bool _col_hint_pays(uint16_t row) const;
-        /** @brief What the walk pays for @p stale cells left past FRONT's blank
-         *  tail: past a few of them it erases the tail rather than writing it. */
-        static int32_t _tail_cost(uint16_t stale);
-        /** @brief Bytes the walk no longer writes on @p row once the pending hints
-         *  have gone, runs and the moves onto them counted as it counts them. */
-        int32_t _saved(uint16_t row, bool cols) const;
-        /** @brief Row @p row of BACK once the band has gone, and with it the row's
-         *  column move when @p cols. Returns BACK itself where the row moves whole,
-         *  and @p buf (GRID_COLS wide) where cells had to be placed.  */
-        const uint8_t* _after_row(uint16_t row, bool cols, uint8_t* buf) const;
-        /** @brief Emit row @p row's column move. @return false if the ring could
-         *  not take it, which leaves the hint pending. */
-        bool _apply_col_hint(uint16_t row);
-        /** @brief Settle row @p row's column move where the walk stands on the
-         *  row, so the run repairing what it did not carry is a step away rather
-         *  than an address. @return false while it is still owed. */
-        bool _take_col_hint(uint16_t row);
-        /** @brief Rows whose grids may differ, one bit each. A clear bit is a
-         *  promise the walk can skip the row without reading it, so every write
-         *  to either grid sets it and only the walk clears it. */
-        uint32_t _dirty = 0;
-        void _touch(uint16_t row)  { _dirty |= 1u << row; }
-        void _touch_all()          { _dirty = ~0u; }
-        /** @brief Under DEBUG, that a clear bit really means the two grids agree:
-         *  a write path that forgets to touch its row would otherwise show as a
-         *  screen that never repairs itself. */
-        void _check_dirty() const;
-
-        /** @brief Rows the band still owes, which the walk leaves alone. */
-        uint32_t _band_rows() const;
-        /** @brief Forget every hint: the screen they described is gone. */
-        void _drop_hints();
-        /** @brief Send the row walk back to the top of every class, without
-         *  touching the hints: a band move reorders the rows under it. */
+        /** @brief Put the pending scrolls on the wire, oldest first, stopping
+         *  at the first the ring cannot take; a ripple stays for the walk. */
+        void _apply_changes();
+        /** @brief Whether scroll @p c saves the walk more than its escapes
+         *  cost, and how far down it should reach. */
+        bool _slide_pays(const LayoutChange& c, uint16_t& bottom) const;
+        /** @brief Move ripple @p q with the band [@p top, @p bottom] that just
+         *  slid @p n rows, or forget it where it left the band. */
+        void _carry(Queued& q, uint16_t top, uint16_t bottom, int16_t n);
+        /** @brief Serve the ripples pending on @p row, each after the cells
+         *  left of it. @return false when the budget ran out. */
+        bool _ripple_row(uint16_t row, uint16_t& budget);
+        /** @brief Cells [@p a] and [@p b] differ in, counted to DIFF_CAP; @p b
+         *  null is a blank row. */
+        uint16_t _row_diff(const uint8_t* a, const uint8_t* b) const;
+        static constexpr uint16_t DIFF_CAP = 16;   ///< cells past which a row is rewritten either way
+        /** @brief Cells the walk stops writing on rows [@p top, @p bottom] once
+         *  they have moved @p n rows, less the ones it starts writing. */
+        int32_t _gain(uint16_t top, uint16_t bottom, int16_t n) const;
+        /** @brief Rows [@p top, @p bottom] move @p n rows on the wire, as a
+         *  DL/IL pair; BACK follows only if the whole pair went. */
+        bool _slide(uint16_t top, uint16_t bottom, int16_t n);
+        /** @brief On @p row, open @p n cells at @p at (n > 0, in insert mode,
+         *  stamped from FRONT) or close |n| (n < 0, DCH), spending @p budget;
+         *  BACK follows. @return false when it did not fit. */
+        bool _shift(uint16_t row, uint16_t at, int16_t n, uint16_t& budget);
+        /** @brief Rows the pending changes still cover, one bit each. */
+        uint32_t _owed() const;
+        static uint32_t _rows_of(const LayoutChange& c) { return _mask(c.top, c.bottom); }
+        /** @brief Forget every pending change: the screen they described is gone. */
+        void _drop_changes() { _queued = 0; _queue_age = 0; }
+        /** @brief Send the row walk back to the top of every class: a slide
+         *  reorders the rows under it. */
         void _restart_walk();
 
         /** @}
          *  @name The walk
          *  @{ */
 
-        /** @brief Emit the band move @p s as its DL/IL pair; BACK follows only if
-         *  it all went. */
-        bool _emit_slide(const Slide& s);
-        /** @brief Mirror a band move that reached the wire in BACK. */
-        void _shift_back(const Slide& s);
+        static constexpr uint16_t BRIDGE_CELLS = 3;   ///< widest gap rewritten rather than moved over
+        static constexpr uint16_t EL_MIN_CELLS = 4;   ///< stale tail cells from which one EL pays
 
         /** @brief Emit the paced FRONT-vs-BACK cell diff. @return true when the
          *  screen is fully reconciled; false when work is left for the next tick. */
@@ -312,6 +329,11 @@ namespace Botanik { namespace Terminal {
         /** @} */
 
     public:
+        /** @brief Cells a column shift must carry to beat writing them: under
+         *  this a RIPPLE's row is written rather than shifted. A producer
+         *  choosing which side of a split to move reads it too. */
+        static constexpr uint16_t SHIFT_MIN_CARRY = 8;
+
         /** @name Lifecycle
          *  @{ */
 
@@ -408,24 +430,16 @@ namespace Botanik { namespace Terminal {
             set_row_priority(row, row, prio);
         }
 
-        /** @brief Send present()'s row walk back to the top of every class.
-         *  Call it when the content changed as an ordered whole (a page switch,
-         *  a full repaint), or a walk parked mid-screen by the
-         *  previous frame decides where the next one starts painting.
-         *  establish_screen() and every slide present() emits call it. */
+        /** @brief Send present()'s row walk back to the top of every class and
+         *  forget every pending change. Call it when the content changed as an
+         *  ordered whole (a page switch, a full repaint). */
         void restart_scan();
 
-        /** @brief Rows [@p top, @p bottom] now show, at row y, what row
-         *  y - @p delta showed: a scrollback revealing a line, a table stepping,
-         *  an editor growing. The walk repairs whatever the move did not carry.
-         *  @note One band at a time: a second hint over the same band adds to
-         *  it, over any other replaces it. */
-        void hint_rows(uint16_t top, uint16_t bottom, int16_t delta);
-
-        /** @brief On @p row, what started at column @p col now starts at
-         *  @p col + @p delta: a character inserted into a wrapped line, a prompt
-         *  that changed width. One per row, merged while it continues. */
-        void hint_cols(uint16_t row, uint16_t col, int16_t delta);
+        /** @brief Announce what the renderer's paint did to the screen's
+         *  structure, in the coordinates the paint lands in. Changes go out in
+         *  the order announced; a scroll merges into a touching one going the
+         *  same way, a ripple into the one it continues. */
+        void change(const LayoutChange& c);
 
         /** @brief Declare where the visible cursor belongs. The renderer owning
          *  the cursor (the editor) calls this whenever it moves; present() parks
@@ -466,8 +480,8 @@ namespace Botanik { namespace Terminal {
          *  @name Frame reconciliation
          *  @{ */
 
-        /** @brief Reconcile the FRONT grid to the wire: the row slides it
-         *  finds, then the minimal cell diff, paced under this tick's byte
+        /** @brief Reconcile the FRONT grid to the wire: the changes renderers
+         *  announced, then the minimal cell diff, paced under this tick's byte
          *  budget. Called once per loop by the Console after renderers have drawn. */
         void present();
 

@@ -64,14 +64,10 @@ namespace Botanik { namespace Terminal {
             _row_prio[r] = (uint8_t)prio;
     }
 
-    void AnsiTerminal::_restart_walk() {
-        for (uint8_t p = 0; p < PRIO_COUNT; p++) _resume[p] = 0;
-    }
-
     void AnsiTerminal::restart_scan() {
-        // The content changed as a whole, so whatever a pending hint described
-        // is gone with it.
-        _drop_hints();
+        // The content changed as a whole, so whatever a pending change
+        // described is gone with it.
+        _drop_changes();
         _restart_walk();
         _touch_all();
     }
