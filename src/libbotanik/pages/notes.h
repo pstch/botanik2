@@ -47,7 +47,6 @@ namespace Botanik { namespace Pages {
          *  @{ */
         static const char* PROMPT_LINE() { return "> "; }   /**< PS1 / PS3 */
         static const char* PROMPT_WRAP() { return "  "; }   /**< PS2 */
-        static const uint16_t PROMPT_COLS = 2;
         /** @} */
 
         /** @brief HAL::Storage key the note is persisted under. Its own key,

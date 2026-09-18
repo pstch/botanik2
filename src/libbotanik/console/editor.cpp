@@ -157,9 +157,31 @@ namespace Botanik { namespace Terminal {
         _view_top = want < max_top ? want : max_top;
     }
 
-    void TextEditor::set_origin(uint16_t row) {
+    void TextEditor::_set_origin(uint16_t row) {
         uint16_t max_row = (uint16_t)(_console->rows() - 1);
         _origin = row > max_row ? max_row : row;
+    }
+
+    void TextEditor::set_prompts(const char* ps1, const char* ps2, const char* ps3) {
+        _set_ps(RowPrompt::PS1, ps1, (uint16_t)strlen(ps1));
+        _set_ps(RowPrompt::PS2, ps2, (uint16_t)strlen(ps2));
+        _set_ps(RowPrompt::PS3, ps3, (uint16_t)strlen(ps3));
+    }
+
+    void TextEditor::as_prompt(uint16_t bottom_row) {
+        _anchor = Anchor::BOTTOM; _view_rows = 0; _indent = 0; _single_line = false;
+        _set_origin(bottom_row);
+    }
+
+    void TextEditor::as_viewport(uint16_t top_row, uint16_t rows) {
+        _anchor = Anchor::TOP; _view_rows = rows; _indent = 0; _single_line = false;
+        _set_origin(top_row);
+    }
+
+    void TextEditor::as_field(uint16_t row, uint16_t indent) {
+        _anchor = Anchor::BOTTOM; _view_rows = 0; _indent = indent; _single_line = true;
+        set_prompts("", "", "");
+        _set_origin(row);
     }
 
     // painting

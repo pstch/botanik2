@@ -54,11 +54,9 @@ namespace tests { namespace botanik_test {
             }
             // Geometry from the console, which reserves the alarm bar's row.
             if (notes_page) {
-                editor.set_anchor(Botanik::Terminal::Anchor::TOP);
-                editor.set_origin(1);
-                editor.set_view_rows((uint16_t)(console.rows() - 2));   // @see NotesPage::focus
+                editor.as_viewport(1, (uint16_t)(console.rows() - 2));   // @see NotesPage::focus
             } else {
-                editor.set_origin((uint16_t)(console.rows() - 1));       // @see ShellPage::_setup_editor
+                editor.as_prompt((uint16_t)(console.rows() - 1));        // @see ShellPage::_setup_editor
             }
             // Blank before the first paint: reset() stamps the prompt into
             // FRONT, and a blank that lands after it leaves the editor
@@ -76,9 +74,7 @@ namespace tests { namespace botanik_test {
         void show_cursor() { console.terminal().set_cursor_visible(true); }
 
         void set_ps(const char* p1, const char* p2, const char* p3) {
-            editor.set_ps1(p1, (uint16_t)strlen(p1));
-            editor.set_ps2(p2, (uint16_t)strlen(p2));
-            editor.set_ps3(p3, (uint16_t)strlen(p3));
+            editor.set_prompts(p1, p2, p3);
         }
 
         /** @brief Blank everything and repaint the editor from its model, so a

@@ -260,11 +260,7 @@ namespace Botanik { namespace Pages {
         char label[48];
         uint16_t lw = _edit_label(label, sizeof(label));
 
-        const char* empty = "";
-        _editor.set_ps1(empty, 0);
-        _editor.set_origin(row);
-        _editor.set_indent(lw);
-        _editor.set_single_line(true);
+        _editor.as_field(row, lw);
         _editor.reset();          // clears the row past the label
         _draw_label();
 

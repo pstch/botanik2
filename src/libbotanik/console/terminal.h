@@ -106,6 +106,8 @@ namespace Botanik { namespace Terminal {
         }
         /** @brief Blank both grids over the active region. */
         void _reset_grids();
+        /** @brief Blank rows [@p top, @p bottom] of FRONT. */
+        void clear_rows(uint16_t top, uint16_t bottom);
 
         /** @brief One bit per row whose grids may differ. A clear bit is a
          *  promise the walk can skip the row unread: every write to either
@@ -227,6 +229,8 @@ namespace Botanik { namespace Terminal {
         static uint32_t _rows_of(const LayoutChange& c) { return _mask(c.top, c.bottom); }
         void _drop_changes() { _queued = 0; _queue_age = 0; }
         void _restart_walk();
+        /** @brief A screen just established: every row is the walk's, from the top. */
+        void restart_scan();
 
         /** @}
          *  @name The walk
@@ -361,10 +365,6 @@ namespace Botanik { namespace Terminal {
             set_row_priority(row, row, prio);
         }
 
-        /** @brief Send the walk back to the top of every class and forget
-         *  every pending change: the content changed as an ordered whole. */
-        void restart_scan();
-
         /** @brief Announce what the renderer's paint did, in the coordinates
          *  the paint lands in. Changes go out in announcement order; a scroll
          *  merges into a touching one going the same way, a ripple into the
@@ -385,12 +385,11 @@ namespace Botanik { namespace Terminal {
         void clear_to_eol();
         void clear_screen();
         void clear_screen_now();
-        /** @brief Blank rows [@p top, @p bottom] of FRONT. */
-        void clear_rows(uint16_t top, uint16_t bottom);
-        /** @brief Blank rows [@p top, @p bottom] on the wire now as well as
-         *  in FRONT, one EL per row so nothing else moves, and forget every
-         *  pending change: a page switch. */
-        void blank_rows(uint16_t top, uint16_t bottom);
+        /** @brief Blank rows [@p top, @p bottom] of FRONT and forget every
+         *  pending change: a page switch. @p on_wire blanks them on the wire
+         *  now too, one EL per row so nothing else moves; without it the diff
+         *  sends only what the repaint changes. */
+        void blank_rows(uint16_t top, uint16_t bottom, bool on_wire = true);
 
         void establish_screen();
 

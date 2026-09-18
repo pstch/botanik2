@@ -177,9 +177,6 @@ namespace Botanik { namespace Terminal {
         /** @brief Switch to the page at the given index. */
         void switch_to(uint8_t index);
 
-        /** @brief Switch to the next (@p forward) or previous page, wrapping. */
-        void switch_relative(bool forward);
-
         /** @brief Number of registered pages (the status-bar tab count). */
         uint8_t page_count() const { return _pages_len; }
 
@@ -232,6 +229,9 @@ namespace Botanik { namespace Terminal {
          *  page, consuming the terminal-level intercepts (Ctrl-L redraw,
          *  Alt-N/Tab switches, Ctrl-C) first. */
         void _pump_input();
+
+        /** @brief Switch to the next (@p forward) or previous page, wrapping. */
+        void switch_relative(bool forward);
 
         /** @brief Hand the content band back to the incoming page as plain
          *  structure (see the definition). */

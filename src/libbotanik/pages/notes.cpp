@@ -35,12 +35,10 @@ namespace Botanik { namespace Pages {
         uint16_t rows = _console.rows();
         if (rows < 3) return;                 // no room for text and a status row
 
-        _editor.set_anchor(Terminal::Anchor::TOP);
-        _editor.set_origin(1);                // row 0 is the status bar
-        _editor.set_view_rows((uint16_t)(rows - 2));  // last row is ours
-        _editor.set_ps1(PROMPT_LINE(), PROMPT_COLS);  // first row of the note
-        _editor.set_ps2(PROMPT_WRAP(), PROMPT_COLS);  // a soft-wrapped tail
-        _editor.set_ps3(PROMPT_LINE(), PROMPT_COLS);  // a row the operator started
+        // Row 0 is the status bar and the last row is this page's own. A row
+        // the operator started and a soft-wrapped tail get different prompts.
+        _editor.set_prompts(PROMPT_LINE(), PROMPT_WRAP(), PROMPT_LINE());
+        _editor.as_viewport(1, (uint16_t)(rows - 2));
 
         if (!_loaded) { _loaded = true; _load(); }
 

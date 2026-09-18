@@ -154,14 +154,8 @@ namespace Botanik { namespace Pages {
     // Internals
 
     void ShellPage::_setup_editor() {
-        uint16_t editor_row = (uint16_t)(_console.rows() - 1);
-        _editor.set_origin(editor_row);
-        const char ps1[] = "botanik> ";
-        _editor.set_ps1(ps1, sizeof(ps1) - 1);
-        const char ps2[] = "> ";
-        _editor.set_ps2(ps2, sizeof(ps2) - 1);
-        const char ps3[] = "...> ";
-        _editor.set_ps3(ps3, sizeof(ps3) - 1);
+        _editor.set_prompts("botanik> ", "> ", "...> ");
+        _editor.as_prompt((uint16_t)(_console.rows() - 1));
     }
 
     void ShellPage::_full_redraw() {

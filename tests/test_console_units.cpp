@@ -508,7 +508,6 @@ TEST_CASE("terminal: the urgent row goes first when the budget is short") {
     for (uint16_t r = 1; r <= 20; r++)
         f.put(r, 0, "a page repaint, twenty rows of it, all at once");
     f.put(23, 0, "URGENT");
-    f.term.restart_scan();
 
     // One present(), not the drain loop: what does the first tick carry?
     std::string first;

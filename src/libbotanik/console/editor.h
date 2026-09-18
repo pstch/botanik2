@@ -126,12 +126,26 @@ namespace Botanik { namespace Terminal {
 
         /** @} */
 
-        /** @name Prompts
-         *  @{ */
+        /** @name Embedding
+         *  How an owner places the editor: once, before the first redraw, and
+         *  again whenever its rows move. @{ */
 
-        void set_ps1(const char* buf, uint16_t len) { _set_ps(RowPrompt::PS1, buf, len); }
-        void set_ps2(const char* buf, uint16_t len) { _set_ps(RowPrompt::PS2, buf, len); }
-        void set_ps3(const char* buf, uint16_t len) { _set_ps(RowPrompt::PS3, buf, len); }
+        /** @brief The prompt on the first row, on a wrapped continuation and
+         *  after a hard break; NUL-terminated, EDITOR_PROMPT_MAX at most. They
+         *  may differ in width. */
+        void set_prompts(const char* ps1, const char* ps2, const char* ps3);
+
+        /** @brief A prompt: the last row sits on @p bottom_row and the text
+         *  grows upward from it. The shell. */
+        void as_prompt(uint16_t bottom_row);
+
+        /** @brief A viewport of @p rows rows from @p top_row, scrolling over
+         *  the text. NOTES. */
+        void as_viewport(uint16_t top_row, uint16_t rows);
+
+        /** @brief One unprompted line on @p row after a caller-drawn label
+         *  @p indent columns wide: newlines and wrapping are refused. */
+        void as_field(uint16_t row, uint16_t indent);
 
         /** @} */
 
@@ -150,20 +164,6 @@ namespace Botanik { namespace Terminal {
         /** @brief Layout row @p i as painted, prompt then text, into @p out.
          *  @return the bytes written, at most @p cap. */
         uint16_t row_text(uint16_t i, char* out, uint16_t cap) const;
-
-        /** @brief Pin the viewport's top row; bottom-anchored, it follows the text. */
-        void set_origin(uint16_t row);
-
-        void set_anchor(Anchor a) { _anchor = a; }
-
-        /** @brief Viewport height; 0 (the default) runs to the content bottom. */
-        void set_view_rows(uint16_t n) { _view_rows = n; }
-
-        /** @brief Reserve @p col columns at the left for a caller-drawn label. */
-        void set_indent(uint16_t col) { _indent = col; }
-
-        /** @brief Refuse newlines and any insert past the row end. */
-        void set_single_line(bool v) { _single_line = v; }
 
         /** @} */
 
@@ -257,6 +257,9 @@ namespace Botanik { namespace Terminal {
 
         /** @name Prompts
          *  @{ */
+
+        /** @brief Pin the viewport's top row, clamped to the screen. */
+        void _set_origin(uint16_t row);
 
         void _set_ps(RowPrompt p, const char* buf, uint16_t len) {
             if (len > Config::EDITOR_PROMPT_MAX) len = Config::EDITOR_PROMPT_MAX;
