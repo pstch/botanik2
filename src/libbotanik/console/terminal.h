@@ -107,8 +107,6 @@ namespace Botanik { namespace Terminal {
         }
         /** @brief Blank both grids over the active region. */
         void _reset_grids();
-        /** @brief Blank rows [@p top, @p bottom] of FRONT. */
-        void clear_rows(uint16_t top, uint16_t bottom);
 
         /** @brief One bit per row whose grids may differ. A clear bit is a
          *  promise the walk can skip the row unread: every write to either
@@ -379,6 +377,8 @@ namespace Botanik { namespace Terminal {
         void clear_to_eol();
         void clear_screen();
         void clear_screen_now();
+        /** @brief Blank rows [@p top, @p bottom] of FRONT. */
+        void clear_rows(uint16_t top, uint16_t bottom);
         /** @brief Blank rows [@p top, @p bottom] on the wire now as well as
          *  in FRONT, one EL per row so nothing else moves, and forget every
          *  pending change: a page switch. */

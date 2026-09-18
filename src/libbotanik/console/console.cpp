@@ -279,13 +279,16 @@ namespace Botanik { namespace Terminal {
         }
         if (_pages[_page_index] != nullptr)
             _pages[_page_index]->deactivate();
+        const bool same = index == _page_index;
         _page_index = index;
         // Hide the cursor before any repaint so it doesn't blink across the
         // cleared content or the row-0 tabs. focus() shows it again if wanted.
         _term.set_cursor_visible(false);
         // Clear only the content band: the row-0 status bar and the bottom alarm
-        // bar survive.
-        clear_content();
+        // bar survive. The page already shown repaints what is there, so its
+        // band is blanked in FRONT alone and the diff sends the difference.
+        if (same) _term.clear_rows(1, _content_bottom());
+        else      clear_content();
         // A switch reflows the whole strip (the active tab expands to "N:NAME"),
         // so repaint it as a unit.
         _status_bar.draw_tabs();
