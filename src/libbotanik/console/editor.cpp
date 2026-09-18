@@ -518,26 +518,23 @@ namespace Botanik { namespace Terminal {
         return e;
     }
 
-    void TextEditor::_band(int32_t T, int32_t B, int32_t m0, int32_t mB, const Edit* e,
-                           uint16_t origin_was, uint16_t view_top_was) {
-        const int32_t lo    = std::min(_origin, origin_was);
+    void TextEditor::_band(const Moved& m, int32_t T, int32_t B) {
+        const int32_t lo    = std::min(_origin, m.origin_was);
         const int32_t hi    = _view_bottom_hw();
-        const int32_t count = e != nullptr ? e->count : _row_count;
-        const int32_t d     = (int32_t)_row_count - count;
-        // Screen row an old or a new layout row had, or has.
-        const auto was = [&](int32_t i) { return (int32_t)origin_was + i - (int32_t)view_top_was; };
-        const auto now = [&](int32_t i) { return (int32_t)_origin + i - (int32_t)_view_top; };
-        int32_t top = lo, bottom = hi, n = m0;
-        if (m0 != mB) {
+        const int32_t count = m.e != nullptr ? m.e->count : _row_count;
+        // Screen row an old layout row had.
+        const auto was = [&](int32_t i) { return (int32_t)m.origin_was + i - (int32_t)m.view_top_was; };
+        int32_t top = lo, bottom = hi, n = m.m0;
+        if (m.m0 != m.mB) {
             // The side above the edit and the side below moved differently; the
             // band is whichever holds more rows, and the walk writes the other.
             // A band moving up ends on the last row it empties, one moving down
             // starts on the first, so the new row lands where the old one was.
             int32_t t_bot = -1, b_top = hi + 1;
-            if (m0 != 0 && T >= 0)    t_bot = std::max(was(T), now(T));
-            if (mB != 0 && B < count) b_top = std::min(was(B), now(B + d));
+            if (m.m0 != 0 && T >= 0)    t_bot = std::max(was(T), _now(T));
+            if (m.mB != 0 && B < count) b_top = std::min(was(B), _now(B + m.d));
             if (t_bot - lo >= hi - b_top) { bottom = t_bot; }
-            else                          { top = b_top; n = mB; }
+            else                          { top = b_top; n = m.mB; }
         }
         if (top < lo) top = lo;
         if (bottom > hi) bottom = hi;
@@ -561,93 +558,98 @@ namespace Botanik { namespace Terminal {
                                                (uint16_t)tail, (int16_t)n));
     }
 
+    // What a shift on an old row carries: its text less the |n| cells pulled off it.
+    static inline int32_t _carried(int32_t len, int32_t n) { return n < 0 ? len + n : len; }
+
     void TextEditor::_announce(const Edit* e, uint16_t origin_was, uint16_t view_top_was) {
-        const int32_t m0 = ((int32_t)_origin - origin_was) - ((int32_t)_view_top - view_top_was);
-        if (e == nullptr) { _band(0, 0, m0, m0, nullptr, origin_was, view_top_was); return; }
-
-        const int32_t  d     = (int32_t)_row_count - e->count;
-        const int32_t  mB    = m0 + d;
-        const int32_t  cols  = _terminal->cols();
-        const int32_t  ps2   = _prompt_len(RowPrompt::PS2), ps3 = _prompt_len(RowPrompt::PS3);
-        const int32_t  lead2 = _indent + ps2, lead3 = _indent + ps3;
-        const int32_t  cap2  = cols > lead2 ? cols - lead2 : 1;
-        const int32_t  cap3  = cols > lead3 ? cols - lead3 : 1;
-        const int32_t  a = e->a, L = e->L, len_a = e->row_a.buf_len, len_L = e->row_L.buf_len;
-        const int32_t  off   = (int32_t)e->pos - e->row_a.buf_start;   // the edit, in row a's text
-        const int32_t  col_a = _indent + e->ps_a + off;
-        const auto now = [&](int32_t i) { return (int32_t)_origin + i - (int32_t)_view_top; };
-        // What a shift on an old row carries: its text less the |n| cells pulled off it.
-        const auto carried = [](int32_t len, int32_t n) { return n < 0 ? len + n : len; };
-
+        Moved m;
+        m.e = e; m.origin_was = origin_was; m.view_top_was = view_top_was;
+        m.m0 = ((int32_t)_origin - origin_was) - ((int32_t)_view_top - view_top_was);
+        m.d  = e != nullptr ? (int32_t)_row_count - e->count : 0;
+        m.mB = m.m0 + m.d;
+        if (e == nullptr) { _band(m, 0, 0); return; }
+        const int32_t cols = _terminal->cols();
+        m.lead2 = _indent + _prompt_len(RowPrompt::PS2);
+        m.lead3 = _indent + _prompt_len(RowPrompt::PS3);
+        m.cap2  = std::max(cols - m.lead2, 1);
+        m.cap3  = std::max(cols - m.lead3, 1);
+        m.off   = (int32_t)e->pos - e->row_a.buf_start;
+        m.col_a = _indent + e->ps_a + m.off;
         switch (e->kind) {
-        case Edit::PLAIN: {
-            // Cells entered or left at the edit point and every row of the line
-            // down to its end took the overflow of the row above; the rows after
-            // the line moved as one.
-            _band(std::min(L, L + d), L + 1, m0, mB, e, origin_was, view_top_was);
-            const int32_t k = e->delta, mag = k < 0 ? -k : k, j = L + d;
-            int32_t tail;
-            if (k > 0) tail = d > 0 ? 0 : (j == a ? len_a - off : len_L);
-            else       tail = j == a ? len_a - off - mag : carried(j == L ? len_L : cap2, k);
-            _ripple(now(a), now(j), k < 0 ? col_a + mag : col_a, k < 0 ? col_a : col_a + mag, tail);
-            return;
+        case Edit::PLAIN: _announce_plain(m); return;
+        case Edit::SPLIT: _announce_split(m); return;
+        case Edit::JOIN:  _announce_join(m);  return;
+        case Edit::OTHER: _band(m, e->a, e->L + 1); return;
         }
-        case Edit::SPLIT: {
-            // Row a split at the edit point. Three ways to put that on screen,
-            // priced by the cells each writes and shifts: the tail is pushed
-            // onto the head of the next row and the line ripples on from
-            // there; a row opens under the head, takes the tail, and pulls
-            // from the next row what its width leaves; or a row opens over
-            // the tail, takes the head, and the tail slides to the PS3 column.
-            const int32_t head = off, t = len_a - off, m = L - a, j = L + d;
-            const int32_t s_push = t + lead3 - lead2;
-            const int32_t s_pull = cap3 - t;
-            const int32_t s_over = col_a - lead3;
-            const int32_t pair   = 22;
-            const int32_t push = 8 + 11 + ps3 + t + m * (8 + s_push) + (d == 1 && L + 1 < e->count ? pair : 0);
-            const int32_t pull = d == 1 ? pair + 11 + cols - _indent + m * (12 + s_pull) : INT32_MAX;
-            const int32_t over = pair + e->ps_a + head + (s_over != 0 ? 12 + std::abs(s_over) : 0)
-                               + m * (12 + std::abs(s_over));
-            if (push <= pull && push <= over && s_push < cap2) {
-                _band(L, L + 1, m0, mB, e, origin_was, view_top_was);
-                _ripple(now(a + 1), now(L), lead2, lead3 + t, len_L);
-            } else if (pull <= over) {
-                _band(a, a + 1, m0, mB, e, origin_was, view_top_was);
-                if (m > 0) _ripple(now(a + 2), now(j), lead2 + s_pull, lead2, carried(len_L, -s_pull));
+    }
+
+    void TextEditor::_announce_plain(const Moved& m) {
+        // Cells entered or left at the edit point and every row of the line
+        // down to its end took the overflow of the row above; the rows after
+        // the line moved as one.
+        const Edit& e = *m.e;
+        const int32_t a = e.a, L = e.L, k = e.delta, mag = k < 0 ? -k : k, j = L + m.d;
+        _band(m, std::min(L, L + m.d), L + 1);
+        int32_t tail;
+        if (k > 0) tail = m.d > 0 ? 0 : (j == a ? e.row_a.buf_len - m.off : e.row_L.buf_len);
+        else       tail = j == a ? e.row_a.buf_len - m.off - mag
+                                 : _carried(j == L ? e.row_L.buf_len : m.cap2, k);
+        _ripple(_now(a), _now(j), k < 0 ? m.col_a + mag : m.col_a, k < 0 ? m.col_a : m.col_a + mag, tail);
+    }
+
+    void TextEditor::_announce_split(const Moved& m) {
+        // Row a split at the edit point. Three ways to put that on screen,
+        // priced by the cells each writes and shifts: the tail is pushed onto
+        // the head of the next row and the line ripples on from there; a row
+        // opens under the head, takes the tail, and pulls from the next row
+        // what its width leaves; or a row opens over the tail, takes the head,
+        // and the tail slides to the PS3 column.
+        const Edit& e = *m.e;
+        const int32_t a = e.a, L = e.L, d = m.d, len_L = e.row_L.buf_len;
+        const int32_t head = m.off, t = e.row_a.buf_len - m.off, rows = L - a, j = L + d;
+        const int32_t ps3 = _prompt_len(RowPrompt::PS3), pair = 22;
+        const int32_t s_push = t + m.lead3 - m.lead2;
+        const int32_t s_pull = m.cap3 - t;
+        const int32_t s_over = m.col_a - m.lead3;
+        const int32_t push = 8 + 11 + ps3 + t + rows * (8 + s_push) + (d == 1 && L + 1 < e.count ? pair : 0);
+        const int32_t pull = d == 1 ? pair + 11 + m.lead2 + m.cap2 + rows * (12 + s_pull) : INT32_MAX;
+        const int32_t over = pair + e.ps_a + head + (s_over != 0 ? 12 + std::abs(s_over) : 0)
+                           + rows * (12 + std::abs(s_over));
+        if (push <= pull && push <= over && s_push < m.cap2) {
+            _band(m, L, L + 1);
+            _ripple(_now(a + 1), _now(L), m.lead2, m.lead3 + t, len_L);
+        } else if (pull <= over) {
+            _band(m, a, a + 1);
+            if (rows > 0) _ripple(_now(a + 2), _now(j), m.lead2 + s_pull, m.lead2, _carried(len_L, -s_pull));
+        } else {
+            _band(m, a - 1, a);
+            if (rows == 0)   _ripple(_now(a + 1), _now(a + 1), m.col_a, m.lead3, t);
+            else if (d == 1) _ripple(_now(a + 1), _now(j), m.col_a, m.lead3, _carried(len_L, -s_over));
+        }
+    }
+
+    void TextEditor::_announce_join(const Moved& m) {
+        // The line after row a joined it. Its first row either fits whole, and
+        // a row goes, or row a's free cells take its head and the rest of the
+        // line ripples after them.
+        const Edit& e = *m.e;
+        const int32_t a = e.a, L = e.L, j = L + m.d, len_a = e.row_a.buf_len, len_b = e.row_b.buf_len;
+        const int32_t cap_a = std::max<int32_t>(_terminal->cols() - _indent - e.ps_a, 1);
+        const int32_t take  = std::min(len_b, cap_a - len_a);
+        const int32_t col_p = _indent + e.ps_a + len_a;
+        if (a + 1 == L && take == len_b) {
+            if (take >= (int32_t)AnsiTerminal::SHIFT_MIN_CARRY && e.ps_a + len_a + 8 < take) {
+                _band(m, a - 1, a + 1);
+                _ripple(_now(a), _now(a), m.lead3, col_p, take);
             } else {
-                _band(a - 1, a, m0, mB, e, origin_was, view_top_was);
-                if (m == 0)      _ripple(now(a + 1), now(a + 1), col_a, lead3, t);
-                else if (d == 1) _ripple(now(a + 1), now(j), col_a, lead3, carried(len_L, -s_over));
+                _band(m, a, a + 2);
             }
             return;
         }
-        case Edit::JOIN: {
-            // The line after row a joined it. Its first row either fits whole,
-            // and a row goes, or row a's free cells take its head and the rest
-            // of the line ripples after them.
-            const int32_t len_b = e->row_b.buf_len, j = L + d;
-            const int32_t cap_a = std::max<int32_t>(cols - _indent - e->ps_a, 1);
-            const int32_t take  = std::min(len_b, cap_a - len_a);
-            const int32_t col_p = _indent + e->ps_a + len_a;
-            if (a + 1 == L && take == len_b) {
-                if (take >= (int32_t)AnsiTerminal::SHIFT_MIN_CARRY && e->ps_a + len_a + 8 < take) {
-                    _band(a - 1, a + 1, m0, mB, e, origin_was, view_top_was);
-                    _ripple(now(a), now(a), lead3, col_p, take);
-                } else {
-                    _band(a, a + 2, m0, mB, e, origin_was, view_top_was);
-                }
-                return;
-            }
-            _band(std::min(L, L + d), L + 1, m0, mB, e, origin_was, view_top_was);
-            const int32_t n    = lead2 - lead3 - take;
-            const int32_t tail = j == a + 1 ? len_b - take : carried(j == L ? len_L : cap2, n);
-            _ripple(now(a + 1), now(j), lead3 + take, lead2, tail);
-            return;
-        }
-        case Edit::OTHER:
-            _band(a, L + 1, m0, mB, e, origin_was, view_top_was);
-            return;
-        }
+        _band(m, std::min(L, L + m.d), L + 1);
+        const int32_t n    = m.lead2 - m.lead3 - take;
+        const int32_t tail = j == a + 1 ? len_b - take : _carried(j == L ? e.row_L.buf_len : m.cap2, n);
+        _ripple(_now(a + 1), _now(j), m.lead3 + take, m.lead2, tail);
     }
 
     // reconciliation

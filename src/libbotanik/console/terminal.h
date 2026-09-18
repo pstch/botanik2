@@ -244,6 +244,10 @@ namespace Botanik { namespace Terminal {
         uint8_t _queued    = 0;
         uint8_t _queue_age = 0;   ///< beats since a change last went out
 
+        /** @brief Fold @p c into a pending change it continues or borders.
+         *  @return false when it is a change of its own. */
+        bool _merge_scroll(const LayoutChange& c);
+        bool _merge_ripple(const LayoutChange& c);
         /** @brief Put the pending scrolls on the wire, oldest first, stopping
          *  at the first the ring cannot take; a ripple stays for the walk. */
         void _apply_changes();

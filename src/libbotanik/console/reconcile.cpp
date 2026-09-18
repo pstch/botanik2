@@ -125,52 +125,51 @@ namespace Botanik { namespace Terminal {
 
     // Layout changes
 
-    void AnsiTerminal::change(const LayoutChange& in) {
-        LayoutChange c = in;
+    void AnsiTerminal::change(const LayoutChange& c) {
         if (c.kind == LayoutChange::NONE || c.n == 0 || c.top > c.bottom || c.bottom >= _rows) return;
         if (c.kind == LayoutChange::SCROLL && _abs16(c.n) > (uint16_t)(c.bottom - c.top)) return;   // nothing of it stays
         if (c.kind == LayoutChange::RIPPLE && (c.col >= _cols || c.lead >= _cols)) return;
-
-        if (_queued != 0) {
-            Queued& q = _queue[_queued - 1];
-            if (q.left == _rows_of(q.c) && q.c.kind == c.kind && c.kind == LayoutChange::RIPPLE &&
-                q.c.top == c.top && q.c.bottom == c.bottom && q.c.lead == c.lead &&
-                (q.c.n < 0) == (c.n < 0)) {
-                // Two ripples compose where the second picks up the cells the
-                // first left: typing on, backspacing over, or deleting at one spot.
-                const int32_t sum = (int32_t)q.c.n + c.n;
-                if ((c.col == q.c.col + q.c.n || (c.n < 0 && c.col == q.c.col)) && sum > -127 && sum < 127) {
-                    q.c.n    = (int16_t)sum;
-                    q.c.col  = std::min(q.c.col, c.col);
-                    q.c.tail = std::min(q.c.tail, c.tail);
-                    return;
-                }
-            }
-        }
-        if (c.kind == LayoutChange::SCROLL) {
-            // Two views scrolling the same way over neighbouring bands are one
-            // move: the transcript sliding under an editor that grew is the
-            // common one. A ripple queued between them stands only if the band
-            // does not reach its rows, since it is in the coordinates of after.
-            for (uint8_t i = _queued; i-- > 0;) {
-                Queued& q = _queue[i];
-                if (q.c.kind != LayoutChange::SCROLL) { if ((_rows_of(q.c) & _rows_of(c)) != 0) break; continue; }
-                if (q.c.top == c.top && q.c.bottom == c.bottom) {
-                    const int32_t sum = (int32_t)q.c.n + c.n;      // the band moved again
-                    if (_abs16((int16_t)sum) > (uint16_t)(c.bottom - c.top) || sum == 0) { q.c.kind = LayoutChange::NONE; return; }
-                    q.c.n = (int16_t)sum;
-                    return;
-                }
-                if (q.c.n == c.n && q.c.bottom + 1 >= c.top && q.c.top <= c.bottom + 1) {
-                    q.c.top    = std::min(q.c.top, c.top);
-                    q.c.bottom = std::max(q.c.bottom, c.bottom);
-                    return;
-                }
-                break;
-            }
-        }
+        if (c.kind == LayoutChange::SCROLL ? _merge_scroll(c) : _merge_ripple(c)) return;
         if (_queued == CHANGE_QUEUE) { _drop_changes(); return; }
         _queue[_queued++] = Queued{ c, _rows_of(c) };
+    }
+
+    bool AnsiTerminal::_merge_ripple(const LayoutChange& c) {
+        // Two ripples compose where the second picks up the cells the first
+        // left: typing on, backspacing over, or deleting at one spot.
+        if (_queued == 0) return false;
+        Queued& q = _queue[_queued - 1];
+        if (q.c.kind != LayoutChange::RIPPLE || q.left != _rows_of(q.c)) return false;
+        if (q.c.top != c.top || q.c.bottom != c.bottom || q.c.lead != c.lead || (q.c.n < 0) != (c.n < 0)) return false;
+        const int32_t sum = (int32_t)q.c.n + c.n;
+        if (!(c.col == q.c.col + q.c.n || (c.n < 0 && c.col == q.c.col)) || sum <= -127 || sum >= 127) return false;
+        q.c.n    = (int16_t)sum;
+        q.c.col  = std::min(q.c.col, c.col);
+        q.c.tail = std::min(q.c.tail, c.tail);
+        return true;
+    }
+
+    bool AnsiTerminal::_merge_scroll(const LayoutChange& c) {
+        // Two views scrolling the same way over neighbouring bands are one
+        // move: the transcript sliding under an editor that grew is the common
+        // one. A ripple queued between them stands only if the band does not
+        // reach its rows, since it is in the coordinates of after.
+        for (uint8_t i = _queued; i-- > 0;) {
+            Queued& q = _queue[i];
+            if (q.c.kind == LayoutChange::RIPPLE) { if ((_rows_of(q.c) & _rows_of(c)) != 0) return false; continue; }
+            if (q.c.kind != LayoutChange::SCROLL) continue;
+            if (q.c.top == c.top && q.c.bottom == c.bottom) {
+                const int32_t sum = (int32_t)q.c.n + c.n;      // the band moved again
+                if (sum == 0 || _abs16((int16_t)sum) > (uint16_t)(c.bottom - c.top)) q.c.kind = LayoutChange::NONE;
+                else q.c.n = (int16_t)sum;
+                return true;
+            }
+            if (q.c.n != c.n || q.c.bottom + 1 < c.top || q.c.top > c.bottom + 1) return false;
+            q.c.top    = std::min(q.c.top, c.top);
+            q.c.bottom = std::max(q.c.bottom, c.bottom);
+            return true;
+        }
+        return false;
     }
 
     uint32_t AnsiTerminal::_owed() const {

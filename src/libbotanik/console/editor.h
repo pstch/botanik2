@@ -367,15 +367,31 @@ namespace Botanik { namespace Terminal {
             return i;
         }
 
+        /** @brief The edit and the viewport it happened in, as the announcers
+         *  read them: rows are layout indices, `m0` and `mB` screen rows. */
+        struct Moved {
+            const Edit* e;                 /**< Null for a motion or a load. */
+            uint16_t origin_was, view_top_was;
+            int32_t  d;                    /**< Rows the edit added. */
+            int32_t  m0, mB;               /**< Screen rows the sides above and below the edit moved. */
+            int32_t  lead2, lead3;         /**< Text column of a PS2 and a PS3 row. */
+            int32_t  cap2, cap3;           /**< Text width of a PS2 and a PS3 row. */
+            int32_t  col_a, off;           /**< The edit's column on row a, and offset in its text. */
+        };
+        /** @brief Screen row of layout row @p i, which may lie outside the viewport. */
+        int32_t _now(int32_t i) const { return (int32_t)_origin + i - (int32_t)_view_top; }
+
         /** @brief Tell the terminal what the edit did to the screen, worked out
          *  from @p e and the viewport before it. */
         void _announce(const Edit* e, uint16_t origin_was, uint16_t view_top_was);
+        void _announce_plain(const Moved& m);
+        void _announce_split(const Moved& m);
+        void _announce_join(const Moved& m);
         /** @brief Announce the band of rows the edit moved as one: old rows
-         *  [0, @p T] moved @p m0 screen rows and old rows [@p B, count) moved
-         *  @p mB, with the rows between them gone or new. One band, the larger
+         *  [0, @p T] moved `m0` screen rows and old rows [@p B, count) moved
+         *  `mB`, with the rows between them gone or new. One band, the larger
          *  side when they disagree. */
-        void _band(int32_t T, int32_t B, int32_t m0, int32_t mB, const Edit* e,
-                   uint16_t origin_was, uint16_t view_top_was);
+        void _band(const Moved& m, int32_t T, int32_t B);
         /** @brief Announce that on screen row @p top what started at column
          *  @p from now starts at @p to, and the rows down to @p bottom followed
          *  at the PS2 column; @p tail cells right of the change on @p bottom. */
