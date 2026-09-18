@@ -161,14 +161,12 @@ static const Scenario SCENARIOS[] = {
       [](EditorFixture& f) { fill(f, 100); },
       [](EditorFixture& f) { f.editor.replace_all("clear", 5); }, 26 },
 
-    // A DL would carry the 9-cell prompt up a row for 11 bytes; at row
-    // granularity that is not a win, and the whole row is written instead.
     { "replace_all onto two rows", SHELL,
       [](EditorFixture& f) { type(f, "hi"); },
       [](EditorFixture& f) {
           const std::string s = varied(100);
           f.editor.replace_all(s.data(), 100);
-      }, 125 },
+      }, 123 },
 
     { "region raised over a word", SHELL,
       [](EditorFixture& f) {
@@ -219,7 +217,7 @@ static const Scenario SCENARIOS[] = {
 
     { "NOTES hard break at the head of a 3-row line", NOTES,
       [](EditorFixture& f) { fill(f, 180); f.editor.move_to_line_start(); },
-      [](EditorFixture& f) { type(f, "\n"); }, 11 },
+      [](EditorFixture& f) { type(f, "\n"); }, 25 },
 
     { "NOTES hard break mid a 3-row line", NOTES,
       [](EditorFixture& f) { fill(f, 180); seek(f, 40); },
@@ -246,7 +244,7 @@ static const Scenario SCENARIOS[] = {
           f.editor.move_to_start();
           f.editor.move_down();
       },
-      [](EditorFixture& f) { f.editor.backspace(1); }, 50 },
+      [](EditorFixture& f) { f.editor.backspace(1); }, 60 },
 
     // 31 rows of text over a 22-row viewport: the cursor leaves the window by
     // one row in each direction, and the band should slide rather than repaint.
@@ -255,7 +253,7 @@ static const Scenario SCENARIOS[] = {
           lines(f, 30);
           for (int i = 0; i < 21; i++) f.editor.move_up();
       },
-      [](EditorFixture& f) { f.editor.move_up(); }, 21 },
+      [](EditorFixture& f) { f.editor.move_up(); }, 35 },
 
     { "NOTES viewport slides up a row", NOTES,
       [](EditorFixture& f) {
@@ -263,7 +261,7 @@ static const Scenario SCENARIOS[] = {
           f.editor.move_to_start();
           for (int i = 0; i < 21; i++) f.editor.move_down();
       },
-      [](EditorFixture& f) { f.editor.move_down(); }, 0 },
+      [](EditorFixture& f) { f.editor.move_down(); }, 34 },
 };
 
 static constexpr size_t N_SCENARIOS = sizeof(SCENARIOS) / sizeof(SCENARIOS[0]);

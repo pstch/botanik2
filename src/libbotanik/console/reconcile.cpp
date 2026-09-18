@@ -165,7 +165,10 @@ namespace Botanik { namespace Terminal {
                 else q.c.n = (int16_t)sum;
                 return true;
             }
-            if (q.c.n != c.n || q.c.bottom + 1 < c.top || q.c.top > c.bottom + 1) return false;
+            if (q.c.bottom + 1 < c.top || q.c.top > c.bottom + 1) return false;
+            // Another band over the same rows, moving differently: the later
+            // word stands and the walk writes what the first one described.
+            if (q.c.n != c.n) { q.c = c; return true; }
             q.c.top    = std::min(q.c.top, c.top);
             q.c.bottom = std::max(q.c.bottom, c.bottom);
             return true;
@@ -219,48 +222,14 @@ namespace Botanik { namespace Terminal {
         q.left = n < 0 ? q.left >> -n : q.left << n;
     }
 
-    uint16_t AnsiTerminal::_row_diff(const uint8_t* a, const uint8_t* b, uint16_t cap) const {
-        // A word at a time, counting bytes only inside a word that differs.
-        static const uint8_t blank[4] = { CELL_BLANK, CELL_BLANK, CELL_BLANK, CELL_BLANK };
-        uint16_t n = 0;
-        for (uint16_t c = 0; c < _cols && n < cap; c += 4) {
-            const uint8_t* pb = b != nullptr ? b + c : blank;
-            uint32_t wa, wb;
-            memcpy(&wa, a + c, 4); memcpy(&wb, pb, 4);
-            if (wa == wb) continue;
-            for (uint16_t k = 0; k < 4 && c + k < _cols; k++) n = (uint16_t)(n + (a[c + k] != pb[k]));
-        }
-        return n;
-    }
-
     bool AnsiTerminal::_slide_pays(const LayoutChange& c, uint16_t& bottom) const {
-        // What the walk writes now, less what it writes once the rows have
-        // moved, each row counted to DIFF_CAP: past that it is rewritten either
-        // way, and what matters is the row that comes out right. A band ending
-        // on the last row is half a pair, so the band extended down to it is
-        // the other candidate: dragging the rows under it costs nothing where
-        // they come out right, as a submitted input line does when it moves
-        // with the transcript it just joined. One pass prices both: the two
-        // differ only on the rows the extension adds and on the rows of the
-        // asked band whose source the extension puts something in. The rows
-        // dragged are few and priced exactly: capped, a row patched in a few
-        // cells reads the same as one rewritten from blank.
+        // Obeyed, not judged: the renderer said the rows moved. A band ending on
+        // the last row is half a pair, so it reaches down to it when every row
+        // it would drag was going to be written anyway.
         const uint16_t last = (uint16_t)(_rows - 1);
-        int32_t asked = 0, extended = 0;
-        for (uint16_t r = c.top; r <= last; r++) {
-            const uint8_t* fr  = &_front[_idx(r, 0)];
-            const int32_t  src = (int32_t)r - c.n;
-            const uint16_t cap = r > c.bottom ? _cols : DIFF_CAP;
-            const int32_t  now = _row_diff(fr, &_back[_idx(r, 0)], cap);
-            const int32_t  aft = _row_diff(fr, (src >= c.top && src <= last) ? &_back[_idx((uint16_t)src, 0)] : nullptr, cap);
-            extended += now - aft;
-            if (r > c.bottom) continue;
-            asked += now - ((src > c.bottom) ? _row_diff(fr, nullptr, cap) : aft);
-        }
-        asked    -= c.bottom == last ? SLIDE_BYTES : 2 * SLIDE_BYTES;
-        extended -= SLIDE_BYTES;
-        bottom = extended >= asked ? last : c.bottom;
-        return (extended >= asked ? extended : asked) > 0;
+        const uint32_t under = c.bottom < last ? _mask((uint16_t)(c.bottom + 1), last) : 0;
+        bottom = (under & ~_dirty) == 0 ? last : c.bottom;
+        return true;
     }
 
     bool AnsiTerminal::_shift(uint16_t row, uint16_t at, int16_t n, uint16_t& budget) {
