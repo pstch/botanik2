@@ -1,0 +1,221 @@
+# The feature flags, as data. src/libbotanik_features.h is GENERATED from
+# this file, so nothing has to read a C++ header to learn which flags exist,
+# what they default to, or what they require.
+#
+# One block per flag, in the order the header lists them: `group` opens a
+# section and `group_note` is the prose under its banner. Adding a flag is a
+# block here and a row in docs/integration/config.md - nothing else.
+
+[[features]]
+name = "CONSOLE"
+default = "1"
+doc = """
+Interactive ANSI console: the terminal, the console UART, and the
+register_pages() / register_commands() hooks. Off -> headless.
+"""
+
+[[features]]
+name = "LOGGING"
+default = "1"
+doc = """
+Log writers, the rate limiter and the queue.
+@note Off leaves `Logs::Logger` in place as an inert shell, so the headers
+that take a `Logger*` need no change and the emit sites - all already
+null-guarded - simply reach nothing.
+"""
+
+[[features]]
+name = "NETWORK"
+default = "0"
+doc = """
+Network stack (NetworkHandler / NameResolver).
+"""
+
+[[features]]
+name = "NTP"
+default = "0"
+requires = ["NETWORK"]
+doc = """
+NTP time sync.
+"""
+
+[[features]]
+name = "MQTT"
+default = "0"
+requires = ["NETWORK"]
+doc = """
+MQTT client.
+"""
+
+[[features]]
+name = "SUN_TRACKER"
+default = "0"
+doc = """
+Solar-position tracker. BotanikFirmware owns the instance and
+registers it; a site reaches it through SetupContext::sun.
+"""
+
+[[features]]
+name = "HOME_PAGE"
+group = "Console pages"
+group_note = """
+HOME and SHELL default to CONSOLE's value rather than a literal, so a headless
+build drops them without writing a contradiction the dependency rules would
+reject. The rest default off: they are what a site chooses.
+"""
+default = "BOTANIK_FEATURE_CONSOLE"
+requires = ["CONSOLE"]
+doc = """
+HOME: logo, identity, uptime, log tail, site home fields.
+"""
+
+[[features]]
+name = "SHELL_PAGE"
+default = "BOTANIK_FEATURE_CONSOLE"
+requires = ["CONSOLE"]
+doc = """
+SHELL - and with it the whole command interpreter. `ShellPage` owns
+`Shell::CommandShell`, so this also gates `register_commands()`,
+`set_diagnostics()` and `set_ntp()`. Off means no shell at all, not a shell
+without a page.
+"""
+
+[[features]]
+name = "LOGS_PAGE"
+default = "0"
+requires = ["CONSOLE", "LOGGING"]
+doc = """
+LOGS: the scrollback page.
+"""
+
+[[features]]
+name = "ALARMS_PAGE"
+default = "0"
+requires = ["CONSOLE"]
+doc = """
+ALARMS: the condition table. The alarm CONTROLLER is unconditional -
+the bottom alarm bar reads it whether or not this page exists.
+"""
+
+[[features]]
+name = "PARAMS_PAGE"
+default = "0"
+requires = ["CONSOLE"]
+doc = """
+PARAMS: the editable parameter table.
+"""
+
+[[features]]
+name = "MONITOR_PAGE"
+default = "0"
+requires = ["CONSOLE"]
+doc = """
+MONITOR: every published variable. Not to be confused with
+LOGS_MONITOR, which is a serial log sink and a different subsystem.
+"""
+
+[[features]]
+name = "TASKS_PAGE"
+default = "0"
+requires = ["CONSOLE"]
+doc = """
+TASKS: the scheduler's task table and its per-task cost.
+"""
+
+[[features]]
+name = "SYSTEM_PAGE"
+default = "0"
+requires = ["CONSOLE"]
+doc = """
+SYSTEM: the unit's own health - run state, watchdog, beat timing,
+what the task table costs, and the state of each bus. `Pages::StatusPage`,
+which a site may subclass to append rows of its own.
+"""
+
+[[features]]
+name = "NOTES_PAGE"
+default = "0"
+requires = ["CONSOLE"]
+doc = """
+NOTES: a full-screen editor over the operator's note, persisted to
+flash. Costs NOTES_LEN + 2 * NOTES_MAX_ROWS row slots of RAM.
+"""
+
+[[features]]
+name = "LOGS_PUBLISH"
+group = "Log and alarm transports"
+default = "0"
+requires = ["LOGGING", "MQTT"]
+doc = """
+Publish log entries to the MQTT broker (`MqttLogWriter`).
+"""
+
+[[features]]
+name = "ALARMS_PUBLISH"
+default = "0"
+requires = ["LOGGING", "MQTT"]
+doc = """
+Publish alarm transitions to the MQTT broker
+(`Alarms::MqttAlarmNotifier`).
+"""
+
+[[features]]
+name = "LOGS_MONITOR"
+default = "0"
+requires = ["LOGGING"]
+doc = """
+Raw log output on the secondary MONITOR serial port.
+"""
+
+[[features]]
+name = "PLC"
+group = "The process image and the PLC"
+default = "0"
+doc = """
+The PLC proper: control authority, the scan cycle, and the site's
+control programs registered and run at their declared rates.
+
+Off by default: `Plc::Runtime::programs[]` and `PROGRAM_COUNT` are link-time
+symbols a SITE's generated plant.cpp defines, so a build with no site cannot
+link this. A site that has laws turns it on.
+
+Off does not remove the Bank's enable/disable latch, which has consumers of
+its own (the `control` command, the health withdrawal) that outlive the
+scan.
+"""
+
+[[features]]
+name = "MODBUS_TCP_SERVER"
+group = "Field bus"
+default = "0"
+requires = ["NETWORK"]
+doc = """
+Modbus TCP slave, exposing parameters and status values.
+"""
+
+[[features]]
+name = "MODBUS_TCP_CLIENT"
+default = "0"
+requires = ["NETWORK"]
+doc = """
+Modbus TCP master: this unit polling ANOTHER device over Ethernet.
+The simulator's counterpart to the slave, and equally a way for a site to
+read a second PLC.
+@note Requires BOTANIK_FEATURE_NETWORK
+"""
+
+[[features]]
+name = "MODBUS_RTU_CLIENT"
+default = "0"
+doc = """
+Modbus RTU master, filling the process image from the field.
+"""
+
+[[features]]
+name = "MODBUS_RTU_SERVER"
+default = "0"
+doc = """
+Modbus RTU slave: this unit ANSWERING on a field bus, as a device
+does. The simulator's field devices are these; on hardware it is how a unit
+appears to somebody else's master.
+"""

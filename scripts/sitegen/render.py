@@ -60,6 +60,19 @@ def _suffix(value, text):
     return text % value if value else ''
 
 
+def _dashes(value, width):
+    """@p value, then dashes out to @p width. The section banners."""
+    return str(value) + '-' * max(0, width - len(str(value)))
+
+
+def _block(text, lead):
+    """A paragraph as the body of a doc comment: the first line where the
+    `@brief` already put it, every line after under @p lead."""
+    lines = str(text).split('\n')
+    return ('\n' + lead).join(lines).replace('\n' + lead + '\n', '\n' + lead.rstrip() + '\n') \
+        if len(lines) > 1 else lines[0]
+
+
 _env = Environment(loader=FileSystemLoader(TEMPLATES),
                    undefined=StrictUndefined,
                    keep_trailing_newline=True,
@@ -70,6 +83,8 @@ _env.filters['pad'] = _pad
 _env.filters['arg'] = _arg
 _env.filters['cont'] = _cont
 _env.filters['suffix'] = _suffix
+_env.filters['dashes'] = _dashes
+_env.filters['block'] = _block
 
 
 def render(name, **ctx):

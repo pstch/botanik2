@@ -1,0 +1,87 @@
+{# libbotanik_features.h - the feature flags, from libbotanik_features.toml.
+
+   context
+     features  one per flag, in file order:
+               { name, default, doc, requires[], group?, group_note? }
+     roster_w  column the X-macro's trailing backslash sits in
+#}
+#ifndef LIBBOTANIK_FEATURES_H
+#define LIBBOTANIK_FEATURES_H
+
+/** @file libbotanik_features.h
+ *  @brief Compile-time feature flags for the Botanik library.
+ *
+ *  GENERATED from src/libbotanik_features.toml, which is where a flag's
+ *  default, its prerequisites and this prose all live. The generator reads that
+ *  file for the same facts, so nothing re-derives them from this header.
+ *
+ *  Each `BOTANIK_FEATURE_<X>` toggles one optional subsystem. Precedence is
+ *  command line > site `config.h` > the default here: CMake puts a `-D` on the
+ *  compile line before this header is read, and a site guards its own `#define`
+ *  with `#ifndef`.
+ *
+ *  Gate code with `#if BOTANIK_FEATURE_<X>`, never `#ifdef` - every flag is
+ *  defined by the time this header ends, so `#ifdef` is always true. The
+ *  preprocessor rather than `constexpr`, because a flag must be able to drop a
+ *  member declaration and a constructor-init entry, and C++11 has no
+ *  `if constexpr`.
+ *
+ *  BOTANIK_FEATURE_LIST is the single source of truth for which flags EXIST: the
+ *  `features` shell command expands it, and CMake discovers `-D`s by prefix
+ *  rather than from a list of its own, which would silently ignore the `-D` of
+ *  any flag missing from it.
+ *
+ *  Adding a flag: one block in libbotanik_features.toml, and a row in
+ *  docs/integration/config.md.
+ */
+
+// The flag roster
+
+/** @brief Every flag, for anything that needs to enumerate them. */
+#define BOTANIK_FEATURE_LIST(X) \
+{% for f in features %}
+    {{ ('X(' ~ f.name ~ ')') | pad(roster_w) if not loop.last else ('X(' ~ f.name ~ ')') }}{{ '\\' if not loop.last }}
+{% endfor %}
+
+// Defaults
+// Minimal core, opt in: a build that sets nothing gets a console with a home
+// screen and a shell, logging, and the scan cycle. Everything else - the other
+// pages, the network, the field bus, the block library - is something a site
+// asks for. examples/ref/site.toml is the worked full profile.
+{% for f in features %}
+{% if f.get('group') %}
+
+// --- {{ (f.get('group') ~ ' ') | dashes(69) }}
+{% for l in f.get('group_note', '').split('\n') %}
+{% if l %}
+// {{ l }}
+{% endif %}
+{% endfor %}
+{% endif %}
+
+/** @brief {{ f.doc | block(' *  ') }} */
+#ifndef BOTANIK_FEATURE_{{ f.name }}
+#  define BOTANIK_FEATURE_{{ f.name }} {{ f.default }}
+#endif
+{% endfor %}
+
+// Dependency rules
+// A contradiction is a build error, not a silent no-op: the alternative is a
+// binary quietly missing what was requested.
+{% for f in features %}
+{% if f.get('requires') %}
+{% if f.get('group') or first_rule == f.name %}
+
+{% endif %}
+{% for r in f.requires %}
+#if BOTANIK_FEATURE_{{ f.name }} && !BOTANIK_FEATURE_{{ r }}
+#  error "BOTANIK_FEATURE_{{ f.name }} requires BOTANIK_FEATURE_{{ r }}"
+#endif
+{% endfor %}
+{% endif %}
+{% endfor %}
+// MODBUS_RTU_SERVER depends on nothing, deliberately: it is a device model over
+// a serial port and a register image, with no variable table and no scan behind
+// it. Stated because an absent rule reads like a forgotten one.
+
+#endif // LIBBOTANIK_FEATURES_H

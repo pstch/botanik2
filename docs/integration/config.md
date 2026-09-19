@@ -1,6 +1,6 @@
 # Configuration {#int_config}
 
-<!-- source of truth: src/libbotanik_config.h, libbotanik/config/*.h, libbotanik_features.h -->
+<!-- source of truth: src/libbotanik_config.h, libbotanik/config/*.h, libbotanik_features.toml -->
 
 ## Config values
 

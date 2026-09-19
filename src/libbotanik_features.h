@@ -4,6 +4,10 @@
 /** @file libbotanik_features.h
  *  @brief Compile-time feature flags for the Botanik library.
  *
+ *  GENERATED from src/libbotanik_features.toml, which is where a flag's
+ *  default, its prerequisites and this prose all live. The generator reads that
+ *  file for the same facts, so nothing re-derives them from this header.
+ *
  *  Each `BOTANIK_FEATURE_<X>` toggles one optional subsystem. Precedence is
  *  command line > site `config.h` > the default here: CMake puts a `-D` on the
  *  compile line before this header is read, and a site guards its own `#define`
@@ -20,8 +24,8 @@
  *  rather than from a list of its own, which would silently ignore the `-D` of
  *  any flag missing from it.
  *
- *  Adding a flag: one `X()` entry, one `#ifndef` default, any dependency rule,
- *  and a row in docs/integration/config.md.
+ *  Adding a flag: one block in libbotanik_features.toml, and a row in
+ *  docs/integration/config.md.
  */
 
 // The flag roster
@@ -56,7 +60,7 @@
 // Minimal core, opt in: a build that sets nothing gets a console with a home
 // screen and a shell, logging, and the scan cycle. Everything else - the other
 // pages, the network, the field bus, the block library - is something a site
-// asks for. examples/demo/src/config.h is the worked full profile.
+// asks for. examples/ref/site.toml is the worked full profile.
 
 /** @brief Interactive ANSI console: the terminal, the console UART, and the
  *  register_pages() / register_commands() hooks. Off -> headless. */
@@ -169,7 +173,7 @@
 #  define BOTANIK_FEATURE_LOGS_MONITOR 0
 #endif
 
-// --- The process image and the PLC ----------------------------------------
+// --- The process image and the PLC ---------------------------------------
 
 /** @brief The PLC proper: control authority, the scan cycle, and the site's
  *  control programs registered and run at their declared rates.

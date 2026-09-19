@@ -28,7 +28,7 @@ except ImportError as e:
 from sitegen.paths import lib
 from sitegen.reference import points
 from sitegen.model import (CODEGEN_ABI, H, KIND, as_int, build, capacities, check,
-                           config_defaults,
+                           config_defaults, features,
                            emit_cals, emit_row, site_dir, site_guard)
 from sitegen.st import enums, plant, quality_block
 
@@ -78,11 +78,8 @@ def generate(site, t):
 # ---- config.gen.h ----------------------------------------------------------
 
 def prereqs():
-    out = {}
-    for m in re.finditer(r'#\s*error "BOTANIK_FEATURE_(\w+) requires BOTANIK_FEATURE_(\w+)"',
-                         open(lib('src', 'libbotanik_features.h')).read()):
-        out.setdefault(m.group(1), []).append(m.group(2))
-    return out
+    """What each flag requires, from the same data the #error rules come from."""
+    return {f['name']: f['requires'] for f in features() if f.get('requires')}
 
 
 def config(site, t):
@@ -141,6 +138,12 @@ def library_files():
     table may name, and the ST accessor blocks for the enums it owns."""
     render.write(lib('src', 'libbotanik', 'codegen_abi.h'), 'codegen_abi.h.j2',
                  abi=CODEGEN_ABI)
+    feats = features()
+    render.write(lib('src', 'libbotanik_features.h'), 'features.h.j2',
+                 features=feats,
+                 roster_w=max(len(f['name']) for f in feats) + 5,
+                 first_rule=next(f['name'] for f in feats if f.get('requires')))
+    print('  %-14s %d flags' % ('features.h', len(feats)))
     caps = capacities()
     render.write(lib('src', 'libbotanik', 'config', 'capacities.gen.h'),
                  'capacities.gen.h.j2', caps=caps)
