@@ -95,7 +95,9 @@ namespace Botanik { namespace Pages {
         // Bank queued log entries (only the active page queues, see push());
         // command output banks the same way via write_lines().
         drain();
-        if (active) _scrollback.paint(_terminal, 1, _log_rows());
+        if (!active) return;
+        _scrollback.reveal_step();      // once per tick; paint() does not
+        _scrollback.paint(_terminal, 1, _log_rows());
     }
 
     // BufferedLogWriter + ShellWriter interface

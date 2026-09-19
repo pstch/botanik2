@@ -184,8 +184,9 @@ namespace Botanik { namespace Pages {
         drain();
         if (!active) return;
         const uint16_t band_top = log_band_top();
-        if (band_top != NO_BAND)
-            _scrollback.paint(_terminal, band_top, (uint16_t)(_console.rows() - band_top));
+        if (band_top == NO_BAND) return;
+        _scrollback.reveal_step();      // once per tick; paint() does not
+        _scrollback.paint(_terminal, band_top, (uint16_t)(_console.rows() - band_top));
     }
 
     size_t HomePage::write(const char* buf, size_t len) {

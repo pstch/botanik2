@@ -134,12 +134,17 @@ namespace Botanik { namespace Pages {
             return true;
         }
 
-        /** @brief Paint the window into rows [@p first_row, @p first_row +
-         *  @p rows), revealing up to LOG_ROWS_PER_TICK pending lines first.
-         *  While scrolled back, a reverse-video count of the newer lines tops
-         *  the window. */
-        void paint(AnsiTerminal& t, uint16_t first_row, uint16_t rows) {
+        /** @brief Reveal up to LOG_ROWS_PER_TICK of the lines still pending.
+         *  The owning page calls this once per tick(); calling it twice in one
+         *  tick doubles the reveal rate. */
+        void reveal_step() {
             _pending = (uint16_t)(_pending - Utils::min<uint16_t>(_pending, (uint16_t)Config::LOG_ROWS_PER_TICK));
+        }
+
+        /** @brief Paint the window into rows [@p first_row, @p first_row +
+         *  @p rows). While scrolled back, a reverse-video count of the newer
+         *  lines tops the window. */
+        void paint(AnsiTerminal& t, uint16_t first_row, uint16_t rows) {
             _hint_move(t, first_row, rows);
             t.set_inverted(false);
             for (uint16_t i = 0; i < rows; i++) {

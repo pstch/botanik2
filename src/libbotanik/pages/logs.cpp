@@ -79,6 +79,7 @@ namespace Botanik { namespace Pages {
         _active = active;
         drain();
         if (!active) return;
+        _scrollback.reveal_step();      // once per tick; paint() does not
         _scrollback.paint(_terminal, 1, (uint16_t)(_console.rows() - 1));
     }
 
