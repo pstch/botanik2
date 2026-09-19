@@ -49,7 +49,8 @@ TEST_CASE("shell params: a value outside the row's band is refused, and nothing 
     Rig f;
     const float before = f.var("vent_redatum").as_f32();
     // The band is 0.0 .. 50.0. Both ends, and a word that is not a number.
-    for (const char* bad : { "999", "-1", "banana" }) {
+    static const char* const bads[] = { "999", "-1", "banana" };
+    for (const char* bad : bads) {
         INFO(bad);
         std::string line = std::string("params set vent_redatum ") + bad;
         CHECK(f.run(line.c_str()).find("invalid value") != std::string::npos);
@@ -233,8 +234,8 @@ TEST_CASE("shell vars: get is the value alone, info is the whole row") {
     CHECK(got.find("Description") == std::string::npos);
 
     const std::string info = f.run("vars info air_temp_in");
-    for (const char* field : { "Kind", "Access", "Raw value", "Default",
-                               "Source", "Description" }) {
+    static const char* const fields[] = { "Kind", "Access", "Raw value", "Default", "Source", "Description" };
+    for (const char* field : fields) {
         INFO(field);
         CHECK(info.find(field) != std::string::npos);
     }
