@@ -3,7 +3,7 @@
  * @brief HealthMonitor's registration: its own task, then the alarm model's.
  */
 
-#include "libbotanik/plc/health.h"
+#include "libbotanik/core/health.h"
 #include "libbotanik/health/health.h"
 
 

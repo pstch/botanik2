@@ -117,6 +117,7 @@ AUX = {  # stem -> columns, for the tables that are not rows
 CODEGEN_ABI = 1
 
 LIB_CSV = lib('src', 'libbotanik', 'vars', 'tables', 'library.csv')
+LIB_ENUMS_CSV = lib('src', 'libbotanik', 'vars', 'tables', 'library_enums.csv')
 CAPACITIES_CSV = lib('src', 'libbotanik', 'config', 'capacities.csv')
 # The always-on core, from libbotanik_features.h's defaults.
 CORE_FEATURES = {'CONSOLE', 'LOGGING', 'HOME_PAGE', 'SHELL_PAGE'}
@@ -132,6 +133,16 @@ CAL_ENDS = ('raw_min', 'raw_max', 'eng_min', 'eng_max', 'min', 'max')
 def _numeric(v):
     try: int(v, 0); return True
     except ValueError: return False
+
+
+def lib_enums():
+    """vars/tables/library_enums.csv, as rows.
+
+    The members of every enumeration the LIBRARY owns, in declaration order.
+    One statement feeds the C++ enum, the block matiec is handed, and the check
+    against the hand-written ST TYPE - so a code cannot exist on one side
+    alone."""
+    return read_table(LIB_ENUMS_CSV, 'enum ctype symbol value label desc'.split())
 
 
 def capacities():

@@ -6,7 +6,7 @@
 #ifndef BOTANIK_PLC_RUNTIME_RUNTIME_H
 #define BOTANIK_PLC_RUNTIME_RUNTIME_H
 
-#include "libbotanik/plc/health.h"
+#include "libbotanik/core/health.h"
 #include "libbotanik/core/component.h"
 #include "libbotanik/config/base.h"
 #include "libbotanik/scheduler/scheduler.h"

@@ -15,7 +15,7 @@
  *       ConfigBinder like every other setting.
  */
 
-#include "libbotanik/plc/health.h"
+#include "libbotanik/core/health.h"
 #include <cstdint>
 
 #include "libbotanik/config/identity.h"

@@ -1,0 +1,7 @@
+enum,ctype,symbol,value,label,desc
+Quality,uint8_t,Q_NONE,0,NONE,nothing usable behind the row; it reads its declared value
+Quality,uint8_t,Q_GOOD,1,GOOD,measured; restored; or forced
+Quality,uint8_t,Q_HELD,2,HELD,a law holds a number it stands behind though nothing measured it
+Health,uint8_t,HEALTHY,0,HEALTHY,it ran on inputs it trusts and stands behind what it wrote
+Health,uint8_t,DEGRADED,1,DEGRADED,it answered on evidence it does not fully trust
+Health,uint8_t,FAULTED,2,FAULTED,it could not answer; what it wrote is its declared safe state

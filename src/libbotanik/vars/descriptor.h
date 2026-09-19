@@ -13,6 +13,7 @@
 #include <cstddef>
 #include <cstdint>
 
+#include "libbotanik/vars/quality.h"
 #include "libbotanik/alarms/spec.h"
 #include "libbotanik/vars/ref.h"
 #include "libbotanik/vars/scalar.h"
@@ -47,27 +48,6 @@ namespace Botanik { namespace Vars {
         return "?";
     }
 
-    /** @brief WHY a value reads as it does, written by whichever path judged the
-     *  reading.
-     *
-     *  This is the VALUE of a `_qlt` companion row, and the only place a quality
-     *  is ever stored. A row without a companion has no quality to store: it is
-     *  good, always.
-     *
-     *  @warning The codes are the ST enumeration's too, which matiec numbers
-     *  0,1,2... in declaration order - so this order is `plc/functions/quality.st`'s
-     *  and cannot move. Q_NONE leads for a second reason: a companion nothing
-     *  has written yet must read as "nothing wrote this". */
-    enum Quality : uint8_t {
-        Q_NONE = 0,   ///< nothing usable behind the row; it reads its declared value
-        Q_GOOD,       ///< measured, restored, or forced
-        /** @brief A law holds a number it stands behind, though nothing
-         *  measured it. The interior temperature with every probe gone, held
-         *  levels and the outside taken as evidence - substituting the declared
-         *  14 degC there would stop the roof venting on the day it matters. */
-        Q_HELD
-    };
-
     /** @brief Is there a NUMBER behind @p q a reader should compute on? The one
      *  rule Ref::get() branches on. */
     constexpr bool usable(Quality q) { return q != Q_NONE; }
@@ -75,18 +55,6 @@ namespace Botanik { namespace Vars {
     /** @brief Did something MEASURE it? What a law gating on whether the plant
      *  can be SEEN asks, and what Var::valid() answers. */
     constexpr bool measured(Quality q) { return q == Q_GOOD; }
-
-    /** @brief A Quality code's label, and the range check with it: a code this
-     *  does not know renders and PARSES as nothing. The T_ENUM converter every
-     *  `_qlt` row is declared with. */
-    inline const char* quality_label(uint64_t q) {
-        switch ((Quality)q) {
-            case Q_NONE: return "NONE";
-            case Q_GOOD: return "GOOD";
-            case Q_HELD: return "HELD";
-        }
-        return nullptr;
-    }
 
     /** @brief Per-variable behaviour bits. */
     enum VarFlags : uint8_t {

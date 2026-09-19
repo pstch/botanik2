@@ -9,7 +9,8 @@ import os, re, sys
 
 from . import render
 from .paths import ROOT, lib
-from .model import (H, H_ST, KIND, _opted_in, lib_table, row_ref, site_guard,
+from .model import (H, H_ST, KIND, _opted_in, lib_enums, lib_table, row_ref,
+                    site_guard,
                     st_files, var_externals)
 
 # ---- the site's enumerations, on both sides ---------------------------------
@@ -279,38 +280,68 @@ def plant(site, t):
 
 # ---- the ST enumerations the LIBRARY owns -----------------------------------
 
-# (ST type, header the C++ enum is declared in, the enum's own declaration, how
-#  a member is spelled in C++, the member pattern). Both are types matiec must be
-#  handed rather than allowed to number itself.
+# The enumerations the LIBRARY owns, in both spellings. The MEMBERS come from
+# vars/tables/library_enums.csv; what is here is the C++ SHAPE - which namespace,
+# scoped or not, which header - because that is the generator's own knowledge of
+# what it emits, never something read back out of a header.
 LIB_ENUMS = [
-    ('QUALITY', lib('src', 'libbotanik', 'vars', 'descriptor.h'),
-     r'enum Quality : uint8_t \{(.*?)\n    \};',
-     '::Botanik::Vars::%s', r'^\s*(Q_[A-Z_]+)'),
-    ('HEALTH', lib('src', 'libbotanik', 'plc', 'health.h'),
-     r'enum class Health : uint8_t \{(.*?)\n    \};',
-     '::Botanik::Plc::Health::%s',
-     r'^\s*([A-Z][A-Z_]+)\s*(?:=\s*\d+)?\s*,?\s*(?:///.*)?$'),
+    dict(st='QUALITY', enum='Quality', ns='Vars', scoped=False, lower='quality',
+         path=('vars', 'quality.h'), guard='BOTANIK_VARS_QUALITY_H',
+         spell='::Botanik::Vars::%s',
+         st_file=lib('src', 'libbotanik', 'plc', 'functions', 'quality.st'),
+         doc=['@brief What a reading is worth: the one thing every consumer of a',
+              '       row asks before it computes on the number.']),
+    dict(st='HEALTH', enum='Health', ns='Plc', scoped=True, lower='health',
+         path=('core', 'health.h'), guard='BOTANIK_CORE_HEALTH_H',
+         spell='::Botanik::Plc::Health::%s',
+         st_file=lib('src', 'libbotanik', 'plc', 'functions', 'health.st'),
+         doc=['@brief What a control program says about its own last scan.',
+              '',
+              ' Under core/ rather than plc/: every layer of the firmware names it -',
+              ' a Component verdict, a task entry, a driver, the TASKS page - so it',
+              ' sits where they can all reach it without depending upward.']),
 ]
 
 
-def _lib_enum(st, header, decl, spell, member):
-    """One accessor enumeration block, off the header that declares the enum.
+def _check_st_type(e, codes):
+    """The hand-written ST TYPE block declares the same codes, in the same order.
+
+    The ST file is the generator's own input language, so reading it is fair;
+    what it must not do is read the C++. matiec numbers in declaration order and
+    refuses explicit values, so a member moved on one side and not the other is
+    a silent renumbering of every row that carries the code."""
+    src = re.sub(r'\(\*.*?\*\)', ' ', open(e['st_file']).read(), flags=re.S)
+    m = re.search(r'\b%s\s*:\s*\((.*?)\)' % e['st'], src, re.S)
+    if not m: sys.exit('%s: no `%s : (...)` TYPE block' % (e['st_file'], e['st']))
+    got = [w.strip() for w in m.group(1).split(',')]
+    if got != codes:
+        sys.exit('%s: %s is %s, library_enums.csv says %s'
+                 % (e['st_file'], e['st'], got, codes))
+
+
+def _lib_enum(e):
+    """One library enumeration: the C++ enum, and the block matiec is handed.
 
     matiec initialises a QUALITY-returning function with `QUALITY__Q_NONE`, so
-    the members have to be named constants of the REAL C++ type. Generated so a
-    code added to one side and not the other cannot compile."""
-    m = re.search(decl, open(header).read(), re.S)
-    if not m: sys.exit('%s: no `%s`' % (header, decl))
-    codes = re.findall(member, m.group(1), re.M)
-    if not codes: sys.exit('%s: no members for %s' % (header, st))
-    out = lib('src', 'libbotanik', 'plc', 'runtime', '%s.gen.h' % st.lower())
-    # The banner names the header the way the tree does. An absolute path would
-    # put the generating machine into a committed file.
-    rel = os.path.relpath(header, ROOT)
-    render.write(out, 'lib_enum.gen.h.j2', header=rel, st=st,
-                 guard='BOTANIK_PLC_RUNTIME_%s_GEN_H' % st,
-                 codes=[{'name': c, 'spelt': spell % c} for c in codes])
-    return st.lower(), len(codes)
+    the members have to be named constants of the REAL C++ type. Both sides come
+    off the one CSV, so a code added to one and not the other cannot exist."""
+    members = [r for r in lib_enums() if r['enum'] == e['enum']]
+    if not members: sys.exit('library_enums.csv: no members for %s' % e['enum'])
+    codes = [r['symbol'] for r in members]
+    _check_st_type(e, codes)
+
+    render.write(lib('src', 'libbotanik', *e['path']), 'lib_enum.h.j2',
+                 banner=H, guard=e['guard'], file='/'.join(e['path']),
+                 ns=e['ns'], type=e['enum'], scoped=e['scoped'],
+                 ctype=members[0]['ctype'], lower=e['lower'], st=e['st'],
+                 doc=e['doc'], members=members)
+
+    out = lib('src', 'libbotanik', 'plc', 'runtime', '%s.gen.h' % e['st'].lower())
+    render.write(out, 'lib_enum.gen.h.j2',
+                 header='src/libbotanik/vars/tables/library_enums.csv',
+                 st=e['st'], guard='BOTANIK_PLC_RUNTIME_%s_GEN_H' % e['st'],
+                 codes=[{'name': c, 'spelt': e['spell'] % c} for c in codes])
+    return e['lower'], len(codes)
 
 
 def _rows_none():
@@ -327,8 +358,8 @@ def _rows_none():
 
 
 def quality_block():
-    """The accessor blocks for every enumerated type the library owns."""
+    """The enumerated types the library owns, in both spellings."""
     for e in LIB_ENUMS:
-        name, n = _lib_enum(*e)
+        name, n = _lib_enum(e)
         print('  %-14s %d codes' % (name + '.gen.h', n))
     print('  %-14s %d rows' % ('rows_none.gen.h', _rows_none()))

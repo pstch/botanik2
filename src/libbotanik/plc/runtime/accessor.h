@@ -10,7 +10,7 @@
  *  becomes a `Ref` into the bank and `__INIT_EXTERNAL` is the generated
  *  `bind()`; everything internal to a POU stays a plain member.
  */
-#include "libbotanik/plc/health.h"
+#include "libbotanik/core/health.h"
 #include "libbotanik/vars/model.h"
 #include "libbotanik/plc/runtime/health.gen.h"
 #include "libbotanik/plc/runtime/quality.gen.h"

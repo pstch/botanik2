@@ -12,7 +12,7 @@
  * The gate IS a parameter, `prog_<name>_run`, so a law left out of the scan is
  * a row an operator can read on the PARAMS page rather than a bit in RAM.
  */
-#include "libbotanik/plc/health.h"
+#include "libbotanik/core/health.h"
 #include "libbotanik/shell/shell.h"
 #include "libbotanik_features.h"
 

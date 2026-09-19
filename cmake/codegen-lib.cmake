@@ -42,10 +42,12 @@ function(botanik_codegen_inputs out root site)
             "${root}/templates/rows_none.gen.h.j2"
             "${root}/templates/codegen_abi.h.j2"
             "${root}/templates/capacities.gen.h.j2"
-            "${root}/src/libbotanik/config/capacities.csv"
+            "${root}/templates/lib_enum.h.j2"
+            "${root}/src/libbotanik/vars/tables/library_enums.csv"
+            "${root}/src/libbotanik/plc/functions/quality.st"
+            "${root}/src/libbotanik/plc/functions/health.st"
             "${root}/src/libbotanik/vars/tables/library.csv"
-            "${root}/src/libbotanik/vars/descriptor.h"
-            "${root}/src/libbotanik/plc/health.h")
+            "${root}/src/libbotanik/config/capacities.csv")
     endif()
 
     set(_pairs)

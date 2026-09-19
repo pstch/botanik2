@@ -17,7 +17,7 @@
 #include <cstdint>
 
 #include "libbotanik/core/setup.h"
-#include "libbotanik/plc/health.h"
+#include "libbotanik/core/health.h"
 #include "libbotanik/tasks/phase.h"
 
 // Forward-declared, NOT included: `logs/` sits below this in the tree (a refused
