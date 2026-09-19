@@ -8,7 +8,6 @@
  * @note The rationale behind this file is @ref scalar_one_tag, @ref scalar_flash, @ref scalar_width.
  */
 
-#include <cmath>
 #include <cstddef>
 #include <cstdint>
 
@@ -133,10 +132,12 @@ namespace Botanik { namespace Vars {
 
     inline Scalar from_f32(VarType t, float x) {
         // roundf, not (int)(x + 0.5f): add-then-truncate rounds the wrong way
-        // for values just under .5, where the addition itself carries.
+        // for values just under .5, where the addition itself carries. The
+        // builtin, not <cmath>: the header would cost 3.8k preprocessed lines
+        // in each of the 29 TUs this one reaches.
         return type_real(t)   ? Scalar::F(x)
-             : type_signed(t) ? Scalar::I((int64_t)roundf(x))
-                              : Scalar::U(x < 0.0f ? 0u : (uint64_t)roundf(x));
+             : type_signed(t) ? Scalar::I((int64_t)__builtin_roundf(x))
+                              : Scalar::U(x < 0.0f ? 0u : (uint64_t)__builtin_roundf(x));
     }
     inline Scalar from_i64(VarType t, int64_t x) {
         return type_real(t)   ? Scalar::F((float)x)

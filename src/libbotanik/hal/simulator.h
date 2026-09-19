@@ -15,7 +15,6 @@
 
 #ifdef TARGET_SIMULATOR
 
-#include <atomic>
 #include <cassert>
 #include <chrono>
 #include <cstdint>
@@ -92,14 +91,16 @@ namespace Botanik { namespace HAL {
     namespace Memory {
 
     inline void dsb() {
-        // Mimic the ARM DSB for thread visibility
-        std::atomic_thread_fence(std::memory_order_seq_cst);
+        // Mimic the ARM DSB for thread visibility. The compiler builtin, not
+        // <atomic>: the header is 233k preprocessed lines in every TU that
+        // reaches this one, for these two fences.
+        __atomic_thread_fence(__ATOMIC_SEQ_CST);
     }
 
     inline void dmb() {
         // The sim has no distinct lighter barrier; a full fence is a safe
         // superset.
-        std::atomic_thread_fence(std::memory_order_seq_cst);
+        __atomic_thread_fence(__ATOMIC_SEQ_CST);
     }
 
     template <typename T>
