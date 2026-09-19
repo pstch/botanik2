@@ -234,4 +234,19 @@ namespace Botanik { namespace Logs {
 
 namespace Botanik { namespace Logs {
 
+    namespace {
+        Logger* _assert_logger = nullptr;
+
+        void _assert_to_log(const char* expr, const char* file, int line) {
+            if (_assert_logger != nullptr)
+                _assert_logger->critical(Logs::ASSERT, "assertion failed:\n%s (%s:%d)",
+                                         expr, file, line);
+        }
+    }
+
+    void route_asserts(Logger* logger) {
+        _assert_logger = logger;
+        set_assert_sink(logger != nullptr ? &_assert_to_log : nullptr);
+    }
+
 }}  // namespace Botanik::Logs

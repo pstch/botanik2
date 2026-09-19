@@ -146,7 +146,7 @@ namespace Botanik {
 
     void BotanikFirmware::setup() {
         // route BOTANIK_ASSERT failures to the log
-        set_assert_logger(&_logger);
+        Logs::route_asserts(&_logger);
         // The rows, before anything else in bring-up. The table is generated
         // whole - the library's rows merged into the site's, ordered, indexed
         // and checked - so this lays out the string pool and seeds every slot

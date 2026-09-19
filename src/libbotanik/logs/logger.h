@@ -221,6 +221,12 @@ namespace Botanik { namespace Logs {
         /** @} */
     };
 
+    /** @brief Send BOTANIK_ASSERT failures to @p logger, as a CRITICAL under
+     *  the ASSERT topic. Null detaches. One logger at a time: the sink below
+     *  utils/ is a single function pointer, which is what keeps the lowest
+     *  utility in the tree from naming a Logger. */
+    void route_asserts(Logger* logger);
+
 }}
 
 

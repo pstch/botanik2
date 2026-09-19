@@ -12,17 +12,19 @@
  *  ASSERT topic, traps if a debugger is attached, and keeps running - the same
  *  on the simulator as on hardware. The CRITICAL entry is the whole report.
  *
- *  @note This header costs its includers nothing but <cstdint>: Logs::Logger is
- *  forward-declared and assert_fail()'s body is in assert.cpp. Naming logger.h
- *  here would drag core/ and tasks/ into every file that asserts. */
+ *  @note This header costs its includers nothing but <cstdint>, and
+ *  assert.cpp costs itself nothing either: the report goes out through a
+ *  function pointer, so the lowest utility in the tree names no logger. It is
+ *  logs/ that knows how to write one - see Logs::route_asserts(). */
 
 namespace Botanik {
 
-    namespace Logs { class Logger; }
+    /** @brief Where a failed assertion is reported. Installed once at bring-up;
+     *  null until then, and a failure before that is counted and dropped. */
+    using AssertSink = void (*)(const char* expr, const char* file, int line);
 
-    /** @brief Route assertion failures to @p logger (null disables logging).
-     *  Called once during firmware setup. */
-    void set_assert_logger(Logs::Logger* logger);
+    /** @brief Route assertion failures to @p sink (null disables reporting). */
+    void set_assert_sink(AssertSink sink);
 
     /** @brief Assertion-failure handler (see BOTANIK_ASSERT). */
     void assert_fail(const char* expr, const char* file, int line);
