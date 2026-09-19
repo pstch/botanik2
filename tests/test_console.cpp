@@ -91,6 +91,28 @@ TEST_CASE("input: a new sequence does not inherit the last one's parameters") {
     CHECK(f.step("B")      == Command::DOWN);
 }
 
+TEST_CASE("input: a Minitel function key reaches the command its label means") {
+    // SEP + a letter, per STUM1B. Each of these is the key an operator presses
+    // on the Minitel's own keyboard, so what it does has to match what the
+    // legend on it says.
+    Feed f;
+    CHECK(f.step("\x13" "A") == Command::ENTER);      // ENVOI: submit
+    CHECK(f.step("\x13" "E") == Command::CTRL_U);     // ANNULATION: drop the entry
+    CHECK(f.step("\x13" "F") == Command::ALT_1);      // SOMMAIRE: the index page
+    CHECK(f.step("\x13" "G") == Command::BACKSPACE);  // CORRECTION: rub out one
+    // The PRO2 handshake puts the keyboard in lowercase, so both cases arrive.
+    CHECK(f.step("\x13" "g") == Command::BACKSPACE);
+}
+
+TEST_CASE("input: SEP alone is Ctrl-S, once no function key follows it") {
+    // 0x13 is XOFF and the MONITOR page's save key as well as the Minitel
+    // prefix, so it can only resolve on the timeout, the way a bare ESC does.
+    Feed f;
+    CHECK(f.step("\x13") == Command::NONE);          // a letter may still come
+    f.now += Config::ANSI_CMD_TIMEOUT_MS;
+    CHECK(f.step("", 0) == Command::CTRL_S);
+}
+
 }}  // namespace tests::console_input
 
 namespace tests { namespace home_geometry {

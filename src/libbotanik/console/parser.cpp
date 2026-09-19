@@ -247,17 +247,19 @@ namespace Botanik { namespace Terminal {
         }
     }
 
-    // The Minitel function keys, SEP (0x13) then one byte, per STUM1B. VERIFY
-    // ON HARDWARE: CORRECTION and ANNULATION read as transposed.
+    // The Minitel function keys, SEP (0x13) then one byte, per STUM1B. Each
+    // maps to the key a VT keyboard would reach for the same thing: CORRECTION
+    // rubs out the byte behind the cursor, ANNULATION drops the whole entry,
+    // SOMMAIRE is the index and so the first page.
     Command InputParser::_map_sep_to_command(const uint8_t b) {
         switch (b) {
             case 'a': case 'A': return Command::ENTER;      // ENVOI
             case 'b': case 'B': return Command::ENTER;      // RETOUR
             case 'c': case 'C': return Command::NONE;       // REPETITION
             case 'd': case 'D': return Command::ALT_1;      // GUIDE
-            case 'e': case 'E': return Command::BACKSPACE;  // ANNULATION
-            case 'f': case 'F': return Command::CTRL_U;     // SOMMAIRE
-            case 'g': case 'G': return Command::ALT_1;      // CORRECTION
+            case 'e': case 'E': return Command::CTRL_U;     // ANNULATION
+            case 'f': case 'F': return Command::ALT_1;      // SOMMAIRE
+            case 'g': case 'G': return Command::BACKSPACE;  // CORRECTION
             case 'h': case 'H': return Command::NONE;       // SUITE
             default: return Command::NONE;
         }
