@@ -48,18 +48,18 @@ namespace Botanik { namespace detail {
     static_assert(sizeof(Vars::ConfigBinder)       == BOTANIK_SIZE(   568,    348), "ConfigBinder footprint changed");
 
 #if BOTANIK_FEATURE_CONSOLE
-    static_assert(sizeof(Terminal::AnsiTerminal)   == BOTANIK_SIZE(  8520,   8516), "AnsiTerminal footprint changed");
-    static_assert(sizeof(Terminal::Console)        == BOTANIK_SIZE(  9144,   9032), "Console footprint changed");
+    static_assert(sizeof(Terminal::AnsiTerminal)   == BOTANIK_SIZE(  8600,   8596), "AnsiTerminal footprint changed");
+    static_assert(sizeof(Terminal::Console)        == BOTANIK_SIZE(  9224,   9112), "Console footprint changed");
     static_assert(sizeof(Terminal::TextEditor)     == BOTANIK_SIZE(   120,    100), "TextEditor footprint changed");
 #endif
 #if BOTANIK_FEATURE_SHELL_PAGE
-    static_assert(sizeof(Pages::ShellPage)         == BOTANIK_SIZE( 13984,  13872), "ShellPage footprint changed");
+    static_assert(sizeof(Pages::ShellPage)         == BOTANIK_SIZE( 14000,  13888), "ShellPage footprint changed");
 #endif
 #if BOTANIK_FEATURE_LOGS_PAGE
-    static_assert(sizeof(Pages::LogsPage)          == BOTANIK_SIZE( 18096,  18056), "LogsPage footprint changed");
+    static_assert(sizeof(Pages::LogsPage)          == BOTANIK_SIZE( 18112,  18072), "LogsPage footprint changed");
 #endif
 #if BOTANIK_FEATURE_HOME_PAGE
-    static_assert(sizeof(Pages::HomePage)          == BOTANIK_SIZE(  3464,   3416), "HomePage footprint changed");
+    static_assert(sizeof(Pages::HomePage)          == BOTANIK_SIZE(  3488,   3432), "HomePage footprint changed");
 #endif
 
 #if BOTANIK_FEATURE_MODBUS_RTU_CLIENT
@@ -73,7 +73,7 @@ namespace Botanik { namespace detail {
      *  under the same opt-in. It is the firmware singleton's whole `.bss`
      *  footprint, so it can be read against the linker's map for the
      *  image. */
-    static_assert(sizeof(BotanikFirmware)          == BOTANIK_SIZE(108960, 106480), "BotanikFirmware footprint changed");
+    static_assert(sizeof(BotanikFirmware)          == BOTANIK_SIZE(109096, 106608), "BotanikFirmware footprint changed");
 
 #undef BOTANIK_SIZE
 
