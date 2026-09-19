@@ -221,8 +221,8 @@ namespace Botanik { namespace Shell {
             if (period != 0)
                 snprintf(detail, sizeof(detail), "%s mean, %s %% of period",
                          (busiest->name != nullptr) ? busiest->name : "?",
-                         Utils::format_float(fa, sizeof(fa),
-                             (double)busiest->cost.us_mean() / (double)(period * 10u), 1));
+                         Utils::format_duty(fa, sizeof(fa),
+                             busiest->cost.us_mean(), period, 1));
             else
                 snprintf(detail, sizeof(detail), "%s mean, every beat",
                          (busiest->name != nullptr) ? busiest->name : "?");
@@ -284,11 +284,9 @@ namespace Botanik { namespace Shell {
             // Against its OWN period, not the beat: a 500 ms task costing 200 us
             // is idle, and measuring it against 10 ms would say otherwise.
             if (t.cost.runs != 0 && period != 0) {
-                // us_mean/period_ms is already per-mille - the us/ms ratio does
-                // the scaling - so this stays a 32-bit divide.
                 snprintf(val, sizeof(val), "%s %% of its own period",
-                         Utils::format_float(fa, sizeof(fa),
-                             (double)t.cost.us_mean() / (double)(period * 10u), 2));
+                         Utils::format_duty(fa, sizeof(fa),
+                             t.cost.us_mean(), period, 2));
                 _line("Duty", val);
             }
             return;
@@ -446,7 +444,7 @@ namespace Botanik { namespace Shell {
                 char ageb[12];
                 uint32_t age_s = (uint32_t)((HAL::Clock::uptime_ms() - lp) / 1000);
                 snprintf(val, sizeof(val), "%s  (pub %s)", mqt->status_str(),
-                         Utils::format_age(ageb, sizeof(ageb), age_s, true));
+                         Utils::format_age(ageb, sizeof(ageb), age_s));
             } else {
                 snprintf(val, sizeof(val), "%s  (no pub yet)", mqt->status_str());
             }

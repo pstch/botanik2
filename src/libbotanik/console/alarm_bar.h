@@ -4,7 +4,7 @@
 /**
  * @file alarm_bar.h
  * @brief AlarmBar - the terminal-owned bottom-row strip: " ALARMS : " then the
- *        unmasked, un-ack'd codes in normal video, so they read as a set.
+ *        active, un-ack'd codes in normal video, so they read as a set.
  * @note Repainted only when that set changes or the row was wiped. No
  *       change-highlighting: the set is visible as a whole.
  */
@@ -28,7 +28,7 @@ namespace Botanik { namespace Terminal {
         Console&            _console;
         /** @brief The VT device it paints through (cached _c.terminal()). */
         AnsiTerminal&       _terminal;
-        /** @brief Unmasked alarm set last painted (bit i = table row i). */
+        /** @brief Alarm set last painted (bit i = table row i). */
         uint64_t            _sig = 0;
         /** @brief A repaint is due (set on change / screen wipe). */
         bool                _dirty = true;
@@ -62,13 +62,12 @@ namespace Botanik { namespace Terminal {
         /** @brief The physical last row, reserved for the strip. */
         uint16_t _row() const;
 
-        /** @brief Bitset of currently-unmasked, un-ack'd alarms (the bar's
-         *  listed set), used as the change signature gating a repaint. Zero when
-         *  there is no alarm source. */
-        uint64_t unmasked_set() const;
+        /** @brief Bitset of the conditions the strip lists, used as the change
+         *  signature gating a repaint. Zero when there is no alarm source. */
+        uint64_t unacked_set() const;
 
-        /** @brief Repaint the whole bar unconditionally (the gate and cursor
-         *  save/restore live in step()). */
+        /** @brief Repaint the whole bar unconditionally; step() holds the
+         *  gate. */
         void draw();
 
         /** @} */

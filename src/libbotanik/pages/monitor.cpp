@@ -19,7 +19,7 @@ namespace Botanik { namespace Pages {
 
 
     void MonitorPage::focus() {
-        _editing = false;
+        _field.end();
         // The footer carries the filter badge, which acknowledges a keypress,
         // so it must beat the table rows it sits under.
         _claim_legend_row(_footer_row());
@@ -29,7 +29,7 @@ namespace Botanik { namespace Pages {
     }
 
     void MonitorPage::handle_command(Command cmd, uint16_t count) {
-        if (_editing) { _handle_edit_command(cmd, count); return; }
+        if (_field.open()) { _handle_edit_command(cmd, count); return; }
         // The override keys first: ^O opens the field, and the filter would
         // otherwise never see them anyway.
         if (cmd == Command::CTRL_O) { _start_edit();      return; }
@@ -42,17 +42,16 @@ namespace Botanik { namespace Pages {
     }
 
     void MonitorPage::handle_text(char c) {
-        if (!_editing) { (void)_filter_text(c); return; }   // narrows the table
-        if (c < 0x20 || c == 0x7F) return;                  // printable only
-        if (_edit_error) _clear_error();
-        _editor.insert_characters(&c, 1);
+        if (!_field.open()) { (void)_filter_text(c); return; }   // narrows the table
+        if (c < 0x20 || c == 0x7F) return;                       // printable only
+        _field.handle_text(c);
     }
 
     void MonitorPage::tick(bool active) {
         if (!active) return;
         // While the field is open it owns the bottom row and is redrawn per
         // keystroke; leave the table and panel as they were drawn.
-        if (_editing) return;
+        if (_field.open()) return;
         // Rebuild on the value cadence, or immediately after a nav. The
         // terminal's diff decides what reaches the wire; this only stops the
         // page re-formatting every row every beat for nothing.
@@ -73,8 +72,9 @@ namespace Botanik { namespace Pages {
         // the band, so the two trailing lookups resume instead of rescanning.
         // One walk per refresh, not three.
         for (uint16_t vi = 0; vi < win; vi++) {
-            uint16_t r = (uint16_t)(_top + vi);
-            _draw_row(r, (uint16_t)(DATA_TOP + vi), r == _selected);
+            const uint16_t display_idx = (uint16_t)(_top + vi);
+            _draw_row(display_idx, (uint16_t)(DATA_TOP + vi),
+                      display_idx == _selected);
         }
         _draw_panel();
         _draw_footer();
@@ -119,33 +119,36 @@ namespace Botanik { namespace Pages {
         return 5;
     }
 
-    uint16_t MonitorPage::_ref_at(uint16_t r, bool& ok) const {
+    uint16_t MonitorPage::_ref_at(uint16_t display_idx, bool& ok) const {
         if (_io != nullptr) {
             // Resume from the last answer when the caller is walking
             // forward, which is what drawing a window does. Only ever
             // forward: a memo for a LATER row says nothing about an earlier
             // one without re-counting from the top.
-            uint16_t n = 0, i = 0;
-            if (_memo_ok && r >= _memo_row) { n = _memo_row; i = _memo_idx; }
-            for (; i < _io->count(); i++) {
-                if (!_visible(i)) continue;
-                if (n == r) {
+            uint16_t at = 0, var_idx = 0;
+            if (_memo_ok && display_idx >= _memo_display) {
+                at = _memo_display; var_idx = _memo_var;
+            }
+            for (; var_idx < _io->count(); var_idx++) {
+                if (!_visible(var_idx)) continue;
+                if (at == display_idx) {
                     ok = true;
-                    _memo_row = r; _memo_idx = i; _memo_ok = true;
-                    uint16_t v = { i };
-                    return v;
+                    _memo_display = display_idx;
+                    _memo_var     = var_idx;
+                    _memo_ok      = true;
+                    return var_idx;
                 }
-                n++;
+                at++;
             }
         }
         ok = false;
-        uint16_t none = { Vars::VAR_NONE };
-        return none;
+        return Vars::VAR_NONE;
     }
 
-    uint16_t MonitorPage::_row_text(uint16_t r, char* out, size_t cap) const {
+    uint16_t MonitorPage::_row_text(const Fit& fit, uint16_t display_idx,
+                                   char* out, size_t cap) const {
         bool ok = false;
-        uint16_t ref = _ref_at(r, ok);
+        const uint16_t ref = _ref_at(display_idx, ok);
         if (!ok) { if (cap) out[0] = 0; return 0; }
         char val[VAL_CAP]; val[0] = 0;
         char ovr[VAL_CAP]; ovr[0] = '-'; ovr[1] = 0;
@@ -171,7 +174,7 @@ namespace Botanik { namespace Pages {
             }
         }
         const char* cells[5] = { sc, nm, val, un, ovr };
-        return _build_row(out, cap, cells);
+        return _build_row(fit, out, cap, cells);
     }
 
     uint16_t MonitorPage::_selected_ref() const {
@@ -181,28 +184,27 @@ namespace Botanik { namespace Pages {
         // would then name a different variable from the one on screen. So the
         // drawn row stands - unless the cursor has MOVED since, which is the
         // operator changing their mind and has to re-resolve.
-        if (_sel_ok && _sel_row == _selected) return _sel_ref;
+        if (_pin_state.ok && _pin_state.display_idx == _selected) return _pin_state.var_idx;
         bool ok = false;
-        const uint16_t v = _ref_at(_selected, ok);
-        _sel_ref = v; _sel_row = _selected; _sel_ok = ok;
-        if (!ok) return Vars::VAR_NONE;
-        return v;
+        const uint16_t var_idx = _ref_at(_selected, ok);
+        _pin(_selected, var_idx, ok);
+        return ok ? var_idx : Vars::VAR_NONE;
     }
 
-    void MonitorPage::_draw_row(uint16_t r, uint16_t row, bool selected) {
+    void MonitorPage::_draw_row(uint16_t display_idx, uint16_t screen_row, bool selected) {
         char line[LINE_CAP];
         if (selected) {
             // Pinned as the line goes out: the one moment the screen and the
             // index are known to agree.
             bool ok = false;
-            const uint16_t v = _ref_at(r, ok);
-            _sel_ref = v; _sel_row = r; _sel_ok = ok;
+            const uint16_t var_idx = _ref_at(display_idx, ok);
+            _pin(display_idx, var_idx, ok);
         }
-        uint16_t n = _row_text(r, line, sizeof(line));
+        const Fit fit = _fit_columns();          // one solve, both ends
+        const uint16_t n = _row_text(fit, display_idx, line, sizeof(line));
         uint16_t name_l = 0, name_r = 0;
-        _cell_span(C_NAME, name_l, name_r);      // one fit, both ends
-        _draw_selected_line(row, line, n, name_l, name_r,
-                            selected);
+        _cell_span(fit, C_NAME, name_l, name_r);
+        _draw_selected_line(screen_row, line, n, name_l, name_r, selected);
     }
 
     void MonitorPage::_prefix(char* buf, size_t cap, const char* tag) {
@@ -324,35 +326,15 @@ namespace Botanik { namespace Pages {
 
     void MonitorPage::_draw_prompt_row() {
         const uint16_t row = _prompt_row();
-        if (_editing) {
-            _terminal.set_inverted(false);
-            _terminal.move_to({row, 0});
-            _terminal.clear_to_eol();
+        if (_field.open()) {
             char label[40];
             const uint16_t lw = _edit_label(label, sizeof(label));
-            _terminal.write_chars(label, lw);
-            _editor.redraw();
-            if (_edit_error) _draw_error_marker();
-            _terminal.set_cursor_visible(true);
+            _field.redraw(row, label, lw);
             return;
         }
         _terminal.set_cursor_visible(false);
         const char* say = (HAL::Clock::uptime_ms() < _said_until_ms) ? _said : "";
         _draw_line(row, say, (uint16_t)std::strlen(say));
-    }
-
-    void MonitorPage::_draw_error_marker() {
-        _terminal.move_to(_editor.end_pos());
-        const char* e = "  [invalid]";
-        _terminal.write_chars(e, (uint16_t)std::strlen(e));
-        _editor.place_cursor();
-    }
-
-    void MonitorPage::_clear_error() {
-        _terminal.move_to(_editor.end_pos());
-        _terminal.clear_to_eol();
-        _edit_error = false;
-        _editor.place_cursor();
     }
 
     void MonitorPage::_start_edit() {
@@ -367,55 +349,41 @@ namespace Botanik { namespace Pages {
 
         char label[40];
         const uint16_t lw = _edit_label(label, sizeof(label));
-        _editor.as_field(_prompt_row(), lw);
-        _editor.reset();                 // clears the row past the label
-        _terminal.move_to({_prompt_row(), 0});
-        _terminal.write_chars(label, lw);
-
         // Seeded with what the row reads NOW - a force usually starts from the
         // reading it is replacing.
         char val[OVR_INPUT_LEN];
         const char* v = Vars::var_format(h, val, sizeof(val));
         const uint16_t n = (uint16_t)std::strlen(v);
         if (v != val) { std::strncpy(val, v, sizeof(val) - 1); val[sizeof(val) - 1] = 0; }
-        if (n > 0) _editor.insert_characters(val, n);
-        else       _editor.place_cursor();
 
-        _edit_error = false;
-        _editing = true;
-        _terminal.set_cursor_visible(true);
+        _field.begin(_prompt_row(), label, lw, val, n);
     }
 
     void MonitorPage::_cancel_edit() {
-        _editing = false;
+        _field.end();
         _dirty = true;
         _draw_prompt_row();              // hide the cursor, clear the field
     }
 
     void MonitorPage::_commit_edit() {
         char line[OVR_INPUT_LEN];
-        uint16_t n = _editor.buffer_len();
-        if (n > (uint16_t)(sizeof(line) - 1)) n = (uint16_t)(sizeof(line) - 1);
-        std::memcpy(line, _editor.buffer(), n);
-        line[n] = 0;
+        _field.read(line, sizeof(line));
         if (_io->var(_edit_ref).override_set(line) != Vars::SET_OK) {
-            _edit_error = true;          // stay in the field, flag it
-            _draw_error_marker();
+            _field.refuse();             // stay in the field, flag it
             return;
         }
-        _editing = false;
+        _field.end();
         _dirty = true;                   // the OVERRIDE column says the rest
         _say("override set - ^S saves this row");
         _draw_prompt_row();
     }
 
     void MonitorPage::_handle_edit_command(Command cmd, uint16_t count) {
-        if (cmd == Command::ENTER) { _commit_edit(); return; }
-        if (cmd == Command::ESC)   { _cancel_edit(); return; }
-        const EditKey k = _edit_kind(_editor, cmd);
-        if (k == EditKey::IGNORED) return;
-        if (k == EditKey::CHANGED && _edit_error) _clear_error();
-        _edit_apply(_editor, cmd, count);
+        switch (_field.handle_command(cmd, count)) {
+            case EditOutcome::COMMIT: _commit_edit(); break;
+            case EditOutcome::CANCEL: _cancel_edit(); break;
+            case EditOutcome::HANDLED: break;
+        }
     }
 
     void MonitorPage::_toggle_validity() {

@@ -50,7 +50,8 @@ namespace Botanik { namespace Pages {
          *         screen. No history behind them: the store is exactly the
          *         rows the band shows. */
         HomeScrollback _scrollback;
-        /** @brief Mirrors tick(active); gates band repaints in write(). */
+        /** @brief Mirrors tick(active). A line banked while the page is on
+         *  screen is revealed paced; one banked behind its back is not. */
         bool _log_active = false;
 
         /** @brief Site home-field table: a label and the ROW it shows, both
@@ -89,9 +90,13 @@ namespace Botanik { namespace Pages {
         /** @brief First content row below the fixed layout (uptime + columns). */
         static constexpr uint16_t PAYLOAD_ROW = COL_TOP + COL_MAX;
 
+        /** @brief No room for a band: row 0 is chrome, so it can never be one.
+         */
+        static constexpr uint16_t NO_BAND = 0;
+
         /** @brief First screen row of the bottom log band. Clamped so it never
-         *  starts above the fixed content (logo + summary); on a too-short
-         *  screen the band collapses to empty (band_top == rows). */
+         *  starts above the fixed content (logo + summary).
+         *  @return NO_BAND on a screen too short to hold a divider and a line. */
         uint16_t log_band_top() const;
 
         /** @name Draw hooks - override to customize the page.

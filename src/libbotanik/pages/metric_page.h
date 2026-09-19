@@ -39,6 +39,11 @@ namespace Botanik { namespace Pages {
         using Console      = Terminal::Console;
         using Command      = Terminal::InputEvent::Command;
 
+        /** @brief Whether a value cell lights the digits that changed. A cell
+         *  whose value moves every beat is PLAIN: the highlight would be
+         *  permanent and say nothing. */
+        enum class Highlight : uint8_t { LIT, PLAIN };
+
         /** @name State
          *  @{ */
 
@@ -109,7 +114,7 @@ namespace Botanik { namespace Pages {
          *  and never lit on a repaint (@see _fresh).
          *  @note Decides how to attribute a change, never whether to draw. */
         void _cell(uint16_t row, uint16_t col, const char* s,
-                   uint16_t width, bool highlight = true) {
+                   uint16_t width, Highlight highlight = Highlight::LIT) {
             if (row >= _console.rows() || width == 0) return;
             if (width > FIELD_MAX) width = FIELD_MAX;
 
@@ -117,7 +122,7 @@ namespace Botanik { namespace Pages {
             Terminal::Field::render(cf, s, width);
 
             uint32_t newhi = 0;
-            if (!_fresh && highlight) {
+            if (!_fresh && highlight == Highlight::LIT) {
                 char prev[FIELD_MAX + 1];
                 const uint16_t got = _terminal.front_cells(row, col, prev, width);
                 for (uint16_t i = got; i < width; i++) prev[i] = ' ';

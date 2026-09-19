@@ -341,9 +341,27 @@ namespace Botanik { namespace Utils {
         return buf;
     }
 
+    const char* format_duty(char* buf, size_t cap, uint32_t us_mean,
+                            uint32_t period_ms, uint8_t decimals) {
+        if (period_ms == 0) { snprintf(buf, cap, "-"); return buf; }
+        // us/ms IS per-mille, so neither side is scaled by 1000 and the divide
+        // stays 32-bit. The x10 overflows only past a ~429 s mean cost.
+        if (decimals >= 2) {
+            const uint32_t cpm = (us_mean * 10u) / period_ms;   // per-10000
+            snprintf(buf, cap, "%lu.%02lu", (unsigned long)(cpm / 100u),
+                     (unsigned long)(cpm % 100u));
+        } else {
+            const uint32_t pm = us_mean / period_ms;            // per-mille
+            snprintf(buf, cap, "%lu.%lu", (unsigned long)(pm / 10u),
+                     (unsigned long)(pm % 10u));
+        }
+        return buf;
+    }
+
     // Duration formatting
 
-    const char* format_age(char* buf, size_t cap, uint32_t secs, bool ago, bool floor_min) {
+    const char* format_age(char* buf, size_t cap, uint32_t secs,
+                           AgeSuffix suffix, AgeFloor floor) {
         unsigned v = secs;
         char     u = 's';
 
@@ -352,12 +370,12 @@ namespace Botanik { namespace Utils {
         else if (secs >= 86400)    { v = secs / 86400u;    u = 'd'; }
         else if (secs >= 3600)     { v = secs / 3600u;     u = 'h'; }
         else if (secs >= 60)       { v = secs / 60u;       u = 'm'; }
-        else if (floor_min)        { v = 0;                u = 'm'; }
+        else if (floor == AgeFloor::MINUTES) { v = 0;      u = 'm'; }
 
         // Format in a string buffer
         // FIXME: let's try do this without snprintf
-        if (ago) snprintf(buf, cap, "%3u %c ago", v, u);
-        else     snprintf(buf, cap, "%3u %c", v, u);
+        if (suffix == AgeSuffix::AGO) snprintf(buf, cap, "%3u %c ago", v, u);
+        else                          snprintf(buf, cap, "%3u %c", v, u);
 
         return buf;
     }

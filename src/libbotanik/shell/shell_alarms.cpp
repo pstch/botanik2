@@ -73,7 +73,7 @@ namespace Botanik { namespace Shell {
             _emitf(out, sizeof(out), "  %-9s %-22s %s%s",
                 code,
                 c.name() ? c.name() : "?",
-                Utils::format_age(age, sizeof(age), secs, false),
+                Utils::format_age(age, sizeof(age), secs, Utils::AgeSuffix::BARE),
                 c.user_ack ? " [ack]" : "");
             n++;
         }
@@ -103,7 +103,9 @@ namespace Botanik { namespace Shell {
         _field("Variable", c.name() ? c.name() : "?", nullptr);
         if (c.active) {
             uint32_t secs = (uint32_t)((now - c.started_ms) / 1000);
-            _field("Active for", Utils::format_age(age, sizeof(age), secs, false), nullptr);
+            _field("Active for",
+                   Utils::format_age(age, sizeof(age), secs, Utils::AgeSuffix::BARE),
+                   nullptr);
         }
         _field("Acknowledged", c.user_ack ? "yes" : "no", nullptr);
         // The policy, since an alarm that "should" be up and is not is usually

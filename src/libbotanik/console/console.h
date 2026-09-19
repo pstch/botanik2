@@ -5,7 +5,8 @@
  * @file console.h
  * @brief Console - the multiplexed page display driven over an AnsiTerminal:
  *        routes input to the active page, owns the row-0 status bar and the
- *        bottom alarm bar, reserves the content area, drives step().
+ *        bottom alarm bar, reserves the content area, registers the input,
+ *        draw and flush tasks.
  * @note Renderers reach the device through terminal(). See @ref dev_pages.
  */
 
@@ -155,11 +156,28 @@ namespace Botanik { namespace Terminal {
          *  @name Content-area geometry
          *  @{ */
 
-        /** @brief Rows available to pages: physical height minus the reserved
-         *  bottom alarm bar. Row 0 is the status bar and is INCLUDED, so a
-         *  page's content area is rows 1 .. rows()-1. */
+        /** @brief The band the frame owns: physical height minus the reserved
+         *  bottom alarm bar. Row 0 is the status bar and is INCLUDED, so this
+         *  is one more than a page may draw in. */
         uint16_t rows() const {
             return (uint16_t)(_term.rows_total() - _reserved_bottom);
+        }
+
+        /** @brief First row a page owns. Row 0 is the status bar. */
+        uint16_t content_top() const { return 1; }
+
+        /** @brief Index of the last row a page owns. 0 (the status bar) when
+         *  the band is too short to hold a content area. */
+        uint16_t last_row() const {
+            const uint16_t r = rows();
+            return r > 1 ? (uint16_t)(r - 1) : 0;
+        }
+
+        /** @brief How many rows a page owns: rows() less the status bar. The
+         *  same number as last_row(), asked as a count. */
+        uint16_t content_rows() const {
+            const uint16_t r = rows();
+            return r > 1 ? (uint16_t)(r - 1) : 0;
         }
 
         /** @brief Erase the page content area (rows 1..N-1), keeping the status

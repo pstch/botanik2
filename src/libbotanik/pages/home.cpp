@@ -22,7 +22,7 @@ namespace Botanik { namespace Pages {
         // the band over the two below it - and since the labels are written
         // only on focus(), they never came back.
         const uint16_t first = (uint16_t)(PAYLOAD_ROW + 1);
-        if (rows <= first) return 0;      // no room for a divider and a line
+        if (rows <= first) return NO_BAND;
         uint16_t top = (rows > Config::HOME_SCROLLBACK_LINES)
                      ? (uint16_t)(rows - Config::HOME_SCROLLBACK_LINES) : first;
         if (top < first) top = first;     // a short screen gets a shorter band
@@ -144,7 +144,7 @@ namespace Botanik { namespace Pages {
         // Divider above the bottom log band (band rows are painted from the
         // scrollback, see focus()/tick()).
         const uint16_t band_top = log_band_top();
-        if (band_top != 0) draw_log_header((uint16_t)(band_top - 1));
+        if (band_top != NO_BAND) draw_log_header((uint16_t)(band_top - 1));
     }
 
     void HomePage::draw_dynamic() {
@@ -168,7 +168,7 @@ namespace Botanik { namespace Pages {
         char buf[40];
         fmt_uptime(buf, sizeof(buf), HAL::Clock::uptime_ms());
         // bounded (see draw_dynamic)
-        _cell(UPTIME_ROW, UPTIME_VAL, buf, UPTIME_W, false);
+        _cell(UPTIME_ROW, UPTIME_VAL, buf, UPTIME_W, Highlight::PLAIN);
     }
 
     void HomePage::focus() {
@@ -184,8 +184,9 @@ namespace Botanik { namespace Pages {
         drain();
         if (!active) return;
         const uint16_t band_top = log_band_top();
-        if (band_top != 0)
-            _scrollback.paint(_terminal, band_top, (uint16_t)(_console.rows() - band_top));
+        if (band_top == NO_BAND) return;
+        _scrollback.reveal_step();      // once per tick; paint() does not
+        _scrollback.paint(_terminal, band_top, (uint16_t)(_console.rows() - band_top));
     }
 
     size_t HomePage::write(const char* buf, size_t len) {
@@ -193,7 +194,8 @@ namespace Botanik { namespace Pages {
         // it all consumed.
         _scrollback.ingest(buf, len, (uint16_t)_terminal.cols(),
             Logs::LOG_CONT_PREFIX,
-            (uint16_t)strlen(Logs::LOG_CONT_PREFIX), _log_active);
+            (uint16_t)strlen(Logs::LOG_CONT_PREFIX),
+            _log_active ? Reveal::PACED : Reveal::AT_ONCE);
         return len;
     }
 }}

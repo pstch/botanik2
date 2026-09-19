@@ -14,7 +14,7 @@
  *   rows 4..K        one row per Param (windowed / scrollable)
  *   rows K..         detail panel for the selected parameter: a separator then
  *                    Minimum / Maximum / Default, Description, Notes
- *   rows()-1         edit prompt / hint line (just above the alarm bar)
+ *   last_row()       edit prompt / hint line (just above the alarm bar)
  *
  * UP/DOWN move a selection cursor (the selected row is drawn inverted); the
  * detail panel tracks it. ENTER opens an inline edit on the bottom prompt line:
@@ -42,6 +42,7 @@
 #include "libbotanik/console/editor.h"
 #include "libbotanik/console/terminal.h"
 #include "libbotanik/console/page.h"
+#include "libbotanik/pages/inline_field.h"
 #include "libbotanik/pages/scroll_table.h"
 #include "libbotanik/vars/access.h"
 #include "libbotanik/vars/persist.h"
@@ -53,7 +54,6 @@ namespace Botanik { namespace Pages {
     private:
         using AnsiTerminal = Terminal::AnsiTerminal;
         using Console      = Terminal::Console;
-        using InputEditor  = Terminal::TextEditor;
         using Command      = Terminal::InputEvent::Command;
 
         /** @name Layout
@@ -95,13 +95,11 @@ namespace Botanik { namespace Pages {
 
         /** @name Edit sub-state (bottom-row inline editor)
          *  @{ */
-        /** buffers the editor borrows; declared before it */
-        Terminal::EditorBuffers<Config::SHELL_INPUT_LEN,
-                                Config::EDITOR_MAX_ROWS> _editor_bufs;
-        InputEditor         _editor;                 ///< single-line value editor
-        bool                _editing    = false;
+        using ValueField  = InlineField<Config::SHELL_INPUT_LEN,
+                                        Config::EDITOR_MAX_ROWS>;
+        using EditOutcome = ValueField::Outcome;
+        ValueField          _field;
         uint16_t _edit_index = 0;   ///< the parameter being edited
-        bool                _edit_error = false;      ///< last commit rejected
         /** last ^O save was refused by storage (shown on the prompt row; the
          *  values themselves stay live and stay marked unsaved) */
         bool                _save_failed = false;
@@ -114,7 +112,7 @@ namespace Botanik { namespace Pages {
         ParamsPage(Console& console, Vars::Bank* config,
                    Vars::Persist* persist = nullptr)
             : ScrollTablePage(console), _params(config), _persist(persist),
-              _editor(&console, _editor_bufs.storage()) {}
+              _field(console) {}
 
         const char* name() const override { return "PARAMS"; }
 
@@ -126,7 +124,7 @@ namespace Botanik { namespace Pages {
         void handle_text(char c) override;
 
         bool handle_cancel() override {
-            if (_editing) { _cancel_edit(); return true; }   // Ctrl+C leaves edit
+            if (_field.open()) { _cancel_edit(); return true; }   // Ctrl+C leaves edit
             return false;
         }
 
@@ -163,15 +161,19 @@ namespace Botanik { namespace Pages {
          *  count when out of range). */
         uint16_t _param_at(uint16_t row) const;
 
-        /** @brief Parameters the filter shows. Cached: the table is fixed for
-         *  the life of the build, so only a filter change can move this. */
+        /** @brief Parameters the filter shows, and the filter generation they
+         *  were counted for (0 = never counted). The table is fixed for the
+         *  life of the build, so only a filter change can move this. Holding
+         *  the generation rather than a validity flag makes the invalidation
+         *  structural: a path that moves the filter without going through
+         *  _on_filter_changed() still cannot leave a stale count behind. */
         mutable uint16_t _vis_count = 0;
-        mutable bool     _vis_ready = false;
+        mutable uint16_t _vis_gen   = 0;
         uint16_t _visible_count() const;
         /** @} */
 
         /** @brief Row the bottom edit/hint prompt sits on (above the alarm bar). */
-        uint16_t _prompt_row() const { return (uint16_t)(_console.rows() - 1); }
+        uint16_t _prompt_row() const { return _console.last_row(); }
 
         /** @brief The filter badge sits on the panel's trailing spacer, one row
          *  above the prompt - so an open editor, which owns the prompt row,
@@ -253,16 +255,10 @@ namespace Botanik { namespace Pages {
             return (n < 0) ? 0 : (uint16_t)n;
         }
 
-        void _draw_label();
-
         void _draw_prompt_row();
 
         /** @brief ^O: commit every unsaved parameter. */
         void _save_all();
-
-        void _draw_error_marker();
-
-        void _clear_error();
 
         // Edit sub-state
 

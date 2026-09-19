@@ -56,12 +56,14 @@ namespace Botanik { namespace Pages {
         // overlap, and scroll() clamps a longer move to a screenful.
         if (cmd == Command::PAGE_UP   || cmd == Command::PAGE_DOWN ||
             cmd == Command::SHIFT_UP  || cmd == Command::SHIFT_DOWN) {
-            const bool up   = (cmd == Command::PAGE_UP || cmd == Command::SHIFT_UP);
+            const Direction towards =
+                (cmd == Command::PAGE_UP || cmd == Command::SHIFT_UP)
+                    ? Direction::OLDER : Direction::NEWER;
             const bool line = (cmd == Command::SHIFT_UP || cmd == Command::SHIFT_DOWN);
             uint16_t log_rows = _log_rows();
             uint16_t step     = 1;
             if (!line) step = (log_rows > 1) ? (uint16_t)(log_rows - 1) : 1;
-            _scrollback.scroll(up, step, log_rows);
+            _scrollback.scroll(towards, step, log_rows);
             return;
         }
         // Every other key returns to the live bottom first.
@@ -95,7 +97,9 @@ namespace Botanik { namespace Pages {
         // Bank queued log entries (only the active page queues, see push());
         // command output banks the same way via write_lines().
         drain();
-        if (active) _scrollback.paint(_terminal, 1, _log_rows());
+        if (!active) return;
+        _scrollback.reveal_step();      // once per tick; paint() does not
+        _scrollback.paint(_terminal, _console.content_top(), _log_rows());
     }
 
     // BufferedLogWriter + ShellWriter interface
@@ -122,7 +126,7 @@ namespace Botanik { namespace Pages {
                                            : Logs::CONT_PREFIX;
         uint16_t    plen   = (uint16_t)strlen(prefix);
         _scrollback.ingest(buf, len, (uint16_t)_terminal.cols(), prefix, plen,
-                           _active);
+                           _active ? Reveal::PACED : Reveal::AT_ONCE);
         return len;
     }
 
@@ -155,7 +159,7 @@ namespace Botanik { namespace Pages {
 
     void ShellPage::_setup_editor() {
         _editor.set_prompts("botanik> ", "> ", "...> ");
-        _editor.as_prompt((uint16_t)(_console.rows() - 1));
+        _editor.as_prompt(_console.last_row());
     }
 
     void ShellPage::_full_redraw() {
@@ -168,7 +172,7 @@ namespace Botanik { namespace Pages {
     }
 
     uint16_t ShellPage::_log_rows() const {
-        uint16_t content = (uint16_t)(_console.rows() - 1);  // less row 0
+        uint16_t content = _console.content_rows();
         uint16_t occ     = _editor.occupied_rows();
         // A prompt taller than the screen leaves no transcript; every consumer
         // of this treats 0 as "nothing to paint".

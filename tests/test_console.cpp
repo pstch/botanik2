@@ -104,6 +104,7 @@ using namespace Botanik;
 struct ProbeHome : Pages::HomePage {
     explicit ProbeHome(Terminal::Console& c) : Pages::HomePage(c) {}
     using Pages::HomePage::log_band_top;
+    using Pages::HomePage::NO_BAND;
     using Pages::HomePage::PAYLOAD_ROW;
 };
 
@@ -121,7 +122,7 @@ TEST_CASE("home: the log band never takes a row the readings are on") {
         console.reconfigure(Terminal::ConsoleConfig().type, 80, rows);
         const uint16_t top = home.log_band_top();
         INFO("console_rows = " << rows << ", band top = " << top);
-        if (top == 0) continue;                 // no band at all: allowed
+        if (top == ProbeHome::NO_BAND) continue;   // no band at all: allowed
 
         INFO("the divider sits on top-1 and must clear the field grid");
         CHECK(top >= ProbeHome::PAYLOAD_ROW + 1);
@@ -140,7 +141,8 @@ TEST_CASE("home: the log band shrinks with the screen rather than moving up") {
     for (uint16_t rows = 40; rows >= Config::SCREEN_MIN_ROWS; rows--) {
         console.reconfigure(Terminal::ConsoleConfig().type, 80, rows);
         const uint16_t top = home.log_band_top();
-        const uint16_t band = (top == 0) ? 0 : (uint16_t)(console.rows() - top);
+        const uint16_t band = (top == ProbeHome::NO_BAND)
+                            ? 0 : (uint16_t)(console.rows() - top);
         INFO("console_rows = " << rows << ", band rows = " << band);
         if (prev != 0) CHECK(band <= prev);      // monotonic: never grows
         prev = band;

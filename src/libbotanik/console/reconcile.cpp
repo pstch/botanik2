@@ -309,7 +309,7 @@ namespace Botanik { namespace Terminal {
         return true;
     }
 
-    void AnsiTerminal::blank_rows(uint16_t top, uint16_t bottom, bool on_wire) {
+    void AnsiTerminal::blank_rows(uint16_t top, uint16_t bottom, OnWire on_wire) {
         clear_rows(top, bottom);
         if (top > bottom || bottom >= _rows) return;
         // The content changed as a whole: pending changes describe a screen
@@ -318,7 +318,7 @@ namespace Botanik { namespace Terminal {
         // which no ED or DL/IL can offer.
         _drop_changes();
         _restart_walk();
-        if (!on_wire) return;
+        if (on_wire == OnWire::NO) return;
         const uint16_t n = (uint16_t)(bottom - top + 1);
         if (_serial.availableForWrite() < (uint16_t)(8 + n * 8)) return;   // the walk blanks it row by row
         for (uint16_t r = top; r <= bottom; r++)

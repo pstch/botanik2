@@ -21,19 +21,33 @@ namespace Botanik { namespace Pages {
         else if (_selected >= n) _selected = (uint16_t)(n - 1);
     }
 
-    void ScrollTablePage::_follow_selection() {
-        uint16_t win = _window();
-        if (win == 0) return;
+    void ScrollTablePage::_set_top(uint16_t new_top, ScrollBand band) {
         const uint16_t was = _top;
-        if (_selected < _top)             _top = _selected;
-        else if (_selected >= _top + win) _top = (uint16_t)(_selected - win + 1);
-        uint16_t maxtop = _max_top();
-        if (_top > maxtop) _top = maxtop;
+        _top = new_top;
+        if (band == ScrollBand::SKIP || _top == was) return;
+        const uint16_t win = _window();
+        // A one-row band has nothing to slide: whatever it held goes off the
+        // window whichever way it moved, so the repaint writes all of it and
+        // the IL/DL would be bytes for nothing.
+        if (win <= 1) return;
         // Record i is drawn on _data_top() + i - _top, so the window's rows move
         // by what _top did, backwards.
-        if (_top != was && win > 1)
-            _terminal.change(Terminal::LayoutChange::scroll(
-                _data_top(), (uint16_t)(_data_top() + win - 1), (int16_t)((int32_t)was - (int32_t)_top)));
+        _terminal.change(Terminal::LayoutChange::scroll(
+            _data_top(), (uint16_t)(_data_top() + win - 1),
+            (int16_t)((int32_t)was - (int32_t)_top)));
+    }
+
+    void ScrollTablePage::_follow_selection() {
+        const uint16_t win = _window();
+        if (win == 0) return;
+        uint16_t top = _top;
+        if (_selected < top)             top = _selected;
+        else if (_selected >= top + win) top = (uint16_t)(_selected - win + 1);
+        const uint16_t maxtop = _max_top();
+        if (top > maxtop) top = maxtop;
+        // Nothing repaints behind a cursor move, so the band scroll is what
+        // keeps it cheap.
+        _set_top(top, ScrollBand::EMIT);
     }
 
     bool ScrollTablePage::_nav_command(Command cmd) {
@@ -78,7 +92,7 @@ namespace Botanik { namespace Pages {
         uint8_t n = _mode_count();
         if (n <= 1) return;
         _mode     = (uint8_t)(((int)_mode + dir + (int)n) % (int)n);
-        _top      = 0;
+        _set_top(0, ScrollBand::SKIP);   // a view change repaints the table
         _selected = 0;
         _on_mode_changed();
     }
@@ -190,7 +204,7 @@ namespace Botanik { namespace Pages {
     void ScrollTablePage::_filter_changed() {
         // Back to the top: the row the cursor sat on is not the row that index
         // names in the narrowed set.
-        _top      = 0;
+        _set_top(0, ScrollBand::SKIP);   // a filter change repaints the table
         _selected = 0;
         if (++_filter_gen == 0) _filter_gen = 1;   // 0 is "never built"
         _on_filter_changed();
@@ -203,15 +217,6 @@ namespace Botanik { namespace Pages {
         return false;
     }
 
-    ScrollTablePage::EditKey ScrollTablePage::_edit_kind(const Terminal::TextEditor& ed, Command cmd) {
-        return cmd == Command::CTRL_U ? EditKey::CHANGED : ed.key_kind(cmd);
-    }
-
-    void ScrollTablePage::_edit_apply(Terminal::TextEditor& ed, Command cmd, uint16_t count) {
-        if (cmd == Command::CTRL_U) ed.reset();      // a field has nothing to lose
-        else (void)ed.handle_key(cmd, count);
-    }
-
     void ScrollTablePage::_draw_line(uint16_t row, const char* line, uint16_t n) {
         _terminal.move_to({row, 0});
         _terminal.set_inverted(false);
@@ -219,9 +224,12 @@ namespace Botanik { namespace Pages {
         _terminal.clear_to_eol();
     }
 
-    uint8_t ScrollTablePage::_fit_columns(Col* out) const {
+    ScrollTablePage::Fit ScrollTablePage::_fit_columns() const {
+        Fit fit;
+        Col* const out = fit.col;
         const uint8_t n = _columns(out);
-        if (n == 0) return 0;
+        fit.n = n;
+        if (n == 0) return fit;
         // What the cells may span: the display less both margins and the
         // closing rule. _build_row() lays out exactly that.
         const uint16_t cols = _terminal.cols();
@@ -248,21 +256,21 @@ namespace Botanik { namespace Pages {
             out[big].width--;
             used--;
         }
-        return n;
+        return fit;
     }
 
-    void ScrollTablePage::_cell_span(uint8_t i, uint16_t& start, uint16_t& end) const {
-        Col cols[MAX_COLS];
-        uint8_t n = _fit_columns(cols);
+    void ScrollTablePage::_cell_span(const Fit& fit, uint8_t i,
+                                     uint16_t& start, uint16_t& end) const {
         start = (uint16_t)(MARGIN + 2);               // margin + "| "
-        for (uint8_t j = 0; j < i && j < n; j++)
-            start = (uint16_t)(start + _cell_pitch(cols[j].width));
-        end = (uint16_t)(start + (i < n ? cols[i].width : 0));
+        for (uint8_t j = 0; j < i && j < fit.n; j++)
+            start = (uint16_t)(start + _cell_pitch(fit.col[j].width));
+        end = (uint16_t)(start + (i < fit.n ? fit.col[i].width : 0));
     }
 
-    uint16_t ScrollTablePage::_build_row(char* out, size_t cap, const char* const* cells) const {
-        Col cols[MAX_COLS];
-        uint8_t n = _fit_columns(cols);
+    uint16_t ScrollTablePage::_build_row(const Fit& fit, char* out, size_t cap,
+                                         const char* const* cells) const {
+        const Col* const cols = fit.col;
+        const uint8_t n = fit.n;
         const bool pad = _pad_cells();
         uint16_t w = 0;
         for (uint16_t i = 0; i < MARGIN && w < cap - 1; i++) out[w++] = ' ';
@@ -280,17 +288,17 @@ namespace Botanik { namespace Pages {
     }
 
     void ScrollTablePage::_draw_header(uint16_t row) {
-        Col cols[MAX_COLS];
-        uint8_t n = _fit_columns(cols);
+        const Fit fit = _fit_columns();
         const char* heads[MAX_COLS];
-        for (uint8_t i = 0; i < n; i++) heads[i] = cols[i].head;
+        for (uint8_t i = 0; i < fit.n; i++) heads[i] = fit.col[i].head;
         char line[Config::TABLE_LINE_LEN];
-        _draw_line(row, line, _build_row(line, sizeof(line), heads));
+        _draw_line(row, line, _build_row(fit, line, sizeof(line), heads));
     }
 
     void ScrollTablePage::_draw_rule(uint16_t row, char cap, char join) {
-        Col cols[MAX_COLS];
-        uint8_t n = _fit_columns(cols);
+        const Fit fit = _fit_columns();
+        const Col* const cols = fit.col;
+        const uint8_t n = fit.n;
         char line[Config::TABLE_LINE_LEN];
         uint16_t w = 0;
         for (uint16_t i = 0; i < MARGIN && w < sizeof(line) - 1; i++) line[w++] = ' ';

@@ -24,6 +24,12 @@ namespace Botanik { namespace Terminal {
         _event = InputEvent();
     }
 
+    void InputParser::_take() {
+        uint8_t drop;
+        _serial.read((char*)&drop, 1);
+        _last_byte_ms = *_timestamp_ms;
+    }
+
     // Chunkable command helpers
 
     bool InputParser::_is_chunkable_trigger(uint8_t b) {
@@ -241,16 +247,18 @@ namespace Botanik { namespace Terminal {
         }
     }
 
+    // The Minitel function keys, SEP (0x13) then one byte, per STUM1B. VERIFY
+    // ON HARDWARE: CORRECTION and ANNULATION read as transposed.
     Command InputParser::_map_sep_to_command(const uint8_t b) {
         switch (b) {
-            case 'a': case 'A': return Command::ENTER;
-            case 'b': case 'B': return Command::ENTER;
-            case 'c': case 'C': return Command::NONE;
-            case 'd': case 'D': return Command::ALT_1;
-            case 'e': case 'E': return Command::BACKSPACE;
-            case 'f': case 'F': return Command::CTRL_U;
-            case 'g': case 'G': return Command::ALT_1;
-            case 'h': case 'H': return Command::NONE;
+            case 'a': case 'A': return Command::ENTER;      // ENVOI
+            case 'b': case 'B': return Command::ENTER;      // RETOUR
+            case 'c': case 'C': return Command::NONE;       // REPETITION
+            case 'd': case 'D': return Command::ALT_1;      // GUIDE
+            case 'e': case 'E': return Command::BACKSPACE;  // ANNULATION
+            case 'f': case 'F': return Command::CTRL_U;     // SOMMAIRE
+            case 'g': case 'G': return Command::ALT_1;      // CORRECTION
+            case 'h': case 'H': return Command::NONE;       // SUITE
             default: return Command::NONE;
         }
     }
@@ -269,66 +277,32 @@ namespace Botanik { namespace Terminal {
     InputEvent& InputParser::parse() {
         _reset_event();
         uint8_t b;
-        // TODO: make it more clear in the code that this loop will never run infinitely
-        // drain bytes through the state machine until we have something to return
-        while (true) {
-            if (!_serial.peek(&b)) {
-                // no byte available
-                if (_should_flush_pending_command()) {
-                    // we have a comand to flush
-                    _emit_pending_command();
-                } else if (_should_flush_text()) {
-                    // we have some text to flush
-                    _flush_text();
-                    _state = State::IDLE;
-                } else if ((_state == State::IN_ESC || _state == State::IN_CSI ||
-                            _state == State::IN_SEP) &&
-                           (*_timestamp_ms - _last_byte_ms) >= Config::ANSI_CMD_TIMEOUT_MS) {
-                    // we are waiting for the end of an escape code and have reached the tieout
-                    if (_state == State::IN_ESC) {
-                        _event.command = Command::ESC;
-                        _event.type    = EventType::COMMAND;
-                    } else if (_state == State::IN_SEP) {
-                        // 0x13 alone is Ctrl+S; 0x13 + a letter is a Minitel
-                        // function key, so the key resolves the way a bare ESC
-                        // does - on the timeout, once no second byte came.
-                        _event.command = Command::CTRL_S;
-                        _event.type    = EventType::COMMAND;
-                    }
-                    _state = State::IDLE;
-                }
-                return _event;
-            }
+        // Every iteration either consumes the peeked byte or returns, so the
+        // drain is bounded by what the RX ring holds.
+        while (_serial.peek(&b)) {
             if (_pending_cmd != Command::NONE) {
-                // consume only if we can coalesce
+                // Take the byte only if it coalesces into the chunk in flight.
                 if (_state == State::IDLE && _is_chunkable_trigger(b) &&
                     _chunkable_command_for(b) == _pending_cmd) {
-                    _serial.read((char*)&b, 1);
-                    _last_byte_ms = *_timestamp_ms;
-                    // saturate, never wrap
-                    if (_pending_cmd_count < UINT16_MAX) _pending_cmd_count++;
+                    _take();
+                    if (_pending_cmd_count < UINT16_MAX) _pending_cmd_count++;   // saturate
                     continue;
                 }
-                // otherwise we emit the pending command
                 _emit_pending_command();
                 return _event;
             }
-            // if the byte is non-printable it interrupts the TEXT batch
+            // A non-printable byte ends the TEXT batch; it stays in the ring.
             if (_state == State::TEXT && !Ansi::is_printable(b)) {
                 _flush_text();
                 _state = State::IDLE;
                 return _event;
             }
-            // if the byte is chunkable and we are idle, start a new chunk
             if (_state == State::IDLE && _is_chunkable_trigger(b)) {
-                _serial.read((char*)&b, 1);
-                _last_byte_ms = *_timestamp_ms;
+                _take();
                 _stage_pending_command(_chunkable_command_for(b));
                 continue;
             }
-            // otherwise read the peeked byte and run it through the state machine
-            _serial.read((char*)&b, 1);
-            _last_byte_ms = *_timestamp_ms;
+            _take();
             State new_state;
             switch (_state) {
                 case State::IDLE:   new_state = _handle_idle(b); break;
@@ -339,9 +313,32 @@ namespace Botanik { namespace Terminal {
                 default:            new_state = _state        ;  break;
             }
             _state = new_state;
-            // we've produced an event, so we can return it, otherwise we keep draining
             if (_event.type != EventType::NONE) return _event;
         }
+
+        // The ring is empty: silence is what completes a chunk, a text batch
+        // and an unterminated escape.
+        if (_should_flush_pending_command()) {
+            _emit_pending_command();
+        } else if (_should_flush_text()) {
+            _flush_text();
+            _state = State::IDLE;
+        } else if ((_state == State::IN_ESC || _state == State::IN_CSI ||
+                    _state == State::IN_SEP) &&
+                   (*_timestamp_ms - _last_byte_ms) >= Config::ANSI_CMD_TIMEOUT_MS) {
+            if (_state == State::IN_ESC) {
+                _event.command = Command::ESC;
+                _event.type    = EventType::COMMAND;
+            } else if (_state == State::IN_SEP) {
+                // 0x13 alone is Ctrl+S; 0x13 + a letter is a Minitel function
+                // key, so the key resolves the way a bare ESC does - on the
+                // timeout, once no second byte came.
+                _event.command = Command::CTRL_S;
+                _event.type    = EventType::COMMAND;
+            }
+            _state = State::IDLE;
+        }
+        return _event;
     }
 
 }}

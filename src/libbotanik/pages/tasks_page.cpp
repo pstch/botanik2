@@ -35,7 +35,7 @@ namespace Botanik { namespace Pages {
         _dirty = false;
         // A narrow view selects on a verdict, which moves with no keypress
         // behind it: its row set has to be rebuilt every refresh.
-        if (_mode != MODE_ALL) _order_gen = 0;
+        if (_mode != MODE_ALL) _invalidate_order();
         uint16_t n = _count();
         _clamp_selection();
         _follow_selection();
@@ -87,7 +87,7 @@ namespace Botanik { namespace Pages {
     }
 
     uint16_t TasksPage::_panel_top() const {
-        uint16_t last = (uint16_t)(_console.rows() - 1);
+        uint16_t last = _console.last_row();
         return (last > (uint16_t)(DATA_TOP + PANEL_H))
              ? (uint16_t)(last - PANEL_H) : DATA_TOP;
     }
@@ -128,9 +128,10 @@ namespace Botanik { namespace Pages {
             _num(mean,   sizeof(mean),   t.cost.us_mean(), t.cost.runs),
             _num(missed, sizeof(missed), t.cost.missed,    t.cost.runs),
         };
-        uint16_t n = _build_row(line, sizeof(line), cells);
+        const Fit fit = _fit_columns();          // one solve, both ends
+        uint16_t n = _build_row(fit, line, sizeof(line), cells);
         uint16_t name_l = 0, name_r = 0;
-        _cell_span(C_NAME, name_l, name_r);      // one fit, both ends
+        _cell_span(fit, C_NAME, name_l, name_r);
         _draw_selected_line(row, line, n, name_l, name_r,
                             selected);
     }
@@ -169,13 +170,10 @@ namespace Botanik { namespace Pages {
         const uint32_t period = t.period_ms;
         const char* duty_s = "-";
         if (t.cost.runs != 0 && period != 0) {
-            // us_mean/period_ms IS per-mille of the period - the us/ms ratio
-            // does the scaling - so this stays a 32-bit UDIV. Scaling both sides
-            // by 1000 explicitly would force a 64-bit divide.
             char pct[16];
-            Utils::format_float(pct, sizeof(pct),
-                                (double)t.cost.us_mean() / (double)(period * 10u), 1);
-            snprintf(duty, sizeof(duty), "%s %%", pct);
+            snprintf(duty, sizeof(duty), "%s %%",
+                     Utils::format_duty(pct, sizeof(pct), t.cost.us_mean(),
+                                        period, 1));
             duty_s = duty;
         }
         // Two facts per row. MISSED repeats here beside the run count, the

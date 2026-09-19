@@ -40,7 +40,7 @@ namespace Botanik { namespace Pages {
     void LogsPage::handle_command(Command cmd, uint16_t /*count*/) {
         // Scroll history a line at a time (live tail freezes while scrolled
         // back); ENTER returns to the live bottom.
-        const uint16_t log_rows = (uint16_t)(_console.rows() - 1);
+        const uint16_t log_rows = _console.content_rows();
         switch (cmd) {
             case Command::ENTER:
                 focus();
@@ -51,18 +51,20 @@ namespace Botanik { namespace Pages {
             case Command::UP:
             case Command::SHIFT_UP:
             case Command::CTRL_P:
-                _scrollback.scroll(/*up=*/true, 1, log_rows);
+                _scrollback.scroll(Direction::OLDER, 1, log_rows);
                 break;
             case Command::DOWN:
             case Command::SHIFT_DOWN:
             case Command::CTRL_N:
-                _scrollback.scroll(/*up=*/false, 1, log_rows);
+                _scrollback.scroll(Direction::NEWER, 1, log_rows);
                 break;
             // A screenful less one row of overlap, the way a pager steps.
             case Command::PAGE_UP:
             case Command::PAGE_DOWN: {
                 uint16_t step = (log_rows > 1) ? (uint16_t)(log_rows - 1) : 1;
-                _scrollback.scroll(cmd == Command::PAGE_UP, step, log_rows);
+                _scrollback.scroll(cmd == Command::PAGE_UP ? Direction::OLDER
+                                                           : Direction::NEWER,
+                                   step, log_rows);
                 break;
             }
             default: break;
@@ -79,7 +81,8 @@ namespace Botanik { namespace Pages {
         _active = active;
         drain();
         if (!active) return;
-        _scrollback.paint(_terminal, 1, (uint16_t)(_console.rows() - 1));
+        _scrollback.reveal_step();      // once per tick; paint() does not
+        _scrollback.paint(_terminal, _console.content_top(), _console.content_rows());
     }
 
     // BufferedLogWriter interface
@@ -89,7 +92,8 @@ namespace Botanik { namespace Pages {
         // it all consumed.
         _scrollback.ingest(buf, len, (uint16_t)_terminal.cols(),
             Logs::LOG_CONT_PREFIX,
-            (uint16_t)strlen(Logs::LOG_CONT_PREFIX), _active);
+            (uint16_t)strlen(Logs::LOG_CONT_PREFIX),
+            _active ? Reveal::PACED : Reveal::AT_ONCE);
         return len;
     }
 

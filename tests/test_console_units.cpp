@@ -139,11 +139,13 @@ struct BackFixture : botanik_test::PageFixture {
         for (uint16_t i = 0; i < n; i++) {
             char line[32];
             snprintf(line, sizeof(line), "line %u", (unsigned)i);
-            sb.ingest(line, strlen(line), console.terminal().cols(), "  ", 2, true);
+            sb.ingest(line, strlen(line), console.terminal().cols(), "  ", 2,
+                      Pages::Reveal::PACED);
         }
     }
     bool scroll(bool up, uint16_t n = 1) {
-        return sb.scroll(up, n, (uint16_t)(console.rows() - 1));
+        return sb.scroll(up ? Pages::Direction::OLDER : Pages::Direction::NEWER,
+                         n, console.content_rows());
     }
 };
 
@@ -169,7 +171,7 @@ TEST_CASE("scrollback: the first width to be declared keeps the history") {
     // _wrap_cols starts 0, so the first reflow() adopts rather than clears -
     // otherwise every page would lose its replay on the first paint.
     Pages::LogsScrollback fresh;
-    fresh.ingest("hello", 5, 0, "", 0, false);
+    fresh.ingest("hello", 5, 0, "", 0, Pages::Reveal::AT_ONCE);
     REQUIRE(fresh.count() == 1);
     fresh.reflow(80);
     CHECK(fresh.count() == 1);

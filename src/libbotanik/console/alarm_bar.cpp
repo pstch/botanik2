@@ -1,6 +1,6 @@
 /**
  * @file alarm_bar.cpp
- * @brief AlarmBar implementation - bottom-row unmasked-alarm strip.
+ * @brief AlarmBar implementation - bottom-row un-ack'd-alarm strip.
  */
 
 #include <cstdint>
@@ -16,6 +16,13 @@
 
 namespace Botanik { namespace Terminal {
 
+    // The bar's membership test. One predicate, because unacked_set() is the
+    // change signature gating draw(): a condition the strip skips must not move
+    // the signature either.
+    static bool listed(const Alarms::AlarmCondition& c) {
+        return c.active && !c.user_ack && c.code() != nullptr;
+    }
+
     AlarmBar::AlarmBar(Console& console)
         : _console(console), _terminal(console.terminal()) {
         claim_row();
@@ -30,12 +37,11 @@ namespace Botanik { namespace Terminal {
         return rows > 0 ? (uint16_t)(rows - 1) : 0;
     }
 
-    uint64_t AlarmBar::unmasked_set() const {
+    uint64_t AlarmBar::unacked_set() const {
         uint64_t m = 0;
         const Alarms::AlarmController* alarms = _console.alarms();
         if (alarms) for (uint8_t i = 0; i < alarms->count(); i++) {
-            const Alarms::AlarmCondition& c = alarms->condition(i);
-            if (c.active && !c.user_ack) m |= Alarms::alarm_bit(i);
+            if (listed(alarms->condition(i))) m |= Alarms::alarm_bit(i);
         }
         return m;
     }
@@ -55,9 +61,9 @@ namespace Botanik { namespace Terminal {
 
         for (uint8_t i = 0; i < alarms->count(); i++) {
             const Alarms::AlarmCondition& c = alarms->condition(i);
-            const char* code = c.code();
-            if (!c.active || c.user_ack || code == nullptr) continue;
+            if (!listed(c)) continue;
 
+            const char* code = c.code();
             const uint16_t clen = (uint16_t)strlen(code);
             if ((uint16_t)(used + clen + 1) > cols) break;   // out of room
 
@@ -75,7 +81,7 @@ namespace Botanik { namespace Terminal {
 
     void AlarmBar::step() {
         if (_console.alarms() == nullptr) return;
-        const uint64_t sig = unmasked_set();
+        const uint64_t sig = unacked_set();
         if (sig != _sig) _dirty = true;
         if (!_dirty) return;
         draw();

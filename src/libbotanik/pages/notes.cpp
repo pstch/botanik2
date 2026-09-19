@@ -32,20 +32,20 @@ namespace Botanik { namespace Pages {
     }
 
     void NotesPage::focus() {
-        uint16_t rows = _console.rows();
-        if (rows < 3) return;                 // no room for text and a status row
+        if (_console.rows() < 3) return;      // no room for text and a status row
+        const uint16_t status_row = _console.last_row();
 
         // Row 0 is the status bar and the last row is this page's own. A row
         // the operator started and a soft-wrapped tail get different prompts.
         _editor.set_prompts(PROMPT_LINE(), PROMPT_WRAP(), PROMPT_LINE());
-        _editor.as_viewport(1, (uint16_t)(rows - 2));
+        _editor.as_viewport(_console.content_top(),
+                            (uint16_t)(_console.content_rows() - 1));
 
         if (!_loaded) { _loaded = true; _load(); }
 
         // The status row is a standing property of that row, not something
         // raised around a paint (see ScrollTablePage::_claim_mode_row).
-        _terminal.set_row_priority((uint16_t)(rows - 1), (uint16_t)(rows - 1),
-                                   Terminal::PRIO_CHROME);
+        _terminal.set_row_priority(status_row, status_row, Terminal::PRIO_CHROME);
         _editor.redraw();                     // the page switch cleared the band
         _terminal.set_cursor_visible(true);
         _settle();
@@ -80,9 +80,8 @@ namespace Botanik { namespace Pages {
     }
 
     void NotesPage::_draw_status() {
-        uint16_t rows = _console.rows();
-        if (rows < 3) return;
-        uint16_t row  = (uint16_t)(rows - 1);
+        if (_console.rows() < 3) return;
+        const uint16_t row = _console.last_row();
 
         char line[Config::TERMINAL_MAX_COLS];
         const char* state = _save_failed ? "NOT SAVED"

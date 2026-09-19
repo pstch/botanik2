@@ -143,18 +143,32 @@ namespace Botanik { namespace Utils {
      *  use. */
     const char* format_size(char* buf, size_t cap, uint32_t bytes);
 
+    /** @brief Percentage of @p period_ms that a mean cost of @p us_mean
+     *  occupies, into @p buf without a unit, returned for inline use.
+     *  @param us_mean   Microseconds; the digits are truncated, not rounded.
+     *  @param period_ms Milliseconds; 0 renders "-".
+     *  @param decimals  1 or 2; anything else reads as 1. Needs >= 12 bytes. */
+    const char* format_duty(char* buf, size_t cap, uint32_t us_mean,
+                            uint32_t period_ms, uint8_t decimals = 1);
+
     /** @}
      *  @name Duration formatting
      *  @{ */
 
+    /** @brief Whether an age reads "3 m ago" or just "3 m". */
+    enum class AgeSuffix : uint8_t { AGO, BARE };
+
+    /** @brief Smallest unit an age is allowed to name. MINUTES reads a
+     *  sub-minute age as "0 m", which a column of minutes wants. */
+    enum class AgeFloor : uint8_t { SECONDS, MINUTES };
+
     /** @brief Format @p secs as a fixed-width age string into @p buf (returned
      *  for inline use). Picks the largest sensible unit (s/m/h/d/y).
      *  Constant-width ("%3u %c ago" / "%3u %c"), so a cell never reflows as the
-     *  age grows. @param buf NUL-terminated when @p cap > 0; needs >= 10 bytes.
-     *  @param ago Append " ago" (default) or just value+unit. @param floor_min
-     *  Floor the unit at minutes (sub-minute reads "0 m"). */
+     *  age grows. @param buf NUL-terminated when @p cap > 0; needs >= 10 bytes. */
     const char* format_age(char* buf, size_t cap, uint32_t secs,
-                           bool ago = true, bool floor_min = false);
+                           AgeSuffix suffix = AgeSuffix::AGO,
+                           AgeFloor floor = AgeFloor::SECONDS);
 
     /** @} */
 
