@@ -35,7 +35,7 @@ namespace Botanik { namespace Pages {
         _dirty = false;
         // A narrow view selects on a verdict, which moves with no keypress
         // behind it: its row set has to be rebuilt every refresh.
-        if (_mode != MODE_ALL) _order_gen = 0;
+        if (_mode != MODE_ALL) _invalidate_order();
         uint16_t n = _count();
         _clamp_selection();
         _follow_selection();

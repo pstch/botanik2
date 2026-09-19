@@ -110,7 +110,7 @@ namespace Botanik { namespace Pages {
         const char* _mode_label(uint8_t i) const override;
         /** @brief A view keeps a different set, and the row order was built for
          *  the old one. */
-        void _on_mode_changed() override { _order_gen = 0; _dirty = true; }
+        void _on_mode_changed() override { _invalidate_order(); _dirty = true; }
         /** @brief The health a view selects on. Only meaningful past MODE_ALL. */
         static Plc::Health _mode_health(uint8_t m) {
             return (m == MODE_HEALTHY)  ? Plc::Health::HEALTHY
@@ -141,9 +141,14 @@ namespace Botanik { namespace Pages {
         mutable uint8_t              _order[Config::MAX_TASKS] = {};
         mutable uint8_t              _order_n = 0;
         /** @brief What _order holds: the task count it was built from, and the
-         *  filter generation (0 = never built). */
+         *  filter generation it was built for. */
         mutable uint8_t              _order_of = 0;
+        /** @brief 0 = never built, which no filter generation ever is. */
         mutable uint16_t             _order_gen = 0;
+
+        /** @brief Drop the row order. _filter_gen is never 0, so a rebuild is
+         *  what any reader gets next. */
+        void _invalidate_order() const { _order_gen = 0; }
         /** @} */
 
     public:

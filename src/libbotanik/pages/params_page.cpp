@@ -78,7 +78,6 @@ namespace Botanik { namespace Pages {
     void ParamsPage::_on_filter_changed() {
         _field.end();
         _dirty = true;
-        _vis_ready = false;   // a narrower table holds a different count
     }
 
     uint16_t ParamsPage::_param_at(uint16_t row) const {
@@ -95,11 +94,11 @@ namespace Botanik { namespace Pages {
     }
 
     uint16_t ParamsPage::_visible_count() const {
-        if (_vis_ready) return _vis_count;
+        if (_vis_gen == _filter_gen) return _vis_count;
         uint16_t n = 0;
         for (uint16_t k = 0; k < _param_count(); k++) if (_visible(k)) n++;
         _vis_count = n;
-        _vis_ready = true;
+        _vis_gen   = _filter_gen;
         return n;
     }
 

@@ -161,10 +161,14 @@ namespace Botanik { namespace Pages {
          *  count when out of range). */
         uint16_t _param_at(uint16_t row) const;
 
-        /** @brief Parameters the filter shows. Cached: the table is fixed for
-         *  the life of the build, so only a filter change can move this. */
+        /** @brief Parameters the filter shows, and the filter generation they
+         *  were counted for (0 = never counted). The table is fixed for the
+         *  life of the build, so only a filter change can move this. Holding
+         *  the generation rather than a validity flag makes the invalidation
+         *  structural: a path that moves the filter without going through
+         *  _on_filter_changed() still cannot leave a stale count behind. */
         mutable uint16_t _vis_count = 0;
-        mutable bool     _vis_ready = false;
+        mutable uint16_t _vis_gen   = 0;
         uint16_t _visible_count() const;
         /** @} */
 

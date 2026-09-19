@@ -99,7 +99,7 @@ namespace Botanik { namespace Pages {
          *  @see _on_filter_changed for why the pin is dropped HERE. */
         void _on_mode_changed() override {
             _invalidate_rows();
-            _sel_ok = false;
+            _pin_state.ok = false;
             _dirty  = true;
         }
         /** @brief True while the view selects on LIVE state, which moves with no
@@ -109,27 +109,38 @@ namespace Botanik { namespace Pages {
 
         /** @name State
          *  @{ */
-        /** @brief Sequential-scan memo for _ref_at(), and the cached row total.
-         *  Rows are drawn top to bottom, so the last (row -> index) pair turns
-         *  the walk into a resume.
+        /** @brief Sequential-scan memo for _ref_at(). Rows are drawn top to
+         *  bottom, so the last (display -> var) pair turns the walk into a
+         *  resume.
          *  @note Invalidated by whatever moves the mapping: the filter, the
          *  view, and every refresh in a live view. */
-        mutable uint16_t    _memo_row  = 0;
-        mutable uint16_t    _memo_idx  = 0;
-        mutable bool        _memo_ok   = false;
+        mutable uint16_t    _memo_display = 0;
+        mutable uint16_t    _memo_var     = 0;
+        mutable bool        _memo_ok      = false;
 
-        /** @brief The row the highlighted line was DRAWN from, pinned there.
+        /** @brief The variable the highlighted line was DRAWN from, and the
+         *  display index it was drawn at.
+         *
          *  A live view selects on readings, so the set can change with no
          *  keypress and a fresh _ref_at(_selected) would name a different
-         *  variable from the one on screen. */
-        mutable uint16_t _sel_ref = { Vars::VAR_NONE };
-        /** @brief Which selection index @c _sel_ref was resolved for. A cursor
-         *  MOVE is the operator changing their mind and re-resolves; the set
-         *  moving under a still cursor must not. */
-        mutable uint16_t     _sel_row = 0;
-        mutable bool         _sel_ok  = false;
+         *  variable from the one on screen. A cursor MOVE is the operator
+         *  changing their mind and re-resolves; the set moving under a still
+         *  cursor must not. Written only by _pin(), so the three never drift. */
+        struct Pin {
+            uint16_t var_idx     = Vars::VAR_NONE;
+            uint16_t display_idx = 0;
+            bool     ok          = false;
+        };
+        mutable Pin _pin_state;
 
-        /** @brief The row a key acts on: the pin while the cursor has not
+        /** @brief Pin the selection to @p var_idx as drawn at @p display_idx. */
+        void _pin(uint16_t display_idx, uint16_t var_idx, bool ok) const {
+            _pin_state.var_idx     = var_idx;
+            _pin_state.display_idx = display_idx;
+            _pin_state.ok          = ok;
+        }
+
+        /** @brief The variable a key acts on: the pin while the cursor has not
          *  moved, a fresh walk the moment it has. */
         uint16_t _selected_ref() const;
         mutable uint16_t    _total_n   = 0;
@@ -228,7 +239,7 @@ namespace Botanik { namespace Pages {
             // ^S acted on the pre-filter variable. Dropped here rather than in
             // _invalidate_rows(), which tick() also calls on every refresh of a
             // live view, where keeping the pin is the point.
-            _sel_ok = false;
+            _pin_state.ok = false;
         }
 
         /** @brief Drop the row caches: the (row -> index) memo and the total.
@@ -270,9 +281,9 @@ namespace Botanik { namespace Pages {
         /** @brief VALUE stretches: it is the cell whose contents vary. */
         uint8_t _flex_col() const override { return C_VALUE; }
 
-        /** @brief The reference for variable @p r; @p ok is false when @p r is
-         *  past the end. */
-        uint16_t _ref_at(uint16_t r, bool& ok) const;
+        /** @brief Bank index of the row at @p display_idx in the filtered set;
+         *  @p ok is false when @p display_idx is past the end. */
+        uint16_t _ref_at(uint16_t display_idx, bool& ok) const;
 
         // Rendering
 
@@ -285,11 +296,11 @@ namespace Botanik { namespace Pages {
         /** @brief Build the full "  | scope | name | value | unit | override |"
          *  row. Resolves the variable ONCE: the row is drawn per visible line
          *  every refresh, and _at() is a walk over the group table. */
-        uint16_t _row_text(uint16_t r, char* out, size_t cap) const;
+        uint16_t _row_text(uint16_t display_idx, char* out, size_t cap) const;
 
-        /** @brief Draw data row @p r at screen @p row, inverting the NAME field
-         *  for the selection cursor when @p selected. */
-        void _draw_row(uint16_t r, uint16_t row, bool selected);
+        /** @brief Draw the row at @p display_idx onto @p screen_row, inverting
+         *  the NAME field for the selection cursor when @p selected. */
+        void _draw_row(uint16_t display_idx, uint16_t screen_row, bool selected);
 
         /** @brief One line saying where a reading comes from. */
         void _describe_binding(const Vars::Descriptor& d, char* out, size_t cap) const;
