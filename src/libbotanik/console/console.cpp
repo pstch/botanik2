@@ -7,7 +7,7 @@
 
 #if BOTANIK_FEATURE_CONSOLE
 
-#include "libbotanik/pages/page.h"
+#include "libbotanik/console/page.h"
 
 #include <cstdint>
 
@@ -182,7 +182,7 @@ namespace Botanik { namespace Terminal {
             InputEvent& ev = _parser.parse();
             if (ev.type == InputEvent::EventType::NONE) break;
             if (_pages_len == 0 || _pages[_page_index] == nullptr) continue;
-            Pages::Page* page = _pages[_page_index];
+            Terminal::Page* page = _pages[_page_index];
             _input_routed = true;
             if (ev.type == InputEvent::EventType::CONTENT) {
                 page->handle_text_batch(ev.batch_data, ev.batch_len);
@@ -246,7 +246,7 @@ namespace Botanik { namespace Terminal {
         return (i < _pages_len && _pages[i] != nullptr) ? _pages[i]->name() : nullptr;
     }
 
-    int8_t Console::add_page(Pages::Page* page) {
+    int8_t Console::add_page(Terminal::Page* page) {
         // A page that did not register is simply not in the tab order, which
         // reads as a build without that feature.
         BOTANIK_ASSERT(page != nullptr);

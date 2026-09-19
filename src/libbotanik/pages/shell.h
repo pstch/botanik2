@@ -12,7 +12,7 @@
 #include "libbotanik/console/console.h"
 #include "libbotanik/console/editor.h"
 #include "libbotanik/logs/writer.h"
-#include "libbotanik/pages/page.h"
+#include "libbotanik/console/page.h"
 #include "libbotanik/pages/scrollback.h"
 #include "libbotanik/shell/shell.h"
 
@@ -24,7 +24,7 @@ namespace Botanik { namespace Pages {
      * @note As a LogWriter it queues only what arrives while ACTIVE, the full
      *       log being LogsPage's; as a ShellWriter it is CommandShell's output.
      */
-    class ShellPage : public Page, public Logs::BufferedLogWriter, public Shell::ShellWriter {
+    class ShellPage : public Terminal::Page, public Logs::BufferedLogWriter, public Shell::ShellWriter {
     private:
         using AnsiTerminal = Terminal::AnsiTerminal;
         using Console      = Terminal::Console;

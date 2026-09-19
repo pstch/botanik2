@@ -38,7 +38,7 @@
 #include "libbotanik/console/editor.h"
 #include "libbotanik/console/terminal.h"
 #include "libbotanik/hal/platform.h"
-#include "libbotanik/pages/page.h"
+#include "libbotanik/console/page.h"
 #include "libbotanik/pages/scroll_table.h"
 #include "libbotanik/vars/access.h"
 #include "libbotanik/vars/persist.h"

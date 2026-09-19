@@ -49,7 +49,7 @@
 
 #include "libbotanik/console/console.h"
 #include "libbotanik/console/terminal.h"
-#include "libbotanik/pages/page.h"
+#include "libbotanik/console/page.h"
 #include "libbotanik/pages/scroll_table.h"
 #include "libbotanik/plc/health.h"
 #include "libbotanik/tasks/tasks.h"

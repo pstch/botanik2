@@ -1,22 +1,26 @@
-#ifndef PAGES_PAGE_H
-#define PAGES_PAGE_H
+#ifndef CONSOLE_PAGE_H
+#define CONSOLE_PAGE_H
 
 /**
  * @file page.h
  * @brief Page interface - the contract every full-screen terminal page
  *        implements.
+ *
+ * Here rather than in pages/: Console is written against this and dereferences
+ * it, so the contract belongs beside the consumer. pages/ holds the
+ * implementations.
  */
 
 #include <cstdint>
 
 #include "libbotanik/console/parser.h"
 
-namespace Botanik { namespace Pages {
+namespace Botanik { namespace Terminal {
     /** @brief Abstract interface for a terminal page (occupies the full
      *  screen) */
     class Page {
     private:
-        using Command = Terminal::InputEvent::Command;
+        using Command = InputEvent::Command;
     public:
         /** @name Lifecycle
          *  @{ */
@@ -66,4 +70,4 @@ namespace Botanik { namespace Pages {
 
 }}
 
-#endif // PAGES_PAGE_H
+#endif // CONSOLE_PAGE_H

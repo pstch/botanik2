@@ -12,7 +12,7 @@
 #include "libbotanik/console/console.h"
 #include "libbotanik/console/terminal.h"
 #include "libbotanik/logs/writer.h"
-#include "libbotanik/pages/page.h"
+#include "libbotanik/console/page.h"
 #include "libbotanik/pages/scrollback.h"
 
 namespace Botanik { namespace Pages {
@@ -21,7 +21,7 @@ namespace Botanik { namespace Pages {
      *
      *  A LogWriter. Entries are queued by BufferedLogWriter and drained on
      *  tick(); history is replayed from a scrollback on (re)focus. */
-    class LogsPage : public Page, public Logs::BufferedLogWriter {
+    class LogsPage : public Terminal::Page, public Logs::BufferedLogWriter {
     private:
         using AnsiTerminal = Terminal::AnsiTerminal;
         using Console      = Terminal::Console;

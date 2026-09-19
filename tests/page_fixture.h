@@ -185,7 +185,7 @@ namespace tests { namespace botanik_test {
 
         /** @brief Step @p page until its paint settles, and hand back the bytes
          *  that reached the wire. */
-        std::string paint(Botanik::Pages::Page& page) {
+        std::string paint(Botanik::Terminal::Page& page) {
             std::string out;
             for (int i = 0; i < 64; i++) {
                 page.tick(true);
@@ -222,7 +222,7 @@ namespace tests { namespace botanik_test {
          *  back, legitimately comes back different. Leave the edit or return to
          *  the bottom first, and assert convergence around it.
          */
-        void converged(Botanik::Pages::Page& page, const char* what) {
+        void converged(Botanik::Terminal::Page& page, const char* what) {
             check_wire(what);
             const std::vector<std::string> incremental = content();
             // A page that drew nothing converges trivially, so the comparison

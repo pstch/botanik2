@@ -18,12 +18,12 @@
 #include "libbotanik/console/console.h"
 #include "libbotanik/console/editor.h"
 #include "libbotanik/console/terminal.h"
-#include "libbotanik/pages/page.h"
+#include "libbotanik/console/page.h"
 
 namespace Botanik { namespace Pages {
 
     /** @brief Scrollable, cursor-selectable table page base (see file header). */
-    class ScrollTablePage : public Page {
+    class ScrollTablePage : public Terminal::Page {
     protected:
         using AnsiTerminal = Terminal::AnsiTerminal;
         using Console      = Terminal::Console;

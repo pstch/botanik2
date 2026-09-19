@@ -27,13 +27,13 @@
 #include "libbotanik/console/field.h"
 #include "libbotanik/console/terminal.h"
 #include "libbotanik/hal/platform.h"
-#include "libbotanik/pages/page.h"
+#include "libbotanik/console/page.h"
 #include "libbotanik/utils/assert.h"
 
 namespace Botanik { namespace Pages {
 
     /** @brief Base for diff-rendered metric pages (see file header). */
-    class MetricPage : public Page {
+    class MetricPage : public Terminal::Page {
     protected:
         using AnsiTerminal = Terminal::AnsiTerminal;
         using Console      = Terminal::Console;

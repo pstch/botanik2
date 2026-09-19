@@ -35,7 +35,7 @@
 #include "libbotanik/console/console.h"
 #include "libbotanik/console/terminal.h"
 #include "libbotanik/hal/platform.h"
-#include "libbotanik/pages/page.h"
+#include "libbotanik/console/page.h"
 #include "libbotanik/pages/scroll_table.h"
 #include "libbotanik/utils/time.h"
 

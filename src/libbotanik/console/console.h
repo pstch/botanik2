@@ -25,7 +25,7 @@ namespace Botanik { namespace Scheduler { struct SchedulerContext; } }
 namespace Botanik { namespace Tasks { struct Tick; } }
 // Held by pointer only, every call on one in console.cpp: forward-declared so
 // pages/ does not land in everything that draws.
-namespace Botanik { namespace Pages { class Page; } }
+namespace Botanik { namespace Terminal { class Page; } }
 
 namespace Botanik { namespace Terminal {
 
@@ -57,7 +57,7 @@ namespace Botanik { namespace Terminal {
          *  one, so the tail digits only bind once this many pages exist. */
         static constexpr uint8_t MAX_PAGES = Config::CONSOLE_PAGES_MAX;
         static_assert(MAX_PAGES <= 10, "Alt+<digit> binds ten pages at most");
-        Pages::Page*        _pages[MAX_PAGES];
+        Terminal::Page*        _pages[MAX_PAGES];
         uint8_t             _pages_len  = 0;
         uint8_t             _page_index = 0;
         /** @brief Input reached the active page since it last ticked. */
@@ -172,7 +172,7 @@ namespace Botanik { namespace Terminal {
 
         /** @brief Register a page, appended in tab order; returns its index, or
          *  -1 if the slot array is full. Order of registration IS the tab order. */
-        int8_t add_page(Pages::Page* page);
+        int8_t add_page(Terminal::Page* page);
 
         /** @brief Switch to the page at the given index. */
         void switch_to(uint8_t index);
@@ -185,7 +185,7 @@ namespace Botanik { namespace Terminal {
 
         /** @brief Name of page @p i, or null when the slot is empty / out of
          *  range (lets the status bar iterate tabs without touching _pages).
-         *  Out of line: the only thing here needing Pages::Page complete. */
+         *  Out of line: the only thing here needing Terminal::Page complete. */
         const char* page_name(uint8_t i) const;
 
         /** @}

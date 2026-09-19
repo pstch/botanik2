@@ -20,7 +20,7 @@
 #include "libbotanik/console/terminal.h"
 #include "libbotanik/hal/storage.h"
 #include "libbotanik/logs/logger.h"
-#include "libbotanik/pages/page.h"
+#include "libbotanik/console/page.h"
 
 namespace Botanik { namespace Pages {
 
@@ -37,7 +37,7 @@ namespace Botanik { namespace Pages {
      *  in Anchor::TOP over the content area, less the bottom status row.
      *  @note Persistence is deliberate - Ctrl+O writes, leaving the page
      *  flushes - because a note is kilobytes and a write is a flash erase. */
-    class NotesPage : public Page {
+    class NotesPage : public Terminal::Page {
     private:
         /** @name Row gutter
          *  The editor draws one of these at the start of every row, which is
