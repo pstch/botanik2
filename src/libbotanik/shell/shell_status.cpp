@@ -444,7 +444,7 @@ namespace Botanik { namespace Shell {
                 char ageb[12];
                 uint32_t age_s = (uint32_t)((HAL::Clock::uptime_ms() - lp) / 1000);
                 snprintf(val, sizeof(val), "%s  (pub %s)", mqt->status_str(),
-                         Utils::format_age(ageb, sizeof(ageb), age_s, true));
+                         Utils::format_age(ageb, sizeof(ageb), age_s));
             } else {
                 snprintf(val, sizeof(val), "%s  (no pub yet)", mqt->status_str());
             }

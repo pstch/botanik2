@@ -280,7 +280,9 @@ namespace Botanik { namespace Pages {
                     // floor_min clamps sub-minute to "0 m", so this cold field
                     // changes at most once a minute rather than every second.
                     snprintf(val, sizeof(val), "%s (%s)", ctx.mqtt->status_str(),
-                             Utils::format_age(nf, sizeof(nf), age_s, false, true));
+                             Utils::format_age(nf, sizeof(nf), age_s,
+                                               Utils::AgeSuffix::BARE,
+                                               Utils::AgeFloor::MINUTES));
                 } else {
                     snprintf(val, sizeof(val), "%s", ctx.mqtt->status_str());
                 }
@@ -353,7 +355,8 @@ namespace Botanik { namespace Pages {
 
                 _cell(ROW_RUN, b.l_val,
                       rjust(fld, sizeof(fld), b.l_w,
-                            Scheduler::run_state_name(sc.run_state)), b.l_w, false);
+                            Scheduler::run_state_name(sc.run_state)), b.l_w,
+                      Highlight::PLAIN);
 
                 // A withheld kick is the unit choosing to let the hardware
                 // reset it, and is otherwise invisible until it reboots.
@@ -366,12 +369,14 @@ namespace Botanik { namespace Pages {
                 else
                     snprintf(val, sizeof(val), "%lu ms, kicking",
                              (unsigned long)sc.watchdog_ms);
-                _cell(ROW_RUN, b.r_val, rjust(fld, sizeof(fld), b.r_w, val), b.r_w, false);
+                _cell(ROW_RUN, b.r_val, rjust(fld, sizeof(fld), b.r_w, val), b.r_w,
+                      Highlight::PLAIN);
 
                 snprintf(val, sizeof(val), "%s%% (peak %sms)",
                          Utils::format_float(fa, sizeof(fa), sc.cpu_jitter_ema * 100.0f, 1),
                          Utils::format_float(fb, sizeof(fb), sc.cpu_jitter_us_max / 1000.0, 2));
-                _cell(ROW_BEAT, b.l_val, rjust(fld, sizeof(fld), b.l_w, val), b.l_w, false);
+                _cell(ROW_BEAT, b.l_val, rjust(fld, sizeof(fld), b.l_w, val), b.l_w,
+                      Highlight::PLAIN);
             }
 
             draw_payload_hot();

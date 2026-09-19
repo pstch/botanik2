@@ -286,7 +286,8 @@ namespace Botanik { namespace Terminal {
         // Clear only the content band: the row-0 status bar and the bottom alarm
         // bar survive. The page already shown repaints what is there, so its
         // band is blanked in FRONT alone and the diff sends the difference.
-        _term.blank_rows(1, _content_bottom(), /*on_wire=*/!same);
+        _term.blank_rows(1, _content_bottom(),
+                         same ? AnsiTerminal::OnWire::NO : AnsiTerminal::OnWire::YES);
         // A switch reflows the whole strip (the active tab expands to "N:NAME"),
         // so repaint it as a unit.
         _status_bar.draw_tabs();

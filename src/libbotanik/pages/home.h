@@ -50,7 +50,8 @@ namespace Botanik { namespace Pages {
          *         screen. No history behind them: the store is exactly the
          *         rows the band shows. */
         HomeScrollback _scrollback;
-        /** @brief Mirrors tick(active); gates band repaints in write(). */
+        /** @brief Mirrors tick(active). A line banked while the page is on
+         *  screen is revealed paced; one banked behind its back is not. */
         bool _log_active = false;
 
         /** @brief Site home-field table: a label and the ROW it shows, both

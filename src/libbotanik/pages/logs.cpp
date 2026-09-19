@@ -51,18 +51,20 @@ namespace Botanik { namespace Pages {
             case Command::UP:
             case Command::SHIFT_UP:
             case Command::CTRL_P:
-                _scrollback.scroll(/*up=*/true, 1, log_rows);
+                _scrollback.scroll(Direction::OLDER, 1, log_rows);
                 break;
             case Command::DOWN:
             case Command::SHIFT_DOWN:
             case Command::CTRL_N:
-                _scrollback.scroll(/*up=*/false, 1, log_rows);
+                _scrollback.scroll(Direction::NEWER, 1, log_rows);
                 break;
             // A screenful less one row of overlap, the way a pager steps.
             case Command::PAGE_UP:
             case Command::PAGE_DOWN: {
                 uint16_t step = (log_rows > 1) ? (uint16_t)(log_rows - 1) : 1;
-                _scrollback.scroll(cmd == Command::PAGE_UP, step, log_rows);
+                _scrollback.scroll(cmd == Command::PAGE_UP ? Direction::OLDER
+                                                           : Direction::NEWER,
+                                   step, log_rows);
                 break;
             }
             default: break;
@@ -90,7 +92,8 @@ namespace Botanik { namespace Pages {
         // it all consumed.
         _scrollback.ingest(buf, len, (uint16_t)_terminal.cols(),
             Logs::LOG_CONT_PREFIX,
-            (uint16_t)strlen(Logs::LOG_CONT_PREFIX), _active);
+            (uint16_t)strlen(Logs::LOG_CONT_PREFIX),
+            _active ? Reveal::PACED : Reveal::AT_ONCE);
         return len;
     }
 

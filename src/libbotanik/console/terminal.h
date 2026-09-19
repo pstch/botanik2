@@ -385,11 +385,15 @@ namespace Botanik { namespace Terminal {
         void clear_to_eol();
         void clear_screen();
         void clear_screen_now();
+        /** @brief Whether a blank reaches the terminal now, or only FRONT. */
+        enum class OnWire : uint8_t { YES, NO };
+
         /** @brief Blank rows [@p top, @p bottom] of FRONT and forget every
-         *  pending change: a page switch. @p on_wire blanks them on the wire
-         *  now too, one EL per row so nothing else moves; without it the diff
-         *  sends only what the repaint changes. */
-        void blank_rows(uint16_t top, uint16_t bottom, bool on_wire = true);
+         *  pending change: a page switch. OnWire::YES blanks them on the wire
+         *  now too, one EL per row so nothing else moves; NO leaves the diff
+         *  to send only what the repaint changes. */
+        void blank_rows(uint16_t top, uint16_t bottom,
+                        OnWire on_wire = OnWire::YES);
 
         void establish_screen();
 

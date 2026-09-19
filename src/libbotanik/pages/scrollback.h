@@ -19,6 +19,13 @@
 
 namespace Botanik { namespace Pages {
 
+    /** @brief How a stored line reaches the screen: PACED a few per paint, so
+     *  a burst scrolls rather than jumps, or AT_ONCE. */
+    enum class Reveal : uint8_t { PACED, AT_ONCE };
+
+    /** @brief Which way the view moves through the history. */
+    enum class Direction : uint8_t { OLDER, NEWER };
+
     /** @brief Circular scrollback buffer, painted as a window.
      *
      *  The window is bottom-aligned within its band and repainted whole
@@ -53,13 +60,14 @@ namespace Botanik { namespace Pages {
 
         /** @} */
 
-        /** @brief @p n lines were stored: a live view reveals them paced, a
-         *  scrolled-back one moves with them so it keeps showing the same lines. */
-        void _stored(uint16_t n, bool paced) {
+        /** @brief @p n lines were stored: a live view reveals them at @p reveal,
+         *  a scrolled-back one moves with them so it keeps showing the same
+         *  lines. */
+        void _stored(uint16_t n, Reveal reveal) {
             const uint16_t cnt = this->count();
             if (_view_offset != 0)
                 _view_offset = (uint16_t)Utils::min<uint32_t>((uint32_t)_view_offset + n, cnt);
-            else if (paced)
+            else if (reveal == Reveal::PACED)
                 _pending = (uint16_t)Utils::min<uint32_t>((uint32_t)_pending + n, cnt);
         }
 
@@ -99,16 +107,15 @@ namespace Botanik { namespace Pages {
         /** @brief Store one display row, shown at once. */
         void store(const char* buf, size_t len) {
             Base::store(buf, len);
-            _stored(1, /*paced=*/false);
+            _stored(1, Reveal::AT_ONCE);
         }
 
-        /** @brief Bank a (possibly wrapping) line; @p active reveals its rows
-         *  paced. @return rows stored. */
+        /** @brief Bank a (possibly wrapping) line. @return rows stored. */
         uint16_t ingest(const char* buf, size_t len, uint16_t cols,
-                        const char* prefix, uint16_t plen, bool active) {
+                        const char* prefix, uint16_t plen, Reveal reveal) {
             reflow(cols);
             const uint16_t n = this->store_wrapped(buf, len, cols, prefix, plen);
-            _stored(n, active);
+            _stored(n, reveal);
             return n;
         }
 
@@ -120,15 +127,16 @@ namespace Botanik { namespace Pages {
         /** @brief Show the newest lines, everything revealed. */
         void reset_view() { _pending = _view_offset = 0; }
 
-        /** @brief Move the view @p n lines (@p up = older) over a band of
-         *  @p rows, clamped to the history. @return whether it moved. */
-        bool scroll(bool up, uint16_t n, uint16_t rows) {
+        /** @brief Move the view @p n lines @p towards over a band of @p rows,
+         *  clamped to the history. @return whether it moved. */
+        bool scroll(Direction towards, uint16_t n, uint16_t rows) {
             _pending = 0;           // scrolling reveals whatever was pending
             const uint16_t cnt  = this->count();
             const uint16_t max  = cnt > rows ? (uint16_t)(cnt - rows) : 0;
             const uint16_t from = Utils::min(_view_offset, max);
-            const uint16_t want = up ? (uint16_t)Utils::min<uint32_t>((uint32_t)from + n, max)
-                                     : (uint16_t)(from > n ? from - n : 0);
+            const uint16_t want = (towards == Direction::OLDER)
+                                ? (uint16_t)Utils::min<uint32_t>((uint32_t)from + n, max)
+                                : (uint16_t)(from > n ? from - n : 0);
             if (want == _view_offset) return false;
             _view_offset = want;
             return true;

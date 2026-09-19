@@ -155,14 +155,20 @@ namespace Botanik { namespace Utils {
      *  @name Duration formatting
      *  @{ */
 
+    /** @brief Whether an age reads "3 m ago" or just "3 m". */
+    enum class AgeSuffix : uint8_t { AGO, BARE };
+
+    /** @brief Smallest unit an age is allowed to name. MINUTES reads a
+     *  sub-minute age as "0 m", which a column of minutes wants. */
+    enum class AgeFloor : uint8_t { SECONDS, MINUTES };
+
     /** @brief Format @p secs as a fixed-width age string into @p buf (returned
      *  for inline use). Picks the largest sensible unit (s/m/h/d/y).
      *  Constant-width ("%3u %c ago" / "%3u %c"), so a cell never reflows as the
-     *  age grows. @param buf NUL-terminated when @p cap > 0; needs >= 10 bytes.
-     *  @param ago Append " ago" (default) or just value+unit. @param floor_min
-     *  Floor the unit at minutes (sub-minute reads "0 m"). */
+     *  age grows. @param buf NUL-terminated when @p cap > 0; needs >= 10 bytes. */
     const char* format_age(char* buf, size_t cap, uint32_t secs,
-                           bool ago = true, bool floor_min = false);
+                           AgeSuffix suffix = AgeSuffix::AGO,
+                           AgeFloor floor = AgeFloor::SECONDS);
 
     /** @} */
 

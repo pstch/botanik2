@@ -56,12 +56,14 @@ namespace Botanik { namespace Pages {
         // overlap, and scroll() clamps a longer move to a screenful.
         if (cmd == Command::PAGE_UP   || cmd == Command::PAGE_DOWN ||
             cmd == Command::SHIFT_UP  || cmd == Command::SHIFT_DOWN) {
-            const bool up   = (cmd == Command::PAGE_UP || cmd == Command::SHIFT_UP);
+            const Direction towards =
+                (cmd == Command::PAGE_UP || cmd == Command::SHIFT_UP)
+                    ? Direction::OLDER : Direction::NEWER;
             const bool line = (cmd == Command::SHIFT_UP || cmd == Command::SHIFT_DOWN);
             uint16_t log_rows = _log_rows();
             uint16_t step     = 1;
             if (!line) step = (log_rows > 1) ? (uint16_t)(log_rows - 1) : 1;
-            _scrollback.scroll(up, step, log_rows);
+            _scrollback.scroll(towards, step, log_rows);
             return;
         }
         // Every other key returns to the live bottom first.
@@ -124,7 +126,7 @@ namespace Botanik { namespace Pages {
                                            : Logs::CONT_PREFIX;
         uint16_t    plen   = (uint16_t)strlen(prefix);
         _scrollback.ingest(buf, len, (uint16_t)_terminal.cols(), prefix, plen,
-                           _active);
+                           _active ? Reveal::PACED : Reveal::AT_ONCE);
         return len;
     }
 

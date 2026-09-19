@@ -168,7 +168,7 @@ namespace Botanik { namespace Pages {
         char buf[40];
         fmt_uptime(buf, sizeof(buf), HAL::Clock::uptime_ms());
         // bounded (see draw_dynamic)
-        _cell(UPTIME_ROW, UPTIME_VAL, buf, UPTIME_W, false);
+        _cell(UPTIME_ROW, UPTIME_VAL, buf, UPTIME_W, Highlight::PLAIN);
     }
 
     void HomePage::focus() {
@@ -194,7 +194,8 @@ namespace Botanik { namespace Pages {
         // it all consumed.
         _scrollback.ingest(buf, len, (uint16_t)_terminal.cols(),
             Logs::LOG_CONT_PREFIX,
-            (uint16_t)strlen(Logs::LOG_CONT_PREFIX), _log_active);
+            (uint16_t)strlen(Logs::LOG_CONT_PREFIX),
+            _log_active ? Reveal::PACED : Reveal::AT_ONCE);
         return len;
     }
 }}
