@@ -644,7 +644,9 @@ namespace Botanik { namespace Terminal {
                                                (uint16_t)tail, (int16_t)n));
     }
 
-    // What a shift on an old row carries: its text less the |n| cells pulled off it.
+    // What a shift on an old row carries: its text less the |n| cells pulled
+    // off it. n is the ripple's own n, so a realisation prices and emits off
+    // one number.
     static inline int32_t _carried(int32_t len, int32_t n) { return n < 0 ? len + n : len; }
 
     void TextEditor::_complete(Edit& e) const {
@@ -674,59 +676,87 @@ namespace Botanik { namespace Terminal {
     void TextEditor::_announce_plain(const Edit& e) {
         // Cells entered or left at the edit point and every row of the line
         // down to its end took the overflow of the row above; the rows after
-        // the line moved as one.
-        const int32_t a = e.a, L = e.L, k = e.delta, mag = std::abs(k), j = L + e.d;
+        // the line moved as one. One realisation, so nothing to price.
+        const int32_t a = e.a, L = e.L, n = e.delta, mag = std::abs(n), now_L = L + e.d;
         _band(e, Utils::min(L, L + e.d), L + 1);
-        int32_t tail;
-        if (k > 0) tail = e.d > 0 ? 0 : (j == a ? e.row_a.buf_len - e.off : e.row_L.buf_len);
-        else       tail = j == a ? e.row_a.buf_len - e.off - mag
-                                 : _carried(j == L ? e.row_L.buf_len : _cap(RowPrompt::PS2), k);
-        _ripple(_now(a), _now(j), k < 0 ? e.col_a + mag : e.col_a, k < 0 ? e.col_a : e.col_a + mag, tail);
+        int32_t carry;
+        if (n > 0) carry = e.d > 0 ? 0 : (now_L == a ? e.row_a.buf_len - e.off : e.row_L.buf_len);
+        else       carry = now_L == a ? e.row_a.buf_len - e.off - mag
+                                      : _carried(now_L == L ? e.row_L.buf_len : _cap(RowPrompt::PS2), n);
+        _ripple(_now(a), _now(now_L), n < 0 ? e.col_a + mag : e.col_a, n < 0 ? e.col_a : e.col_a + mag, carry);
     }
 
     void TextEditor::_announce_split(const Edit& e) {
-        // Row a split at the edit point. Two ways to put that on screen,
-        // priced by the cells each writes and shifts: the tail is pushed onto
-        // the head of the next row and the line ripples on from there; or a
-        // row opens over the tail, takes the head, and the tail slides to the
-        // PS3 column.
+        // Row a split at the edit point. Two ways to put that on screen: the
+        // tail is pushed onto the head of the next row and the line ripples on
+        // from there; or a row opens over the tail, takes the head, and the
+        // tail slides to the PS3 column. Each sum below is the screen work its
+        // realisation needs, at the prices the terminal bills for it.
         const int32_t a = e.a, L = e.L, d = e.d, len_L = e.row_L.buf_len;
-        const int32_t head = e.off, t = e.row_a.buf_len - e.off, rows = L - a, j = L + d;
+        const int32_t head = e.off, tail = e.row_a.buf_len - e.off;
+        const int32_t below_a = L - a, now_L = L + d;
         const int32_t lead2 = _lead(RowPrompt::PS2), lead3 = _lead(RowPrompt::PS3);
-        const int32_t s_push = t + lead3 - lead2;
-        const int32_t s_over = e.col_a - lead3;
-        const int32_t push = MOVE_BYTES + SLIDE_BYTES + (lead3 - _indent) + t + rows * (MOVE_BYTES + s_push)
-                           + (d == 1 && L + 1 < e.count ? PAIR_BYTES : 0);
-        const int32_t over = PAIR_BYTES + e.ps_a + head + (s_over != 0 ? SHIFT_BYTES + std::abs(s_over) : 0)
-                           + rows * (SHIFT_BYTES + std::abs(s_over));
-        if (push <= over && _cap(RowPrompt::PS2) - s_push >= (int32_t)AnsiTerminal::SHIFT_MIN_CARRY) {
+
+        // push: old row a + 1 becomes the PS3 row, so its text starts n_push
+        // further right and every row of the line under it follows.
+        const int32_t n_push   = (lead3 + tail) - lead2;
+        const int32_t new_row  = SLIDE_BYTES + MOVE_BYTES + (lead3 - _indent) + tail;
+        const int32_t pushed   = below_a * (MOVE_BYTES + n_push);
+        const int32_t reflowed = d == 1 && L + 1 < e.count ? PAIR_BYTES : 0;
+        const int32_t push     = new_row + pushed + reflowed;
+
+        // over: a row opens above row a and takes its prompt and head; old
+        // row a keeps the tail alone, n_over cells left of where it sat.
+        const int32_t n_over   = lead3 - e.col_a;
+        const int32_t opened   = PAIR_BYTES + e.ps_a + head;
+        const int32_t tail_row = n_over != 0 ? SHIFT_BYTES + std::abs(n_over) : 0;
+        const int32_t followed = below_a * (SHIFT_BYTES + std::abs(n_over));
+        const int32_t over     = opened + tail_row + followed;
+
+        // Under the carry floor the terminal writes a row rather than shift
+        // it, and the push is priced for a shift it would not get.
+        if (push <= over && _cap(RowPrompt::PS2) - n_push >= (int32_t)AnsiTerminal::SHIFT_MIN_CARRY) {
             _band(e, L, L + 1);
-            _ripple(_now(a + 1), _now(L), lead2, lead3 + t, len_L);
+            _ripple(_now(a + 1), _now(L), lead2, lead3 + tail, len_L);
         } else {
             _band(e, a - 1, a);
-            if (rows == 0)   _ripple(_now(a + 1), _now(a + 1), e.col_a, lead3, t);
-            else if (d == 1) _ripple(_now(a + 1), _now(j), e.col_a, lead3, _carried(len_L, -s_over));
+            if (below_a == 0) _ripple(_now(a + 1), _now(a + 1), e.col_a, lead3, tail);
+            else if (d == 1)  _ripple(_now(a + 1), _now(now_L), e.col_a, lead3, _carried(len_L, n_over));
         }
     }
 
     void TextEditor::_announce_join(const Edit& e) {
-        // The line after row a joined it. Two ways to put that on screen,
-        // priced by the cells each writes and shifts: row a keeps its place
-        // and takes what fits of the next row, which is written, and the rest
-        // of the line pulls left after it; or row a's screen row goes, its
-        // text is written over the head of the next row, whose text slides
-        // right by that much, and the rest of the line pushes on from there.
-        const int32_t a = e.a, L = e.L, d = e.d, len_a = e.row_a.buf_len, len_b = e.row_b.buf_len, len_L = e.row_L.buf_len;
-        const int32_t lead2 = _lead(RowPrompt::PS2), lead3 = _lead(RowPrompt::PS3), rows = L - a;
+        // The line after row a joined it. Two ways to put that on screen: row
+        // a keeps its place and takes what fits of the next row, which is
+        // written, and the rest of the line pulls left after it; or row a's
+        // screen row goes, its text is written over the head of the next row,
+        // whose text slides right by that much, and the rest of the line
+        // pushes on from there. Priced the way a split's two are.
+        const int32_t a = e.a, L = e.L, d = e.d;
+        const int32_t len_a = e.row_a.buf_len, len_b = e.row_b.buf_len, len_L = e.row_L.buf_len;
+        const int32_t below_a = L - a;
+        const int32_t lead2 = _lead(RowPrompt::PS2), lead3 = _lead(RowPrompt::PS3);
         const int32_t cap_a = Utils::max<int32_t>(_terminal->cols() - _indent - e.ps_a, 1);
-        const int32_t take  = Utils::min(len_b, cap_a - len_a);
-        const int32_t col_p = _indent + e.ps_a + len_a;
-        const bool    whole = rows == 1 && take == len_b;         // the next row fits on row a
-        const int32_t s_pull = lead3 + take - lead2;
-        const int32_t s_push = col_p - lead3;
-        const int32_t pull = (whole ? PAIR_BYTES : 0) + MOVE_BYTES + take
-                           + (whole ? 0 : rows * (SHIFT_BYTES + std::abs(s_pull)));
-        const int32_t push = PAIR_BYTES + MOVE_BYTES + (lead3 - _indent) + rows * (MOVE_BYTES + std::abs(s_push));
+        const int32_t take  = Utils::min(len_b, cap_a - len_a);   // cells of the next row that fit after row a's text
+        const int32_t col_p = _indent + e.ps_a + len_a;           // column row a's text ends at
+        const bool    whole = below_a == 1 && take == len_b;      // the next row fits on row a
+
+        // pull: what row a takes is written after its text, and the rest of
+        // the line comes n_pull cells left to close the gap it left.
+        const int32_t n_pull = lead2 - (lead3 + take);
+        const int32_t taken  = MOVE_BYTES + take;
+        const int32_t closed = whole ? PAIR_BYTES : below_a * (SHIFT_BYTES + std::abs(n_pull));
+        const int32_t pull   = taken + closed;
+
+        // push: row a's screen row goes, and on old row a + 1 the walk writes
+        // the cells left of the shift column before the text there goes
+        // n_push right, the rest of the line following.
+        const int32_t n_push  = col_p - lead3;
+        const int32_t dropped = PAIR_BYTES;
+        const int32_t ahead   = MOVE_BYTES + (lead3 - _indent);
+        const int32_t pushed  = below_a * (MOVE_BYTES + std::abs(n_push));
+        const int32_t push    = dropped + ahead + pushed;
+
         if (push < pull && (whole ? take : len_L) >= (int32_t)AnsiTerminal::SHIFT_MIN_CARRY) {
             // Old row a+1 becomes row a, its line's rows move up one; when the
             // push overflows old row L into a new row, the rows after the line
@@ -739,9 +769,10 @@ namespace Botanik { namespace Terminal {
         }
         if (whole) { _band(e, a, a + 2); return; }
         _band(e, Utils::min(L, L + d), L + 1);
-        const int32_t j    = L + d;
-        const int32_t tail = j == a + 1 ? len_b - take : _carried(j == L ? len_L : _cap(RowPrompt::PS2), -s_pull);
-        _ripple(_now(a + 1), _now(j), lead3 + take, lead2, tail);
+        const int32_t now_L = L + d;
+        const int32_t carry = now_L == a + 1 ? len_b - take
+                                             : _carried(now_L == L ? len_L : _cap(RowPrompt::PS2), n_pull);
+        _ripple(_now(a + 1), _now(now_L), lead3 + take, lead2, carry);
     }
 
     // reconciliation
