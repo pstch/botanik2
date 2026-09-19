@@ -45,4 +45,10 @@
 
 #include "libbotanik_features.h"
 
+// The sizes a library row states its capacity as, generated from
+// config/capacities.csv so the generator never reads a config header to learn
+// one. After the site's config, like every other default: each is
+// `#ifndef`-guarded, so an override above still wins.
+#include "libbotanik/config/capacities.gen.h"
+
 #endif // LIBBOTANIK_CONFIG_BASE_H

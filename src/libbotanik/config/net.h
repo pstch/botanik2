@@ -15,10 +15,9 @@ namespace Botanik { namespace Config {
      *  @{ */
 
     /** @brief Char-buffer length for a network address (hostname or IPv4).
-     *  @note Matches the site's STR_CAP for the mqtt_host / ntp_srv* rows. */
-#ifndef BOTANIK_HOST_STR_LEN
-#  define BOTANIK_HOST_STR_LEN 64
-#endif
+     *  @note Defined in config/capacities.gen.h, because library.csv states the
+     *  net_/ntp_/mqtt_ rows' capacity as this same name: one statement sizes
+     *  both the buffer here and the string pool the generator lays out. */
     BOTANIK_CFG(size_t, HOST_STR_LEN);
 
     /** @brief Sockets HAL::Network keeps, per kind - a hard ceiling on the
