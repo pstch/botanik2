@@ -60,7 +60,7 @@ namespace Botanik { namespace Terminal {
 
     int32_t TextEditor::_cap(RowPrompt p) const {
         const int32_t cols = _terminal->cols();
-        return std::max(cols - _lead(p), 1);
+        return std::max<int32_t>(cols - _lead(p), 1);
     }
 
     uint16_t TextEditor::_row_cap(uint16_t row_idx) const {
