@@ -150,6 +150,10 @@ namespace Botanik { namespace Terminal {
         /** @brief Clear _event back to a NONE event. */
         void _reset_event();
 
+        /** @brief Drop the byte parse() peeked from the ring and stamp its
+         *  arrival. Every consuming path in the drain goes through this. */
+        void _take();
+
         /** @} */
 
         /** @name Text handling helpers
