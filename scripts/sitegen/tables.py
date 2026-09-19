@@ -27,7 +27,8 @@ except ImportError as e:
     sys.exit('the generator needs jinja2 (pip install jinja2): %s' % e)
 from sitegen.paths import lib
 from sitegen.reference import points
-from sitegen.model import (H, KIND, as_int, build, check, config_defaults,
+from sitegen.model import (CODEGEN_ABI, H, KIND, as_int, build, capacities, check,
+                           config_defaults,
                            emit_cals, emit_row, site_dir, site_guard)
 from sitegen.st import enums, plant, quality_block
 
@@ -65,10 +66,8 @@ def generate(site, t):
                  models=[m['symbol'] for m in t['models']],
                  home_count=len(t['home']), system_count=len(t['system']))
 
-    abi = re.search(r'^#define BOTANIK_CODEGEN_ABI (\d+)$',
-                    open(lib('src', 'libbotanik', 'codegen_abi.h')).read(), re.M).group(1)
     render.write(os.path.join(site, 'generated', 'rows.gen.h'), 'rows.gen.h.j2',
-                 banner=H, guard=guard, abi=abi,
+                 banner=H, guard=guard, abi=CODEGEN_ABI,
                  rows=[{'name': r['name'], 'index': r['_i']} for r in table])
 
     print('  vars.gen.cpp   %d rows (%d params), %d quality, %d order'
@@ -137,10 +136,23 @@ STAMP = ('# Input hash of this generated tree, written by the build.\n'
          '%s\n')
 
 
+def library_files():
+    """The library's own generated headers: its ABI number, the capacities a
+    table may name, and the ST accessor blocks for the enums it owns."""
+    render.write(lib('src', 'libbotanik', 'codegen_abi.h'), 'codegen_abi.h.j2',
+                 abi=CODEGEN_ABI)
+    caps = capacities()
+    render.write(lib('src', 'libbotanik', 'config', 'capacities.gen.h'),
+                 'capacities.gen.h.j2', caps=caps)
+    print('  %-14s ABI %d' % ('codegen_abi.h', CODEGEN_ABI))
+    print('  %-14s %d value(s)' % ('capacities.gen.h', len(caps)))
+    quality_block()
+
+
 def codegen(site, stamp):
     """Every command a tree needs, then the stamp; site None is the library."""
     if site is None:
-        quality_block()
+        library_files()
         path = lib('src', 'libbotanik', 'codegen.stamp')
     else:
         t = build(site)
@@ -201,7 +213,7 @@ COMMANDS = {
     'generate': _generate,
     'config':   lambda a: config(_site(a), build(_site(a))),
     'plant':    _plant,
-    'library':  lambda a: quality_block(),
+    'library':  lambda a: library_files(),
 }
 
 

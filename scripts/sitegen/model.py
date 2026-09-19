@@ -110,8 +110,14 @@ AUX = {  # stem -> columns, for the tables that are not rows
     'system':         'label var',
 }
 
+# The contract between what the generator emits and what the library compiles.
+# Here rather than in codegen_abi.h, which is GENERATED from it: the generator
+# must never have to read C++ to learn something it owns. Bump it with any
+# change to a template or to the generator that the library's headers depend on.
+CODEGEN_ABI = 1
+
 LIB_CSV = lib('src', 'libbotanik', 'vars', 'tables', 'library.csv')
-CONFIG_DIR = lib('src', 'libbotanik', 'config')
+CAPACITIES_CSV = lib('src', 'libbotanik', 'config', 'capacities.csv')
 # The always-on core, from libbotanik_features.h's defaults.
 CORE_FEATURES = {'CONSOLE', 'LOGGING', 'HOME_PAGE', 'SHELL_PAGE'}
 
@@ -128,19 +134,19 @@ def _numeric(v):
     except ValueError: return False
 
 
-def config_defaults():
-    """Every `BOTANIK_<NAME> <int>` default the config headers declare.
+def capacities():
+    """config/capacities.csv, as rows.
 
-    A library text row states its capacity as one of these, so the pool the
-    generator sizes is a number the library owns rather than one restated
-    here. Read, never copied."""
-    out = {}
-    for f in sorted(os.listdir(CONFIG_DIR)):
-        if not f.endswith('.h'): continue
-        for m in re.finditer(r'^#\s*define\s+(BOTANIK_\w+)\s+(\d+)\s*$',
-                             open(os.path.join(CONFIG_DIR, f)).read(), re.M):
-            out.setdefault(m.group(1), int(m.group(2)))
-    return out
+    A library text row states its capacity as one of these names rather than a
+    number, and config/capacities.gen.h is generated from the same file - so
+    the pool the generator sizes and the buffer the library declares are one
+    statement. Data, never a config header: the generator does not read C++."""
+    return read_table(CAPACITIES_CSV, 'name value desc'.split())
+
+
+def config_defaults():
+    """Every capacity name, as an int."""
+    return {c['name']: int(c['value'], 0) for c in capacities()}
 
 
 def as_int(v, defs):

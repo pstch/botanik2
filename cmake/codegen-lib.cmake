@@ -30,7 +30,7 @@ function(botanik_codegen_inputs out root site)
             "${root}/src/libbotanik/vars/tables/library.csv"
             "${root}/src/libbotanik/plc/functions/ieclib.txt"
             "${root}/src/libbotanik_features.h"
-            "${root}/src/libbotanik/codegen_abi.h"
+            "${root}/src/libbotanik/config/capacities.csv"
             "${root}/vendor/matiec/UPSTREAM")
         file(GLOB _site "${site}/site.toml" "${site}/tables/*.csv")
         file(GLOB_RECURSE _st "${site}/*.st")
@@ -40,6 +40,9 @@ function(botanik_codegen_inputs out root site)
         list(APPEND _lib
             "${root}/templates/lib_enum.gen.h.j2"
             "${root}/templates/rows_none.gen.h.j2"
+            "${root}/templates/codegen_abi.h.j2"
+            "${root}/templates/capacities.gen.h.j2"
+            "${root}/src/libbotanik/config/capacities.csv"
             "${root}/src/libbotanik/vars/tables/library.csv"
             "${root}/src/libbotanik/vars/descriptor.h"
             "${root}/src/libbotanik/plc/health.h")
