@@ -138,6 +138,20 @@ namespace Botanik { namespace Shell {
         }
     }
 
+    /** @brief `programs`'s verbs. @see CommandShell::Verb */
+    const CommandShell::Verb* CommandShell::_programs_verbs(uint8_t& count) {
+        static const Verb V[] = {
+            { "status               how many, and which cannot run",          nullptr },
+            { "list [<pat>]         name, or a glob",                         nullptr },
+            { "start <pat|all>      put back in the scan, this run",          nullptr },
+            { "stop  <pat|all>      take out, and drop what it drives safe",  nullptr },
+            { "enable  <pat|all>    start, and save it for the next boot",    nullptr },
+            { "disable <pat|all>    stop, and save it for the next boot",     nullptr },
+        };
+        count = (uint8_t)(sizeof(V) / sizeof(V[0]));
+        return V;
+    }
+
 }}  // namespace Botanik::Shell
 
 #endif // BOTANIK_FEATURE_SHELL_PAGE && BOTANIK_FEATURE_PLC

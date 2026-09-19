@@ -191,23 +191,60 @@ namespace Botanik { namespace Shell {
          *
          *  @c group keys the HelpGroup `help <group>` filters on. Per row, so
          *  reordering the table cannot put a row in the wrong group. */
+        /** @brief One verb of a noun: its usage line, and the member that
+         *  runs it.
+         *
+         *  The LINE is the spelling. What a command matches is the word up to
+         *  the first space; what `help` prints is the whole line. One row, so a
+         *  verb cannot be listed and unreachable, or reachable and
+         *  undocumented. @c fn is handed the arguments after its own word, and
+         *  is null for a verb whose noun still parses it by hand. */
+        struct Verb {
+            const char* usage;
+            void (CommandShell::*fn)(const char* args, uint16_t alen);
+        };
+
         struct Builtin {
             const char* name;
             /** @brief Compact argument spelling for a one-line listing; null
              *  when the command takes none. */
             const char* args;
             const char* help;      ///< the one line a listing shows
-            /** @brief The verbs, one spelling per line. Null for a command
-             *  with none - and its presence is what makes a bare call answer
-             *  usage instead of acting. */
-            const char* verbs;
+            /** @brief This command's verb table, or null for a command with
+             *  none - and its presence is what makes a bare call answer usage
+             *  instead of acting. */
+            const Verb* (*verbs)(uint8_t& count);
             const char* group;     ///< topic key, for `help <topic>`
             bool        main;      ///< also listed under "Main commands"
             void (CommandShell::*fn)(const char* args, uint16_t alen);
         };
+
+        /** @brief Take the next word off @p args and run the verb of @p verbs
+         *  that spells it. False when nothing matched, which leaves @p args
+         *  where it was so the caller can still answer usage.
+         *  @note A row with a null @c fn never matches: it is documentation
+         *  for a verb its noun is still parsing by hand. */
+        bool _run_verb(const Verb* verbs, uint8_t count,
+                       const char*& args, uint16_t& alen);
+
+        /** @name The verb tables, each defined beside the handlers it names
+         *  @{ */
+        static const Verb* _logs_verbs(uint8_t& count);
+        static const Verb* _log_verbs(uint8_t& count);
+        static const Verb* _modbus_verbs(uint8_t& count);
+        static const Verb* _tasks_verbs(uint8_t& count);
+        static const Verb* _params_verbs(uint8_t& count);
+        static const Verb* _overrides_verbs(uint8_t& count);
+        static const Verb* _control_verbs(uint8_t& count);
+        static const Verb* _programs_verbs(uint8_t& count);
+        static const Verb* _alarms_verbs(uint8_t& count);
+        static const Verb* _vars_verbs(uint8_t& count);
+        /** @} */
         /** @brief The built-in table - single source for both dispatch and
          *  `help`, so help text can't drift from the command set. */
         static const Builtin* _builtins(uint8_t& count);
+        /** @brief The row @p name names, or null. */
+        static const Builtin* _noun(const char* name);
 
         /** @brief One help topic: the word `help <topic>` takes, and the line
          *  the bare `help` page shows for it. */
@@ -286,6 +323,15 @@ namespace Botanik { namespace Shell {
         void _cmd_version(const char* args, uint16_t alen);
         void _cmd_features(const char* args, uint16_t alen);
         void _cmd_alarms(const char* args, uint16_t alen);
+        /** @name `alarms` verbs, dispatched from _alarms_verbs()
+         *  @{ */
+        void _alarms_list(const char* args, uint16_t alen);
+        void _alarms_get(const char* args, uint16_t alen);
+        void _alarms_ack(const char* args, uint16_t alen);
+        void _alarms_unack(const char* args, uint16_t alen);
+        /** @brief The body both spellings share. @p ack picks the direction. */
+        void _ack(const char* args, uint16_t alen, bool ack);
+        /** @} */
         /** @brief `modbus stats` is the plan cost and the master state,
          *  `modbus devices` the roll-call. */
         void _cmd_modbus(const char* args, uint16_t alen);

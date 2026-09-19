@@ -104,6 +104,19 @@ namespace Botanik { namespace Shell {
             _println("  ...but the unit is not in RUN, so no law is driving yet");
     }
 
+    /** @brief `control`'s verbs. @see CommandShell::Verb */
+    const CommandShell::Verb* CommandShell::_control_verbs(uint8_t& count) {
+        static const Verb V[] = {
+            { "status               sys_control, and the run state beside it",  nullptr },
+            { "start                let the laws drive, this run",              nullptr },
+            { "stop                 stop every law, this run",                  nullptr },
+            { "enable               start, and save it for the next boot",      nullptr },
+            { "disable              stop, and save it for the next boot",       nullptr },
+        };
+        count = (uint8_t)(sizeof(V) / sizeof(V[0]));
+        return V;
+    }
+
 }}  // namespace Botanik::Shell
 
 #endif // BOTANIK_FEATURE_SHELL_PAGE

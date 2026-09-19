@@ -671,6 +671,44 @@ namespace Botanik { namespace Shell {
         }
     }
 
+    /** @brief `params`'s verbs. @see CommandShell::Verb */
+    const CommandShell::Verb* CommandShell::_params_verbs(uint8_t& count) {
+        static const Verb V[] = {
+            { "list [<pat>]         name, or a glob: sys_*_sec",   nullptr },
+            { "get <name>",                                        nullptr },
+            { "set <name> <value>",                                nullptr },
+            { "clear <name>|all     forget unsaved edits",         nullptr },
+            { "reset <name>|all     back to the factory default",  nullptr },
+            { "save <name>|all",                                   nullptr },
+        };
+        count = (uint8_t)(sizeof(V) / sizeof(V[0]));
+        return V;
+    }
+
+    /** @brief `overrides`'s verbs. @see CommandShell::Verb */
+    const CommandShell::Verb* CommandShell::_overrides_verbs(uint8_t& count) {
+        static const Verb V[] = {
+            { "list",                                  nullptr },
+            { "get <name>",                            nullptr },
+            { "set <name> [<value>] [valid|invalid]",  nullptr },
+            { "clear <name>|all",                      nullptr },
+            { "save <name>|all",                       nullptr },
+        };
+        count = (uint8_t)(sizeof(V) / sizeof(V[0]));
+        return V;
+    }
+
+    /** @brief `vars`'s verbs. @see CommandShell::Verb */
+    const CommandShell::Verb* CommandShell::_vars_verbs(uint8_t& count) {
+        static const Verb V[] = {
+            { "list [<pat>]         name, or a glob: sys_*_sec",   nullptr },
+            { "get <name>           the value, and nothing else",  nullptr },
+            { "info <name>          the whole row",                nullptr },
+        };
+        count = (uint8_t)(sizeof(V) / sizeof(V[0]));
+        return V;
+    }
+
 }}  // namespace Botanik::Shell
 
 #endif // BOTANIK_FEATURE_SHELL_PAGE

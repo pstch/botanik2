@@ -605,6 +605,27 @@ namespace Botanik { namespace Shell {
     }
 #endif
 
+    /** @brief `modbus`'s verbs. @see CommandShell::Verb */
+    const CommandShell::Verb* CommandShell::_modbus_verbs(uint8_t& count) {
+        static const Verb V[] = {
+            { "stats                the plan, the line, the counters",  nullptr },
+            { "devices              the roll-call, one line per unit",  nullptr },
+        };
+        count = (uint8_t)(sizeof(V) / sizeof(V[0]));
+        return V;
+    }
+
+    /** @brief `tasks`'s verbs. @see CommandShell::Verb */
+    const CommandShell::Verb* CommandShell::_tasks_verbs(uint8_t& count) {
+        static const Verb V[] = {
+            { "stats",         nullptr },
+            { "list [<pat>]",  nullptr },
+            { "get <name>",    nullptr },
+        };
+        count = (uint8_t)(sizeof(V) / sizeof(V[0]));
+        return V;
+    }
+
 }}  // namespace Botanik::Shell
 
 #endif // BOTANIK_FEATURE_SHELL_PAGE

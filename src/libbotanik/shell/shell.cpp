@@ -83,15 +83,12 @@ namespace Botanik { namespace Shell {
                            nullptr,                               G_SYS, true,
                                                                &CommandShell::_cmd_exit       },
             { "logs",      "on|off",    "show logs in the shell",
-                           "on\noff\nstatus",                     G_SYS, true,
+                           &CommandShell::_logs_verbs,
+                                                                  G_SYS, true,
                                                                &CommandShell::_cmd_logs       },
             { "log",       "<level> <text>", "write an entry of your own to the log",
-                           "debug <text>\n"
-                           "info <text>\n"
-                           "notice <text>\n"
-                           "warning <text>\n"
-                           "error <text>\n"
-                           "critical <text>",                     G_SYS, false,
+                           &CommandShell::_log_verbs,
+                                                                  G_SYS, false,
                                                                &CommandShell::_cmd_log        },
 #if BOTANIK_FEATURE_NTP
             { "ntpsync",   nullptr,     "force an NTP resync now",
@@ -108,116 +105,109 @@ namespace Botanik { namespace Shell {
                            nullptr,                               G_STA, false,
                                                                &CommandShell::_cmd_features   },
             { "modbus",    "...",       "the field bus: plan, state and devices",
-                           "stats                the plan, the line, the counters\n"
-                           "devices              the roll-call, one line per unit",
+                           &CommandShell::_modbus_verbs,
                                                                   G_STA, false,
                                                                &CommandShell::_cmd_modbus     },
             { "tasks",     "...",       "what the beat spends its time on",
-                           "stats\nlist [<pat>]\nget <name>",      G_STA, false,
+                           &CommandShell::_tasks_verbs,
+                                                                  G_STA, false,
                                                                &CommandShell::_cmd_tasks      },
 
             { "params",    "...",       "the editable settings",
-                           "list [<pat>]         name, or a glob: sys_*_sec\n"
-                           "get <name>\n"
-                           "set <name> <value>\n"
-                           "clear <name>|all     forget unsaved edits\n"
-                           "reset <name>|all     back to the factory default\n"
-                           "save <name>|all",                     G_TAB, false,
+                           &CommandShell::_params_verbs,
+                                                                  G_TAB, false,
                                                                &CommandShell::_cmd_params     },
             { "overrides", "...",       "force any variable by hand",
-                           "list\n"
-                           "get <name>\n"
-                           "set <name> [<value>] [valid|invalid]\n"
-                           "clear <name>|all\n"
-                           "save <name>|all",                     G_TAB, false,
+                           &CommandShell::_overrides_verbs,
+                                                                  G_TAB, false,
                                                                &CommandShell::_cmd_overrides  },
             { "control",   "...",       "whether the control programs drive at all",
-                           "status               sys_control, and the run state beside it\n"
-                           "start                let the laws drive, this run\n"
-                           "stop                 stop every law, this run\n"
-                           "enable               start, and save it for the next boot\n"
-                           "disable              stop, and save it for the next boot",
-                                                                     G_SYS, true,
+                           &CommandShell::_control_verbs,
+                                                                  G_SYS, true,
                                                                &CommandShell::_cmd_control    },
 #if BOTANIK_FEATURE_PLC
             { "programs",  "...",       "the control programs in the scan",
-                           "status               how many, and which cannot run\n"
-                           "list [<pat>]         name, or a glob\n"
-                           "start <pat|all>      put back in the scan, this run\n"
-                           "stop  <pat|all>      take out, and drop what it drives safe\n"
-                           "enable  <pat|all>    start, and save it for the next boot\n"
-                           "disable <pat|all>    stop, and save it for the next boot",
-                                                                     G_TAB, false,
+                           &CommandShell::_programs_verbs,
+                                                                  G_TAB, false,
                                                                &CommandShell::_cmd_programs   },
 #endif
             { "alarms",    "...",       "the alarm table, and acknowledging",
-                           "list [<pat>]         code, or a glob: TOO_*\n"
-                           "get <code|name>\n"
-                           "ack <code|name|all>\n"
-                           "unack <code|name|all>",               G_TAB, false,
+                           &CommandShell::_alarms_verbs,
+                                                                  G_TAB, false,
                                                                &CommandShell::_cmd_alarms     },
             { "vars",      "...",       "read any variable, whatever its scope",
-                           "list [<pat>]         name, or a glob: sys_*_sec\n"
-                           "get <name>           the value, and nothing else\n"
-                           "info <name>          the whole row",  G_TAB, false,
+                           &CommandShell::_vars_verbs,
+                                                                  G_TAB, false,
                                                                &CommandShell::_cmd_vars       },
         };
         count = (uint8_t)(sizeof(TABLE) / sizeof(TABLE[0]));
         return TABLE;
     }
 
-    void CommandShell::_verb_usage(const char* noun) {
+    const CommandShell::Builtin* CommandShell::_noun(const char* name) {
         uint8_t n; const Builtin* B = _builtins(n);
-        const Builtin* b = nullptr;
         for (uint8_t i = 0; i < n; i++)
-            if (strcmp(B[i].name, noun) == 0) { b = &B[i]; break; }
+            if (strcmp(B[i].name, name) == 0) return &B[i];
+        return nullptr;
+    }
+
+    /** @brief Whether @p usage's first word is exactly [@p w, @p w+wlen).
+     *  Case-sensitive, like arg_eq(): a verb is a keyword, not a name. */
+    static bool _verb_is(const char* usage, const char* w, uint16_t wlen) {
+        uint16_t k = 0;
+        while (k < wlen && usage[k] != '\0' && usage[k] == w[k]) k++;
+        return k == wlen && (usage[k] == '\0' || usage[k] == ' ');
+    }
+
+    bool CommandShell::_run_verb(const Verb* verbs, uint8_t count,
+                                 const char*& args, uint16_t& alen) {
+        const char* held = args; const uint16_t held_len = alen;
+        uint16_t wlen; const char* w = arg_next(args, alen, wlen);
+        for (uint8_t i = 0; i < count; i++) {
+            if (verbs[i].fn == nullptr) continue;   // still parsed by hand
+            if (w != nullptr && _verb_is(verbs[i].usage, w, wlen)) {
+                (this->*verbs[i].fn)(args, alen);
+                return true;
+            }
+        }
+        args = held; alen = held_len;
+        return false;
+    }
+
+    void CommandShell::_verb_usage(const char* noun) {
+        const Builtin* b = _noun(noun);
         if (b == nullptr || b->verbs == nullptr) return;
+        uint8_t n; const Verb* V = b->verbs(n);
 
         // One verb per line, each spelled out in full with the command in front:
         // a reader copies a line rather than assembling one from a bar-separated
         // run, and nothing wraps however many verbs a command grows.
         char out[Config::LOG_FORMATTED_LEN];
-        const char* v = b->verbs;
-        bool first = true;
-        while (*v != '\0') {
-            size_t k = 0;
-            while (v[k] != '\0' && v[k] != '\n') k++;
-            _emitf(out, sizeof(out), "%s%s %.*s",
-                   first ? "usage: " : "       ", b->name, (int)k, v);
-            first = false;
-            v += k;
-            if (*v == '\n') v++;
-        }
+        for (uint8_t i = 0; i < n; i++)
+            _emitf(out, sizeof(out), "%s%s %s",
+                   i == 0 ? "usage: " : "       ", b->name, V[i].usage);
     }
 
     void CommandShell::_verb_usage(const char* noun, const char* verb) {
-        uint8_t n; const Builtin* B = _builtins(n);
-        const Builtin* b = nullptr;
-        for (uint8_t i = 0; i < n; i++)
-            if (strcmp(B[i].name, noun) == 0) { b = &B[i]; break; }
+        const Builtin* b = _noun(noun);
         if (b == nullptr || b->verbs == nullptr) { _verb_usage(noun); return; }
+        uint8_t n; const Verb* V = b->verbs(n);
 
-        // The line whose FIRST WORD is @p verb, printed with the noun in front
+        // The row whose FIRST WORD is @p verb, printed with the noun in front
         // and its trailing description column trimmed: a usage line is what to
         // type, and the help page is where the prose belongs.
         const size_t vlen = strlen(verb);
-        const char*  v    = b->verbs;
-        while (*v != '\0') {
-            size_t k = 0;
-            while (v[k] != '\0' && v[k] != '\n') k++;
-            if (strncmp(v, verb, vlen) == 0 &&
-                (v[vlen] == ' ' || v[vlen] == '\0' || v[vlen] == '\n')) {
-                size_t end = k;
-                while (end > vlen && v[end - 1] == ' ') end--;
-                // Two spaces or more is the description column, not the syntax.
-                for (size_t i = vlen; i + 1 < end; i++)
-                    if (v[i] == ' ' && v[i + 1] == ' ') { end = i; break; }
-                char out[Config::LOG_FORMATTED_LEN];
-                _emitf(out, sizeof(out), "usage: %s %.*s", b->name, (int)end, v);
-                return;
-            }
-            v += k;
-            if (*v == '\n') v++;
+        for (uint8_t i = 0; i < n; i++) {
+            const char* v = V[i].usage;
+            if (strncmp(v, verb, vlen) != 0 || (v[vlen] != ' ' && v[vlen] != '\0')) continue;
+            size_t end = strlen(v);
+            while (end > vlen && v[end - 1] == ' ') end--;
+            // Two spaces or more is the description column, not the syntax.
+            for (size_t k = vlen; k + 1 < end; k++)
+                if (v[k] == ' ' && v[k + 1] == ' ') { end = k; break; }
+            char out[Config::LOG_FORMATTED_LEN];
+            _emitf(out, sizeof(out), "usage: %s %.*s", b->name, (int)end, v);
+            return;
         }
         // No such verb in the table: the whole list is better than nothing.
         _verb_usage(noun);
@@ -511,6 +501,31 @@ namespace Botanik { namespace Shell {
         if (cols <= head) { _emitf(out, sizeof(out), "%s : %-8s", lead, value); return; }
         _emitf(out, sizeof(out), "%s : %-8s (%.*s)", lead, value,
                (int)(cols - head), detail);
+    }
+
+    /** @brief `logs`'s verbs. @see CommandShell::Verb */
+    const CommandShell::Verb* CommandShell::_logs_verbs(uint8_t& count) {
+        static const Verb V[] = {
+            { "on",      nullptr },
+            { "off",     nullptr },
+            { "status",  nullptr },
+        };
+        count = (uint8_t)(sizeof(V) / sizeof(V[0]));
+        return V;
+    }
+
+    /** @brief `log`'s verbs. @see CommandShell::Verb */
+    const CommandShell::Verb* CommandShell::_log_verbs(uint8_t& count) {
+        static const Verb V[] = {
+            { "debug <text>",     nullptr },
+            { "info <text>",      nullptr },
+            { "notice <text>",    nullptr },
+            { "warning <text>",   nullptr },
+            { "error <text>",     nullptr },
+            { "critical <text>",  nullptr },
+        };
+        count = (uint8_t)(sizeof(V) / sizeof(V[0]));
+        return V;
     }
 
 }}
