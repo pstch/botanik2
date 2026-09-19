@@ -207,7 +207,7 @@ Subsystems under `src/libbotanik/`; the header is the API.
 | `core/` | The bottom of the stack: `Component` (one hook per phase, `register_tasks()`) and `SystemContext` (a borrowed-pointer aggregate, constructor-injected, not reachable through the console) |
 | `firmware/` | `BotanikFirmware`, the Template-Method base owning every generic component and the non-overridable per-tick order. Sites customize through the protected hooks |
 | `vars/` | The one model everything the firmware exposes goes through. A row is a `Kind` and a `VarType`; published, mapped, local, analog and writable are derived. `Bank` holds the generated table and the RAM over it, `Var` (bank + index) is every row-level operation, `Persist` the durable half |
-| `plc/` | The POU vocabulary, in ST: `functions/*.st` has no state, `blocks/*.st` has state, `runtime/` joins the beat to matiec's generated C. If it has to remember something it is a block. `functions/ieclib.txt` is what `iec2c -I` points at, so matiec's own GPL library is never loaded |
+| `plc/` | The POU vocabulary, in ST: `functions/*.st` has no state, `blocks/*.st` has state, `runtime/` joins the beat to matiec's generated C. If it has to remember something it is a block. `functions/ieclib.txt` is what `iec2c -I` points at, so matiec's own GPL library is never loaded. `Plc::Health` is NOT here: it is library-wide vocabulary, generated into `core/health.h` |
 | `io/` | `LocalInputs`, the controller's own input terminals: every local input row found by walking the table at bring-up, published at `PHASE_INPUT` with `F_INVERT` folded in |
 | `modbus/` | Four corners in one tree: `rtu/` is the RS-485 field bus, `tcp/` the plant network, each with both ends. `wire.h` and `response.h` are shared |
 | `console/` | `AnsiTerminal` is the VT device owning a screen back-buffer, `Console` the multiplexed page display, `TextEditor` the byte-efficient editing state machine |
@@ -474,10 +474,23 @@ regenerates its own tables and its own docs and leaves the submodule alone.
 Nothing may be relative to the working directory: `src/libbotanik/...` resolves
 to the site repo when that is where the command was run.
 
-`tables.py library` is botanik's own: `quality.gen.h`,
-`health.gen.h` and `rows_none.gen.h` come from `library.csv` and from library
-headers, never from a site's tables, and they are committed here. A site
-repository never runs it. Anything a generated file SAYS about a path is
+`tables.py library` is botanik's own: `codegen_abi.h`, `config/capacities.gen.h`,
+`vars/quality.h`, `core/health.h`, the two `plc/runtime/*.gen.h` accessor blocks
+and `rows_none.gen.h` come from `library.csv`, `library_enums.csv` and
+`capacities.csv`, never from a site's tables, and they are committed here. A
+site repository never runs it.
+
+**The generator reads data, never C++.** Its inputs are CSV, TOML, ST and
+matiec's own `POUS.c` output; a fact both C++ and the generated side need is
+stated in a data file and the C++ is generated from it, not parsed out of it.
+`library_enums.csv` carries the members of `Vars::Quality` and `Plc::Health` and
+feeds three outputs: the C++ enum, the constants matiec is handed, and a check
+against the hand-written ST `TYPE` block (order is the wire contract, since
+matiec numbers in declaration order). `config/capacities.csv` carries the sizes a
+library row names as its capacity, so the string pool the generator lays out and
+the buffer the library declares are one statement. `CODEGEN_ABI` lives in
+`scripts/sitegen/model.py`. The one remaining C++ read is
+`libbotanik_features.h`, for the `#error` prerequisite rules. Anything a generated file SAYS about a path is
 written relative to the root, or the generating machine ends up in the diff. Every
 generated file has a template of its own in `templates/`, so the shape of the
 output is separate from the model that fills it. Regeneration needs `jinja2`;
