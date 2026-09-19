@@ -106,26 +106,41 @@ namespace Botanik { namespace Shell {
     }
 
     void CommandShell::_cmd_tasks(const char* args, uint16_t alen) {
+        uint8_t n; const Verb* V = _tasks_verbs(n);
+        if (!_run_verb(V, n, args, alen)) _verb_usage("tasks");
+    }
+
+    /** @brief The registry, or null with the reason already said. Every `tasks`
+     *  verb needs it, and none of them can do anything without it. */
+    const Tasks::Registry* CommandShell::_registry() {
         const Tasks::Registry* reg = (_sys != nullptr) ? _sys->tasks : nullptr;
-        if (reg == nullptr) { _println("tasks: no task registry"); return; }
+        if (reg == nullptr) _println("tasks: no task registry");
+        return reg;
+    }
 
-        uint16_t wlen; const char* verb = arg_next(args, alen, wlen);
-        uint16_t wa;   const char* a    = arg_next(args, alen, wa);
+    void CommandShell::_tasks_stats(const char*, uint16_t) {
+        if (const Tasks::Registry* reg = _registry()) _show_tasks_stats(*reg);
+    }
 
-        if (arg_eq(verb, wlen, "stats")) { _tasks_stats(*reg); return; }
-        if (arg_eq(verb, wlen, "list"))  { _tasks_list(*reg, a, wa); return; }
-        if (arg_eq(verb, wlen, "get")) {
-            if (a == nullptr) { _verb_usage("tasks", "get"); return; }
-            _task_detail(*reg, a, wa);
-            return;
-        }
-        _verb_usage("tasks");
+    void CommandShell::_tasks_list(const char* args, uint16_t alen) {
+        const Tasks::Registry* reg = _registry();
+        if (reg == nullptr) return;
+        uint16_t wa; const char* a = arg_next(args, alen, wa);
+        _show_tasks_list(*reg, a, wa);
+    }
+
+    void CommandShell::_tasks_get(const char* args, uint16_t alen) {
+        const Tasks::Registry* reg = _registry();
+        if (reg == nullptr) return;
+        uint16_t wa; const char* a = arg_next(args, alen, wa);
+        if (a == nullptr) { _verb_usage("tasks", "get"); return; }
+        _task_detail(*reg, a, wa);
     }
 
     // The beat as a whole, in `stats`' shape - NOT a listing: 22 rows over a
     // 4800-baud console spend the byte budget on an index of the TASKS page.
     // Only what no per-task row can say: the totals, and which task to look at.
-    void CommandShell::_tasks_stats(const Tasks::Registry& reg) {
+    void CommandShell::_show_tasks_stats(const Tasks::Registry& reg) {
         uint64_t runs = 0, peaks_us = 0, missed = 0;
         uint8_t  missed_tasks = 0;
         const Tasks::Task* worst   = nullptr;   // most missed activations
@@ -217,7 +232,7 @@ namespace Botanik { namespace Shell {
         _println("per-task figures: the TASKS page, or `tasks get <name>`");
     }
 
-    void CommandShell::_tasks_list(const Tasks::Registry& reg, const char* prefix,
+    void CommandShell::_show_tasks_list(const Tasks::Registry& reg, const char* prefix,
                                    uint16_t plen) {
         char out[Config::LOG_FORMATTED_LEN];
         uint16_t n = 0;
@@ -468,7 +483,7 @@ namespace Botanik { namespace Shell {
     /** @brief The roll-call: one line per unit, the plant's tag first (an
      *  operator knows the box by its designation, not its unit id), then the
      *  address, the model, and whether it is answering. No counters. */
-    void CommandShell::_modbus_devices(const Modbus::RtuMaster& rtu) {
+    void CommandShell::_show_modbus_devices(const Modbus::RtuMaster& rtu) {
         char val[96];
         _println("RTU devices (the field bus)");
         if (rtu.peer_count() == 0) { _println("  none planned"); return; }
@@ -496,27 +511,38 @@ namespace Botanik { namespace Shell {
     void CommandShell::_cmd_modbus(const char*, uint16_t) {
         _println("modbus: not built in");
     }
+    void CommandShell::_modbus_stats(const char*, uint16_t) {
+        _println("modbus: not built in");
+    }
+    void CommandShell::_modbus_devices(const char*, uint16_t) {
+        _println("modbus: not built in");
+    }
 #else
     void CommandShell::_cmd_modbus(const char* args, uint16_t alen) {
+        uint8_t n; const Verb* V = _modbus_verbs(n);
+        if (!_run_verb(V, n, args, alen)) _verb_usage("modbus");
+    }
+
+    // The roll-call and nothing else. It is the RS-485 segment's: the TCP side
+    // serves a register map and has no units to call.
+    void CommandShell::_modbus_devices(const char*, uint16_t) {
+        if (_sys == nullptr) { _println("modbus: no context"); return; }
+#if BOTANIK_FEATURE_MODBUS_RTU_CLIENT
+        const Modbus::RtuMaster* rtu = _sys->modbus_rtu;
+        if (rtu == nullptr) _println("RTU master (the field bus) .. not wired");
+        else                _show_modbus_devices(*rtu);
+#else
+        _println("modbus devices: no field bus in this build");
+#endif
+    }
+
+    // The plan, the line and the counters, both corners of the bus.
+    void CommandShell::_modbus_stats(const char*, uint16_t) {
         if (_sys == nullptr) { _println("modbus: no context"); return; }
         char val[96];
 
-        // `modbus devices` is the roll-call and nothing else, `modbus stats`
-        // the plan, the line and the counters. A bare `modbus` is answered
-        // upstream, in _dispatch().
-        uint16_t wn = 0;
-        const char* sub = arg_next(args, alen, wn);
-        const bool want_devices = arg_eq(sub, wn, "devices");
-        if (!want_devices && !arg_eq(sub, wn, "stats")) { _verb_usage("modbus"); return; }
-
 #if BOTANIK_FEATURE_MODBUS_RTU_CLIENT
         const Modbus::RtuMaster* rtu = _sys->modbus_rtu;
-        if (want_devices) {
-            if (rtu == nullptr) _println("RTU master (the field bus) .. not wired");
-            else                _modbus_devices(*rtu);
-            return;
-        }
-
         if (rtu == nullptr) {
             _println("RTU master (the field bus) .. not wired");
         } else {
@@ -576,9 +602,6 @@ namespace Botanik { namespace Shell {
                      rtu->dead_count() != 0 ? "  (modbus devices)" : "");
             _println(val);
         }
-#else
-        // The roll-call is the RS-485 segment's; the TCP side has no units.
-        if (want_devices) { _println("modbus devices: no field bus in this build"); return; }
 #endif
 
 #if BOTANIK_FEATURE_MODBUS_TCP_SERVER
@@ -608,8 +631,8 @@ namespace Botanik { namespace Shell {
     /** @brief `modbus`'s verbs. @see CommandShell::Verb */
     const CommandShell::Verb* CommandShell::_modbus_verbs(uint8_t& count) {
         static const Verb V[] = {
-            { "stats                the plan, the line, the counters",  nullptr },
-            { "devices              the roll-call, one line per unit",  nullptr },
+            { "stats                the plan, the line, the counters",  &CommandShell::_modbus_stats },
+            { "devices              the roll-call, one line per unit",  &CommandShell::_modbus_devices },
         };
         count = (uint8_t)(sizeof(V) / sizeof(V[0]));
         return V;
@@ -618,9 +641,9 @@ namespace Botanik { namespace Shell {
     /** @brief `tasks`'s verbs. @see CommandShell::Verb */
     const CommandShell::Verb* CommandShell::_tasks_verbs(uint8_t& count) {
         static const Verb V[] = {
-            { "stats",         nullptr },
-            { "list [<pat>]",  nullptr },
-            { "get <name>",    nullptr },
+            { "stats",         &CommandShell::_tasks_stats },
+            { "list [<pat>]",  &CommandShell::_tasks_list },
+            { "get <name>",    &CommandShell::_tasks_get },
         };
         count = (uint8_t)(sizeof(V) / sizeof(V[0]));
         return V;

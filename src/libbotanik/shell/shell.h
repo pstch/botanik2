@@ -339,6 +339,13 @@ namespace Botanik { namespace Shell {
         /** @brief The beat's totals, or one task: where `stats`' unattributed
          *  CPU figure went. */
         void _cmd_tasks(const char* args, uint16_t alen);
+        /** @name `tasks` verbs @{ */
+        void _tasks_stats(const char* args, uint16_t alen);
+        void _tasks_list(const char* args, uint16_t alen);
+        void _tasks_get(const char* args, uint16_t alen);
+        /** @brief The registry, or null with the reason already printed. */
+        const Tasks::Registry* _registry();
+        /** @} */
         void _cmd_version(const char* args, uint16_t alen);
         void _cmd_features(const char* args, uint16_t alen);
         void _cmd_alarms(const char* args, uint16_t alen);
@@ -354,10 +361,14 @@ namespace Botanik { namespace Shell {
         /** @brief `modbus stats` is the plan cost and the master state,
          *  `modbus devices` the roll-call. */
         void _cmd_modbus(const char* args, uint16_t alen);
+        /** @name `modbus` verbs @{ */
+        void _modbus_stats(const char* args, uint16_t alen);
+        void _modbus_devices(const char* args, uint16_t alen);
+        /** @} */
         #if BOTANIK_FEATURE_MODBUS_RTU_CLIENT
         /** @brief `modbus devices`: one line per unit - tag, address, model and
          *  whether it is answering. No counters. */
-        void _modbus_devices(const Modbus::RtuMaster& rtu);
+        void _show_modbus_devices(const Modbus::RtuMaster& rtu);
         #endif
         void _cmd_net(const char* args, uint16_t alen);
         void _cmd_ntpsync(const char* args, uint16_t alen);
@@ -458,10 +469,10 @@ namespace Botanik { namespace Shell {
          *  whole table over a 4800-baud console is an index of the TASKS page
          *  rather than an answer. A bare `tasks` still reports the beat's
          *  totals, which is the question a listing cannot answer. */
-        void _tasks_list(const Tasks::Registry& reg, const char* prefix,
+        void _show_tasks_list(const Tasks::Registry& reg, const char* prefix,
                          uint16_t plen);
         /** @brief `tasks stats`: the beat's totals, in `stats`' shape. */
-        void _tasks_stats(const Tasks::Registry& reg);
+        void _show_tasks_stats(const Tasks::Registry& reg);
 
         /** @brief Shared tail of reset / exit: drop the field to its safe state
          *  and wipe the screen, since the loop will not run again. */
