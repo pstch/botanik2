@@ -18,7 +18,7 @@
  *   rows K..         detail panel for the selected task: its last and peak
  *                    sample, its run and missed counts, and the share of its own
  *                    period the mean takes
- *   rows()-2         legend: position, filter, hint
+ *   last_row()-1     legend: position, filter, hint
  *
  * Read-only: UP/DOWN move a selection cursor and the panel tracks it. Rows are
  * the site's control programs first, then the library's `sys_` tasks, each block

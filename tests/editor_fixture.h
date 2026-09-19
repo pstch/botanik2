@@ -54,9 +54,11 @@ namespace tests { namespace botanik_test {
             }
             // Geometry from the console, which reserves the alarm bar's row.
             if (notes_page) {
-                editor.as_viewport(1, (uint16_t)(console.rows() - 2));   // @see NotesPage::focus
+                // @see NotesPage::focus
+                editor.as_viewport(console.content_top(),
+                                   (uint16_t)(console.content_rows() - 1));
             } else {
-                editor.as_prompt((uint16_t)(console.rows() - 1));        // @see ShellPage::_setup_editor
+                editor.as_prompt(console.last_row());   // @see ShellPage::_setup_editor
             }
             // Blank before the first paint: reset() stamps the prompt into
             // FRONT, and a blank that lands after it leaves the editor

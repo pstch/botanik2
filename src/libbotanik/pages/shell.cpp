@@ -97,7 +97,7 @@ namespace Botanik { namespace Pages {
         drain();
         if (!active) return;
         _scrollback.reveal_step();      // once per tick; paint() does not
-        _scrollback.paint(_terminal, 1, _log_rows());
+        _scrollback.paint(_terminal, _console.content_top(), _log_rows());
     }
 
     // BufferedLogWriter + ShellWriter interface
@@ -157,7 +157,7 @@ namespace Botanik { namespace Pages {
 
     void ShellPage::_setup_editor() {
         _editor.set_prompts("botanik> ", "> ", "...> ");
-        _editor.as_prompt((uint16_t)(_console.rows() - 1));
+        _editor.as_prompt(_console.last_row());
     }
 
     void ShellPage::_full_redraw() {
@@ -170,7 +170,7 @@ namespace Botanik { namespace Pages {
     }
 
     uint16_t ShellPage::_log_rows() const {
-        uint16_t content = (uint16_t)(_console.rows() - 1);  // less row 0
+        uint16_t content = _console.content_rows();
         uint16_t occ     = _editor.occupied_rows();
         // A prompt taller than the screen leaves no transcript; every consumer
         // of this treats 0 as "nothing to paint".

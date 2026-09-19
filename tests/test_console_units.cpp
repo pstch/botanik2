@@ -143,7 +143,7 @@ struct BackFixture : botanik_test::PageFixture {
         }
     }
     bool scroll(bool up, uint16_t n = 1) {
-        return sb.scroll(up, n, (uint16_t)(console.rows() - 1));
+        return sb.scroll(up, n, console.content_rows());
     }
 };
 

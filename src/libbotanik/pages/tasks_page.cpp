@@ -87,7 +87,7 @@ namespace Botanik { namespace Pages {
     }
 
     uint16_t TasksPage::_panel_top() const {
-        uint16_t last = (uint16_t)(_console.rows() - 1);
+        uint16_t last = _console.last_row();
         return (last > (uint16_t)(DATA_TOP + PANEL_H))
              ? (uint16_t)(last - PANEL_H) : DATA_TOP;
     }

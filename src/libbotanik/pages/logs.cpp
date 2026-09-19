@@ -40,7 +40,7 @@ namespace Botanik { namespace Pages {
     void LogsPage::handle_command(Command cmd, uint16_t /*count*/) {
         // Scroll history a line at a time (live tail freezes while scrolled
         // back); ENTER returns to the live bottom.
-        const uint16_t log_rows = (uint16_t)(_console.rows() - 1);
+        const uint16_t log_rows = _console.content_rows();
         switch (cmd) {
             case Command::ENTER:
                 focus();
@@ -80,7 +80,7 @@ namespace Botanik { namespace Pages {
         drain();
         if (!active) return;
         _scrollback.reveal_step();      // once per tick; paint() does not
-        _scrollback.paint(_terminal, 1, (uint16_t)(_console.rows() - 1));
+        _scrollback.paint(_terminal, _console.content_top(), _console.content_rows());
     }
 
     // BufferedLogWriter interface

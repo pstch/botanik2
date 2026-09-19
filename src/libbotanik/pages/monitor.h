@@ -248,7 +248,7 @@ namespace Botanik { namespace Pages {
          *  from the bottom so it has a blank line each side (a badge jammed
          *  against the alarm bar does not read as one). The bottom rule sits
          *  PANEL_H rows above it, reserving the detail panel. */
-        uint16_t _footer_row() const { return (uint16_t)(_console.rows() - 2); }
+        uint16_t _footer_row() const { return (uint16_t)(_console.last_row() - 1); }
         uint16_t _brule_row() const {
             uint16_t f = _footer_row();
             return (f > (uint16_t)(DATA_TOP + PANEL_H)) ? (uint16_t)(f - PANEL_H) : DATA_TOP;
@@ -319,7 +319,7 @@ namespace Botanik { namespace Pages {
         // Overrides
 
         /** @brief Row the override field / its report sits on. */
-        uint16_t _prompt_row() const { return (uint16_t)(_console.rows() - 1); }
+        uint16_t _prompt_row() const { return _console.last_row(); }
 
         /** @brief How long the prompt row keeps what it was told to say (ms). */
         static constexpr uint32_t SAID_MS = 4000;

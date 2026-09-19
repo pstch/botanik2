@@ -14,7 +14,7 @@
  *   rows 4..K        one row per Param (windowed / scrollable)
  *   rows K..         detail panel for the selected parameter: a separator then
  *                    Minimum / Maximum / Default, Description, Notes
- *   rows()-1         edit prompt / hint line (just above the alarm bar)
+ *   last_row()       edit prompt / hint line (just above the alarm bar)
  *
  * UP/DOWN move a selection cursor (the selected row is drawn inverted); the
  * detail panel tracks it. ENTER opens an inline edit on the bottom prompt line:
@@ -171,7 +171,7 @@ namespace Botanik { namespace Pages {
         /** @} */
 
         /** @brief Row the bottom edit/hint prompt sits on (above the alarm bar). */
-        uint16_t _prompt_row() const { return (uint16_t)(_console.rows() - 1); }
+        uint16_t _prompt_row() const { return _console.last_row(); }
 
         /** @brief The filter badge sits on the panel's trailing spacer, one row
          *  above the prompt - so an open editor, which owns the prompt row,

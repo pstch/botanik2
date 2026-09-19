@@ -180,9 +180,9 @@ namespace Botanik { namespace Pages {
          *  Acknowledged, Remediation, Description, blank, bottom rule, then the
          *  data band up to the top rule.
          *  @{ */
-        // free row below at rows()-1
-        uint16_t _legend_row()  const { return (uint16_t)(_console.rows() - 2); }
-        uint16_t _brule_row()   const { return (uint16_t)(_console.rows() - 8); }
+        // free row below at last_row()
+        uint16_t _legend_row()  const { return (uint16_t)(_console.last_row() - 1); }
+        uint16_t _brule_row()   const { return (uint16_t)(_console.last_row() - 7); }
         /** @brief Number of data rows that fit, or 0 if the screen is too
          *  short. */
         uint16_t _window() const override {

@@ -173,14 +173,14 @@ namespace tests { namespace botanik_test {
             return rows(0, console.terminal().rows_total());
         }
 
-        /** @brief Just the band a PAGE owns: rows 1 .. rows()-1.
+        /** @brief Just the band a PAGE owns: content_top() .. last_row().
          *
          *  Row 0 is the status bar and the reserved bottom rows are the alarm
          *  bar, both painted by Console and neither redrawn by Page::redraw().
          *  Comparing them would fail on the status bar's live clock rather than
          *  on anything the page did. */
         std::vector<std::string> content() {
-            return rows(1, console.rows());
+            return rows(console.content_top(), console.rows());
         }
 
         /** @brief Step @p page until its paint settles, and hand back the bytes
