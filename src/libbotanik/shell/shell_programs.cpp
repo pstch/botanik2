@@ -36,37 +36,41 @@ namespace Botanik { namespace Shell {
      *  printf says it WOULD have written - so a truncated line stops growing
      *  rather than indexing past the end. */
     void CommandShell::_cmd_programs(const char* args, uint16_t alen) {
+        uint8_t n; const Verb* V = _programs_verbs(n);
+        if (!_run_verb(V, n, args, alen)) _verb_usage("programs");
+    }
+
+    void CommandShell::_programs_list(const char* args, uint16_t alen) {
         Plc::Runtime::Plant* pl = (_sys != nullptr) ? _sys->plant : nullptr;
         char out[128];
         if (pl == nullptr) { _println("programs: no plant"); return; }
 
-        uint16_t wv; const char* verb = arg_next(args, alen, wv);
-        uint16_t wn; const char* nm   = arg_next(args, alen, wn);
-
-        if (arg_eq(verb, wv, "list")) {
-            const uint8_t n = pl->count();
-            uint8_t shown = 0;
-            for (uint8_t i = 0; i < n; i++) {
-                if (!Utils::glob_bounded(pl->name(i), nm, wn)) continue;
-                _emitf(out, sizeof(out), "  %-22s %-8s %s", pl->name(i),
-                       Plc::health_name(pl->health(i)),
-                       pl->running(i)   ? "running"
-                       : !pl->enabled(i) ? "STOPPED"
-                                         : "held");
-                shown++;
-            }
-            if (shown == 0) { _println("programs: none"); return; }
-            _emitf(out, sizeof(out), "%u program(s)", shown);
-            return;
+        uint16_t wn; const char* nm = arg_next(args, alen, wn);
+        const uint8_t n = pl->count();
+        uint8_t shown = 0;
+        for (uint8_t i = 0; i < n; i++) {
+            if (!Utils::glob_bounded(pl->name(i), nm, wn)) continue;
+            _emitf(out, sizeof(out), "  %-22s %-8s %s", pl->name(i),
+                   Plc::health_name(pl->health(i)),
+                   pl->running(i)   ? "running"
+                   : !pl->enabled(i) ? "STOPPED"
+                                     : "held");
+            shown++;
         }
+        if (shown == 0) { _println("programs: none"); return; }
+        _emitf(out, sizeof(out), "%u program(s)", shown);
+    }
 
-        if (arg_eq(verb, wv, "start"))   { _programs_gate(nm, wn, true,  false); return; }
-        if (arg_eq(verb, wv, "stop"))    { _programs_gate(nm, wn, false, false); return; }
-        if (arg_eq(verb, wv, "enable"))  { _programs_gate(nm, wn, true,  true);  return; }
-        if (arg_eq(verb, wv, "disable")) { _programs_gate(nm, wn, false, true);  return; }
-        if (arg_eq(verb, wv, "status"))  { _programs_status();                   return; }
+    // start/stop are this run; enable/disable are the same write plus the save.
+    void CommandShell::_programs_start(const char* a, uint16_t n)   { _gate_verb(a, n, true,  false); }
+    void CommandShell::_programs_stop(const char* a, uint16_t n)    { _gate_verb(a, n, false, false); }
+    void CommandShell::_programs_enable(const char* a, uint16_t n)  { _gate_verb(a, n, true,  true);  }
+    void CommandShell::_programs_disable(const char* a, uint16_t n) { _gate_verb(a, n, false, true);  }
+    void CommandShell::_programs_show(const char*, uint16_t)        { _programs_status(); }
 
-        _verb_usage("programs");
+    void CommandShell::_gate_verb(const char* args, uint16_t alen, bool on, bool persist) {
+        uint16_t wn; const char* nm = arg_next(args, alen, wn);
+        _programs_gate(nm, wn, on, persist);
     }
 
     /** @brief Put the programs @p nm globs in or out of the scan. A stopped
@@ -141,12 +145,12 @@ namespace Botanik { namespace Shell {
     /** @brief `programs`'s verbs. @see CommandShell::Verb */
     const CommandShell::Verb* CommandShell::_programs_verbs(uint8_t& count) {
         static const Verb V[] = {
-            { "status               how many, and which cannot run",          nullptr },
-            { "list [<pat>]         name, or a glob",                         nullptr },
-            { "start <pat|all>      put back in the scan, this run",          nullptr },
-            { "stop  <pat|all>      take out, and drop what it drives safe",  nullptr },
-            { "enable  <pat|all>    start, and save it for the next boot",    nullptr },
-            { "disable <pat|all>    stop, and save it for the next boot",     nullptr },
+            { "status               how many, and which cannot run",          &CommandShell::_programs_show },
+            { "list [<pat>]         name, or a glob",                         &CommandShell::_programs_list },
+            { "start <pat|all>      put back in the scan, this run",          &CommandShell::_programs_start },
+            { "stop  <pat|all>      take out, and drop what it drives safe",  &CommandShell::_programs_stop },
+            { "enable  <pat|all>    start, and save it for the next boot",    &CommandShell::_programs_enable },
+            { "disable <pat|all>    stop, and save it for the next boot",     &CommandShell::_programs_disable },
         };
         count = (uint8_t)(sizeof(V) / sizeof(V[0]));
         return V;

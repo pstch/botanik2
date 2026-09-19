@@ -374,16 +374,46 @@ namespace Botanik { namespace Shell {
         void _cmd_ntpsync(const char* args, uint16_t alen);
         /** @brief `params list|get|set|clear|save` - the editable rows. */
         void _cmd_params(const char* args, uint16_t alen);
+        /** @name `params` verbs; set/save/clear/reset are below @{ */
+        void _params_list(const char* args, uint16_t alen);
+        void _params_get(const char* args, uint16_t alen);
+        /** @} */
         /** @brief `programs list|start|stop|enable|disable|status` - the
          *  control programs. */
         void _cmd_programs(const char* args, uint16_t alen);
+        /** @name `programs` verbs @{ */
+        void _programs_list(const char* args, uint16_t alen);
+        void _programs_start(const char* args, uint16_t alen);
+        void _programs_stop(const char* args, uint16_t alen);
+        void _programs_enable(const char* args, uint16_t alen);
+        void _programs_disable(const char* args, uint16_t alen);
+        void _programs_show(const char* args, uint16_t alen);
+        /** @brief Take the name glob off @p args, then gate on it. */
+        void _gate_verb(const char* args, uint16_t alen, bool on, bool persist);
+        /** @} */
         /** @brief `control start|stop|enable|disable|status` - sys_control, the
          *  operator's standing choice about whether the laws drive at all. */
         void _cmd_control(const char* args, uint16_t alen);
+        /** @name `control` verbs, all onto _control_set() / _control_status()
+         *  @{ */
+        void _control_start(const char* args, uint16_t alen);
+        void _control_stop(const char* args, uint16_t alen);
+        void _control_enable(const char* args, uint16_t alen);
+        void _control_disable(const char* args, uint16_t alen);
+        void _control_show(const char* args, uint16_t alen);
+        /** @} */
         /** @brief `overrides list|get|set|clear|save` - the forced rows. */
         void _cmd_overrides(const char* args, uint16_t alen);
+        /** @brief `overrides get <name>`; the other verbs are below. */
+        void _overrides_get(const char* args, uint16_t alen);
         /** @brief `vars list|get|info` - every row, whatever its scope. */
         void _cmd_vars(const char* args, uint16_t alen);
+        /** @name `vars` verbs, each onto a renderer shared with the other nouns
+         *  @{ */
+        void _vars_list(const char* args, uint16_t alen);
+        void _vars_get(const char* args, uint16_t alen);
+        void _vars_info(const char* args, uint16_t alen);
+        /** @} */
 
         /** @} */
 
@@ -393,28 +423,26 @@ namespace Botanik { namespace Shell {
          *  decisions: a value is live the moment it is set, and durable only
          *  once saved. @see Vars::Var::param_set()
          *  @{ */
-        /** @brief `params set <name> <value>`. @p nm / @p wn are the name word;
-         *  @p args / @p alen carry the value and are consumed here. */
-        void _params_set(const char* nm, uint16_t wn,
-                         const char* args, uint16_t alen);
+        /** @brief `params set <name> <value>`. The name word and the value are
+         *  both taken off @p args, which is consumed. */
+        void _params_set(const char* args, uint16_t alen);
         /** @brief `params save <name>|all` - one row, or every unsaved one. */
-        void _params_save(const char* nm, uint16_t wn);
+        void _params_save(const char* args, uint16_t alen);
         /** @brief `params clear <name>|all` - back to the factory default. */
-        void _params_clear(const char* nm, uint16_t wn);
+        void _params_clear(const char* args, uint16_t alen);
         /** @brief `params reset`: back to the FACTORY default, stored copy and
          *  all. The destructive sibling of _params_clear(), and it skips a
          *  RETAINED parameter (@see Vars::retained_param). */
-        void _params_reset(const char* nm, uint16_t wn);
+        void _params_reset(const char* args, uint16_t alen);
         /** @brief `overrides save <name>|all` - the same, for overrides. */
-        void _overrides_save(const char* nm, uint16_t wn);
+        void _overrides_save(const char* args, uint16_t alen);
         /** @brief `overrides list` - what is forced right now. */
-        void _overrides_list();
+        void _overrides_list(const char* args, uint16_t alen);
         /** @brief `overrides clear <name>|all` - release one, or the lot. */
-        void _overrides_clear(const char* nm, uint16_t wn);
-        /** @brief `overrides set <name> [<value>] [valid|invalid]`. @p args /
-         *  @p alen carry the value and the quality word and are consumed. */
-        void _overrides_set(const char* nm, uint16_t wn,
-                            const char* args, uint16_t alen);
+        void _overrides_clear(const char* args, uint16_t alen);
+        /** @brief `overrides set <name> [<value>] [valid|invalid]`. The name,
+         *  the value and the quality word all come off @p args. */
+        void _overrides_set(const char* args, uint16_t alen);
         /** @brief Report @p h's override after a write, with what it reads as
          *  and how to make it durable. */
         void _override_reply(Vars::Var h, const char* verb);

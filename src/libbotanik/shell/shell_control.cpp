@@ -30,16 +30,17 @@
 namespace Botanik { namespace Shell {
 
     void CommandShell::_cmd_control(const char* args, uint16_t alen) {
-        uint16_t wv; const char* verb = arg_next(args, alen, wv);
-
-        if (arg_eq(verb, wv, "start"))   { _control_set(true,  false); return; }
-        if (arg_eq(verb, wv, "stop"))    { _control_set(false, false); return; }
-        if (arg_eq(verb, wv, "enable"))  { _control_set(true,  true);  return; }
-        if (arg_eq(verb, wv, "disable")) { _control_set(false, true);  return; }
-        if (arg_eq(verb, wv, "status"))  { _control_status();          return; }
-
-        _verb_usage("control");
+        uint8_t n; const Verb* V = _control_verbs(n);
+        if (!_run_verb(V, n, args, alen)) _verb_usage("control");
     }
+
+    // start/stop are this run; enable/disable are the same write plus the save,
+    // which is the whole of what makes it durable.
+    void CommandShell::_control_start(const char*, uint16_t)   { _control_set(true,  false); }
+    void CommandShell::_control_stop(const char*, uint16_t)    { _control_set(false, false); }
+    void CommandShell::_control_enable(const char*, uint16_t)  { _control_set(true,  true);  }
+    void CommandShell::_control_disable(const char*, uint16_t) { _control_set(false, true);  }
+    void CommandShell::_control_show(const char*, uint16_t)    { _control_status(); }
 
     /** @brief Write sys_control, and where @p persist commit it to storage.
      *  @param on      whether the laws are to drive
@@ -107,11 +108,11 @@ namespace Botanik { namespace Shell {
     /** @brief `control`'s verbs. @see CommandShell::Verb */
     const CommandShell::Verb* CommandShell::_control_verbs(uint8_t& count) {
         static const Verb V[] = {
-            { "status               sys_control, and the run state beside it",  nullptr },
-            { "start                let the laws drive, this run",              nullptr },
-            { "stop                 stop every law, this run",                  nullptr },
-            { "enable               start, and save it for the next boot",      nullptr },
-            { "disable              stop, and save it for the next boot",       nullptr },
+            { "status               sys_control, and the run state beside it",  &CommandShell::_control_show },
+            { "start                let the laws drive, this run",              &CommandShell::_control_start },
+            { "stop                 stop every law, this run",                  &CommandShell::_control_stop },
+            { "enable               start, and save it for the next boot",      &CommandShell::_control_enable },
+            { "disable              stop, and save it for the next boot",       &CommandShell::_control_disable },
         };
         count = (uint8_t)(sizeof(V) / sizeof(V[0]));
         return V;

@@ -254,56 +254,51 @@ namespace Botanik { namespace Shell {
     }
 
     void CommandShell::_cmd_vars(const char* args, uint16_t alen) {
-        uint16_t wv; const char* verb = arg_next(args, alen, wv);
-        uint16_t wa; const char* a    = arg_next(args, alen, wa);
+        uint8_t n; const Verb* V = _vars_verbs(n);
+        if (!_run_verb(V, n, args, alen)) _verb_usage("vars");
+    }
 
-        if (arg_eq(verb, wv, "list")) {
-            _list_vars("vars", a, wa, /*params_only=*/false);
-            return;
-        }
-        if (arg_eq(verb, wv, "get")) {
-            _show_value("vars", a, wa);
-            return;
-        }
-        if (arg_eq(verb, wv, "info")) {
-            _show_var("vars", "info", a, wa, /*params_only=*/false);
-            return;
-        }
-        _verb_usage("vars");
+    void CommandShell::_vars_list(const char* args, uint16_t alen) {
+        uint16_t wa; const char* a = arg_next(args, alen, wa);
+        _list_vars("vars", a, wa, /*params_only=*/false);
+    }
+
+    void CommandShell::_vars_get(const char* args, uint16_t alen) {
+        uint16_t wa; const char* a = arg_next(args, alen, wa);
+        _show_value("vars", a, wa);
+    }
+
+    void CommandShell::_vars_info(const char* args, uint16_t alen) {
+        uint16_t wa; const char* a = arg_next(args, alen, wa);
+        _show_var("vars", "info", a, wa, /*params_only=*/false);
     }
 
     void CommandShell::_cmd_params(const char* args, uint16_t alen) {
+        uint8_t n; const Verb* V = _params_verbs(n);
+        if (!_run_verb(V, n, args, alen)) _verb_usage("params");
+    }
+
+    void CommandShell::_params_list(const char* args, uint16_t alen) {
+        uint16_t wn; const char* nm = arg_next(args, alen, wn);
+        _list_vars("params", nm, wn, /*params_only=*/true);
+        // The one thing a listing must not hide: an edit nobody committed.
         Vars::Bank* io = _bank();
+        if (io == nullptr) return;
+        const uint16_t pending = io->unsaved_count();
+        if (pending == 0) return;
         char out[128];
-        uint16_t wv; const char* verb = arg_next(args, alen, wv);
-        uint16_t wn; const char* nm   = arg_next(args, alen, wn);
+        _emitf(out, sizeof(out), "  %u unsaved (`params save all` to commit)", pending);
+    }
 
-        if (arg_eq(verb, wv, "list")) {
-            _list_vars("params", nm, wn, /*params_only=*/true);
-            // The one thing a listing must not hide: an edit nobody committed.
-            if (io != nullptr) {
-                const uint16_t pending = io->unsaved_count();
-                if (pending != 0)
-                    _emitf(out, sizeof(out),
-                           "  %u unsaved (`params save all` to commit)", pending);
-            }
-            return;
-        }
-        if (arg_eq(verb, wv, "get")) {
-            _show_var("params", "get", nm, wn, /*params_only=*/true);
-            return;
-        }
-        if (arg_eq(verb, wv, "set"))   { _params_set(nm, wn, args, alen); return; }
-        if (arg_eq(verb, wv, "save"))  { _params_save(nm, wn);  return; }
-        if (arg_eq(verb, wv, "clear")) { _params_clear(nm, wn); return; }
-        if (arg_eq(verb, wv, "reset")) { _params_reset(nm, wn); return; }
-
-        _verb_usage("params");
+    void CommandShell::_params_get(const char* args, uint16_t alen) {
+        uint16_t wn; const char* nm = arg_next(args, alen, wn);
+        _show_var("params", "get", nm, wn, /*params_only=*/true);
     }
 
     // Back to the factory default, live and durably - the stored copy goes too,
     // or the next boot would undo it. `clear` is the lighter one below.
-    void CommandShell::_params_reset(const char* nm, uint16_t wn) {
+    void CommandShell::_params_reset(const char* args, uint16_t alen) {
+        uint16_t wn; const char* nm = arg_next(args, alen, wn);
         Vars::Persist* st = _store();
         if (st == nullptr) { _println("params: nothing to save to"); return; }
         Vars::Bank* io = _bank();
@@ -360,7 +355,8 @@ namespace Botanik { namespace Shell {
     // Walk back an edit that was never committed: the row goes to what a reboot
     // would give it and the stored copy is left alone. `params reset` is the
     // destructive one - this is the undo.
-    void CommandShell::_params_clear(const char* nm, uint16_t wn) {
+    void CommandShell::_params_clear(const char* args, uint16_t alen) {
+        uint16_t wn; const char* nm = arg_next(args, alen, wn);
         Vars::Persist* st = _store();
         if (st == nullptr) { _println("params: nothing to save to"); return; }
         Vars::Bank* io = _bank();
@@ -403,8 +399,8 @@ namespace Botanik { namespace Shell {
     // this returns, and `params save` is what makes it survive a reboot. Saying
     // "(unsaved)" on every write is what keeps the two apart in the operator's
     // head, since nothing else on screen distinguishes them.
-    void CommandShell::_params_set(const char* nm, uint16_t wn,
-                                   const char* args, uint16_t alen) {
+    void CommandShell::_params_set(const char* args, uint16_t alen) {
+        uint16_t wn; const char* nm = arg_next(args, alen, wn);
         Vars::Bank* io = _bank();
         char out[128];
         if (io == nullptr) { _println("params: no variables"); return; }
@@ -436,7 +432,8 @@ namespace Botanik { namespace Shell {
                p.meta().name, val, p.meta().name);
     }
 
-    void CommandShell::_params_save(const char* nm, uint16_t wn) {
+    void CommandShell::_params_save(const char* args, uint16_t alen) {
+        uint16_t wn; const char* nm = arg_next(args, alen, wn);
         Vars::Persist* st = _store();
         if (st == nullptr) { _println("params: nothing to save to"); return; }
         Vars::Bank* io = _bank();
@@ -495,22 +492,18 @@ namespace Botanik { namespace Shell {
 
     void CommandShell::_cmd_overrides(const char* args, uint16_t alen) {
         if (_bank() == nullptr) { _println("overrides: no variables"); return; }
+        uint8_t n; const Verb* V = _overrides_verbs(n);
+        if (!_run_verb(V, n, args, alen)) _verb_usage("overrides");
+    }
 
-        uint16_t wv; const char* verb = arg_next(args, alen, wv);
-        if (arg_eq(verb, wv, "list")) { _overrides_list(); return; }
-
+    void CommandShell::_overrides_get(const char* args, uint16_t alen) {
         uint16_t wn; const char* nm = arg_next(args, alen, wn);
-        if (arg_eq(verb, wv, "get"))   { _show_var("overrides", "get", nm, wn, false); return; }
-        if (arg_eq(verb, wv, "save"))  { _overrides_save(nm, wn);  return; }
-        if (arg_eq(verb, wv, "clear")) { _overrides_clear(nm, wn); return; }
-        if (arg_eq(verb, wv, "set"))   { _overrides_set(nm, wn, args, alen); return; }
-
-        _verb_usage("overrides");
+        _show_var("overrides", "get", nm, wn, false);
     }
 
     // An override outlives the session that set it once saved, so what is forced
     // has to be one command away.
-    void CommandShell::_overrides_list() {
+    void CommandShell::_overrides_list(const char*, uint16_t) {
         Vars::Bank* io = _bank();
         char out[128], val[48];
         uint16_t n = 0, unsaved = 0;
@@ -530,7 +523,8 @@ namespace Botanik { namespace Shell {
                n, unsaved);
     }
 
-    void CommandShell::_overrides_clear(const char* nm, uint16_t wn) {
+    void CommandShell::_overrides_clear(const char* args, uint16_t alen) {
+        uint16_t wn; const char* nm = arg_next(args, alen, wn);
         Vars::Persist* st = _store();
         if (st == nullptr) { _println("overrides: nothing to save to"); return; }
         Vars::Bank* io = _bank();
@@ -551,8 +545,8 @@ namespace Botanik { namespace Shell {
         _emitf(out, sizeof(out), "%s: override cleared", h.meta().name);
     }
 
-    void CommandShell::_overrides_set(const char* nm, uint16_t wn,
-                                      const char* args, uint16_t alen) {
+    void CommandShell::_overrides_set(const char* args, uint16_t alen) {
+        uint16_t wn; const char* nm = arg_next(args, alen, wn);
         Vars::Persist* st = _store();
         if (st == nullptr) { _println("overrides: nothing to save to"); return; }
         Vars::Bank* io = _bank();
@@ -633,7 +627,8 @@ namespace Botanik { namespace Shell {
     // common case, and it should not outlive the session by default - while an
     // override left in place ON PURPOSE (a failed sensor bypassed until the
     // spare arrives) is exactly what wants committing.
-    void CommandShell::_overrides_save(const char* nm, uint16_t wn) {
+    void CommandShell::_overrides_save(const char* args, uint16_t alen) {
+        uint16_t wn; const char* nm = arg_next(args, alen, wn);
         Vars::Persist* st = _store();
         if (st == nullptr) { _println("overrides: nothing to save to"); return; }
         Vars::Bank* io = _bank();
@@ -674,12 +669,12 @@ namespace Botanik { namespace Shell {
     /** @brief `params`'s verbs. @see CommandShell::Verb */
     const CommandShell::Verb* CommandShell::_params_verbs(uint8_t& count) {
         static const Verb V[] = {
-            { "list [<pat>]         name, or a glob: sys_*_sec",   nullptr },
-            { "get <name>",                                        nullptr },
-            { "set <name> <value>",                                nullptr },
-            { "clear <name>|all     forget unsaved edits",         nullptr },
-            { "reset <name>|all     back to the factory default",  nullptr },
-            { "save <name>|all",                                   nullptr },
+            { "list [<pat>]         name, or a glob: sys_*_sec",   &CommandShell::_params_list },
+            { "get <name>",                                        &CommandShell::_params_get },
+            { "set <name> <value>",                                &CommandShell::_params_set },
+            { "clear <name>|all     forget unsaved edits",         &CommandShell::_params_clear },
+            { "reset <name>|all     back to the factory default",  &CommandShell::_params_reset },
+            { "save <name>|all",                                   &CommandShell::_params_save },
         };
         count = (uint8_t)(sizeof(V) / sizeof(V[0]));
         return V;
@@ -688,11 +683,11 @@ namespace Botanik { namespace Shell {
     /** @brief `overrides`'s verbs. @see CommandShell::Verb */
     const CommandShell::Verb* CommandShell::_overrides_verbs(uint8_t& count) {
         static const Verb V[] = {
-            { "list",                                  nullptr },
-            { "get <name>",                            nullptr },
-            { "set <name> [<value>] [valid|invalid]",  nullptr },
-            { "clear <name>|all",                      nullptr },
-            { "save <name>|all",                       nullptr },
+            { "list",                                  &CommandShell::_overrides_list },
+            { "get <name>",                            &CommandShell::_overrides_get },
+            { "set <name> [<value>] [valid|invalid]",  &CommandShell::_overrides_set },
+            { "clear <name>|all",                      &CommandShell::_overrides_clear },
+            { "save <name>|all",                       &CommandShell::_overrides_save },
         };
         count = (uint8_t)(sizeof(V) / sizeof(V[0]));
         return V;
@@ -701,9 +696,9 @@ namespace Botanik { namespace Shell {
     /** @brief `vars`'s verbs. @see CommandShell::Verb */
     const CommandShell::Verb* CommandShell::_vars_verbs(uint8_t& count) {
         static const Verb V[] = {
-            { "list [<pat>]         name, or a glob: sys_*_sec",   nullptr },
-            { "get <name>           the value, and nothing else",  nullptr },
-            { "info <name>          the whole row",                nullptr },
+            { "list [<pat>]         name, or a glob: sys_*_sec",   &CommandShell::_vars_list },
+            { "get <name>           the value, and nothing else",  &CommandShell::_vars_get },
+            { "info <name>          the whole row",                &CommandShell::_vars_info },
         };
         count = (uint8_t)(sizeof(V) / sizeof(V[0]));
         return V;
