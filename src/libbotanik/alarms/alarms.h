@@ -36,7 +36,7 @@ namespace Botanik { namespace Alarms {
     }
 
     // A hard ceiling, not a sizing preference: widen the mask (and
-    // AlarmBar::unmasked_set) before raising the site-overridable slot count.
+    // AlarmBar::unacked_set) before raising the site-overridable slot count.
     static_assert(Config::ALARM_SLOTS <= 64,
                   "ALARM_SLOTS cannot exceed 64: alarm_bit() shifts into a uint64_t");
 
