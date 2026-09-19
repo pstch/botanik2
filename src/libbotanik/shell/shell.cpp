@@ -503,30 +503,7 @@ namespace Botanik { namespace Shell {
                (int)(cols - head), detail);
     }
 
-    /** @brief `logs`'s verbs. @see CommandShell::Verb */
-    const CommandShell::Verb* CommandShell::_logs_verbs(uint8_t& count) {
-        static const Verb V[] = {
-            { "on",      nullptr },
-            { "off",     nullptr },
-            { "status",  nullptr },
-        };
-        count = (uint8_t)(sizeof(V) / sizeof(V[0]));
-        return V;
-    }
 
-    /** @brief `log`'s verbs. @see CommandShell::Verb */
-    const CommandShell::Verb* CommandShell::_log_verbs(uint8_t& count) {
-        static const Verb V[] = {
-            { "debug <text>",     nullptr },
-            { "info <text>",      nullptr },
-            { "notice <text>",    nullptr },
-            { "warning <text>",   nullptr },
-            { "error <text>",     nullptr },
-            { "critical <text>",  nullptr },
-        };
-        count = (uint8_t)(sizeof(V) / sizeof(V[0]));
-        return V;
-    }
 
 }}
 

@@ -18,6 +18,9 @@
 namespace Botanik {
     // logs command (set_diagnostics)
     namespace Logs    { class Logger;     }
+    // `log <level>`: declared with its underlying type, which C++11 allows, so
+    // this header does not acquire logs/topics.h to name one level.
+    namespace Logs    { enum LogLevel : uint8_t; }
     // alarms list/get/ack (set_diagnostics)
     namespace Alarms  { class AlarmController; }
     // reboot command (set_diagnostics): withholds the watchdog kick
@@ -307,8 +310,24 @@ namespace Botanik { namespace Shell {
         void _cmd_help(const char* args, uint16_t alen);
         void _cmd_clear(const char* args, uint16_t alen);
         void _cmd_logs(const char* args, uint16_t alen);
+        /** @name `logs` verbs @{ */
+        void _logs_on(const char* args, uint16_t alen);
+        void _logs_off(const char* args, uint16_t alen);
+        void _logs_status(const char* args, uint16_t alen);
+        /** @} */
         /** @brief `log <level> <text>` - an operator's own entry, LogTopic::USER. */
         void _cmd_log(const char* args, uint16_t alen);
+        /** @name `log` verbs - one per level, all onto _log_at()
+         *  @{ */
+        void _log_debug(const char* args, uint16_t alen);
+        void _log_info(const char* args, uint16_t alen);
+        void _log_notice(const char* args, uint16_t alen);
+        void _log_warning(const char* args, uint16_t alen);
+        void _log_error(const char* args, uint16_t alen);
+        void _log_critical(const char* args, uint16_t alen);
+        /** @brief Write the rest of the line to the log at @p level. */
+        void _log_at(Logs::LogLevel level, const char* args, uint16_t alen);
+        /** @} */
         void _cmd_breakpoint(const char* args, uint16_t alen);
         void _cmd_reset(const char* args, uint16_t alen);
         /** @brief Drop control authority, then stop kicking the watchdog and let

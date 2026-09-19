@@ -25,17 +25,21 @@
 namespace Botanik { namespace Shell {
 
     void CommandShell::_cmd_logs(const char* args, uint16_t alen) {
-        uint16_t wlen; const char* w = arg_next(args, alen, wlen);
-        if (arg_eq(w, wlen, "status"))
-            _println(_output.logs_enabled() ? "logs: output enabled"
-                                            : "logs: output disabled");
-        else if (arg_eq(w, wlen, "on")) {
-            _output.set_logs_enabled(true);  _println("logs: output enabled");
-        }
-        else if (arg_eq(w, wlen, "off")) {
-            _output.set_logs_enabled(false); _println("logs: output disabled");
-        }
-        else _verb_usage("logs");
+        uint8_t n; const Verb* V = _logs_verbs(n);
+        if (!_run_verb(V, n, args, alen)) _verb_usage("logs");
+    }
+
+    void CommandShell::_logs_on(const char*, uint16_t) {
+        _output.set_logs_enabled(true);  _println("logs: output enabled");
+    }
+
+    void CommandShell::_logs_off(const char*, uint16_t) {
+        _output.set_logs_enabled(false); _println("logs: output disabled");
+    }
+
+    void CommandShell::_logs_status(const char*, uint16_t) {
+        _println(_output.logs_enabled() ? "logs: output enabled"
+                                        : "logs: output disabled");
     }
 
     bool CommandShell::_confirmed(const char* args, uint16_t alen,
@@ -156,9 +160,20 @@ namespace Botanik { namespace Shell {
     // beside what the firmware recorded itself, and it reaches every sink the
     // firmware's own lines do - the LOGS page, the serial mirror, MQTT.
     void CommandShell::_cmd_log(const char* args, uint16_t alen) {
-        uint16_t wl; const char* lvl = arg_next(args, alen, wl);
-        while (alen > 0 && *args == ' ') { args++; alen--; }   // the rest is the text
-        if (lvl == nullptr || alen == 0) { _verb_usage("log"); return; }
+        uint8_t n; const Verb* V = _log_verbs(n);
+        if (!_run_verb(V, n, args, alen)) _verb_usage("log");
+    }
+
+    void CommandShell::_log_debug   (const char* a, uint16_t n) { _log_at(Logs::LOG_DEBUG,    a, n); }
+    void CommandShell::_log_info    (const char* a, uint16_t n) { _log_at(Logs::LOG_INFO,     a, n); }
+    void CommandShell::_log_notice  (const char* a, uint16_t n) { _log_at(Logs::LOG_NOTICE,   a, n); }
+    void CommandShell::_log_warning (const char* a, uint16_t n) { _log_at(Logs::LOG_WARNING,  a, n); }
+    void CommandShell::_log_error   (const char* a, uint16_t n) { _log_at(Logs::LOG_ERROR,    a, n); }
+    void CommandShell::_log_critical(const char* a, uint16_t n) { _log_at(Logs::LOG_CRITICAL, a, n); }
+
+    void CommandShell::_log_at(Logs::LogLevel level, const char* args, uint16_t alen) {
+        while (alen > 0 && *args == ' ') { args++; alen--; }   // all of it is the text
+        if (alen == 0) { _verb_usage("log", Logs::level_label(level)); return; }
         if (_logger == nullptr) { _println("log: no logger"); return; }
 
         // Bounded and NUL-terminated: the text is a slice of the command line,
@@ -167,13 +182,14 @@ namespace Botanik { namespace Shell {
         const uint16_t n = Utils::min(alen, (uint16_t)(sizeof(text) - 1));
         memcpy(text, args, n); text[n] = '\0';
 
-        if      (arg_eq(lvl, wl, "debug"))    _logger->debug   (Logs::USER, "%s", text);
-        else if (arg_eq(lvl, wl, "info"))     _logger->info    (Logs::USER, "%s", text);
-        else if (arg_eq(lvl, wl, "notice"))   _logger->notice  (Logs::USER, "%s", text);
-        else if (arg_eq(lvl, wl, "warning"))  _logger->warning (Logs::USER, "%s", text);
-        else if (arg_eq(lvl, wl, "error"))    _logger->error   (Logs::USER, "%s", text);
-        else if (arg_eq(lvl, wl, "critical")) _logger->critical(Logs::USER, "%s", text);
-        else { _verb_usage("log"); return; }
+        switch (level) {
+            case Logs::LOG_DEBUG:    _logger->debug   (Logs::USER, "%s", text); break;
+            case Logs::LOG_INFO:     _logger->info    (Logs::USER, "%s", text); break;
+            case Logs::LOG_NOTICE:   _logger->notice  (Logs::USER, "%s", text); break;
+            case Logs::LOG_WARNING:  _logger->warning (Logs::USER, "%s", text); break;
+            case Logs::LOG_ERROR:    _logger->error   (Logs::USER, "%s", text); break;
+            case Logs::LOG_CRITICAL: _logger->critical(Logs::USER, "%s", text); break;
+        }
     }
 
 #if BOTANIK_FEATURE_NTP
@@ -183,6 +199,32 @@ namespace Botanik { namespace Shell {
         _println("ntpsync: NTP resync requested");
     }
 #endif
+
+
+    /** @brief `logs`'s verbs. @see CommandShell::Verb */
+    const CommandShell::Verb* CommandShell::_logs_verbs(uint8_t& count) {
+        static const Verb V[] = {
+            { "on",      &CommandShell::_logs_on },
+            { "off",     &CommandShell::_logs_off },
+            { "status",  &CommandShell::_logs_status },
+        };
+        count = (uint8_t)(sizeof(V) / sizeof(V[0]));
+        return V;
+    }
+
+    /** @brief `log`'s verbs. @see CommandShell::Verb */
+    const CommandShell::Verb* CommandShell::_log_verbs(uint8_t& count) {
+        static const Verb V[] = {
+            { "debug <text>",     &CommandShell::_log_debug },
+            { "info <text>",      &CommandShell::_log_info },
+            { "notice <text>",    &CommandShell::_log_notice },
+            { "warning <text>",   &CommandShell::_log_warning },
+            { "error <text>",     &CommandShell::_log_error },
+            { "critical <text>",  &CommandShell::_log_critical },
+        };
+        count = (uint8_t)(sizeof(V) / sizeof(V[0]));
+        return V;
+    }
 
 }}  // namespace Botanik::Shell
 
