@@ -58,7 +58,8 @@ TEST_CASE("resolver: a malformed literal is not quietly taken as a hostname") {
     // All-numeric and wrong: the HAL refuses to start a lookup for one, because
     // a real DNS would fail it too. The alternative - asking a server about
     // "999.1.1.1" - is a query nobody wants on the wire.
-    for (const char* bad : { "999.1.1.1", "1.2.3", "1.2.3.4.5", "1..3.4", "1.2.3." }) {
+    static const char* const bads[] = { "999.1.1.1", "1.2.3", "1.2.3.4.5", "1..3.4", "1.2.3." };
+    for (const char* bad : bads) {
         INFO(bad);
         CHECK(r.resolve(bad, &a) == RESOLVE_FAILED);
     }

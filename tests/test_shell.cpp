@@ -121,7 +121,8 @@ TEST_CASE("shell: the help table states the requirement it enforces") {
     // `help` reads the Builtin row, so a guard added to a handler alone would
     // leave help telling an operator to type a command that now refuses.
     const std::string said = f.run("help system");
-    for (const char* verb : { "halt", "reset", "reboot", "exit" }) {
+    static const char* const verbs[] = { "halt", "reset", "reboot", "exit" };
+    for (const char* verb : verbs) {
         INFO(verb);
         const size_t at = said.find(verb);
         REQUIRE(at != std::string::npos);

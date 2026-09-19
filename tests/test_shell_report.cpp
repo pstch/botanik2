@@ -160,8 +160,8 @@ TEST_CASE("shell features: every flag in the roster, on or off") {
     // The reference site is the full profile, so these must all be present -
     // and the command expands BOTANIK_FEATURE_LIST, so a flag added without a
     // roster entry would be missing here rather than merely undocumented.
-    for (const char* flag : { "console", "logging", "plc",
-                              "modbus_rtu_client", "system_page", "sun_tracker" }) {
+    static const char* const flags[] = { "console", "logging", "plc", "modbus_rtu_client", "system_page", "sun_tracker" };
+    for (const char* flag : flags) {
         INFO(flag);
         CHECK(said.find(flag) != std::string::npos);
     }
@@ -238,7 +238,8 @@ TEST_CASE("shell logs: on and off move the sink, and a bare verb is usage") {
 TEST_CASE("shell log: an operator's own entry takes a level it has to name") {
     Rig f;
     // Accepted levels write nothing to the shell - the entry goes to the log.
-    for (const char* lvl : { "debug", "info", "notice", "warning", "error", "critical" }) {
+    static const char* const lvls[] = { "debug", "info", "notice", "warning", "error", "critical" };
+    for (const char* lvl : lvls) {
         INFO(lvl);
         std::string line = std::string("log ") + lvl + " a note from the operator";
         CHECK(f.run(line.c_str()).find("usage:") == std::string::npos);
@@ -262,7 +263,8 @@ TEST_CASE("shell ntpsync: with a client wired it asks, without one it says so") 
 TEST_CASE("shell help: the bare page lists the commands and the topics") {
     Rig f;
     const std::string said = f.run("help");
-    for (const char* cmd : { "help", "version", "clear", "logs" }) {
+    static const char* const cmds[] = { "help", "version", "clear", "logs" };
+    for (const char* cmd : cmds) {
         INFO(cmd);
         CHECK(said.find(cmd) != std::string::npos);
     }
