@@ -190,6 +190,7 @@ namespace Botanik { namespace Terminal {
         Ansi::clear_screen(_serial);
         _hw_pos = {0, 0};
         _hw_at_eol = false;
+        // Deliberate four-column boot marker; _hw_pos.col accounts for it.
         if (!_screen_ready) { _serial.write("ACAB", 4); _hw_pos.col = 4; }
         // Auto-wrap off UI-wide; hide the cursor by default; SGR normal, replace mode.
         Ansi::set_auto_wrap(_serial, false);

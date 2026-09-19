@@ -89,9 +89,13 @@ namespace Botanik { namespace Pages {
         /** @brief First content row below the fixed layout (uptime + columns). */
         static constexpr uint16_t PAYLOAD_ROW = COL_TOP + COL_MAX;
 
+        /** @brief No room for a band: row 0 is chrome, so it can never be one.
+         */
+        static constexpr uint16_t NO_BAND = 0;
+
         /** @brief First screen row of the bottom log band. Clamped so it never
-         *  starts above the fixed content (logo + summary); on a too-short
-         *  screen the band collapses to empty (band_top == rows). */
+         *  starts above the fixed content (logo + summary).
+         *  @return NO_BAND on a screen too short to hold a divider and a line. */
         uint16_t log_band_top() const;
 
         /** @name Draw hooks - override to customize the page.

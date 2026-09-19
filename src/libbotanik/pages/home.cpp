@@ -22,7 +22,7 @@ namespace Botanik { namespace Pages {
         // the band over the two below it - and since the labels are written
         // only on focus(), they never came back.
         const uint16_t first = (uint16_t)(PAYLOAD_ROW + 1);
-        if (rows <= first) return 0;      // no room for a divider and a line
+        if (rows <= first) return NO_BAND;
         uint16_t top = (rows > Config::HOME_SCROLLBACK_LINES)
                      ? (uint16_t)(rows - Config::HOME_SCROLLBACK_LINES) : first;
         if (top < first) top = first;     // a short screen gets a shorter band
@@ -144,7 +144,7 @@ namespace Botanik { namespace Pages {
         // Divider above the bottom log band (band rows are painted from the
         // scrollback, see focus()/tick()).
         const uint16_t band_top = log_band_top();
-        if (band_top != 0) draw_log_header((uint16_t)(band_top - 1));
+        if (band_top != NO_BAND) draw_log_header((uint16_t)(band_top - 1));
     }
 
     void HomePage::draw_dynamic() {
@@ -184,7 +184,7 @@ namespace Botanik { namespace Pages {
         drain();
         if (!active) return;
         const uint16_t band_top = log_band_top();
-        if (band_top != 0)
+        if (band_top != NO_BAND)
             _scrollback.paint(_terminal, band_top, (uint16_t)(_console.rows() - band_top));
     }
 

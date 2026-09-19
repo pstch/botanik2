@@ -138,12 +138,11 @@ namespace Botanik { namespace Pages {
         uint16_t _echo_and_reset(char* line, uint16_t cap);
 
         /** @brief Submit the editor line: echo into the scrollback, advance to
-         *  a fresh prompt, dispatch to the shell. Assumes
-         *  suppress_redraw(true); clears it. */
+         *  a fresh prompt, dispatch to the shell. */
         void _submit_command();
 
         /** @brief Cancel the editor line (Ctrl-C): like submit but runs
-         *  nothing. Assumes suppress_redraw(true); clears it. */
+         *  nothing. */
         void _cancel_command();
 
         /** @brief Store each display row of a submitted command in the

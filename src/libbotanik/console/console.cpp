@@ -1,6 +1,6 @@
 /**
  * @file console.cpp
- * @brief Console implementation - page multiplexing, bars, input routing, step().
+ * @brief Console implementation - page multiplexing, bars, input routing, tasks.
  */
 #include "libbotanik/console/console.h"
 #include "libbotanik_features.h"

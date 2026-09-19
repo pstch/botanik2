@@ -67,8 +67,8 @@ namespace Botanik { namespace Terminal {
          *  there is no alarm source. */
         uint64_t unmasked_set() const;
 
-        /** @brief Repaint the whole bar unconditionally (the gate and cursor
-         *  save/restore live in step()). */
+        /** @brief Repaint the whole bar unconditionally; step() holds the
+         *  gate. */
         void draw();
 
         /** @} */

@@ -286,9 +286,8 @@ namespace Botanik { namespace Terminal {
 
         RowView _scan_row(uint16_t pos, uint16_t cap) const;
 
-        /** @brief Relay out the buffer.
-         *  @return true if the rows ran out before the buffer did. */
-        bool _rebuild_layout();
+        /** @brief Relay out the buffer. */
+        bool _relayout_overflowed();
 
         /** @brief Make @p len bytes of @p text (a slice of the buffer, or null)
          *  the whole buffer, cursor at @p cursor, laid out, not reconciled.

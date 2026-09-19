@@ -5,7 +5,8 @@
  * @file console.h
  * @brief Console - the multiplexed page display driven over an AnsiTerminal:
  *        routes input to the active page, owns the row-0 status bar and the
- *        bottom alarm bar, reserves the content area, drives step().
+ *        bottom alarm bar, reserves the content area, registers the input,
+ *        draw and flush tasks.
  * @note Renderers reach the device through terminal(). See @ref dev_pages.
  */
 

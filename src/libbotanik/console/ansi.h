@@ -94,12 +94,12 @@ namespace Botanik { namespace Terminal { namespace Ansi {
     // tracking.
 
     /** @brief Set insertion mode (IRM) to @p active, using SM4/RM4. */
-    bool set_insert_mode(ByteSink& _serial, bool active);
+    bool set_insert_mode(ByteSink& out, bool active);
 
     /** @brief Emit CAN to abort any control sequence the terminal is
      *  mid-parsing. Use after a tx_discard, which can strand a half-sent
      *  sequence on the wire that would otherwise swallow the next emit. */
-    bool cancel_sequence(ByteSink& _serial);
+    bool cancel_sequence(ByteSink& out);
 
     /** @brief The serial terminals the console knows how to drive.
      *
@@ -123,35 +123,35 @@ namespace Botanik { namespace Terminal { namespace Ansi {
      *
      *  - Minitel: the PRO2 sequences above (80-col teleinformatique + lowercase keyboard + page mode).
      *  - VT100/VT102: nothing, since DECAWM-off is re-asserted on every screen establish. */
-    bool terminal_setup(ByteSink& _serial, TerminalType type);
+    bool terminal_setup(ByteSink& out, TerminalType type);
 
     /** @brief Enable or disable terminal auto-wrap (DECAWM, CSI ? 7 h/l). */
-    bool set_auto_wrap(ByteSink& _serial, bool enable);
+    bool set_auto_wrap(ByteSink& out, bool enable);
 
     /** @brief Show or hide the cursor (DECTCEM, CSI ? 25 h/l). */
-    bool set_cursor_visible(ByteSink& _serial, bool show);
+    bool set_cursor_visible(ByteSink& out, bool show);
 
     /** @}
      *  @name Cursor movement
      *  @{ */
 
     /** @brief Move to the given absolute position. */
-    bool goto_absolute(ByteSink& _serial, const CursorPos& cursor);
+    bool goto_absolute(ByteSink& out, const CursorPos& cursor);
 
     /** @brief Move the cursor left @p count times. */
-    bool move_left(ByteSink& _serial, uint16_t count);
+    bool move_left(ByteSink& out, uint16_t count);
 
     /** @brief Move the cursor right @p count times. */
-    bool move_right(ByteSink& _serial, uint16_t count);
+    bool move_right(ByteSink& out, uint16_t count);
 
     /** @brief Move the cursor up @p count times. */
-    bool move_up(ByteSink& _serial, uint16_t count);
+    bool move_up(ByteSink& out, uint16_t count);
 
     /** @brief Move the cursor down @p count times. */
-    bool move_down(ByteSink& _serial, uint16_t count);
+    bool move_down(ByteSink& out, uint16_t count);
 
     /** @brief Move to the beginning of the row. */
-    bool move_row_start(ByteSink& _serial);
+    bool move_row_start(ByteSink& out);
 
     /** @brief Drop to the start of the row @p count lines below (CR + line
      *  feeds).
@@ -159,8 +159,8 @@ namespace Botanik { namespace Terminal { namespace Ansi {
     /** @brief @p count line feeds: down a row each. Only from column 0: new-line
      *  mode, or a tty's ONLCR, returns the carriage too. Scrolls on the last
      *  row, so never emitted there. */
-    bool feed_lines(ByteSink& _serial, uint16_t count);
-    bool down_to_row_start(ByteSink& _serial, uint16_t count);
+    bool feed_lines(ByteSink& out, uint16_t count);
+    bool down_to_row_start(ByteSink& out, uint16_t count);
 
     /** @}
      *  @name Content edition
@@ -168,21 +168,21 @@ namespace Botanik { namespace Terminal { namespace Ansi {
 
     /** @brief Insert rows (shifts remaining rows down).
      *  @warning At the last row, scrolls the entire screen upwards. */
-    bool insert_rows(ByteSink& _serial, uint16_t count);
+    bool insert_rows(ByteSink& out, uint16_t count);
 
     /** @brief Delete rows (shifts remaining rows up). */
-    bool delete_rows(ByteSink& _serial, uint16_t count);
+    bool delete_rows(ByteSink& out, uint16_t count);
 
     /** @brief Delete @p count characters at the cursor (DCH), shifting the rest
      *  of the row left and blanking the freed cells at the right edge. */
-    bool delete_chars(ByteSink& _serial, uint16_t count);
+    bool delete_chars(ByteSink& out, uint16_t count);
 
     /** @brief Erase from the cursor to the end of the row (EL). The cursor
      *  does not move. */
-    bool erase_to_eol(ByteSink& _serial);
+    bool erase_to_eol(ByteSink& out);
 
     /** @brief Erase entire display and move cursor to home position */
-    bool clear_screen(ByteSink& _serial);
+    bool clear_screen(ByteSink& out);
 
     /** @} */
 

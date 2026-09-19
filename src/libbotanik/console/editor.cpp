@@ -52,7 +52,7 @@ namespace Botanik { namespace Terminal {
     void TextEditor::redraw() {
         // Width first: console_cols is a parameter, so a redraw may be the
         // first thing to run at a new geometry and the row breaks are stale.
-        _rebuild_layout();
+        _relayout_overflowed();
         _reconcile();           // a page switch handed the band back; reclaim it
     }
 
@@ -74,7 +74,7 @@ namespace Botanik { namespace Terminal {
         return RowView { pos, len, hard_break };
     }
 
-    bool TextEditor::_rebuild_layout() {
+    bool TextEditor::_relayout_overflowed() {
         uint16_t pos = 0;
         for (_row_count = 0; _row_count < _max_rows;) {
             const RowView row = _scan_row(pos, _row_cap(_row_count));
@@ -95,12 +95,12 @@ namespace Botanik { namespace Terminal {
         _view_top   = 0;
         _goal_valid = false;
         _mark_set   = false;        // the offsets it anchors are being replaced
-        if (_rebuild_layout()) {
+        if (_relayout_overflowed()) {
             // Past the row cap: drop the tail nobody could see or reach.
             const RowView& last = _rows[_row_count - 1];
             _len = (uint16_t)(last.buf_start + last.buf_len);
             _buf[_len] = '\0';
-            _rebuild_layout();
+            _relayout_overflowed();
             fitted = false;
         }
         _pos = cursor < _len ? cursor : _len;
@@ -291,13 +291,13 @@ namespace Botanik { namespace Terminal {
         _buf[_len] = '\0';
         _pos += len;
 
-        if (_rebuild_layout()) {
+        if (_relayout_overflowed()) {
             // Past the row cap: refuse the keystroke. Nothing has been painted.
             memmove(&_buf[pos], &_buf[pos + len], (size_t)(_len - (pos + len)));
             _len -= len;
             _buf[_len] = '\0';
             _pos = pos;
-            (void)_rebuild_layout();
+            (void)_relayout_overflowed();
             return;
         }
 
@@ -318,7 +318,7 @@ namespace Botanik { namespace Terminal {
         _len -= len;
         _buf[_len] = '\0';
 
-        _rebuild_layout();
+        _relayout_overflowed();
         _dirty = true;
         _goal_valid = false;
         _mark_set   = false;    // transient mark: an edit drops the region
