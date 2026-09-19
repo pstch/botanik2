@@ -318,7 +318,7 @@ namespace Botanik { namespace Terminal {
         uint16_t _view_bottom_hw() const;
 
         /** @brief One edit: what the layout before it said about it, and
-         *  what the announcer works out once the new layout is in. */
+         *  what _complete() works out once the new layout is in. */
         struct Edit {
             enum Kind : uint8_t {
                 NONE,    /**< A motion: only the viewport moved. */
@@ -328,6 +328,9 @@ namespace Botanik { namespace Terminal {
                 JOIN,    /**< One newline out: two lines became one. */
                 OTHER,   /**< Newlines crossed: only the rows after moved as one. */
             };
+
+            /** @name Captured by _capture(), off the layout the edit met
+             *  @{ */
             Kind     kind = NONE;
             uint16_t pos = 0;            /**< Buffer offset of the edit. */
             int16_t  delta = 0;          /**< Bytes added; negative for removed. */
@@ -337,10 +340,15 @@ namespace Botanik { namespace Terminal {
             uint16_t ps_a = 0;           /**< Prompt width row a had. */
             uint16_t count = 0;          /**< Rows before the edit. */
             uint16_t origin_was = 0, view_top_was = 0;
-            /** @name Worked out by _announce() */
+            /** @} */
+
+            /** @name Worked out by _complete(), off the layout the edit left
+             *  @{ */
             int32_t  d = 0;              /**< Rows the edit added. */
             int32_t  m0 = 0, mB = 0;     /**< Screen rows the sides above and below the edit moved. */
             int32_t  col_a = 0, off = 0; /**< The edit's column on row a, and offset in its text. */
+            /** @} */
+
             /** @brief Screen row layout row @p i had before the edit. */
             int32_t was(int32_t i) const { return (int32_t)origin_was + i - (int32_t)view_top_was; }
         };
@@ -359,8 +367,11 @@ namespace Botanik { namespace Terminal {
         int32_t _lead(RowPrompt p) const { return _indent + _prompt_len(p); }
         int32_t _cap(RowPrompt p) const;
 
+        /** @brief Fill in the half of @p e that only the layout after the
+         *  edit can answer. */
+        void _complete(Edit& e) const;
         /** @brief Tell the terminal what the edit did to the screen. */
-        void _announce(Edit& e);
+        void _announce(const Edit& e);
         void _announce_plain(const Edit& e);
         void _announce_split(const Edit& e);
         void _announce_join(const Edit& e);

@@ -647,22 +647,27 @@ namespace Botanik { namespace Terminal {
     // What a shift on an old row carries: its text less the |n| cells pulled off it.
     static inline int32_t _carried(int32_t len, int32_t n) { return n < 0 ? len + n : len; }
 
-    void TextEditor::_announce(Edit& e) {
+    void TextEditor::_complete(Edit& e) const {
         e.m0 = ((int32_t)_origin - e.origin_was) - ((int32_t)_view_top - e.view_top_was);
         e.d  = (int32_t)_row_count - e.count;
         e.mB = e.m0 + e.d;
-        // A load moved no content, but a bottom-anchored editor that shrank
-        // gave rows back: the band blanks them and keeps the prompt row.
-        if (e.kind == Edit::LOAD) { if (_anchor == Anchor::BOTTOM && e.m0 > 0) _band(e, 0, 0); return; }
-        if (e.kind == Edit::NONE) { if (e.m0 != 0) _band(e, 0, 0); return; }
+        // A motion and a load captured no rows, so there is no edit point to
+        // place and row_a holds nothing to read.
+        if (e.kind == Edit::NONE || e.kind == Edit::LOAD) return;
         e.off   = (int32_t)e.pos - e.row_a.buf_start;
         e.col_a = _indent + e.ps_a + e.off;
+    }
+
+    void TextEditor::_announce(const Edit& e) {
         switch (e.kind) {
+        // A load moved no content, but a bottom-anchored editor that shrank
+        // gave rows back: the band blanks them and keeps the prompt row.
+        case Edit::LOAD:  if (_anchor == Anchor::BOTTOM && e.m0 > 0) _band(e, 0, 0); return;
+        case Edit::NONE:  if (e.m0 != 0) _band(e, 0, 0); return;
         case Edit::PLAIN: _announce_plain(e); return;
         case Edit::SPLIT: _announce_split(e); return;
         case Edit::JOIN:  _announce_join(e);  return;
         case Edit::OTHER: _band(e, e.a, e.L + 1); return;
-        case Edit::NONE: case Edit::LOAD: return;
         }
     }
 
@@ -759,6 +764,10 @@ namespace Botanik { namespace Terminal {
         }
         _place_rows();
         _follow_cursor();
+        // _complete() reads _origin and _view_top where they landed, against
+        // the origin_was and view_top_was taken above: the order is the
+        // measurement.
+        _complete(e);
         _announce(e);
         _paint_view();
         _place_cursor(_map_cursor_pos(_pos));
