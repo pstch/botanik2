@@ -65,7 +65,7 @@ so they pass on any full-profile site. What a site's table decides is tested
 beside that site (`examples/ref/tests/`, its `pyte/` included).
 
 ```bash
-make -C build check                  # the pre-push gate
+make -C build check                  # the pre-push gate (cross-compile included)
 make -C build check-full             # the sweep
 make -C build check-alloff           # the library with every optional feature off
 make -C build examples               # build every example (check does it too)
@@ -76,6 +76,7 @@ make -C build botanik_tests          # just build the doctest binary
 ctest --test-dir build --output-on-failure          # all CTest entries
 ctest --test-dir build -R pyte --output-on-failure  # just pyte
 make -C build codegen                # regenerate whatever no longer matches its inputs
+make -C build check-opta-lib         # just the cross compile, no link
 make -C build matiec                 # build the pinned matiec into vendor/matiec/build/
 make -C build docs                   # codegen, then render the manual
 make -C build docs-screens           # recapture the console screenshots
@@ -100,7 +101,10 @@ gh_mlb41 carries `scripts/scenarios.tsv`, `scripts/sim_scenario.sh` and a
 `scenario_screens.py` that imports `screens.py` for its own screens.
 
 **`make check`** fails on the first problem: the library compiles `-Werror`, so
-a warning in a library source fails the build of the suite; it builds every
+a warning in a library source fails the build of the suite; it cross-compiles
+the library and the site through `check-opta-lib` (seconds, against the
+persistent `build-opta/`, because a compile error is not a cross-build subtlety:
+newlib against glibc, 32-bit `long`, a different `<algorithm>`), builds every
 example, then runs `ctest -LE unit`: the whole doctest binary, each
 `example:<name>` and the pyte files. Whole binaries run in ONE process, which is
 what catches a case corrupting state for the ones after it.
@@ -118,9 +122,9 @@ failed, re-run before digging.
 
 **`make check-full`** runs clang-tidy over `src/` first, then `check-generated`
 (regenerate every example into a scratch copy and diff it file by file against
-its committed `generated/`, both ways), `check-alloff`, `check-opta` (the cross build, the only thing that
+its committed `generated/`, both ways), `check-alloff`, `check-opta` (the cross LINK, the only thing that
 catches a link error: `Arduino.h` declares the whole wiring API and `libmbed.a`
-defines none of it), `coverage`, and finally the whole gate again under
+defines none of it; the cross COMPILE is in `check` already), `coverage`, and finally the whole gate again under
 ASan+UBSan in `build/asan/`. It drives that tree's own `check` target, so the two
 cannot drift. Halves are skipped where their tool is absent.
 

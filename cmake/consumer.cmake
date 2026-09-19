@@ -6,7 +6,8 @@
 # library at all - they are "does my site still work" and "does my firmware
 # still link" - so they are declared here, against the CONSUMING project.
 #
-#   make check       build everything, then run this project's own ctest cases
+#   make check       build everything, then run this project's own ctest cases,
+#                    and cross-compile the site (not link it)
 #   make check-opta  the cross build, which is where a link error lives
 #   make docs        the site's manual, with botanik's under it, in build/docs/html
 #
@@ -48,8 +49,24 @@ if(_consumer_arm)
         USES_TERMINAL
         COMMENT "Sweep: the OPTA cross build of this site's firmware"
         VERBATIM)
+
+    # The compile half of that, in the gate. A COMPILE error is not a
+    # cross-build subtlety - newlib against glibc, 32-bit long, a different
+    # <algorithm> - and it is what a host-only gate misses most often. The tree
+    # persists, so this is seconds after the first run. The LINK, which is what
+    # needs libmbed, stays in check-opta.
+    add_custom_target(check-opta-lib
+        COMMAND ${CMAKE_COMMAND} -G ${CMAKE_GENERATOR} -S ${CMAKE_SOURCE_DIR}
+                -B ${CMAKE_SOURCE_DIR}/build-opta -DBOTANIK_TARGET=OPTA
+        COMMAND ${CMAKE_COMMAND} --build ${CMAKE_SOURCE_DIR}/build-opta
+                --target botanik --target botanik_site
+                --parallel ${_consumer_nproc}
+        USES_TERMINAL
+        COMMENT "Gate: this site, cross-compiled"
+        VERBATIM)
+    add_dependencies(check check-opta-lib)
 else()
-    message(STATUS "check-opta: no arm-none-eabi-g++, skipping the cross build")
+    message(STATUS "check, check-opta: no arm-none-eabi-g++, skipping the cross build")
 endif()
 
 # The site's manual: its docs/ and src/, with the library's pages and sources in

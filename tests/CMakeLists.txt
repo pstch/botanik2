@@ -166,8 +166,26 @@ if(_arm_gxx)
         COMMENT "Sweep: the OPTA cross build, which is where a link error lives"
         VERBATIM)
     add_dependencies(check-full check-opta)
+
+    # The same tree, library only, in the gate. A COMPILE error is not a
+    # cross-build subtlety: newlib against glibc, 32-bit long, a different
+    # <algorithm>. std::max(long, int) in editor.cpp compiled on the host and
+    # failed here, and `check` stayed green because the cross build only ran
+    # under check-full. build-opta persists, so this costs ~1 s after a .cpp
+    # edit and ~5 s after a header one. The LINK stays in check-opta: that is
+    # what needs libmbed and --gc-sections, and it is the 8-second half.
+    add_custom_target(check-opta-lib
+        COMMAND ${CMAKE_COMMAND} -G ${CMAKE_GENERATOR} -S ${BOTANIK_ROOT}
+                -B ${BOTANIK_ROOT}/build-opta -DBOTANIK_TARGET=OPTA
+                -DBOTANIK_SITE=${BOTANIK_SITE} -DBOTANIK_SITE_DIR=${BOTANIK_SITE_DIR}
+        COMMAND ${CMAKE_COMMAND} --build ${BOTANIK_ROOT}/build-opta
+                --target botanik --target botanik_site --parallel ${_nproc}
+        USES_TERMINAL
+        COMMENT "Gate: the library and the site, cross-compiled"
+        VERBATIM)
+    add_dependencies(check check-opta-lib)
 else()
-    message(STATUS "check-full: no arm-none-eabi-g++, skipping the OPTA cross build")
+    message(STATUS "check, check-full: no arm-none-eabi-g++, skipping the OPTA cross build")
 endif()
 
 add_dependencies(check-full check-alloff)
