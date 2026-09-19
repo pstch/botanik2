@@ -21,8 +21,9 @@
 // Forward-declared here, so a header including this one does not acquire
 // `core/`. `Component` is the TYPE OF THE ERASED SELF-POINTER, which is what
 // makes an (owner, handler) pair checkable at the registration site.
-// `tasks.cpp` includes `core/component.h`, because a task registered with no
-// handler IS its component's hook and run_phase() calls step() on it.
+// A task registered with no handler IS its component's hook, so the beat has
+// to call back into one; that goes through the trampolines below, not an
+// include.
 namespace Botanik { class Component; }
 // Health is forward-declared with its underlying type, which C++11 allows for
 // a scoped enum: a task keeps a POINTER to one and never a value.
@@ -52,10 +53,24 @@ namespace Botanik { namespace Tasks {
     /** @brief Display name of @p p ("input", "control"...). */
     const char* phase_name(Phase p);
 
+    /** @name Trampolines into Component
+     *  Every one is defined in core/component.cpp: `tasks/` sits below `core/`
+     *  and must not acquire it to call four methods on it. The beat still has
+     *  to reach the component that registered, so the crossing is named here
+     *  rather than hidden in an include.
+     *  @{ */
+
     /** @brief Run @p c's Component::setup(), the one-time init behind every
-     *  registration. Defined in core/component.cpp: `tasks/` must not acquire
-     *  `core/` to call one method on it. */
+     *  registration. */
     void component_setup(Component* c, uint64_t now_ms);
+    /** @brief @p c's own phase hook, for a task registered with no handler. */
+    void component_step(Component* c, uint64_t now_ms, Phase phase);
+    /** @brief Take @p c's verdict into the slot a Task entry points at. */
+    void component_sample_verdict(Component* c);
+    /** @brief Where that slot is; stable for the component's life. */
+    const Plc::Health* component_verdict_slot(const Component* c);
+
+    /** @} */
 
 
     /** @brief What one task costs, for the TASKS page and the stats command. Per

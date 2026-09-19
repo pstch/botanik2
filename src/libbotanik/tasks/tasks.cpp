@@ -10,7 +10,6 @@
 
 #include "libbotanik/hal/platform.h"
 #include "libbotanik/hal/storage.h"
-#include "libbotanik/core/component.h"
 #include "libbotanik/utils/assert.h"
 #include "libbotanik/utils/text.h"
 
@@ -95,7 +94,7 @@ namespace Botanik { namespace Tasks {
         if (t == nullptr) return false;
         t->owner   = &owner;
         t->handler = handler;
-        t->health  = owner.verdict_slot();
+        t->health  = component_verdict_slot(&owner);
         return true;
     }
 
@@ -108,7 +107,7 @@ namespace Botanik { namespace Tasks {
         if (t == nullptr) return false;
         t->owner   = &owner;
         t->handler = nullptr;
-        t->health  = owner.verdict_slot();
+        t->health  = component_verdict_slot(&owner);
         return true;
     }
 
@@ -142,9 +141,9 @@ namespace Botanik { namespace Tasks {
                 t.handler(t.owner, tick);
                 // step() samples for itself; a handler task bypasses it, and
                 // its entry still points at the same slot.
-                if (t.owner != nullptr) t.owner->sample_verdict();
+                if (t.owner != nullptr) component_sample_verdict(t.owner);
             } else {
-                t.owner->step(now_ms, t.phase);
+                component_step(t.owner, now_ms, t.phase);
             }
             // Cleared after the run: the flag describes the activation that just
             // happened, so a handler reads it for its own run and no other.
