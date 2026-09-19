@@ -13,7 +13,6 @@
 // assert() - HAL sits below the logger, so it can't use BOTANIK_ASSERT
 #include <cassert>
 #include <cstdint>
-#include <type_traits>
 
 // CMSIS only - resolved from the installed mbed_opta core, not this tree. NOT
 // mbed.h: what must be inline here (__DSB, __DMB, ARM_MPU_OrderedMemcpy,
@@ -72,9 +71,9 @@ namespace Botanik { namespace HAL {
     template <typename T>
     inline void ordered_copy(T* dst, const T* src) {
         // ARM_MPU_OrderedMemcpy counts 32-bit words, not bytes.
-        static_assert(std::is_empty<T>::value || sizeof(T) % sizeof(uint32_t) == 0,
+        static_assert(__is_empty(T) || sizeof(T) % sizeof(uint32_t) == 0,
                       "ordered_copy needs a word-multiple T");
-        if (std::is_empty<T>::value) return;   // empty payload carries no data
+        if (__is_empty(T)) return;   // empty payload carries no data
 #if defined(DEBUG)
         assert((const void*)dst != (const void*)src);   // no aliasing (see @warning)
 #endif
@@ -85,9 +84,9 @@ namespace Botanik { namespace HAL {
 
     template <typename T>
     inline void ordered_move(T* dst, T src) {
-        static_assert(std::is_empty<T>::value || sizeof(T) % sizeof(uint32_t) == 0,
+        static_assert(__is_empty(T) || sizeof(T) % sizeof(uint32_t) == 0,
                       "ordered_move needs a word-multiple T");
-        if (std::is_empty<T>::value) return;   // empty payload carries no data
+        if (__is_empty(T)) return;   // empty payload carries no data
         *dst = src;
         __DSB();
     }

@@ -16,19 +16,18 @@
 #ifdef TARGET_SIMULATOR
 
 #include <cassert>
-#include <chrono>
 #include <cstdint>
 #include <cstring>
-#include <type_traits>
 
 namespace Botanik { namespace HAL {
 
     /** @name Host clock helpers
      *  @{ */
 
-    /** @brief Process-start reference for the monotonic uptime clocks; captured
-     *  once. */
-    std::chrono::steady_clock::time_point _process_start();
+    /** @brief Monotonic nanoseconds since process start. Out of line so this
+     *  header names no clock type: <chrono> is 4.3k preprocessed lines and 56
+     *  TUs reach this file, and the reading already costs a call. */
+    uint64_t _monotonic_ns();
 
     /** @brief BOTANIK_SIM_CLOCK=manual: time advances only when the harness asks
      *  (see _virtual_ns), never from the host clock. Read once. */
@@ -38,17 +37,14 @@ namespace Botanik { namespace HAL {
      *  harness driver writes it; every clock below reads it. */
     uint64_t& _virtual_ns();
 
-    /** @brief Elapsed time since process start, in the duration type T. Under
-     *  the manual clock it is the harness's reading instead, which is the only
-     *  thing that moves it. */
-    template <typename T>
-    inline uint64_t _now_as() {
-        const int64_t ns_per_unit =
-            std::chrono::duration_cast<std::chrono::nanoseconds>(T(1)).count();
-        if (_manual_clock()) return (uint64_t)(_virtual_ns() / (uint64_t)ns_per_unit);
-        return (uint64_t)(std::chrono::duration_cast<std::chrono::nanoseconds>(
-                   std::chrono::steady_clock::now() - _process_start()).count()
-               / ns_per_unit);
+    static const uint64_t NS_PER_MS = 1000000u;
+    static const uint64_t NS_PER_US = 1000u;
+
+    /** @brief Elapsed time since process start, in units of @p ns_per_unit.
+     *  Under the manual clock it is the harness's reading instead, which is the
+     *  only thing that moves it. */
+    inline uint64_t _now_as(uint64_t ns_per_unit) {
+        return (_manual_clock() ? _virtual_ns() : _monotonic_ns()) / ns_per_unit;
     }
 
     /** @} */
@@ -56,15 +52,15 @@ namespace Botanik { namespace HAL {
     namespace Clock {
 
     inline uint32_t current_ms() {
-        return (uint32_t)_now_as<std::chrono::milliseconds>();
+        return (uint32_t)_now_as(NS_PER_MS);
     }
 
     inline uint64_t uptime_ms() {
-        return _now_as<std::chrono::milliseconds>();
+        return _now_as(NS_PER_MS);
     }
 
     inline uint64_t uptime_us() {
-        return _now_as<std::chrono::microseconds>();
+        return _now_as(NS_PER_US);
     }
 
     /** @brief HOST ms since process start, whatever the firmware's clock is
@@ -107,9 +103,9 @@ namespace Botanik { namespace HAL {
     inline void ordered_copy(T* dst, const T* src) {
         // Match the OPTA backend's word-multiple + no-alias contract, so the sim
         // build catches violations the hardware cannot surface.
-        static_assert(std::is_empty<T>::value || sizeof(T) % sizeof(uint32_t) == 0,
+        static_assert(__is_empty(T) || sizeof(T) % sizeof(uint32_t) == 0,
                       "ordered_copy needs a word-multiple T");
-        if (std::is_empty<T>::value) return;   // empty payload carries no data
+        if (__is_empty(T)) return;   // empty payload carries no data
 #if defined(DEBUG)
         assert((const void*)dst != (const void*)src);   // no aliasing
 #endif
@@ -119,9 +115,9 @@ namespace Botanik { namespace HAL {
 
     template <typename T>
     inline void ordered_move(T* dst, T src) {
-        static_assert(std::is_empty<T>::value || sizeof(T) % sizeof(uint32_t) == 0,
+        static_assert(__is_empty(T) || sizeof(T) % sizeof(uint32_t) == 0,
                       "ordered_move needs a word-multiple T");
-        if (std::is_empty<T>::value) return;   // empty payload carries no data
+        if (__is_empty(T)) return;   // empty payload carries no data
         *dst = src;
         dsb();
     }
@@ -222,7 +218,7 @@ namespace Botanik { namespace HAL {
          *  token bucket already knows: the earliest time the next byte may go
          *  out is the instant the last one finished. */
         inline bool tx_idle() const {
-            return _next_write_us <= _now_as<std::chrono::microseconds>();
+            return _next_write_us <= _now_as(NS_PER_US);
         }
 
         /** @brief Discard whatever is sitting in the receive path, and say how

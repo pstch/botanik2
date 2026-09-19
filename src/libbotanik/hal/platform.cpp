@@ -485,11 +485,20 @@ void restore_console_clean() {
 
 namespace Botanik { namespace HAL {
 
-    /** @brief Process-start reference for the monotonic uptime clocks; captured
-     *  once. */
-    std::chrono::steady_clock::time_point _process_start() {
-        static const auto t0 = std::chrono::steady_clock::now();
-        return t0;
+    namespace {
+        /** @brief Process-start reference for the monotonic uptime clocks;
+         *  captured once. */
+        std::chrono::steady_clock::time_point _process_start() {
+            static const auto t0 = std::chrono::steady_clock::now();
+            return t0;
+        }
+    }
+
+    /** @brief Declared in simulator.h, defined here: <chrono> stays in this one
+     *  TU instead of the 56 that reach the header. */
+    uint64_t _monotonic_ns() {
+        return (uint64_t)std::chrono::duration_cast<std::chrono::nanoseconds>(
+                   std::chrono::steady_clock::now() - _process_start()).count();
     }
 
     bool _manual_clock() {
@@ -615,7 +624,7 @@ namespace Botanik { namespace HAL {
         if (_manual_clock()) {
             static const uint64_t epoch_ms =
                 1000ull * (uint64_t)Env::u32("BOTANIK_SIM_EPOCH", 1767225600u);
-            return epoch_ms + _now_as<std::chrono::milliseconds>();
+            return epoch_ms + _now_as(NS_PER_MS);
         }
         return (uint64_t)std::chrono::duration_cast<std::chrono::milliseconds>(
             std::chrono::system_clock::now().time_since_epoch()).count();
@@ -637,7 +646,7 @@ namespace Botanik { namespace HAL {
     // reading as uptime_us(): under the manual clock an interval measured in
     // real time and one measured in simulated time are different questions,
     // and every other metric answers the second.
-    uint32_t hrt_ticks() { return (uint32_t)_now_as<std::chrono::microseconds>(); }
+    uint32_t hrt_ticks() { return (uint32_t)_now_as(NS_PER_US); }
 
     uint32_t hrt_us(uint32_t ticks) { return ticks; }
 
@@ -685,7 +694,7 @@ namespace Botanik { namespace HAL {
         // reader, so the simulated bus ran 9% fast against its own planner.
         _slot_us = baud ? (1000000ULL * _bits_per_char) / baud : 0;
         _max_bank_us = _slot_us * FIFO_BYTES;
-        _next_write_us = _now_as<std::chrono::microseconds>();
+        _next_write_us = _now_as(NS_PER_US);
     }
 
     int Raw::read() {
@@ -703,7 +712,7 @@ namespace Botanik { namespace HAL {
             // Token bucket: accumulate the next-slot time (not now+slot), so one
             // per-tick transmit() drains every byte whose slot has elapsed (real
             // line rate). Bank is capped to one FIFO so an idle wire can't burst.
-            const uint64_t now = _now_as<std::chrono::microseconds>();
+            const uint64_t now = _now_as(NS_PER_US);
             if (_next_write_us + _max_bank_us < now) _next_write_us = now - _max_bank_us;
             _next_write_us += _slot_us;
         }
@@ -739,7 +748,7 @@ namespace Botanik { namespace HAL {
         // File/pipe sink: no UART to model, so report a full buffer (TIOCOUTQ
         // would fail with ENOTTY and wedge TX).
         if (!_out_is_tty) return FIFO_BYTES;
-        if (_slot_us > 0 && _next_write_us > _now_as<std::chrono::microseconds>()) return 0;
+        if (_slot_us > 0 && _next_write_us > _now_as(NS_PER_US)) return 0;
         int pending_bytes = 0;
         if (::ioctl(_fd_out, TIOCOUTQ, &pending_bytes) < 0) return 0;
         // small simulated UART buffer
