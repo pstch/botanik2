@@ -90,6 +90,16 @@ namespace Botanik { namespace Pages {
         /** @brief Keep the cursor inside the (possibly reshaped) row set. */
         void _clamp_selection();
 
+        /** @brief Whether moving the window announces a band scroll to the
+         *  terminal. A move the page repaints behind does not: the repaint
+         *  writes every row the scroll would have shifted. */
+        enum class ScrollBand : uint8_t { EMIT, SKIP };
+
+        /** @brief Move the window to @p new_top, announcing the band scroll
+         *  when @p band says to. Every assignment to _top goes through here,
+         *  so each site states which it is. */
+        void _set_top(uint16_t new_top, ScrollBand band);
+
         /** @brief Scroll _top so the selection cursor stays in the window. */
         void _follow_selection();
 
@@ -313,11 +323,20 @@ namespace Botanik { namespace Pages {
          *  when the screen is too narrow for the fixed ones. */
         virtual uint8_t _flex_col() const { return 0; }
 
-        /** @brief _columns(), fitted to the display: the flexible column takes
-         *  whatever the fixed ones leave, and a row still too wide is shaved
-         *  widest-cell-first until it fits. The one place the table's width is
-         *  decided, so it ends where _draw_separator() does. */
-        uint8_t _fit_columns(Col* out) const;
+        /** @brief The column layout solved for the display as it is now. A
+         *  solve, not a lookup: whoever needs two cell positions off one row
+         *  takes one of these and reads both out of it. */
+        struct Fit {
+            Col     col[MAX_COLS];
+            uint8_t n;
+        };
+
+        /** @brief Solve the layout: _columns() fitted to the display, the
+         *  flexible column taking whatever the fixed ones leave, and a row
+         *  still too wide shaved widest-cell-first until it fits. The one
+         *  place the table's width is decided, so it ends where
+         *  _draw_separator() does. */
+        Fit _fit_columns() const;
 
         /** @brief Whether a cell carries a pad column after its contents, so a
          *  row reads "| a | b |" rather than "| a| b". The alarms grid packs its
@@ -331,12 +350,15 @@ namespace Botanik { namespace Pages {
             return (uint16_t)(width + (_pad_cells() ? 3 : 2));
         }
 
-        /** @brief Column @p i's contents on screen: [@p start, @p end). */
-        void _cell_span(uint8_t i, uint16_t& start, uint16_t& end) const;
+        /** @brief Column @p i's contents on screen under @p fit:
+         *  [@p start, @p end). */
+        void _cell_span(const Fit& fit, uint8_t i,
+                        uint16_t& start, uint16_t& end) const;
 
         /** @brief Build "  | a | b | c |" into @p out from @p cells (one per
-         *  declared column; a null cell renders empty). @return its length. */
-        uint16_t _build_row(char* out, size_t cap, const char* const* cells) const;
+         *  column of @p fit; a null cell renders empty). @return its length. */
+        uint16_t _build_row(const Fit& fit, char* out, size_t cap,
+                            const char* const* cells) const;
 
         /** @brief Draw the heading row from the column spec. */
         void _draw_header(uint16_t row);

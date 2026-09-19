@@ -170,11 +170,11 @@ namespace Botanik { namespace Pages {
                                          c.name() ? c.name() : "?", state,
                                          c.user_ack ? "yes" : "", forced, ev };
         char     line[Config::TABLE_LINE_LEN];
-        uint16_t n = _build_row(line, sizeof(line), cells);
-        // One fit for both cells the row needs, rather than one per end.
+        const Fit fit = _fit_columns();          // one solve, four cell ends
+        uint16_t n = _build_row(fit, line, sizeof(line), cells);
         uint16_t name_l = 0, name_end = 0, badge = 0, state_end = 0;
-        _cell_span(C_NAME,  name_l, name_end);
-        _cell_span(C_STATE, badge,  state_end);
+        _cell_span(fit, C_NAME,  name_l, name_end);
+        _cell_span(fit, C_STATE, badge,  state_end);
         const uint16_t name_r = (uint16_t)(name_end - 1);
         _terminal.move_to({row, 0});
         _terminal.set_inverted(false);
@@ -292,7 +292,7 @@ namespace Botanik { namespace Pages {
         // immediate-mode: the terminal's diff pares it (@ref dev_screen).
         _collect();
         uint16_t maxtop = _max_top();
-        if (_top > maxtop) _top = maxtop;
+        if (_top > maxtop) _set_top(maxtop, ScrollBand::SKIP);   // repainted below
         _draw_structure();
         _draw_rules(window);
         _draw_notes();

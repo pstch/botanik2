@@ -128,9 +128,10 @@ namespace Botanik { namespace Pages {
             _num(mean,   sizeof(mean),   t.cost.us_mean(), t.cost.runs),
             _num(missed, sizeof(missed), t.cost.missed,    t.cost.runs),
         };
-        uint16_t n = _build_row(line, sizeof(line), cells);
+        const Fit fit = _fit_columns();          // one solve, both ends
+        uint16_t n = _build_row(fit, line, sizeof(line), cells);
         uint16_t name_l = 0, name_r = 0;
-        _cell_span(C_NAME, name_l, name_r);      // one fit, both ends
+        _cell_span(fit, C_NAME, name_l, name_r);
         _draw_selected_line(row, line, n, name_l, name_r,
                             selected);
     }

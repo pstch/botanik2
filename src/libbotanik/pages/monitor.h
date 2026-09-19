@@ -296,7 +296,8 @@ namespace Botanik { namespace Pages {
         /** @brief Build the full "  | scope | name | value | unit | override |"
          *  row. Resolves the variable ONCE: the row is drawn per visible line
          *  every refresh, and _at() is a walk over the group table. */
-        uint16_t _row_text(uint16_t display_idx, char* out, size_t cap) const;
+        uint16_t _row_text(const Fit& fit, uint16_t display_idx,
+                           char* out, size_t cap) const;
 
         /** @brief Draw the row at @p display_idx onto @p screen_row, inverting
          *  the NAME field for the selection cursor when @p selected. */

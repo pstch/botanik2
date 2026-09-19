@@ -145,7 +145,8 @@ namespace Botanik { namespace Pages {
         return Vars::VAR_NONE;
     }
 
-    uint16_t MonitorPage::_row_text(uint16_t display_idx, char* out, size_t cap) const {
+    uint16_t MonitorPage::_row_text(const Fit& fit, uint16_t display_idx,
+                                   char* out, size_t cap) const {
         bool ok = false;
         const uint16_t ref = _ref_at(display_idx, ok);
         if (!ok) { if (cap) out[0] = 0; return 0; }
@@ -173,7 +174,7 @@ namespace Botanik { namespace Pages {
             }
         }
         const char* cells[5] = { sc, nm, val, un, ovr };
-        return _build_row(out, cap, cells);
+        return _build_row(fit, out, cap, cells);
     }
 
     uint16_t MonitorPage::_selected_ref() const {
@@ -199,9 +200,10 @@ namespace Botanik { namespace Pages {
             const uint16_t var_idx = _ref_at(display_idx, ok);
             _pin(display_idx, var_idx, ok);
         }
-        const uint16_t n = _row_text(display_idx, line, sizeof(line));
+        const Fit fit = _fit_columns();          // one solve, both ends
+        const uint16_t n = _row_text(fit, display_idx, line, sizeof(line));
         uint16_t name_l = 0, name_r = 0;
-        _cell_span(C_NAME, name_l, name_r);      // one fit, both ends
+        _cell_span(fit, C_NAME, name_l, name_r);
         _draw_selected_line(screen_row, line, n, name_l, name_r, selected);
     }
 
