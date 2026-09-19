@@ -39,6 +39,7 @@
 #include "libbotanik/console/terminal.h"
 #include "libbotanik/hal/platform.h"
 #include "libbotanik/console/page.h"
+#include "libbotanik/pages/inline_field.h"
 #include "libbotanik/pages/scroll_table.h"
 #include "libbotanik/vars/access.h"
 #include "libbotanik/vars/persist.h"
@@ -50,7 +51,6 @@ namespace Botanik { namespace Pages {
     private:
         using AnsiTerminal = Terminal::AnsiTerminal;
         using Console      = Terminal::Console;
-        using InputEditor  = Terminal::TextEditor;
         using Command      = Terminal::InputEvent::Command;
 
         /** @name Layout
@@ -158,14 +158,12 @@ namespace Botanik { namespace Pages {
 
         /** @name Override field (^O)
          *  @{ */
-        /** buffers the editor borrows; declared before it */
-        Terminal::EditorBuffers<OVR_INPUT_LEN, OVR_EDIT_ROWS> _editor_bufs;
-        InputEditor         _editor;
-        bool                _editing = false;
+        using OverrideField = InlineField<OVR_INPUT_LEN, OVR_EDIT_ROWS>;
+        using EditOutcome   = OverrideField::Outcome;
+        OverrideField       _field;
         /** @brief The row being forced. Held as a REF, not a display row: the
          *  filter can renumber the table under an open field. */
         uint16_t        _edit_ref = { Vars::VAR_NONE };
-        bool                _edit_error = false;   ///< last commit rejected
         /** @brief What the last override key did, and when it stops being said.
          *  The bottom row is otherwise blank, and ^R / ^S change nothing a
          *  short table shows. */
@@ -179,7 +177,7 @@ namespace Botanik { namespace Pages {
         MonitorPage(Console& console, Vars::Bank* io,
                     Vars::Persist* persist = nullptr)
             : ScrollTablePage(console), _io(io), _persist(persist),
-              _editor(&console, _editor_bufs.storage()) {}
+              _field(console) {}
 
         /** @brief Teach the page the plant's name for a Modbus unit. Without it
          *  the Mapping row just says "dev 34". */
@@ -199,7 +197,7 @@ namespace Botanik { namespace Pages {
         void handle_text(char c) override;
 
         bool handle_cancel() override {
-            if (_editing) { _cancel_edit(); return true; }   // Ctrl+C leaves the field
+            if (_field.open()) { _cancel_edit(); return true; }   // Ctrl+C leaves it
             return false;
         }
 
@@ -331,8 +329,6 @@ namespace Botanik { namespace Pages {
         uint16_t _edit_label(char* buf, size_t cap) const;
 
         void _draw_prompt_row();
-        void _draw_error_marker();
-        void _clear_error();
 
         /** @brief ^O: open the field on the selected row, seeded with what the
          *  row reads now. Refused on a T_STR row, which has no forced form. */

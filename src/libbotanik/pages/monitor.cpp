@@ -19,7 +19,7 @@ namespace Botanik { namespace Pages {
 
 
     void MonitorPage::focus() {
-        _editing = false;
+        _field.end();
         // The footer carries the filter badge, which acknowledges a keypress,
         // so it must beat the table rows it sits under.
         _claim_legend_row(_footer_row());
@@ -29,7 +29,7 @@ namespace Botanik { namespace Pages {
     }
 
     void MonitorPage::handle_command(Command cmd, uint16_t count) {
-        if (_editing) { _handle_edit_command(cmd, count); return; }
+        if (_field.open()) { _handle_edit_command(cmd, count); return; }
         // The override keys first: ^O opens the field, and the filter would
         // otherwise never see them anyway.
         if (cmd == Command::CTRL_O) { _start_edit();      return; }
@@ -42,17 +42,16 @@ namespace Botanik { namespace Pages {
     }
 
     void MonitorPage::handle_text(char c) {
-        if (!_editing) { (void)_filter_text(c); return; }   // narrows the table
-        if (c < 0x20 || c == 0x7F) return;                  // printable only
-        if (_edit_error) _clear_error();
-        _editor.insert_characters(&c, 1);
+        if (!_field.open()) { (void)_filter_text(c); return; }   // narrows the table
+        if (c < 0x20 || c == 0x7F) return;                       // printable only
+        _field.handle_text(c);
     }
 
     void MonitorPage::tick(bool active) {
         if (!active) return;
         // While the field is open it owns the bottom row and is redrawn per
         // keystroke; leave the table and panel as they were drawn.
-        if (_editing) return;
+        if (_field.open()) return;
         // Rebuild on the value cadence, or immediately after a nav. The
         // terminal's diff decides what reaches the wire; this only stops the
         // page re-formatting every row every beat for nothing.
@@ -324,35 +323,15 @@ namespace Botanik { namespace Pages {
 
     void MonitorPage::_draw_prompt_row() {
         const uint16_t row = _prompt_row();
-        if (_editing) {
-            _terminal.set_inverted(false);
-            _terminal.move_to({row, 0});
-            _terminal.clear_to_eol();
+        if (_field.open()) {
             char label[40];
             const uint16_t lw = _edit_label(label, sizeof(label));
-            _terminal.write_chars(label, lw);
-            _editor.redraw();
-            if (_edit_error) _draw_error_marker();
-            _terminal.set_cursor_visible(true);
+            _field.redraw(row, label, lw);
             return;
         }
         _terminal.set_cursor_visible(false);
         const char* say = (HAL::Clock::uptime_ms() < _said_until_ms) ? _said : "";
         _draw_line(row, say, (uint16_t)std::strlen(say));
-    }
-
-    void MonitorPage::_draw_error_marker() {
-        _terminal.move_to(_editor.end_pos());
-        const char* e = "  [invalid]";
-        _terminal.write_chars(e, (uint16_t)std::strlen(e));
-        _editor.place_cursor();
-    }
-
-    void MonitorPage::_clear_error() {
-        _terminal.move_to(_editor.end_pos());
-        _terminal.clear_to_eol();
-        _edit_error = false;
-        _editor.place_cursor();
     }
 
     void MonitorPage::_start_edit() {
@@ -367,55 +346,41 @@ namespace Botanik { namespace Pages {
 
         char label[40];
         const uint16_t lw = _edit_label(label, sizeof(label));
-        _editor.as_field(_prompt_row(), lw);
-        _editor.reset();                 // clears the row past the label
-        _terminal.move_to({_prompt_row(), 0});
-        _terminal.write_chars(label, lw);
-
         // Seeded with what the row reads NOW - a force usually starts from the
         // reading it is replacing.
         char val[OVR_INPUT_LEN];
         const char* v = Vars::var_format(h, val, sizeof(val));
         const uint16_t n = (uint16_t)std::strlen(v);
         if (v != val) { std::strncpy(val, v, sizeof(val) - 1); val[sizeof(val) - 1] = 0; }
-        if (n > 0) _editor.insert_characters(val, n);
-        else       _editor.place_cursor();
 
-        _edit_error = false;
-        _editing = true;
-        _terminal.set_cursor_visible(true);
+        _field.begin(_prompt_row(), label, lw, val, n);
     }
 
     void MonitorPage::_cancel_edit() {
-        _editing = false;
+        _field.end();
         _dirty = true;
         _draw_prompt_row();              // hide the cursor, clear the field
     }
 
     void MonitorPage::_commit_edit() {
         char line[OVR_INPUT_LEN];
-        uint16_t n = _editor.buffer_len();
-        if (n > (uint16_t)(sizeof(line) - 1)) n = (uint16_t)(sizeof(line) - 1);
-        std::memcpy(line, _editor.buffer(), n);
-        line[n] = 0;
+        _field.read(line, sizeof(line));
         if (_io->var(_edit_ref).override_set(line) != Vars::SET_OK) {
-            _edit_error = true;          // stay in the field, flag it
-            _draw_error_marker();
+            _field.refuse();             // stay in the field, flag it
             return;
         }
-        _editing = false;
+        _field.end();
         _dirty = true;                   // the OVERRIDE column says the rest
         _say("override set - ^S saves this row");
         _draw_prompt_row();
     }
 
     void MonitorPage::_handle_edit_command(Command cmd, uint16_t count) {
-        if (cmd == Command::ENTER) { _commit_edit(); return; }
-        if (cmd == Command::ESC)   { _cancel_edit(); return; }
-        const EditKey k = _edit_kind(_editor, cmd);
-        if (k == EditKey::IGNORED) return;
-        if (k == EditKey::CHANGED && _edit_error) _clear_error();
-        _edit_apply(_editor, cmd, count);
+        switch (_field.handle_command(cmd, count)) {
+            case EditOutcome::COMMIT: _commit_edit(); break;
+            case EditOutcome::CANCEL: _cancel_edit(); break;
+            case EditOutcome::HANDLED: break;
+        }
     }
 
     void MonitorPage::_toggle_validity() {

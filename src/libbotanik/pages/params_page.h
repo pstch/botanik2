@@ -42,6 +42,7 @@
 #include "libbotanik/console/editor.h"
 #include "libbotanik/console/terminal.h"
 #include "libbotanik/console/page.h"
+#include "libbotanik/pages/inline_field.h"
 #include "libbotanik/pages/scroll_table.h"
 #include "libbotanik/vars/access.h"
 #include "libbotanik/vars/persist.h"
@@ -53,7 +54,6 @@ namespace Botanik { namespace Pages {
     private:
         using AnsiTerminal = Terminal::AnsiTerminal;
         using Console      = Terminal::Console;
-        using InputEditor  = Terminal::TextEditor;
         using Command      = Terminal::InputEvent::Command;
 
         /** @name Layout
@@ -95,13 +95,11 @@ namespace Botanik { namespace Pages {
 
         /** @name Edit sub-state (bottom-row inline editor)
          *  @{ */
-        /** buffers the editor borrows; declared before it */
-        Terminal::EditorBuffers<Config::SHELL_INPUT_LEN,
-                                Config::EDITOR_MAX_ROWS> _editor_bufs;
-        InputEditor         _editor;                 ///< single-line value editor
-        bool                _editing    = false;
+        using ValueField  = InlineField<Config::SHELL_INPUT_LEN,
+                                        Config::EDITOR_MAX_ROWS>;
+        using EditOutcome = ValueField::Outcome;
+        ValueField          _field;
         uint16_t _edit_index = 0;   ///< the parameter being edited
-        bool                _edit_error = false;      ///< last commit rejected
         /** last ^O save was refused by storage (shown on the prompt row; the
          *  values themselves stay live and stay marked unsaved) */
         bool                _save_failed = false;
@@ -114,7 +112,7 @@ namespace Botanik { namespace Pages {
         ParamsPage(Console& console, Vars::Bank* config,
                    Vars::Persist* persist = nullptr)
             : ScrollTablePage(console), _params(config), _persist(persist),
-              _editor(&console, _editor_bufs.storage()) {}
+              _field(console) {}
 
         const char* name() const override { return "PARAMS"; }
 
@@ -126,7 +124,7 @@ namespace Botanik { namespace Pages {
         void handle_text(char c) override;
 
         bool handle_cancel() override {
-            if (_editing) { _cancel_edit(); return true; }   // Ctrl+C leaves edit
+            if (_field.open()) { _cancel_edit(); return true; }   // Ctrl+C leaves edit
             return false;
         }
 
@@ -253,16 +251,10 @@ namespace Botanik { namespace Pages {
             return (n < 0) ? 0 : (uint16_t)n;
         }
 
-        void _draw_label();
-
         void _draw_prompt_row();
 
         /** @brief ^O: commit every unsaved parameter. */
         void _save_all();
-
-        void _draw_error_marker();
-
-        void _clear_error();
 
         // Edit sub-state
 

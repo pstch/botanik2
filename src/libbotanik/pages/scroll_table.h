@@ -251,22 +251,6 @@ namespace Botanik { namespace Pages {
         void _filter_changed();
 
         /** @}
-         *  @name Inline field
-         *
-         *  The editing keys a one-row field takes. ENTER and ESC are NOT here:
-         *  what they commit to is the page's. @{ */
-
-        using EditKey = Terminal::TextEditor::Key;
-
-        /** @brief Classify @p cmd WITHOUT applying it, so a page can drop an
-         *  "invalid" marker before the edit that invalidates it repaints. The
-         *  editor's keys, and Ctrl-U, which clears the field. */
-        static EditKey _edit_kind(const Terminal::TextEditor& ed, Command cmd);
-
-        /** @brief Apply @p cmd to @p ed. */
-        static void _edit_apply(Terminal::TextEditor& ed, Command cmd, uint16_t count);
-
-        /** @}
          *  @name Bordered-table rendering
          *  @{ */
 

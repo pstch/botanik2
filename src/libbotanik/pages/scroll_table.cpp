@@ -203,15 +203,6 @@ namespace Botanik { namespace Pages {
         return false;
     }
 
-    ScrollTablePage::EditKey ScrollTablePage::_edit_kind(const Terminal::TextEditor& ed, Command cmd) {
-        return cmd == Command::CTRL_U ? EditKey::CHANGED : ed.key_kind(cmd);
-    }
-
-    void ScrollTablePage::_edit_apply(Terminal::TextEditor& ed, Command cmd, uint16_t count) {
-        if (cmd == Command::CTRL_U) ed.reset();      // a field has nothing to lose
-        else (void)ed.handle_key(cmd, count);
-    }
-
     void ScrollTablePage::_draw_line(uint16_t row, const char* line, uint16_t n) {
         _terminal.move_to({row, 0});
         _terminal.set_inverted(false);

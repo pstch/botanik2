@@ -15,7 +15,7 @@
 namespace Botanik { namespace Pages {
 
     void ParamsPage::handle_command(Command cmd, uint16_t count) {
-        if (_editing) { _handle_edit_command(cmd, count); return; }
+        if (_field.open()) { _handle_edit_command(cmd, count); return; }
         if (_filter_command(cmd)) { _dirty = true; return; }   // BACKSPACE pops, ESC clears
         if (_nav_command(cmd)) { _dirty = true; return; }
         if (cmd == Command::ENTER && _visible_count() > 0) { _start_edit(); _dirty = true; }
@@ -37,17 +37,16 @@ namespace Botanik { namespace Pages {
     }
 
     void ParamsPage::handle_text(char c) {
-        if (!_editing) { if (_filter_text(c)) _dirty = true; return; }
+        if (!_field.open()) { if (_filter_text(c)) _dirty = true; return; }
         if (c < 0x20 || c == 0x7F) return;          // printable only
-        if (_edit_error) _clear_error();
-        _editor.insert_characters(&c, 1);
+        _field.handle_text(c);
     }
 
     void ParamsPage::focus() {
         // The filter badge acknowledges a keypress, so its row outranks the
         // table (re-declared here: the Console resets the band on a switch).
         _claim_legend_row(_legend_row());
-        _editing = false;
+        _field.end();
         _dirty = true;
         if (_selected >= _visible_count()) _selected = 0;
         _follow_selection();
@@ -57,7 +56,7 @@ namespace Botanik { namespace Pages {
         if (!active) return;
         // While editing, the editor owns the bottom row (redrawn per
         // keystroke); leave the static table + panel as drawn.
-        if (_editing) return;
+        if (_field.open()) return;
         uint64_t now = HAL::Clock::uptime_ms();
         if (!_dirty && now - _last_refresh_ms < Config::PAGE_HOT_MS) return;
         _last_refresh_ms = now;
@@ -77,7 +76,7 @@ namespace Botanik { namespace Pages {
     }
 
     void ParamsPage::_on_filter_changed() {
-        _editing = false;
+        _field.end();
         _dirty = true;
         _vis_ready = false;   // a narrower table holds a different count
     }
@@ -201,23 +200,12 @@ namespace Botanik { namespace Pages {
         _draw_legend(_legend_row(), nullptr);
     }
 
-    void ParamsPage::_draw_label() {
-        char label[48];
-        uint16_t lw = _edit_label(label, sizeof(label));
-        _terminal.move_to({_prompt_row(), 0});
-        _terminal.write_chars(label, lw);
-    }
-
     void ParamsPage::_draw_prompt_row() {
         uint16_t row = _prompt_row();
-        if (_editing) {
-            _terminal.set_inverted(false);
-            _terminal.move_to({row, 0});
-            _terminal.clear_to_eol();
-            _draw_label();
-            _editor.redraw();
-            if (_edit_error) _draw_error_marker();
-            _terminal.set_cursor_visible(true);
+        if (_field.open()) {
+            char label[48];
+            const uint16_t lw = _edit_label(label, sizeof(label));
+            _field.redraw(row, label, lw);
             return;
         }
         _terminal.set_cursor_visible(false);
@@ -238,79 +226,48 @@ namespace Botanik { namespace Pages {
         _draw_line(row, hint, (uint16_t)strlen(hint));
     }
 
-    void ParamsPage::_draw_error_marker() {
-        _terminal.move_to(_editor.end_pos());
-        const char* e = "  [invalid]";
-        _terminal.write_chars(e, (uint16_t)strlen(e));
-        _editor.place_cursor();
-    }
-
-    void ParamsPage::_clear_error() {
-        _terminal.move_to(_editor.end_pos());
-        _terminal.clear_to_eol();
-        _edit_error = false;
-        _editor.place_cursor();
-    }
-
     void ParamsPage::_start_edit() {
         if (_selected >= _visible_count()) return;
         _edit_index = _param_at(_selected);   // absolute, so a view change cannot move it
         _draw_panel();            // pin the panel to the parameter being edited
-        uint16_t row = _prompt_row();
         char label[48];
-        uint16_t lw = _edit_label(label, sizeof(label));
-
-        _editor.as_field(row, lw);
-        _editor.reset();          // clears the row past the label
-        _draw_label();
+        const uint16_t lw = _edit_label(label, sizeof(label));
 
         char val[80];
         const char* fv = Vars::var_format(_params->param_at(_edit_index), val, sizeof(val));
-        const int n = (int)strlen(fv);
+        const uint16_t n = (uint16_t)strlen(fv);
         if (fv != val) { strncpy(val, fv, sizeof(val) - 1); val[sizeof(val) - 1] = 0; }
-        if (n > 0) _editor.insert_characters(val, (uint16_t)n);
-        else       _editor.place_cursor();
 
-        _edit_error = false;
-        _editing = true;
-        _terminal.set_cursor_visible(true);
+        _field.begin(_prompt_row(), label, lw, val, n);
     }
 
     void ParamsPage::_cancel_edit() {
-        _editing = false;
+        _field.end();
         _dirty = true;
         _draw_prompt_row();       // restore the hint, hide the cursor
     }
 
     void ParamsPage::_commit_edit() {
         char line[Config::SHELL_INPUT_LEN];
-        uint16_t n = _editor.buffer_len();
-        if (n > (uint16_t)(sizeof(line) - 1)) n = (uint16_t)(sizeof(line) - 1);
-        memcpy(line, _editor.buffer(), n);
-        line[n] = 0;
-        const Vars::SetResult r = _params->param_at(_edit_index).param_set(line);
-        if (r != Vars::SET_OK) {
-            _edit_error = true;   // stay in edit, flag it
-            _draw_error_marker();
+        _field.read(line, sizeof(line));
+        if (_params->param_at(_edit_index).param_set(line) != Vars::SET_OK) {
+            _field.refuse();      // stay in edit, flag it
             return;
         }
         // Applied, and live - but not durable until ^O. The row's '*' and the
         // prompt row both say so, so leaving the editor loses nothing.
         _save_failed = false;
-        _editing = false;
+        _field.end();
         _dirty = true;            // value diff repaints the table row next tick
         _draw_prompt_row();
     }
 
     void ParamsPage::_handle_edit_command(Command cmd, uint16_t count) {
-        if (cmd == Command::ENTER) { _commit_edit(); return; }
-        if (cmd == Command::ESC)   { _cancel_edit(); return; }
-        const EditKey k = _edit_kind(_editor, cmd);
-        if (k == EditKey::IGNORED) return;
-        // Before the edit, not after: the marker is drawn from the field's END,
-        // which the edit is about to move.
-        if (k == EditKey::CHANGED && _edit_error) _clear_error();
-        _edit_apply(_editor, cmd, count);
+        switch (_field.handle_command(cmd, count)) {
+            case EditOutcome::COMMIT: _commit_edit(); break;
+            case EditOutcome::CANCEL: _cancel_edit(); break;
+            case EditOutcome::HANDLED: break;
+        }
     }
 }}
 

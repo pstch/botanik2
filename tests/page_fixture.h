@@ -217,7 +217,8 @@ namespace tests { namespace botanik_test {
          *
          *  @warning Only where a repaint is meant to reproduce the screen.
          *  Two documented cases where it is not: MonitorPage::focus() and
-         *  ParamsPage::focus() clear `_editing`, and Scrollback::reset_view()
+         *  ParamsPage::focus() close the inline field, and
+         *  Scrollback::reset_view()
          *  returns to the newest lines. So a page repainted mid-edit, or scrolled
          *  back, legitimately comes back different. Leave the edit or return to
          *  the bottom first, and assert convergence around it.
