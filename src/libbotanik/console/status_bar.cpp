@@ -2,12 +2,12 @@
  * @file status_bar.cpp
  * @brief StatusBar implementation - row-0 tabs, clock, and metrics field.
  */
+#include "libbotanik/utils/minmax.h"
 #include "libbotanik/console/status_bar.h"
 #include "libbotanik_features.h"
 
 #if BOTANIK_FEATURE_CONSOLE
 
-#include <algorithm>
 #include <cmath>
 #include <cstdint>
 #include <cstdio>
@@ -115,7 +115,7 @@ namespace Botanik { namespace Terminal {
                 ? snprintf(tab, sizeof(tab), "%u:%s", (unsigned)(i + 1), nm)
                 : snprintf(tab, sizeof(tab), "%u", (unsigned)(i + 1));
             if (n < 0) continue;
-            uint16_t len = (uint16_t)std::min(n, (int)sizeof(tab) - 1);
+            uint16_t len = (uint16_t)Utils::min(n, (int)sizeof(tab) - 1);
             _terminal.set_inverted(i != _console.active_page());
             _terminal.write_chars(tab, len);
             _terminal.set_inverted(true);
@@ -131,7 +131,7 @@ namespace Botanik { namespace Terminal {
         char metrics[METRICS_LEN];
         int mlen = build_metrics(metrics, sizeof(metrics));
         // mlen is constant (fixed-width fields), so a byte index maps to a fixed col.
-        uint16_t visible = (uint16_t)std::min((int)_terminal.cols(), mlen);
+        uint16_t visible = (uint16_t)Utils::min((int)_terminal.cols(), mlen);
         if (visible == 0) return;
         uint16_t metrics_col = (uint16_t)(_terminal.cols() - visible);
         // The bar is reverse video except the live readings (cpu/stk), so the

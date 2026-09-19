@@ -3,12 +3,12 @@
  * @brief AnsiTerminal's drawing half: geometry, the FRONT grid renderers paint
  *        into, and screen bring-up. present() is in reconcile.cpp.
  */
+#include "libbotanik/utils/minmax.h"
 #include "libbotanik/console/terminal.h"
 #include "libbotanik_features.h"
 
 #if BOTANIK_FEATURE_CONSOLE
 
-#include <algorithm>
 #include <cstdint>
 #include <cstring>
 #include <cstdlib>
@@ -82,8 +82,8 @@ namespace Botanik { namespace Terminal {
     // Draw cursor & geometry
 
     void AnsiTerminal::move_to(const CursorPos& target_in) {
-        uint16_t r = std::min((uint16_t)(_rows > 0 ? _rows - 1 : 0), target_in.row);
-        uint16_t c = std::min((uint16_t)(_cols > 0 ? _cols - 1 : 0), target_in.col);
+        uint16_t r = Utils::min((uint16_t)(_rows > 0 ? _rows - 1 : 0), target_in.row);
+        uint16_t c = Utils::min((uint16_t)(_cols > 0 ? _cols - 1 : 0), target_in.col);
         _draw_row = r;
         _draw_col = c;
     }
@@ -120,7 +120,7 @@ namespace Botanik { namespace Terminal {
         static const char sp[32] = "                               ";
         constexpr uint16_t SP_LEN = sizeof(sp) - 1;
         for (uint16_t col = _draw_col; col < to_col; col = (uint16_t)(col + SP_LEN))
-            write_chars(sp, std::min((uint16_t)(to_col - col), SP_LEN));
+            write_chars(sp, Utils::min((uint16_t)(to_col - col), SP_LEN));
     }
 
     // Content manipulation (into the FRONT grid)

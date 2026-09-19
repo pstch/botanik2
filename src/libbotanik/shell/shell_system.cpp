@@ -3,6 +3,7 @@
  * @brief What the unit is DOING: log output, control authority, and the ways
  *        out (reset, reboot, exit).
  */
+#include "libbotanik/utils/minmax.h"
 #include "libbotanik/shell/shell.h"
 
 #include "libbotanik_features.h"
@@ -10,9 +11,7 @@
 #if BOTANIK_FEATURE_SHELL_PAGE
 #include "libbotanik/shell/args.h"
 
-#include <algorithm>
 #include <cstdio>
-#include <algorithm>
 #include <cstring>
 
 #include "libbotanik/hal/platform.h"
@@ -165,7 +164,7 @@ namespace Botanik { namespace Shell {
         // Bounded and NUL-terminated: the text is a slice of the command line,
         // and the logger takes a C string.
         char text[Config::LOG_MESSAGE_LEN];
-        const uint16_t n = std::min(alen, (uint16_t)(sizeof(text) - 1));
+        const uint16_t n = Utils::min(alen, (uint16_t)(sizeof(text) - 1));
         memcpy(text, args, n); text[n] = '\0';
 
         if      (arg_eq(lvl, wl, "debug"))    _logger->debug   (Logs::USER, "%s", text);

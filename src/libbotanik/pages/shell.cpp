@@ -2,12 +2,12 @@
  * @file shell.cpp
  * @brief ShellPage implementation.
  */
+#include "libbotanik/utils/minmax.h"
 #include "libbotanik/pages/shell.h"
 #include "libbotanik_features.h"
 
 #if BOTANIK_FEATURE_SHELL_PAGE
 
-#include <algorithm>
 #include <cstring>
 
 #include "libbotanik/config/terminal.h"
@@ -178,7 +178,7 @@ namespace Botanik { namespace Pages {
     uint16_t ShellPage::_echo_and_reset(char* line, uint16_t cap) {
         // Snapshot the line (it must outlive commit(), which clears the editor),
         // record it to history, and advance to a fresh prompt.
-        uint16_t n = std::min(_editor.buffer_len(), (uint16_t)(cap - 1));
+        uint16_t n = Utils::min(_editor.buffer_len(), (uint16_t)(cap - 1));
         memcpy(line, _editor.buffer(), n);
         line[n] = '\0';
         _record_command();

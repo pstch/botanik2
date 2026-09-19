@@ -7,10 +7,10 @@
  *        line.
  */
 
-#include <algorithm>
 #include <cstdint>
 #include <cstdio>
 
+#include "libbotanik/utils/minmax.h"
 #include "libbotanik/logs/entry.h"
 #include "libbotanik/utils/time.h"
 
@@ -149,7 +149,7 @@ namespace Botanik { namespace Logs {
         // snprintf answers what it WOULD have written, so clamp to what landed:
         // len-1, the NUL is not ours to emit.
         if (written < 0 || len == 0) return 0;
-        return std::min((size_t)written, len - 1);
+        return Utils::min((size_t)written, len - 1);
     }
 
 }}

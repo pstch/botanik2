@@ -10,7 +10,6 @@
 #include "libbotanik/vars/bindings.h"
 #include "libbotanik/shell/args.h"
 
-#include <algorithm>
 #include <cstdio>
 #include <cstring>
 

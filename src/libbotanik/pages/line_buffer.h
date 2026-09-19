@@ -11,11 +11,11 @@
  * Instantiate behind a typedef.
  */
 
-#include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
 
+#include "libbotanik/utils/minmax.h"
 #include "libbotanik/utils/text.h"
 
 namespace Botanik { namespace Pages {
@@ -46,7 +46,7 @@ namespace Botanik { namespace Pages {
 
         /** @brief Store a line (does not display it). */
         void store(const char* buf, size_t len) {
-            uint16_t store_len = (uint16_t)std::min(len, (size_t)N);
+            uint16_t store_len = (uint16_t)Utils::min(len, (size_t)N);
             memcpy(_buf[_head], buf, store_len);
             _lens[_head] = store_len;
             _head = (uint16_t)((_head + 1) % L);

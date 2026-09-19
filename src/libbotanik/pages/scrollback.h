@@ -7,11 +7,11 @@
  *        shell and home pages through the typedefs below.
  */
 
-#include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
 
+#include "libbotanik/utils/minmax.h"
 #include "libbotanik/config/terminal.h"
 
 #include "libbotanik/console/terminal.h"
@@ -58,9 +58,9 @@ namespace Botanik { namespace Pages {
         void _stored(uint16_t n, bool paced) {
             const uint16_t cnt = this->count();
             if (_view_offset != 0)
-                _view_offset = (uint16_t)std::min<uint32_t>((uint32_t)_view_offset + n, cnt);
+                _view_offset = (uint16_t)Utils::min<uint32_t>((uint32_t)_view_offset + n, cnt);
             else if (paced)
-                _pending = (uint16_t)std::min<uint32_t>((uint32_t)_pending + n, cnt);
+                _pending = (uint16_t)Utils::min<uint32_t>((uint32_t)_pending + n, cnt);
         }
 
     public:
@@ -126,8 +126,8 @@ namespace Botanik { namespace Pages {
             _pending = 0;           // scrolling reveals whatever was pending
             const uint16_t cnt  = this->count();
             const uint16_t max  = cnt > rows ? (uint16_t)(cnt - rows) : 0;
-            const uint16_t from = std::min(_view_offset, max);
-            const uint16_t want = up ? (uint16_t)std::min<uint32_t>((uint32_t)from + n, max)
+            const uint16_t from = Utils::min(_view_offset, max);
+            const uint16_t want = up ? (uint16_t)Utils::min<uint32_t>((uint32_t)from + n, max)
                                      : (uint16_t)(from > n ? from - n : 0);
             if (want == _view_offset) return false;
             _view_offset = want;
@@ -139,7 +139,7 @@ namespace Botanik { namespace Pages {
          *  While scrolled back, a reverse-video count of the newer lines tops
          *  the window. */
         void paint(AnsiTerminal& t, uint16_t first_row, uint16_t rows) {
-            _pending = (uint16_t)(_pending - std::min<uint16_t>(_pending, (uint16_t)Config::LOG_ROWS_PER_TICK));
+            _pending = (uint16_t)(_pending - Utils::min<uint16_t>(_pending, (uint16_t)Config::LOG_ROWS_PER_TICK));
             _hint_move(t, first_row, rows);
             t.set_inverted(false);
             for (uint16_t i = 0; i < rows; i++) {
@@ -148,7 +148,7 @@ namespace Botanik { namespace Pages {
                 uint16_t len = 0;
                 const char* ln = this->line(from_end, len);
                 t.move_to({(uint16_t)(first_row + i), 0});
-                if (ln) t.write_chars(ln, std::min(len, t.cols()));
+                if (ln) t.write_chars(ln, Utils::min(len, t.cols()));
                 t.clear_to_eol();
             }
             if (_view_offset == 0 || rows == 0) return;
@@ -177,8 +177,8 @@ namespace Botanik { namespace Pages {
                 // The union of the two bands, which a band resized needs; rows
                 // adopt() took in are part of the old one. What did not move the
                 // walk writes out.
-                const uint16_t top = std::min(first_row, _painted_first);
-                const uint16_t bot = std::max((uint16_t)(first_row + rows), (uint16_t)(_painted_first + _painted_rows));
+                const uint16_t top = Utils::min(first_row, _painted_first);
+                const uint16_t bot = Utils::max((uint16_t)(first_row + rows), (uint16_t)(_painted_first + _painted_rows));
                 if (delta != 0 && bot > top)
                     t.change(Terminal::LayoutChange::scroll(top, (uint16_t)(bot - 1), (int16_t)delta));
             }

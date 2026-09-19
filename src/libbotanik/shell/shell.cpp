@@ -3,13 +3,13 @@
  * @brief CommandShell: the built-in table, dispatch, output helpers and command
  *        history. One file per noun group beside it (shell_system.cpp, ...).
  */
+#include "libbotanik/utils/minmax.h"
 #include "libbotanik/shell/shell.h"
 #include "libbotanik_features.h"
 
 #if BOTANIK_FEATURE_SHELL_PAGE
 #include "libbotanik/shell/args.h"
 
-#include <algorithm>
 #include <cstdarg>
 #include <cstdio>
 #include <cstring>
@@ -402,7 +402,7 @@ namespace Botanik { namespace Shell {
         va_list ap; va_start(ap, fmt);
         int w = vsnprintf(buf, cap, fmt, ap);
         va_end(ap);
-        if (w > 0) _output.write(buf, std::min((size_t)w, cap - 1));
+        if (w > 0) _output.write(buf, Utils::min((size_t)w, cap - 1));
     }
 
     void CommandShell::_line(const char* label, const char* val) {
@@ -418,7 +418,7 @@ namespace Botanik { namespace Shell {
         char out[Config::LOG_FORMATTED_LEN];
         static const char prefix[] = "Unknown command: ";
         uint16_t plen = (uint16_t)(sizeof(prefix) - 1);
-        uint16_t clen = std::min(len, (uint16_t)(sizeof(out) - plen));
+        uint16_t clen = Utils::min(len, (uint16_t)(sizeof(out) - plen));
         memcpy(out, prefix, plen);
         memcpy(out + plen, cmd, clen);
         _output.write_lines(out, (uint16_t)(plen + clen));
@@ -465,7 +465,7 @@ namespace Botanik { namespace Shell {
         if (_hist_count == 0) return;
         if (_hist_browse < 0) {
             // Starting to browse: stash the in-progress line as the draft.
-            _draft_len = std::min(_editor.buffer_len(), (uint16_t)sizeof(_draft));
+            _draft_len = Utils::min(_editor.buffer_len(), (uint16_t)sizeof(_draft));
             memcpy(_draft, _editor.buffer(), _draft_len);
             _hist_browse = 0;
         } else if (_hist_browse < (int16_t)(_hist_count - 1)) {

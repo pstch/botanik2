@@ -6,13 +6,13 @@
  * plus one per topic. The per-topic filter applies BEFORE the global one, so a
  * message suppressed by its topic bucket does not drain the global one.
  */
+#include "libbotanik/utils/minmax.h"
 #include "libbotanik/logs/logger.h"
 
                                 // Logger
 
 #include "libbotanik/tasks/tasks.h"
 
-#include <algorithm>
 #include <cstdio>
 
 #include "libbotanik/hal/platform.h"
@@ -72,13 +72,13 @@ namespace Botanik { namespace Logs {
         // refill the global bucket
         uint32_t global_amount  = (now_ms - _global_fillTime_ms) / Config::LOG_GLOBAL_BUCKET_PERIOD_MS;
         _global_fillTime_ms    += global_amount * Config::LOG_GLOBAL_BUCKET_PERIOD_MS;
-        uint16_t global_fill = std::min(global_amount, (uint32_t)Config::LOG_GLOBAL_BUCKET_BURST);
+        uint16_t global_fill = Utils::min(global_amount, (uint32_t)Config::LOG_GLOBAL_BUCKET_BURST);
         _fill_bucket(&_global_bucket, global_fill, Config::LOG_GLOBAL_BUCKET_BURST);
 
         // refill topic-specific buckets
         uint32_t topic_amount   = (now_ms - _perTopic_fillTime_ms) / Config::LOG_PERTOPIC_BUCKET_PERIOD_MS;
         _perTopic_fillTime_ms  += topic_amount * Config::LOG_PERTOPIC_BUCKET_PERIOD_MS;
-        uint16_t topic_fill     = std::min(topic_amount, (uint32_t)Config::LOG_PERTOPIC_BUCKET_BURST);
+        uint16_t topic_fill     = Utils::min(topic_amount, (uint32_t)Config::LOG_PERTOPIC_BUCKET_BURST);
         for (uint8_t i = 1; i < Logs::LOG_TOPIC_COUNT; ++i)
             _fill_bucket(&_perTopic_buckets[i], topic_fill, Config::LOG_PERTOPIC_BUCKET_BURST);
 
@@ -165,7 +165,7 @@ namespace Botanik { namespace Logs {
 
     void Logger::_fill_bucket(LogBucket_t* bucket, uint16_t amount, uint16_t burst) {
         if (amount > 0 && bucket->state < burst) {
-            bucket->state = std::min((uint16_t)(bucket->state + amount), burst);
+            bucket->state = Utils::min((uint16_t)(bucket->state + amount), burst);
         }
     }
 

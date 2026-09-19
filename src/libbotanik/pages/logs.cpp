@@ -2,12 +2,12 @@
  * @file logs.cpp
  * @brief LogsPage implementation.
  */
+#include "libbotanik/utils/minmax.h"
 #include "libbotanik/pages/logs.h"
 #include "libbotanik_features.h"
 
 #if BOTANIK_FEATURE_LOGS_PAGE
 
-#include <algorithm>
 #include <cstdio>
 #include <cstring>
 
@@ -103,7 +103,7 @@ namespace Botanik { namespace Pages {
         char mark[40];
         int written = snprintf(mark, sizeof(mark), "%s --- MARK ---", time_buf);
         if (written < 0) return;
-        write(mark, std::min((size_t)written, sizeof(mark) - 1));
+        write(mark, Utils::min((size_t)written, sizeof(mark) - 1));
     }
 
 }}

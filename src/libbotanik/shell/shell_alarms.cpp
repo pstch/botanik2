@@ -2,13 +2,13 @@
  * @file shell_alarms.cpp
  * @brief `alarms`: the condition table, one condition, and acknowledging.
  */
+#include "libbotanik/utils/minmax.h"
 #include "libbotanik/shell/shell.h"
 #include "libbotanik_features.h"
 
 #if BOTANIK_FEATURE_SHELL_PAGE
 #include "libbotanik/shell/args.h"
 
-#include <algorithm>
 #include <cstdio>
 #include <cstring>
 
@@ -40,7 +40,7 @@ namespace Botanik { namespace Shell {
                        ack ? _alarm_model->ack_all() : _alarm_model->unack_all());
             } else {
                 char code[24];
-                uint16_t cl = std::min(tlen, (uint16_t)(sizeof(code) - 1));
+                uint16_t cl = Utils::min(tlen, (uint16_t)(sizeof(code) - 1));
                 memcpy(code, tgt, cl); code[cl] = '\0';
                 const bool hit = ack ? _alarm_model->ack(code)
                                      : _alarm_model->unack(code);
@@ -91,7 +91,7 @@ namespace Botanik { namespace Shell {
             const char* tgt = arg_next(args, alen, wt);
             if (tgt == nullptr) { _verb_usage("alarms", "get"); return; }
             char key[24];
-            uint16_t kl = std::min(wt, (uint16_t)(sizeof(key) - 1));
+            uint16_t kl = Utils::min(wt, (uint16_t)(sizeof(key) - 1));
             memcpy(key, tgt, kl); key[kl] = '\0';
             const int idx = m->index_of(key);
             if (idx < 0) { _emitf(out, sizeof(out), "alarms: no alarm '%s'", key); return; }

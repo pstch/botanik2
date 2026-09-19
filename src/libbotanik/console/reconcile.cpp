@@ -4,12 +4,12 @@
  *        changes the renderers announced, then each row's changed cells,
  *        paced, then the cursor. See terminal.h.
  */
+#include "libbotanik/utils/minmax.h"
 #include "libbotanik/console/terminal.h"
 #include "libbotanik_features.h"
 
 #if BOTANIK_FEATURE_CONSOLE
 
-#include <algorithm>
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
@@ -24,8 +24,8 @@ namespace Botanik { namespace Terminal {
 
     bool AnsiTerminal::_go(const CursorPos& target_in) {
         // The terminal clamps a position past the edge; track where it lands.
-        const CursorPos target = { std::min(target_in.row, (uint16_t)(_rows - 1)),
-                                   std::min(target_in.col, (uint16_t)(_cols - 1)) };
+        const CursorPos target = { Utils::min(target_in.row, (uint16_t)(_rows - 1)),
+                                   Utils::min(target_in.col, (uint16_t)(_cols - 1)) };
         if (target == _hw_pos && !_hw_at_eol) return true;
         bool ok;
         if (_hw_at_eol) {
@@ -149,8 +149,8 @@ namespace Botanik { namespace Terminal {
         const int32_t sum = (int32_t)q.c.n + c.n;
         if (!(c.col == q.c.col + q.c.n || (c.n < 0 && c.col == q.c.col)) || sum <= -127 || sum >= 127) return false;
         q.c.n    = (int16_t)sum;
-        q.c.col  = std::min(q.c.col, c.col);
-        q.c.tail = std::min(q.c.tail, c.tail);
+        q.c.col  = Utils::min(q.c.col, c.col);
+        q.c.tail = Utils::min(q.c.tail, c.tail);
         return true;
     }
 
@@ -167,8 +167,8 @@ namespace Botanik { namespace Terminal {
             // Another band over the same rows, moving differently: the later
             // word stands and the walk writes what the first one described.
             if (q.c.n != c.n) { q.c = c; return true; }
-            q.c.top    = std::min(q.c.top, c.top);
-            q.c.bottom = std::max(q.c.bottom, c.bottom);
+            q.c.top    = Utils::min(q.c.top, c.top);
+            q.c.bottom = Utils::max(q.c.bottom, c.bottom);
             return true;
         }
         return false;

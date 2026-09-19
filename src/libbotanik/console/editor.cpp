@@ -4,6 +4,7 @@
  *        rebuilds the row layout (`_rows`) and repaints the viewport; the
  *        terminal's diff pays for what actually changed.
  */
+#include "libbotanik/utils/minmax.h"
 #include "libbotanik/console/editor.h"
 #include "libbotanik_features.h"
 
@@ -11,7 +12,6 @@
 
 #include <cctype>
 #include <cstdint>
-#include <algorithm>
 #include <cstring>
 #include <cstdio>
 #include <cstdlib>
@@ -60,7 +60,7 @@ namespace Botanik { namespace Terminal {
 
     int32_t TextEditor::_cap(RowPrompt p) const {
         const int32_t cols = _terminal->cols();
-        return std::max<int32_t>(cols - _lead(p), 1);
+        return Utils::max<int32_t>(cols - _lead(p), 1);
     }
 
     uint16_t TextEditor::_row_cap(uint16_t row_idx) const {
@@ -110,8 +110,8 @@ namespace Botanik { namespace Terminal {
     uint16_t TextEditor::row_text(uint16_t i, char* out, uint16_t cap) const {
         if (i >= _row_count) return 0;
         const RowPrompt p    = _row_prompt(i);
-        const uint16_t  plen = std::min(_prompt_len(p), cap);
-        const uint16_t  tlen = std::min(_rows[i].buf_len, (uint16_t)(cap - plen));
+        const uint16_t  plen = Utils::min(_prompt_len(p), cap);
+        const uint16_t  tlen = Utils::min(_rows[i].buf_len, (uint16_t)(cap - plen));
         memcpy(out, _prompt_buf(p), plen);
         memcpy(out + plen, &_buf[_rows[i].buf_start], tlen);
         return (uint16_t)(plen + tlen);
@@ -608,7 +608,7 @@ namespace Botanik { namespace Terminal {
     }
 
     void TextEditor::_band(const Edit& e, int32_t T, int32_t B) {
-        const int32_t lo = std::min(_origin, e.origin_was);
+        const int32_t lo = Utils::min(_origin, e.origin_was);
         const int32_t hi = _view_bottom_hw();
         int32_t top = lo, bottom = hi, n = e.m0;
         if (e.m0 != e.mB) {
@@ -617,8 +617,8 @@ namespace Botanik { namespace Terminal {
             // A band moving up ends on the last row it empties, one moving down
             // starts on the first, so the new row lands where the old one was.
             int32_t t_bot = -1, b_top = hi + 1;
-            if (e.m0 != 0 && T >= 0)      t_bot = std::max(e.was(T), _now(T));
-            if (e.mB != 0 && B < e.count) b_top = std::min(e.was(B), _now(B + e.d));
+            if (e.m0 != 0 && T >= 0)      t_bot = Utils::max(e.was(T), _now(T));
+            if (e.mB != 0 && B < e.count) b_top = Utils::min(e.was(B), _now(B + e.d));
             if (t_bot - lo >= hi - b_top) { bottom = t_bot; }
             else                          { top = b_top; n = e.mB; }
         }
@@ -640,7 +640,7 @@ namespace Botanik { namespace Terminal {
         if (bottom > (int32_t)_view_bottom_hw()) { bottom = _view_bottom_hw(); tail = cols - lead - mag; }
         if (top > bottom || tail < 0) return;
         _terminal->change(LayoutChange::ripple((uint16_t)top, (uint16_t)bottom,
-                                               (uint16_t)std::min(from, to), (uint16_t)lead,
+                                               (uint16_t)Utils::min(from, to), (uint16_t)lead,
                                                (uint16_t)tail, (int16_t)n));
     }
 
@@ -671,7 +671,7 @@ namespace Botanik { namespace Terminal {
         // down to its end took the overflow of the row above; the rows after
         // the line moved as one.
         const int32_t a = e.a, L = e.L, k = e.delta, mag = std::abs(k), j = L + e.d;
-        _band(e, std::min(L, L + e.d), L + 1);
+        _band(e, Utils::min(L, L + e.d), L + 1);
         int32_t tail;
         if (k > 0) tail = e.d > 0 ? 0 : (j == a ? e.row_a.buf_len - e.off : e.row_L.buf_len);
         else       tail = j == a ? e.row_a.buf_len - e.off - mag
@@ -713,8 +713,8 @@ namespace Botanik { namespace Terminal {
         // right by that much, and the rest of the line pushes on from there.
         const int32_t a = e.a, L = e.L, d = e.d, len_a = e.row_a.buf_len, len_b = e.row_b.buf_len, len_L = e.row_L.buf_len;
         const int32_t lead2 = _lead(RowPrompt::PS2), lead3 = _lead(RowPrompt::PS3), rows = L - a;
-        const int32_t cap_a = std::max<int32_t>(_terminal->cols() - _indent - e.ps_a, 1);
-        const int32_t take  = std::min(len_b, cap_a - len_a);
+        const int32_t cap_a = Utils::max<int32_t>(_terminal->cols() - _indent - e.ps_a, 1);
+        const int32_t take  = Utils::min(len_b, cap_a - len_a);
         const int32_t col_p = _indent + e.ps_a + len_a;
         const bool    whole = rows == 1 && take == len_b;         // the next row fits on row a
         const int32_t s_pull = lead3 + take - lead2;
@@ -727,13 +727,13 @@ namespace Botanik { namespace Terminal {
             // push overflows old row L into a new row, the rows after the line
             // stay and the band is the line's rows alone.
             if (d == -1) _band(e, a - 1, a + 1);
-            else _terminal->change(LayoutChange::scroll((uint16_t)std::max<int32_t>(e.was(a), _origin),
-                                                        (uint16_t)std::min<int32_t>(e.was(L), _view_bottom_hw()), -1));
+            else _terminal->change(LayoutChange::scroll((uint16_t)Utils::max<int32_t>(e.was(a), _origin),
+                                                        (uint16_t)Utils::min<int32_t>(e.was(L), _view_bottom_hw()), -1));
             _ripple(_now(a), _now(L - 1), lead3, col_p, len_L);
             return;
         }
         if (whole) { _band(e, a, a + 2); return; }
-        _band(e, std::min(L, L + d), L + 1);
+        _band(e, Utils::min(L, L + d), L + 1);
         const int32_t j    = L + d;
         const int32_t tail = j == a + 1 ? len_b - take : _carried(j == L ? len_L : _cap(RowPrompt::PS2), -s_pull);
         _ripple(_now(a + 1), _now(j), lead3 + take, lead2, tail);

@@ -3,13 +3,13 @@
  * @brief The variable tables: `vars`, `params` and `overrides`, over the shared
  *        row-rendering helpers they all print through.
  */
+#include "libbotanik/utils/minmax.h"
 #include "libbotanik/shell/shell.h"
 #include "libbotanik_features.h"
 
 #if BOTANIK_FEATURE_SHELL_PAGE
 #include "libbotanik/shell/args.h"
 
-#include <algorithm>
 #include <cstdio>
 #include <cstring>
 
@@ -425,7 +425,7 @@ namespace Botanik { namespace Shell {
         }
 
         char val[96];
-        uint16_t vc = std::min(wv, (uint16_t)(sizeof(val) - 1));
+        uint16_t vc = Utils::min(wv, (uint16_t)(sizeof(val) - 1));
         memcpy(val, v, vc); val[vc] = '\0';
 
         if (p.param_set(val) != Vars::SET_OK) {
@@ -586,7 +586,7 @@ namespace Botanik { namespace Shell {
         char text[64];
         const char* value = nullptr;
         if (a != nullptr) {
-            const uint16_t vc = std::min(wa, (uint16_t)(sizeof(text) - 1));
+            const uint16_t vc = Utils::min(wa, (uint16_t)(sizeof(text) - 1));
             memcpy(text, a, vc); text[vc] = '\0';
             value = text;
             // Sequenced deliberately: arg_next() WRITES wt, so passing both to

@@ -2,12 +2,12 @@
  * @file mqtt_log.cpp
  * @brief MqttLogWriter - publish log entries to the MQTT broker.
  */
+#include "libbotanik/utils/minmax.h"
 #include "libbotanik/network/mqtt_log.h"
 #include "libbotanik_features.h"
 
 #if BOTANIK_FEATURE_LOGS_PUBLISH
 
-#include <algorithm>
 #include <cstdio>
 
 #include "libbotanik/logs/format.h"
@@ -37,7 +37,7 @@ namespace Botanik { namespace Network {
             const size_t budget = (Config::MQTT_TX_BUF > overhead)
                                     ? (size_t)Config::MQTT_TX_BUF - overhead : 0;
             char payload[Config::MQTT_TX_BUF];
-            size_t cap = std::min(sizeof(payload), budget);
+            size_t cap = Utils::min(sizeof(payload), budget);
             if (cap > 0) {
                 format(entry, payload, cap);
                 _mqtt->publish(topic, payload, false);
