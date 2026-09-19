@@ -143,6 +143,14 @@ namespace Botanik { namespace Utils {
      *  use. */
     const char* format_size(char* buf, size_t cap, uint32_t bytes);
 
+    /** @brief Percentage of @p period_ms that a mean cost of @p us_mean
+     *  occupies, into @p buf without a unit, returned for inline use.
+     *  @param us_mean   Microseconds; the digits are truncated, not rounded.
+     *  @param period_ms Milliseconds; 0 renders "-".
+     *  @param decimals  1 or 2; anything else reads as 1. Needs >= 12 bytes. */
+    const char* format_duty(char* buf, size_t cap, uint32_t us_mean,
+                            uint32_t period_ms, uint8_t decimals = 1);
+
     /** @}
      *  @name Duration formatting
      *  @{ */

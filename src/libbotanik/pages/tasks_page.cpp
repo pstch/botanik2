@@ -169,13 +169,10 @@ namespace Botanik { namespace Pages {
         const uint32_t period = t.period_ms;
         const char* duty_s = "-";
         if (t.cost.runs != 0 && period != 0) {
-            // us_mean/period_ms IS per-mille of the period - the us/ms ratio
-            // does the scaling - so this stays a 32-bit UDIV. Scaling both sides
-            // by 1000 explicitly would force a 64-bit divide.
             char pct[16];
-            Utils::format_float(pct, sizeof(pct),
-                                (double)t.cost.us_mean() / (double)(period * 10u), 1);
-            snprintf(duty, sizeof(duty), "%s %%", pct);
+            snprintf(duty, sizeof(duty), "%s %%",
+                     Utils::format_duty(pct, sizeof(pct), t.cost.us_mean(),
+                                        period, 1));
             duty_s = duty;
         }
         // Two facts per row. MISSED repeats here beside the run count, the

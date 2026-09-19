@@ -341,6 +341,23 @@ namespace Botanik { namespace Utils {
         return buf;
     }
 
+    const char* format_duty(char* buf, size_t cap, uint32_t us_mean,
+                            uint32_t period_ms, uint8_t decimals) {
+        if (period_ms == 0) { snprintf(buf, cap, "-"); return buf; }
+        // us/ms IS per-mille, so neither side is scaled by 1000 and the divide
+        // stays 32-bit. The x10 overflows only past a ~429 s mean cost.
+        if (decimals >= 2) {
+            const uint32_t cpm = (us_mean * 10u) / period_ms;   // per-10000
+            snprintf(buf, cap, "%lu.%02lu", (unsigned long)(cpm / 100u),
+                     (unsigned long)(cpm % 100u));
+        } else {
+            const uint32_t pm = us_mean / period_ms;            // per-mille
+            snprintf(buf, cap, "%lu.%lu", (unsigned long)(pm / 10u),
+                     (unsigned long)(pm % 10u));
+        }
+        return buf;
+    }
+
     // Duration formatting
 
     const char* format_age(char* buf, size_t cap, uint32_t secs, bool ago, bool floor_min) {
