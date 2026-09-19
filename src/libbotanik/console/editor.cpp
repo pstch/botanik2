@@ -649,6 +649,14 @@ namespace Botanik { namespace Terminal {
     // one number.
     static inline int32_t _carried(int32_t len, int32_t n) { return n < 0 ? len + n : len; }
 
+    // What one rippled row costs: the cells it moves, and the escape that moves
+    // them. A right shift is an insert, and IRM survives cursor motion, so one
+    // SM4 serves the frame; a left shift carries its own DCH. A ripple of no
+    // cells is never emitted.
+    static inline int32_t _rippled(int32_t n) {
+        return n == 0 ? 0 : (n > 0 ? MOVE_BYTES : SHIFT_BYTES) + std::abs(n);
+    }
+
     void TextEditor::_complete(Edit& e) const {
         e.m0 = ((int32_t)_origin - e.origin_was) - ((int32_t)_view_top - e.view_top_was);
         e.d  = (int32_t)_row_count - e.count;
@@ -701,7 +709,7 @@ namespace Botanik { namespace Terminal {
         // further right and every row of the line under it follows.
         const int32_t n_push   = (lead3 + tail) - lead2;
         const int32_t new_row  = SLIDE_BYTES + MOVE_BYTES + (lead3 - _indent) + tail;
-        const int32_t pushed   = below_a * (MOVE_BYTES + n_push);
+        const int32_t pushed   = below_a * _rippled(n_push);
         const int32_t reflowed = d == 1 && L + 1 < e.count ? PAIR_BYTES : 0;
         const int32_t push     = new_row + pushed + reflowed;
 
@@ -709,8 +717,8 @@ namespace Botanik { namespace Terminal {
         // row a keeps the tail alone, n_over cells left of where it sat.
         const int32_t n_over   = lead3 - e.col_a;
         const int32_t opened   = PAIR_BYTES + e.ps_a + head;
-        const int32_t tail_row = n_over != 0 ? SHIFT_BYTES + std::abs(n_over) : 0;
-        const int32_t followed = below_a * (SHIFT_BYTES + std::abs(n_over));
+        const int32_t tail_row = _rippled(n_over);
+        const int32_t followed = below_a * _rippled(n_over);
         const int32_t over     = opened + tail_row + followed;
 
         // Under the carry floor the terminal writes a row rather than shift
@@ -745,7 +753,7 @@ namespace Botanik { namespace Terminal {
         // the line comes n_pull cells left to close the gap it left.
         const int32_t n_pull = lead2 - (lead3 + take);
         const int32_t taken  = MOVE_BYTES + take;
-        const int32_t closed = whole ? PAIR_BYTES : below_a * (SHIFT_BYTES + std::abs(n_pull));
+        const int32_t closed = whole ? PAIR_BYTES : below_a * _rippled(n_pull);
         const int32_t pull   = taken + closed;
 
         // push: row a's screen row goes, and on old row a + 1 the walk writes
@@ -754,7 +762,7 @@ namespace Botanik { namespace Terminal {
         const int32_t n_push  = col_p - lead3;
         const int32_t dropped = PAIR_BYTES;
         const int32_t ahead   = MOVE_BYTES + (lead3 - _indent);
-        const int32_t pushed  = below_a * (MOVE_BYTES + std::abs(n_push));
+        const int32_t pushed  = below_a * _rippled(n_push);
         const int32_t push    = dropped + ahead + pushed;
 
         if (push < pull && (whole ? take : len_L) >= (int32_t)AnsiTerminal::SHIFT_MIN_CARRY) {
