@@ -2,9 +2,9 @@
 # CMakeLists once the site is resolved, for both targets and whether botanik
 # is the project or a consumer's subdirectory.
 #
-# One CODEGEN custom command per generated tree - the library's three .gen.h
-# files, and the site's generated/ - depending on every input the generator
-# reads. The generated files themselves are committed sources, not OUTPUTs: a
+# One CODEGEN custom command per generated tree - the library's own generated
+# set, and the site's generated/ - depending on every input the generator
+# reads, and on the output it last wrote. The generated files themselves are committed sources, not OUTPUTs: a
 # Makefile `make clean` deletes outputs, and a clean clone must build without
 # the tools. So the OUTPUT is a stamp in the build tree, and the command only
 # regenerates when the committed codegen.stamp no longer matches the inputs
@@ -52,6 +52,10 @@ function(_botanik_codegen_command tree site done)
         string(REGEX REPLACE "^[^|]*\\|" "" _f "${_p}")
         list(APPEND _deps "${_f}")
     endforeach()
+    # ...and its own output, so a hand edit is a reason to re-run. The script
+    # touches ${done} last, so it always ends newer than what it just wrote.
+    botanik_codegen_outputs(_outs "${BOTANIK_ROOT}" "${site}")
+    list(APPEND _deps ${_outs})
     add_custom_command(OUTPUT "${done}"
         COMMAND ${CMAKE_COMMAND} -DROOT=${BOTANIK_ROOT} -DSITE=${site}
                 -DPYTHON=${_codegen_python} -DDONE=${done}

@@ -258,6 +258,19 @@ def _scalar(v):
     return int(v)
 
 
+def _uncomment(ln):
+    """The line with its comment removed, `#` inside a quoted value kept.
+
+    Splitting on the first `#` would truncate `k = "red # 2"` to `"red`, which
+    then reaches _scalar() as something it cannot name."""
+    out, quoted = [], False
+    for ch in ln:
+        if ch == '"': quoted = not quoted
+        elif ch == '#' and not quoted: break
+        out.append(ch)
+    return ''.join(out).strip()
+
+
 _HEADER = re.compile(r'\[\[?[A-Za-z0-9_.-]+\]\]?$')
 
 
@@ -277,7 +290,7 @@ def toml(path):
             else:
                 block.append(ln.rstrip('\n'))
             continue
-        ln = ln.split('#')[0].strip() if not ln.lstrip().startswith('#') else ''
+        ln = _uncomment(ln)
         if not ln: continue
         if ln[0] == '[':
             if not _HEADER.match(ln):

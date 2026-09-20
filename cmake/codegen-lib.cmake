@@ -1,9 +1,11 @@
 # Whether a generated tree still matches its inputs, and the hand-off to the
 # generator when it does not.
 #
-# A generated tree (a site's generated/, or the library's three .gen.h files)
+# A generated tree (a site's generated/, or the library's own generated set)
 # carries a committed codegen.stamp: the SHA-256 over the name and content of
-# every input the generator reads. Answering "does it match" is the one part
+# every input the generator reads, and then one hash per file it WROTE - the
+# input hash alone cannot see a hand edit to the output, since the generator is
+# still reading the same tables. Answering "does it match" is the one part
 # that must not need python, so a clean clone builds without it. On a mismatch,
 # `tables.py codegen` regenerates and writes the stamp handed to it; without
 # python that is a hard error, never a build of stale output.
@@ -66,6 +68,34 @@ function(botanik_codegen_inputs out root site)
     set(${out} ${_pairs} PARENT_SCOPE)
 endfunction()
 
+# The generated files a hand edit is plausible in, as absolute paths, filtered
+# to the ones that exist: they are DEPENDS of the codegen command, so touching
+# one re-runs the script, which then verifies every file the stamp lists. A
+# tree that has never been generated has none, and the missing stamp covers it.
+function(botanik_codegen_outputs out root site)
+    if(site)
+        set(_f "${site}/generated/config.gen.h" "${site}/generated/rows.gen.h"
+               "${site}/generated/vars.gen.cpp" "${site}/generated/vars.gen.h"
+               "${site}/generated/plant.cpp")
+    else()
+        set(_f "${root}/src/libbotanik/codegen_abi.h"
+               "${root}/src/libbotanik/config/capacities.gen.h"
+               "${root}/src/libbotanik/core/health.h"
+               "${root}/src/libbotanik/plc/runtime/health.gen.h"
+               "${root}/src/libbotanik/plc/runtime/quality.gen.h"
+               "${root}/src/libbotanik/vars/quality.h"
+               "${root}/src/libbotanik/vars/rows_none.gen.h"
+               "${root}/src/libbotanik_features.h")
+    endif()
+    set(_have)
+    foreach(_x IN LISTS _f)
+        if(EXISTS "${_x}")
+            list(APPEND _have "${_x}")
+        endif()
+    endforeach()
+    set(${out} ${_have} PARENT_SCOPE)
+endfunction()
+
 if(NOT CMAKE_SCRIPT_MODE_FILE)
     return()
 endif()
@@ -91,6 +121,40 @@ function(_botanik_codegen_stamp out)
         file(STRINGS "${_stamp}" _s REGEX "^[0-9a-f]+$" LIMIT_COUNT 1)
     endif()
     set(${out} "${_s}" PARENT_SCOPE)
+endfunction()
+
+# Whether every file the stamp lists still hashes to what it listed. The input
+# hash cannot see a hand edit to the OUTPUT: it is the same generator reading
+# the same tables, so it matches while the file on disk says something else.
+# Names are relative to the tree's root, so two checkouts agree.
+function(_botanik_codegen_outputs_ok out)
+    set(${out} FALSE PARENT_SCOPE)
+    set(_botanik_codegen_edited "" PARENT_SCOPE)
+    if(NOT EXISTS "${_stamp}")
+        return()
+    endif()
+    if(SITE)
+        get_filename_component(_root "${SITE}" DIRECTORY)
+    else()
+        set(_root "${ROOT}")
+    endif()
+    file(STRINGS "${_stamp}" _lines REGEX "^[0-9a-f]+  ")
+    if(NOT _lines)
+        return()   # a stamp from before the output list: regenerate once
+    endif()
+    foreach(_l IN LISTS _lines)
+        string(SUBSTRING "${_l}" 0 64 _want)
+        string(SUBSTRING "${_l}" 66 -1 _name)
+        if(NOT EXISTS "${_root}/${_name}")
+            return()
+        endif()
+        file(SHA256 "${_root}/${_name}" _have)
+        if(NOT _have STREQUAL _want)
+            set(_botanik_codegen_edited "${_name}" PARENT_SCOPE)
+            return()
+        endif()
+    endforeach()
+    set(${out} TRUE PARENT_SCOPE)
 endfunction()
 
 # tables.py <args>.
@@ -129,18 +193,24 @@ if(CHECK)
 endif()
 
 _botanik_codegen_stamp(_have)
-if(NOT _have STREQUAL _want)
+_botanik_codegen_outputs_ok(_outs)
+if(NOT _have STREQUAL _want OR NOT _outs)
     # Several build trees can build the same tree at once: every example shares
     # the library's. The second waits, then finds the stamp current.
     file(LOCK "${ROOT}/.codegen.lock" TIMEOUT 900)
     _botanik_codegen_stamp(_have)
+    _botanik_codegen_outputs_ok(_outs)
 endif()
-if(_have STREQUAL _want)
+if(_have STREQUAL _want AND _outs)
     message(STATUS "codegen: ${_what} is up to date")
 else()
     set(_why "its inputs changed")
     if(_have STREQUAL "")
         set(_why "no stamp")
+    elseif(_botanik_codegen_edited)
+        set(_why "${_botanik_codegen_edited} was edited by hand")
+    elseif(_have STREQUAL _want)
+        set(_why "a generated file is missing")
     endif()
     message(STATUS "codegen: regenerating ${_what}: ${_why}")
     _botanik_codegen_python("regenerating ${_what}" codegen "${_arg}" ${_want})

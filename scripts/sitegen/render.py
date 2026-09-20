@@ -92,6 +92,9 @@ def render(name, **ctx):
     return _env.get_template(name).render(**ctx)
 
 
+WROTE = []   # every path write() has produced, for the stamp's output list
+
+
 def write(path, name, **ctx):
     """Render, and write it where it belongs, creating the directory."""
     out = render(name, **ctx)
@@ -99,4 +102,5 @@ def write(path, name, **ctx):
     if d:
         os.makedirs(d, exist_ok=True)
     open(path, 'w').write(out)
+    WROTE.append(path)
     return out

@@ -16,7 +16,7 @@ beside the site. `site` is a name under examples/, or a path. What it reads out
 of the library is anchored to this checkout; what it writes for a site goes
 beside the site."""
 
-import filecmp, os, re, shutil, sys
+import filecmp, hashlib, os, re, shutil, sys
 
 # Runnable as a path (`python3 .../sitegen/tables.py`), so the package's parent
 # has to be importable before the package is.
@@ -134,7 +134,8 @@ def config(site, t):
 
 STAMP = ('# Input hash of this generated tree, written by the build.\n'
          '# The build regenerates when it stops matching. Commit it with the output.\n'
-         '%s\n')
+         '%s\n'
+         '# ...and one per file it produced, so a hand edit is caught too.\n')
 
 
 def library_files():
@@ -156,8 +157,26 @@ def library_files():
     quality_block()
 
 
+def _outputs(site):
+    """What this tree produced, as (name relative to its root, path).
+
+    A site's whole generated/ is listed rather than what render.write() saw:
+    matiec writes half of it, and a hand edit to POUS.c has to be caught too."""
+    if site is None:
+        root = lib()
+        return sorted((os.path.relpath(f, root), f) for f in render.WROTE)
+    root = os.path.dirname(site)
+    gen = os.path.join(site, 'generated')
+    out = [os.path.join(gen, f) for f in os.listdir(gen) if f != 'codegen.stamp']
+    page = os.path.join(root, 'docs', 'generated', 'variables.md')
+    if os.path.exists(page): out.append(page)
+    return sorted((os.path.relpath(f, root), f) for f in out
+                  if os.path.isfile(f))
+
+
 def codegen(site, stamp):
     """Every command a tree needs, then the stamp; site None is the library."""
+    del render.WROTE[:]
     if site is None:
         library_files()
         path = lib('src', 'libbotanik', 'codegen.stamp')
@@ -170,7 +189,9 @@ def codegen(site, stamp):
         plant(site, t)
         points(site, t)
         path = os.path.join(site, 'generated', 'codegen.stamp')
-    with open(path, 'w') as fh: fh.write(STAMP % stamp)
+    lines = ['%s  %s\n' % (hashlib.sha256(open(f, 'rb').read()).hexdigest(), n)
+             for n, f in _outputs(site)]
+    with open(path, 'w') as fh: fh.write(STAMP % stamp + ''.join(lines))
 
 
 def check_generated(site, stamp, scratch):
