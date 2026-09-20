@@ -274,7 +274,7 @@ namespace Botanik { namespace Terminal {
         /** @brief The real cursor to @p target by the shortest sequence.
          *  @return false if the ring could not hold it. */
         bool _go(const CursorPos& target);
-        void _set_hw_inverted(bool inv);
+        bool _set_hw_inverted(bool inv);
         bool _set_hw_insert(bool on);
 
         /** @} */

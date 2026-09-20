@@ -53,6 +53,10 @@ namespace Botanik { namespace Terminal { namespace Ansi {
         return active ? emit_csi(out, SM4) : emit_csi(out, RM4);
     }
 
+    bool set_inverse(ByteSink& out, bool on) {
+        return on ? emit_csi(out, ATTR_NEG) : emit_csi(out, ATTR_NONE);
+    }
+
     bool cancel_sequence(ByteSink& out) {
         if (out.availableForWrite() < (uint16_t)(sizeof(CAN) - 1)) return false;
         out.write(CAN, sizeof(CAN) - 1);

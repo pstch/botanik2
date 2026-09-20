@@ -54,12 +54,11 @@ namespace Botanik { namespace Terminal {
         return ok;
     }
 
-    void AnsiTerminal::_set_hw_inverted(bool inv) {
-        if (inv == _hw_inverted) return;
-        _serial.write(Ansi::CSI, sizeof(Ansi::CSI) - 1);
-        _serial.write(inv ? Ansi::ATTR_NEG : Ansi::ATTR_NONE,
-                      inv ? sizeof(Ansi::ATTR_NEG) - 1 : sizeof(Ansi::ATTR_NONE) - 1);
+    bool AnsiTerminal::_set_hw_inverted(bool inv) {
+        if (inv == _hw_inverted) return true;
+        if (!Ansi::set_inverse(_serial, inv)) return false;
         _hw_inverted = inv;
+        return true;
     }
 
     bool AnsiTerminal::_set_hw_insert(bool on) {
@@ -77,19 +76,23 @@ namespace Botanik { namespace Terminal {
         uint16_t k = a;
         while (k < b) {
             bool inv = (_front[_idx(row, k)] & CELL_INV) != 0;
-            _set_hw_inverted(inv);
+            if (!_set_hw_inverted(inv)) break;
             uint16_t n = 0, m = k;
             while (m < b && (((_front[_idx(row, m)] & CELL_INV) != 0) == inv)) {
                 buf[n++] = (char)(_front[_idx(row, m)] & CELL_CH);
-                _back[_idx(row, m)] = _front[_idx(row, m)];
                 m++;
             }
-            _serial.write(buf, n);
-            k = m;
+            // _back records what REACHED the ring: a short write is a cell the
+            // screen never showed, and claiming it retires it from the diff.
+            const uint16_t w = _serial.write(buf, n);
+            for (uint16_t i = 0; i < w; i++)
+                _back[_idx(row, (uint16_t)(k + i))] = _front[_idx(row, (uint16_t)(k + i))];
+            k = (uint16_t)(k + w);
+            if (w != n) break;
         }
-        // The real cursor advanced to column b, or parked on the edge.
-        if (b >= _cols) { _hw_pos.col = (uint16_t)(_cols - 1); _hw_at_eol = true; }
-        else            { _hw_pos.col = b; _hw_at_eol = false; }
+        // The real cursor advanced to column k, or parked on the edge.
+        if (k >= _cols) { _hw_pos.col = (uint16_t)(_cols - 1); _hw_at_eol = true; }
+        else            { _hw_pos.col = k; _hw_at_eol = false; }
         _hw_pos.row = row;
         return (uint16_t)(tx_used() - before);
     }

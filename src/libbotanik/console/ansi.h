@@ -96,6 +96,10 @@ namespace Botanik { namespace Terminal { namespace Ansi {
     /** @brief Set insertion mode (IRM) to @p active, using SM4/RM4. */
     bool set_insert_mode(ByteSink& out, bool active);
 
+    /** @brief Negative-image SGR on or off.
+     *  @return false when the ring cannot take the whole sequence. */
+    bool set_inverse(ByteSink& out, bool on);
+
     /** @brief Emit CAN to abort any control sequence the terminal is
      *  mid-parsing. Use after a tx_discard, which can strand a half-sent
      *  sequence on the wire that would otherwise swallow the next emit. */
