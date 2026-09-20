@@ -88,7 +88,6 @@ namespace Botanik { namespace Pages {
         Vars::Bank* _params;
         /** @brief What makes an edit durable; null leaves ^O a no-op. */
         Vars::Persist* _persist = nullptr;
-        bool                _dirty    = true;    ///< table needs a redraw
         uint64_t            _last_refresh_ms = 0; ///< last cadence rebuild
 
         /** @} */

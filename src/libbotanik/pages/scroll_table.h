@@ -49,6 +49,18 @@ namespace Botanik { namespace Pages {
          *  plus the longest key cell worth reading back. */
         char          _copied[56] = {0};
 
+        /** @brief The table needs a repaint. Set by anything that changes what
+         *  would be drawn, cleared by the page once it has drawn it. Here
+         *  because all four tables kept the same flag under the same name. */
+        bool          _dirty = true;
+
+        /** @brief What the last keypress had to say, while _said_until_ms has
+         *  not passed. A page that answers a key shows it on a row of its own
+         *  choosing; the state is here because every table that answers one
+         *  kept the same three lines. */
+        char          _said[48] = {0};
+        uint64_t      _said_until_ms = 0;
+
         /** @} */
 
         explicit ScrollTablePage(Console& console)
@@ -119,6 +131,13 @@ namespace Botanik { namespace Pages {
         /** @brief The Alt+W badge, or "" once it has expired. What
          *  _draw_legend() shows in place of the page's own detail. */
         const char* _copied_badge() const;
+
+        /** @brief How long a _say() answer stays up (ms). */
+        static constexpr uint32_t SAID_MS = 4000;
+
+        /** @brief Answer a keypress with @p text for SAID_MS, and mark the page
+         *  dirty so the next tick paints it. Where it is drawn is the page's. */
+        void _say(const char* text);
 
         /** @brief Move the cursor by @p dir (clamped to the set), scrolling the
          *  band to keep it visible; the tick's redraw paints it. */

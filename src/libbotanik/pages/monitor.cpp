@@ -309,11 +309,6 @@ namespace Botanik { namespace Pages {
 
     // Overrides
 
-    void MonitorPage::_say(const char* text) {
-        snprintf(_said, sizeof(_said), "%s", text);
-        _said_until_ms = HAL::Clock::uptime_ms() + SAID_MS;
-        _dirty = true;
-    }
 
     uint16_t MonitorPage::_edit_label(char* buf, size_t cap) const {
         const char* nm = _io->var(_edit_ref).meta().name;

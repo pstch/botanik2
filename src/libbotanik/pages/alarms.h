@@ -57,18 +57,12 @@ namespace Botanik { namespace Pages {
         /** @brief A nav / view / filter / ack happened: redraw on the next tick
          *  rather than waiting for the value cadence, so the keypress feels
          *  immediate. */
-        bool                      _dirty = true;
         /** @brief Uptime of the last cadence rebuild (see tick()). */
         uint64_t                  _last_refresh_ms = 0;
         /** @brief Visible alarm indices (table order), filled by _collect(). */
         uint8_t                   _vis[Config::ALARM_SLOTS];
         /** @brief Number of visible entries in _vis. */
         uint8_t                   _nvis     = 0;
-        /** @brief What the last keypress had to say, while _said_until_ms has
-         *  not passed. The override keys act on flash and on the plant, so each
-         *  one answers. */
-        char                      _said[40] = {0};
-        uint64_t                  _said_until_ms = 0;
 
         /** @} */
 
@@ -138,14 +132,8 @@ namespace Botanik { namespace Pages {
         /** @brief Draw the footer legend: the view badge and its neighbours, the
          *  position, the filter, and how many conditions are active. */
         void _draw_footer(uint16_t row, uint8_t active);
-
-        /** @brief Answer a keypress for SAID_MS on the spacer row under the
-         *  bottom rule. Not the legend's detail slot: that is 20 columns on an
-         *  80-wide display, and these say what happened to flash. */
-        void _say(const char* text);
         /** @brief Draw what _say() left, or blank @p row once it has expired. */
         void _draw_said(uint16_t row);
-        static constexpr uint32_t SAID_MS = 4000;
 
         /** @brief Detail panel between the bottom rule and the legend: the
          *  _say() row, then the selected alarm's Description, its Remediation

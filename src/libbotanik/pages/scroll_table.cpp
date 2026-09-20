@@ -329,6 +329,12 @@ namespace Botanik { namespace Pages {
                          (value && value[0]) ? value : "-");
         _draw_line(row, buf, (n < 0) ? 0 : (uint16_t)n);
     }
+
+    void ScrollTablePage::_say(const char* text) {
+        snprintf(_said, sizeof(_said), "%s", text);
+        _said_until_ms = HAL::Clock::uptime_ms() + SAID_MS;
+        _dirty = true;
+    }
 }}
 
 #endif // BOTANIK_FEATURE_CONSOLE

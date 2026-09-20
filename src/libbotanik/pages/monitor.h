@@ -162,7 +162,6 @@ namespace Botanik { namespace Pages {
         const void*           _device_ctx = nullptr;
         /** @brief A nav happened: redraw on the next tick rather than waiting for
          *  the value cadence, so scrolling/selection feels immediate. */
-        bool                _dirty    = true;
         /** @brief Uptime of the last value refresh (see tick()). */
         uint64_t            _last_refresh_ms = 0;
         /** @} */
@@ -178,8 +177,6 @@ namespace Botanik { namespace Pages {
         /** @brief What the last override key did, and when it stops being said.
          *  The bottom row is otherwise blank, and ^R / ^S change nothing a
          *  short table shows. */
-        char                _said[48] = {0};
-        uint64_t            _said_until_ms = 0;
         /** @} */
 
     public:
@@ -332,10 +329,6 @@ namespace Botanik { namespace Pages {
         uint16_t _prompt_row() const { return _console.last_row(); }
 
         /** @brief How long the prompt row keeps what it was told to say (ms). */
-        static constexpr uint32_t SAID_MS = 4000;
-
-        /** @brief Say @p text on the prompt row for SAID_MS. */
-        void _say(const char* text);
 
         /** @brief " name = " label the field is indented past. */
         uint16_t _edit_label(char* buf, size_t cap) const;

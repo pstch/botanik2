@@ -48,11 +48,6 @@ namespace Botanik { namespace Pages {
         _draw_legend(row, detail);
     }
 
-    void AlarmsPage::_say(const char* text) {
-        snprintf(_said, sizeof(_said), "%s", text);
-        _said_until_ms = HAL::Clock::uptime_ms() + SAID_MS;
-        _dirty = true;
-    }
 
     void AlarmsPage::_draw_said(uint16_t row) {
         if (_said[0] != '\0' && HAL::Clock::uptime_ms() >= _said_until_ms)

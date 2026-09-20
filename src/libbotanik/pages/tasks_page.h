@@ -131,7 +131,6 @@ namespace Botanik { namespace Pages {
          *  @{ */
         /** @brief Borrowed; the firmware owns it and it outlives the page. */
         const Tasks::Registry&   _reg;
-        bool                         _dirty = true;
         uint64_t                     _last_refresh_ms = 0;
         /** @brief Row order: the tasks the filter keeps, programs first then by
          *  name (_before()). Registration order is the beat's order, but PHASE
