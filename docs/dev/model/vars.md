@@ -15,7 +15,7 @@ row-level operation lives.
 
 ## The generated table
 
-`scripts/sitegen` merges the library's own rows (`vars/tables/library.csv`) into
+`scripts/sitegen` merges the library's own rows (`tables/rows.csv`) into
 the site's, orders them, and emits one `Descriptor[]` plus a `Vars::Row::<name>`
 constant per row. The library's parameters come first, so the contiguous
 `K_PARAM` run holds; registers 900-999 are the library's.

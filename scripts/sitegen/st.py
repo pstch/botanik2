@@ -281,7 +281,7 @@ def plant(site, t):
 # ---- the ST enumerations the LIBRARY owns -----------------------------------
 
 # The enumerations the LIBRARY owns, in both spellings. The MEMBERS come from
-# vars/tables/library_enums.csv; what is here is the C++ SHAPE - which namespace,
+# tables/enums.csv; what is here is the C++ SHAPE - which namespace,
 # scoped or not, which header - because that is the generator's own knowledge of
 # what it emits, never something read back out of a header.
 LIB_ENUMS = [
@@ -315,7 +315,7 @@ def _check_st_type(e, codes):
     if not m: sys.exit('%s: no `%s : (...)` TYPE block' % (e['st_file'], e['st']))
     got = [w.strip() for w in m.group(1).split(',')]
     if got != codes:
-        sys.exit('%s: %s is %s, library_enums.csv says %s'
+        sys.exit('%s: %s is %s, tables/enums.csv says %s'
                  % (e['st_file'], e['st'], got, codes))
 
 
@@ -326,7 +326,7 @@ def _lib_enum(e):
     the members have to be named constants of the REAL C++ type. Both sides come
     off the one CSV, so a code added to one and not the other cannot exist."""
     members = [r for r in lib_enums() if r['enum'] == e['enum']]
-    if not members: sys.exit('library_enums.csv: no members for %s' % e['enum'])
+    if not members: sys.exit('tables/enums.csv: no members for %s' % e['enum'])
     codes = [r['symbol'] for r in members]
     _check_st_type(e, codes)
 
@@ -338,18 +338,18 @@ def _lib_enum(e):
 
     out = lib('src', 'libbotanik', 'plc', 'runtime', '%s.gen.h' % e['st'].lower())
     render.write(out, 'lib_enum.gen.h.j2',
-                 header='src/libbotanik/vars/tables/library_enums.csv',
+                 header='src/libbotanik/tables/enums.csv',
                  st=e['st'], guard='BOTANIK_PLC_RUNTIME_%s_GEN_H' % e['st'],
                  codes=[{'name': c, 'spelt': e['spell'] % c} for c in codes])
     return e['lower'], len(codes)
 
 
 def _rows_none():
-    """Every row library.csv declares, bound to VAR_NONE.
+    """Every row tables/rows.csv declares, bound to VAR_NONE.
 
     vars/rows.h falls back to this when the build names no site, so the library
     compiles for a consumer that wants a component and no table. Emitted from
-    library.csv alone, which is why it is the LIBRARY's artifact and not a
+    tables/rows.csv alone, which is why it is the LIBRARY's artifact and not a
     site's."""
     rows = [r['name'] for r in lib_table()]
     render.write(lib('src', 'libbotanik', 'vars', 'rows_none.gen.h'),

@@ -10,7 +10,7 @@
  *  a Component verdict, a task entry, a driver, the TASKS page - so it
  *  sits where they can all reach it without depending upward.
  *
- * Generated from vars/tables/library_enums.csv, which is also where
+ * Generated from tables/enums.csv, which is also where
  * plc/runtime/health.gen.h gets the constants matiec is handed. matiec
  * numbers an ST enumeration 0,1,2... in declaration order, so the ORDER here is
  * the wire contract with `HEALTH`: a code may be appended, never moved.

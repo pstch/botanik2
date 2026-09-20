@@ -5,10 +5,10 @@
                                                        the library) needs, then its stamp
     sitegen/tables.py check   <site> <hash> <scratch>  codegen into a copy, diffed against the site
 
-    sitegen/tables.py generate [site]   library.csv + tables/*.csv -> enums, vars.gen.{h,cpp}, rows.gen.h
+    sitegen/tables.py generate [site]   tables/rows.csv + tables/*.csv -> enums, vars.gen.{h,cpp}, rows.gen.h
     sitegen/tables.py config   [site]   site.toml + the tables     -> config.gen.h
     sitegen/tables.py plant    [site]   programs.csv + ST          -> enums, plant.st, plant.cpp, matiec
-    sitegen/tables.py library           library.csv, library_enums.csv,
+    sitegen/tables.py library           tables/rows.csv, tables/enums.csv,
                                         libbotanik.toml            -> the library's own generated set
 
 `codegen` also writes the site's reference page, ../docs/generated/variables.md

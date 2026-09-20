@@ -7,7 +7,7 @@
  * @brief What a reading is worth: the one thing every consumer of a
  *        row asks before it computes on the number.
  *
- * Generated from vars/tables/library_enums.csv, which is also where
+ * Generated from tables/enums.csv, which is also where
  * plc/runtime/quality.gen.h gets the constants matiec is handed. matiec
  * numbers an ST enumeration 0,1,2... in declaration order, so the ORDER here is
  * the wire contract with `QUALITY`: a code may be appended, never moved.

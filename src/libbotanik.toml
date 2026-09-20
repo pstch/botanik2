@@ -1,6 +1,11 @@
 # The LIBRARY's own profile, the way site.toml is a site's.
 #
-# [config] is the base value of anything a site may move, and anything a
+# # Where this profile's tables are, relative to THIS file. A site says the same
+# thing in its site.toml, so the generator is told rather than knowing.
+[tables]
+dir = "libbotanik/tables"
+
+[config] is the base value of anything a site may move, and anything a
 # library row names as its capacity has to be here: the generator sizes the
 # string pool from the EFFECTIVE value, so a site that widens one widens the
 # pool with it. config/capacities.gen.h is generated from this table.
@@ -10,6 +15,11 @@
 # from them, so nothing has to read a C++ header to learn which flags exist,
 # what they default to, or what they require. Adding a flag is a block here and
 # a row in docs/integration/config.md - nothing else.
+
+# Where this profile's tables are, relative to THIS file. A site says the same
+# thing in its site.toml, so the generator is told rather than knowing.
+[tables]
+dir = "libbotanik/tables"
 
 [config]
 # Char-buffer length for a network address. The net_/ntp_/mqtt_ rows name it as

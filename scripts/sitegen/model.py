@@ -116,8 +116,24 @@ AUX = {  # stem -> columns, for the tables that are not rows
 # change to a template or to the generator that the library's headers depend on.
 CODEGEN_ABI = 1
 
-LIB_CSV = lib('src', 'libbotanik', 'vars', 'tables', 'library.csv')
-LIB_ENUMS_CSV = lib('src', 'libbotanik', 'vars', 'tables', 'library_enums.csv')
+def _lib_tables():
+    """The library's tables directory, as libbotanik.toml states it."""
+    return lib('src', *toml(LIB_TOML)['tables']['dir'].split('/'))
+
+
+def lib_csv(stem):
+    """One of the library's own tables, by stem."""
+    return os.path.join(_lib_tables(), stem + '.csv')
+
+
+def site_csv(site, stem):
+    """One of a SITE's tables, by stem.
+
+    Where they live is site.toml's `[tables] dir`, relative to the toml, the
+    same key the library states in libbotanik.toml. A site that omits it keeps
+    the conventional `tables/`."""
+    d = toml(os.path.join(site, 'site.toml')).get('tables', {}).get('dir', 'tables')
+    return os.path.join(site, *(d.split('/') + [stem + '.csv']))
 LIB_TOML = lib('src', 'libbotanik.toml')
 
 
@@ -161,13 +177,13 @@ def core_features():
 
 
 def lib_enums():
-    """vars/tables/library_enums.csv, as rows.
+    """tables/enums.csv, as rows.
 
     The members of every enumeration the LIBRARY owns, in declaration order.
     One statement feeds the C++ enum, the block matiec is handed, and the check
     against the hand-written ST TYPE - so a code cannot exist on one side
     alone."""
-    return read_table(LIB_ENUMS_CSV, 'enum ctype symbol value label desc'.split())
+    return read_table(lib_csv('enums'), 'enum ctype symbol value label desc'.split())
 
 
 def config_defaults(site_tom=None):
@@ -224,12 +240,12 @@ def read_table(path, cols):
 
 def aux(site, stem):
     """One of the site's tables that is not rows; empty where it has none."""
-    return read_table(os.path.join(site, 'tables', stem + '.csv'), AUX[stem].split())
+    return read_table(site_csv(site, stem), AUX[stem].split())
 
 
 def lib_table():
-    """library.csv, whose `fac` column says which factory each row is."""
-    with open(LIB_CSV, newline='') as fh:
+    """tables/rows.csv, whose `fac` column says which factory each row is."""
+    with open(lib_csv('rows'), newline='') as fh:
         return [dict((k, (v or '').strip()) for k, v in r.items())
                 for r in csv.DictReader(fh)]
 
@@ -378,7 +394,7 @@ def _merge(site, tom):
     own = []
     for fac in PARAM_FACS + OTHER_FACS:
         stem, cols = ROWS[fac]
-        for r in read_table(os.path.join(site, 'tables', stem + '.csv'),
+        for r in read_table(site_csv(site, stem),
                             cols.split()):
             r['_fac'] = fac
             r['_lib'] = False

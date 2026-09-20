@@ -143,7 +143,7 @@
 #endif
 
 /** @brief SYSTEM: the unit's own health - run state, watchdog, beat timing,
- *  what the task table costs, and the state of each bus. `Pages::SystemPage`,
+ *  what the task table costs, and the state of each bus. `Pages::StatusPage`,
  *  which a site may subclass to append rows of its own. */
 #ifndef BOTANIK_FEATURE_SYSTEM_PAGE
 #  define BOTANIK_FEATURE_SYSTEM_PAGE 0

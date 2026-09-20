@@ -30,7 +30,7 @@ function(botanik_codegen_inputs out root site)
                         "${root}/src/libbotanik/plc/blocks/*.st")
         list(APPEND _lib ${_more}
             "${root}/src/libbotanik/config/capacities.gen.h"
-            "${root}/src/libbotanik/vars/tables/library.csv"
+            "${root}/src/libbotanik/tables/rows.csv"
             "${root}/src/libbotanik/plc/functions/ieclib.txt"
             "${root}/src/libbotanik.toml"
             "${root}/vendor/matiec/UPSTREAM")
@@ -47,10 +47,10 @@ function(botanik_codegen_inputs out root site)
             "${root}/templates/lib_enum.h.j2"
             "${root}/templates/features.h.j2"
             "${root}/src/libbotanik.toml"
-            "${root}/src/libbotanik/vars/tables/library_enums.csv"
+            "${root}/src/libbotanik/tables/enums.csv"
             "${root}/src/libbotanik/plc/functions/quality.st"
             "${root}/src/libbotanik/plc/functions/health.st"
-            "${root}/src/libbotanik/vars/tables/library.csv")
+            "${root}/src/libbotanik/tables/rows.csv")
     endif()
 
     set(_pairs)

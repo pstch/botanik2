@@ -9,6 +9,10 @@
 [site]
 name = "ref"
 
+# Where this site's tables are, relative to THIS file.
+[tables]
+dir = "tables"
+
 [rates]
 # The law, and the conditioning chain under it, in ms.
 control = 100
