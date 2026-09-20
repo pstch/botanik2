@@ -54,7 +54,7 @@ namespace Botanik { namespace Modbus {
         uint32_t _stray_bytes = 0;   ///< arrived when nothing was armed, or after a frame
 
         /** @brief Bytes still to be discarded as OUR OWN transmission. RE is
-         *  held asserted for the life of the port (hal/platform.cpp), so the
+         *  held asserted for the life of the port (hal/platform_opta.cpp), so the
          *  receiver hears the frame we just sent: those bytes arrive first,
          *  they are exactly as many as we wrote, and they are not the answer. */
         uint16_t _skip     = 0;

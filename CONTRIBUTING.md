@@ -103,7 +103,7 @@ _terminal->write_chars(&_buf[pos], pressure, /*insert=*/true);
 
 A few blocks run past six lines because they are the only place a contract
 lives - the alarm dwell semantics in `vars/declare.h`, the RS-485 DE guard
-times in `hal/platform.cpp`, the echo count in `modbus/rtu/framing.h`. Where a
+times in `hal/platform_opta.cpp`, the echo count in `modbus/rtu/framing.h`. Where a
 file sits over the ratio, ask which rule above it breaks, not how far over it
 is.
 

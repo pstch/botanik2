@@ -77,7 +77,7 @@ namespace Botanik { namespace HAL {
     /** @brief Timing and clocks.
      *
      *  Declared without `inline` even for the per-beat readings: the OPTA
-     *  backend defines them in platform.cpp (the simulator's stay inline in its
+     *  backend defines them in platform_<backend>.cpp (the simulator's stay inline in its
      *  own header), and an `inline` here would apply to both, leaving the OPTA
      *  link looking for a definition no translation unit has. */
     namespace Clock {
@@ -223,7 +223,7 @@ namespace Botanik { namespace HAL {
 
         /** @brief Reset the watchdog countdown; call once per healthy
          *  iteration. */
-        /*  Not declared inline: the OPTA backend defines it in platform.cpp,
+        /*  Not declared inline: the OPTA backend defines it in platform_opta.cpp,
          *  while the simulator's stays inline in its own backend header. */
         void kick();
 

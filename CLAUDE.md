@@ -204,7 +204,7 @@ Subsystems under `src/libbotanik/`; the header is the API.
 
 | Directory | What it is |
 |---|---|
-| `hal/` | `platform.h` is the unified interface, in nested namespaces by concern: `Clock`, `Memory`, `Stack`, `Debug`, `System`, `Watchdog`, `DigitalIn`, `Pulse`, `Env`. `Serial` comes from the backend; `Storage` and `Network` have headers of their own. `simulator.h` / `opta.h` are the backends, carrying only what must be inline; the cold half is `platform.cpp` plus one file per concern that outgrew it |
+| `hal/` | `platform.h` is the unified interface, in nested namespaces by concern: `Clock`, `Memory`, `Stack`, `Debug`, `System`, `Watchdog`, `DigitalIn`, `Pulse`, `Env`. `Serial` comes from the backend; `Storage` and `Network` have headers of their own. `simulator.h` / `opta.h` are the backends, carrying only what must be inline; the cold half is `platform_opta.cpp` / `platform_sim.cpp` plus one file per concern that outgrew it, each guarding its whole body on its own target |
 | `scheduler/` | `LoopScheduler`, the fixed-period loop driver: releases one tick per period, handles overruns, self-instruments per beat (CPU duty, jitter, work duration, stack high-water) into a `SchedulerContext`, which also carries the unit's `RunState` |
 | `tasks/` | The task table and `TaskTimer`. `LoopScheduler` decides when a beat happens, `Tasks::Registry` what runs in it. Sits below `core/` |
 | `core/` | The bottom of the stack: `Component` (one hook per phase, `register_tasks()`) and `SystemContext` (a borrowed-pointer aggregate, constructor-injected, not reachable through the console) |

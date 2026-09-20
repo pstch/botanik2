@@ -17,7 +17,7 @@
 // CMSIS only - resolved from the installed mbed_opta core, not this tree. NOT
 // mbed.h: what must be inline here (__DSB, __DMB, ARM_MPU_OrderedMemcpy,
 // SCB_*DCache_by_Addr, __BKPT, CoreDebug) is all CMSIS, and the two pieces of
-// Mbed C++ the HAL needs live in platform.cpp - see its file header.
+// Mbed C++ the HAL needs live in platform_opta.cpp - see its file header.
 #include "stm32h7xx.h"
 
 
@@ -34,7 +34,7 @@ namespace Botanik { namespace HAL {
     namespace Clock {
 
     /*  These read mbed::LowPowerClock, the only reason this header would need
-     *  mbed.h, so they are defined in platform.cpp instead. The extra call is
+     *  mbed.h, so they are defined in platform_opta.cpp instead. The extra call is
      *  noise: uptime_ms() is already three out-of-line calls deep reading a
      *  32.768 kHz peripheral. */
 
@@ -194,7 +194,7 @@ namespace Botanik { namespace HAL {
     enum Port { CONSOLE, MONITOR, FIELDBUS };
 
     /** @brief Resolve a logical Port to its transport. The concrete UART / USB
-     *  CDC transports live in platform.cpp: they hold mbed::BufferedSerial and
+     *  CDC transports live in platform_opta.cpp: they hold mbed::BufferedSerial and
      *  USBSerial members, and nothing outside get() names them. */
     Raw* get(Port port);
 
@@ -209,7 +209,7 @@ namespace Botanik { namespace HAL {
      *  BufferedSerial drives for EVERY port, and widening it would make CONSOLE
      *  and MONITOR implement a line format and a turnaround they do not have.
      *  The simulator backend declares the same three, so a caller never branches
-     *  on the target. Defined in platform.cpp, where the concrete Rs485Raw is.
+     *  on the target. Defined in platform_opta.cpp, where the concrete Rs485Raw is.
      *  @{ */
 
     /** @brief Bring the bus up at @p baud with the given frame format. */
@@ -225,7 +225,7 @@ namespace Botanik { namespace HAL {
      *  own frame arrives back at the UART ahead of any answer, exactly as long
      *  as what was written - which lets the master count it off rather than try
      *  to recognise it. Deassert RE around transmission instead and this becomes
-     *  false. See the RS-485 notes in platform.cpp. */
+     *  false. See the RS-485 notes in platform_opta.cpp. */
     bool fieldbus_echoes();
 
     /** @brief Discard whatever is sitting in the receive path.

@@ -66,7 +66,7 @@ namespace Botanik { namespace Config {
      *  DNS_CACHE_SIZE because that is how many rows NameResolver can leave
      *  PENDING at once (_alloc() handles every row being in flight), and a
      *  shortfall shows up as lookups that fail only once enough are concurrent.
-     *  hal/net.cpp static_asserts the relation rather than trusting it.
+     *  hal/net_<backend>.cpp static_asserts the relation rather than trusting it.
      *
      *  Separate from DNS_CACHE_SIZE because they sit on opposite sides of the
      *  HAL boundary: a build with a second resolver needs more HAL slots than

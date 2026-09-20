@@ -6,7 +6,7 @@
  * @brief Minimal HAL socket layer: a single network link, non-blocking DNS, UDP and TCP.
  *
  * Portable surface used by the network components (resolver / NTP / MQTT). Both
- * backends live in net.cpp (Mbed sockets on OPTA, BSD sockets on the simulator);
+ * backends live in net_opta.cpp / net_sim.cpp (Mbed sockets on OPTA, BSD sockets on the simulator);
  * no Mbed or POSIX socket headers leak through this header. The link is
  * implicit: a socket opens on the active interface, so callers never hold an
  * interface handle.

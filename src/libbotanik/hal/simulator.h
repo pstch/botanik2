@@ -10,7 +10,7 @@
  *  caller needs by value (Serial::Raw, Serial::Port, System::ResetHook).
  *
  *  Everything cold (the serial bodies, raw-console/termios setup, reset,
- *  shutdown, the stack walk, the watchdog poll) is in hal/platform.cpp, which
+ *  shutdown, the stack walk, the watchdog poll) is in hal/platform_sim.cpp, which
  *  keeps the POSIX headers they need out of this one - see its file header. */
 
 #ifdef TARGET_SIMULATOR
@@ -142,7 +142,7 @@ namespace Botanik { namespace HAL {
      *  descriptors with a baud-rate throttle and a simulated UART buffer.
      *
      *  Declared here (callers hold one by value) with every body in
-     *  platform.cpp. */
+     *  platform_sim.cpp. */
     class Raw {
         /** @brief Simulated UART FIFO depth (bytes); also caps the token
          *  bucket's bank. */
