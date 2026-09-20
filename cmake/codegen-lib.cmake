@@ -22,11 +22,14 @@ function(botanik_codegen_inputs out root site)
     file(GLOB _lib "${root}/scripts/sitegen/*.py")
     set(_site)
     if(site)
+        # config/ is NOT globbed: nothing parses a config header any more, so
+        # only the one the LIBRARY generates is an input here - it carries the
+        # capacities a row's cap cell names, and moving one moves the pool.
         file(GLOB _more "${root}/templates/*.j2"
-                        "${root}/src/libbotanik/config/*.h"
                         "${root}/src/libbotanik/plc/functions/*.st"
                         "${root}/src/libbotanik/plc/blocks/*.st")
         list(APPEND _lib ${_more}
+            "${root}/src/libbotanik/config/capacities.gen.h"
             "${root}/src/libbotanik/vars/tables/library.csv"
             "${root}/src/libbotanik/plc/functions/ieclib.txt"
             "${root}/src/libbotanik.toml"

@@ -35,7 +35,6 @@ endif()
 # re-configure does: these globs make the build re-run CMake when one appears.
 file(GLOB _codegen_globbed CONFIGURE_DEPENDS
      "${BOTANIK_ROOT}/scripts/sitegen/*.py" "${BOTANIK_ROOT}/templates/*.j2"
-     "${BOTANIK_ROOT}/src/libbotanik/config/*.h"
      "${BOTANIK_ROOT}/src/libbotanik/plc/functions/*.st"
      "${BOTANIK_ROOT}/src/libbotanik/plc/blocks/*.st")
 if(_codegen_site)
