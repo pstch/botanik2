@@ -23,12 +23,18 @@ namespace Botanik { namespace Health {
 
 
     const uint16_t HealthMonitor::PLATFORM_ROWS[HealthMonitor::PA_COUNT] = {
+#if defined(BOTANIK_SITE_ROWS)
         Vars::Row::alarm_system_reset,
         Vars::Row::alarm_cpu_xrun,
         Vars::Row::alarm_cpu_load,
         Vars::Row::alarm_stack,
         Vars::Row::alarm_cpu_jitter,
         Vars::Row::alarm_flash_error,
+#else
+        // No table: every platform alarm is absent, and the monitor raises none.
+        Vars::VAR_NONE, Vars::VAR_NONE, Vars::VAR_NONE,
+        Vars::VAR_NONE, Vars::VAR_NONE, Vars::VAR_NONE,
+#endif
     };
 
 

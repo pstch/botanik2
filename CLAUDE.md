@@ -489,8 +489,8 @@ Nothing may be relative to the working directory: `src/libbotanik/...` resolves
 to the site repo when that is where the command was run.
 
 `tables.py library` is botanik's own: `codegen_abi.h`, `config/capacities.gen.h`,
-`vars/quality.h`, `core/health.h`, the two `plc/runtime/*.gen.h` accessor blocks
-and `rows_none.gen.h` come from `libbotanik/tables/rows.csv`, its `enums.csv` and
+`vars/quality.h`, `core/health.h` and the two `plc/runtime/*.gen.h` accessor
+blocks come from `libbotanik/tables/rows.csv`, its `enums.csv` and
 `capacities.csv`, never from a site's tables, and they are committed here. A
 site repository never runs it.
 

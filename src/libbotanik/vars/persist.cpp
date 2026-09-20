@@ -352,8 +352,13 @@ namespace Botanik { namespace Vars {
     // Lifecycle
 
     uint32_t Persist::_retain_ms() const {
+#if defined(BOTANIK_SITE_ROWS)
         const int32_t sec = (int32_t)_io.var(Row::sys_retain_sec).as_i64();
         return sec > 0 ? (uint32_t)sec * 1000u : 0u;
+#else
+        // No table: the cadence is the one sys_retain_sec is declared with.
+        return Config::RETAIN_SAVE_MS;
+#endif
     }
 
     void Persist::on_setup(uint64_t /*now_ms*/) {

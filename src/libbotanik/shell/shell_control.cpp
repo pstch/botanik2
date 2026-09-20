@@ -46,6 +46,12 @@ namespace Botanik { namespace Shell {
      *  @param on      whether the laws are to drive
      *  @param persist false leaves the edit unsaved, so a reboot undoes it */
     void CommandShell::_control_set(bool on, bool persist) {
+#if !defined(BOTANIK_SITE_ROWS)
+        // No table: sys_control does not exist, so there is nothing to start.
+        (void)on; (void)persist;
+        _println("control: no variables");
+        return;
+#else
         Vars::Bank* io = _bank();
         char out[128];
         if (io == nullptr) { _println("control: no variables"); return; }
@@ -75,9 +81,14 @@ namespace Botanik { namespace Shell {
         if (!on)
             _println("  every law is out of the scan; what they drove is at its safe state");
         _control_status();
+#endif
     }
 
     void CommandShell::_control_status() {
+#if !defined(BOTANIK_SITE_ROWS)
+        _println("control: no variables");
+        return;
+#else
         Vars::Bank* io = _bank();
         char out[160];
         if (io == nullptr) { _println("control: no variables"); return; }
@@ -103,6 +114,7 @@ namespace Botanik { namespace Shell {
         // moved.
         if (on && sc != nullptr && sc->run_state != Scheduler::RunState::RUN)
             _println("  ...but the unit is not in RUN, so no law is driving yet");
+#endif
     }
 
     /** @brief `control`'s verbs. @see CommandShell::Verb */

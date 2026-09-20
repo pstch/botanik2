@@ -344,22 +344,9 @@ def _lib_enum(e):
     return e['lower'], len(codes)
 
 
-def _rows_none():
-    """Every row tables/rows.csv declares, bound to VAR_NONE.
-
-    vars/rows.h falls back to this when the build names no site, so the library
-    compiles for a consumer that wants a component and no table. Emitted from
-    tables/rows.csv alone, which is why it is the LIBRARY's artifact and not a
-    site's."""
-    rows = [r['name'] for r in lib_table()]
-    render.write(lib('src', 'libbotanik', 'vars', 'rows_none.gen.h'),
-                 'rows_none.gen.h.j2', rows=rows)
-    return len(rows)
-
 
 def quality_block():
     """The enumerated types the library owns, in both spellings."""
     for e in LIB_ENUMS:
         name, n = _lib_enum(e)
         print('  %-14s %d codes' % (name + '.gen.h', n))
-    print('  %-14s %d rows' % ('rows_none.gen.h', _rows_none()))

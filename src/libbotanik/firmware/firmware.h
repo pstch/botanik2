@@ -338,12 +338,22 @@ namespace Botanik {
             }
         }
 
-        /** @brief The two holds, from the rows that carry them. */
+        /** @brief The two holds, from the rows that carry them, or from the
+         *  configured defaults those rows are declared with when a build has
+         *  no table. */
         uint32_t _startup_hold_ms() const {
+#if defined(BOTANIK_SITE_ROWS)
             return _hold_ms(Vars::Row::sys_startup_sec);
+#else
+            return Config::STARTUP_HOLD_MS;
+#endif
         }
         uint32_t _shutdown_hold_ms() const {
+#if defined(BOTANIK_SITE_ROWS)
             return _hold_ms(Vars::Row::sys_shutdown_sec);
+#else
+            return Config::SHUTDOWN_HOLD_MS;
+#endif
         }
         /** @brief A hold row's seconds, in ms. */
         uint32_t _hold_ms(uint16_t row) const {

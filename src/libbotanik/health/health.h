@@ -356,6 +356,7 @@ namespace Botanik { namespace Health {
             for (uint8_t i = 0; i < PA_COUNT; i++) _a[i] = PLATFORM_ROWS[i];
             // Each of these is gated on its own feature: a build without the
             // network declares no network alarm to raise.
+#if defined(BOTANIK_SITE_ROWS)
 #if BOTANIK_FEATURE_NETWORK
             _net_fault = Vars::Row::alarm_net_fault;
 #endif
@@ -368,6 +369,7 @@ namespace Botanik { namespace Health {
             _p_load_pct   = Vars::Row::sys_cpu_load_pct;
             _p_jitter_pct = Vars::Row::sys_jitter_pct;
             _p_stack_pct  = Vars::Row::sys_stack_pct;
+#endif
         }
 
         /** @brief A threshold's live percent: the parameter, or @p dflt when the

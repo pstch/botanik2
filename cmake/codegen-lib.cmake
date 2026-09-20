@@ -43,7 +43,6 @@ function(botanik_codegen_inputs out root site)
     else()
         list(APPEND _lib
             "${root}/templates/lib_enum.gen.h.j2"
-            "${root}/templates/rows_none.gen.h.j2"
             "${root}/templates/codegen_abi.h.j2"
             "${root}/templates/capacities.gen.h.j2"
             "${root}/templates/lib_enum.h.j2"
@@ -84,7 +83,6 @@ function(botanik_codegen_outputs out root site)
                "${root}/src/libbotanik/plc/runtime/health.gen.h"
                "${root}/src/libbotanik/plc/runtime/quality.gen.h"
                "${root}/src/libbotanik/vars/quality.h"
-               "${root}/src/libbotanik/vars/rows_none.gen.h"
                "${root}/src/libbotanik_features.h")
     endif()
     set(_have)

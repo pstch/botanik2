@@ -88,7 +88,10 @@ namespace Botanik {
 #endif
 
         // Bind each component's config to the rows behind it, now every one of
-        // them exists. Pushed at PHASE_CONFIG, and once at bring-up.
+        // them exists. Pushed at PHASE_CONFIG, and once at bring-up. With no
+        // table there is nothing to bind: each component keeps what it was
+        // constructed with, which is the contract ConfigBinder states.
+#if defined(BOTANIK_SITE_ROWS)
 #if BOTANIK_FEATURE_LOGGING
         // Every sink's own level row. Without this the five *_log_level rows
         // commit and persist and each writer keeps what it was constructed with.
@@ -116,6 +119,7 @@ namespace Botanik {
 #if BOTANIK_FEATURE_MODBUS_TCP_SERVER
         Vars::bind_modbus_tcp(_binder, _modbus_tcp);
 #endif
+#endif // BOTANIK_SITE_ROWS
 
         // Wire the status aggregate now every subsystem address is fixed.
         _sys_ctx.scheduler = _scheduler.context();

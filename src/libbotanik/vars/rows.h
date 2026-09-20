@@ -22,10 +22,11 @@
 #  if !defined(BOTANIK_SITE_CODEGEN_ABI) || BOTANIK_SITE_CODEGEN_ABI != BOTANIK_CODEGEN_ABI
 #    error "the site's generated sources are from another generator version: regenerate them (make codegen)"
 #  endif
-#else
-// No site: every library row resolves to the bank's inert sink. A consumer
-// reusing a component without a variable table still compiles.
-#  include "libbotanik/vars/rows_none.gen.h"
 #endif
+// No site: Vars::Row is not declared at all, and the handful of library sites
+// that read a row of their own guard on BOTANIK_SITE_ROWS. Binding a name to
+// the inert sink instead would make every one of them read a defined nothing
+// for the life of the run, which is the failure this namespace exists to
+// turn into a compile error.
 
 #endif // VARS_ROWS_H
