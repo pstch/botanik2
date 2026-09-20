@@ -263,25 +263,30 @@ def aux(site, stem):
 
 
 def lib_config_groups():
-    """The config concerns, as (group, source, brief, items).
+    """The config concerns, as (group, params, checks, includes).
 
-    One tables/config/<group>.csv per concern, each an ORDERED stream of
-    section / end / param / check / note rows: the order is the generated
-    header's order, so a concern reads the way it was written."""
+    Two tables, not one per concern: config/params.csv is the parameter table
+    and config/checks.csv the constraints over it, each row naming the group
+    whose header it lands in. A check reading another group's value is what
+    `includes` is, worked out from the names rather than stated."""
     d = os.path.join(_lib_tables(), 'config')
-    out = []
-    for f in sorted(os.listdir(d)):
-        if not f.endswith('.csv'): continue
-        with open(os.path.join(d, f), newline='') as fh:
-            rows = [dict((k, (v or '')) for k, v in r.items())
+    def rows(stem):
+        with open(os.path.join(d, stem + '.csv'), newline='') as fh:
+            return [dict((k, (v or '').strip()) for k, v in r.items())
                     for r in csv.DictReader(fh)]
-        brief, items = '', []
-        for r in rows:
-            if r['kind'] == 'group': brief = r['text']
-            else:                    items.append(r)
-        out.append({'group': f[:-4],
-                    'source': 'libbotanik/tables/config/' + f,
-                    'brief': brief, 'items': items})
+    params, checks = rows('params'), rows('checks')
+    owner = dict((p['name'], p['group']) for p in params)
+    out = []
+    for g in sorted({p['group'] for p in params}):
+        mine = [c for c in checks if c['group'] == g]
+        inc = sorted({owner[w] for c in mine
+                      for w in re.findall(r'[A-Z][A-Z0-9_]+', c['expr'])
+                      if owner.get(w, g) != g})
+        out.append({'group': g,
+                    'params': [p for p in params if p['group'] == g],
+                    'checks': mine, 'includes': inc})
+    bad = [c['group'] for c in checks if c['group'] not in owner.values()]
+    if bad: sys.exit('config/checks.csv: no such group: %s' % ', '.join(bad))
     return out
 
 

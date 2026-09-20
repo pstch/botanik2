@@ -552,18 +552,19 @@ and gh_mlb41's own `tests/`.
   row. The one trap: an index is a bare `uint16_t` and zero is a real row, so
   never read one back out of a `const` table it was declared in. `VAR_NONE` is
   0xFFFF for that reason.
-- **Config is one GENERATED file per concern.** `libbotanik_config.h` is only
-  the aggregate; values live in `libbotanik/config/<concern>.gen.h`, generated
-  from `libbotanik/tables/config/<concern>.csv`, and a module includes the one
-  it reads. The table is an ORDERED stream of `section` / `end` / `param` /
-  `check` / `note` / `include` rows, so the header reads the way it was
-  written: a `param` becomes its `#ifndef` default and the `BOTANIK_CFG` over
-  it, a `check` a `static_assert`. `config/base.h` is the preamble every
-  concern header pulls first, and it reads the site's config before any
-  default, then the feature flags. A constraint spanning two concerns is
-  asserted at the consumer that makes it exist, which is what an `include` row
-  is for. Nothing here is hand-written: an edit to a `.gen.h` is caught by the
-  stamp and regenerated away.
+- **Config is two tables and one GENERATED file per concern.**
+  `libbotanik/tables/config/params.csv` is the parameter table - one row per
+  value, `group,name,type,default,guard,desc` - and `checks.csv` the
+  constraints over it, `group,expr,msg`. The generator emits one
+  `libbotanik/config/<group>.gen.h` per group and a module includes the one it
+  reads; `libbotanik_config.h` is only the aggregate. A `desc` is one short
+  line with no `@brief` (the generator writes that) and no rationale, which
+  goes to `docs/`. A check whose expression reads another group's value gets
+  that header included, worked out from the names rather than stated.
+  `config/base.h` is the preamble every concern header pulls first, and it
+  reads the site's config before any default, then the feature flags. Nothing
+  here is hand-written: an edit to a `.gen.h` is caught by the stamp and
+  regenerated away.
 - **Config is overridable at three levels.** Every value defaults from an
   `#ifndef`-guarded `BOTANIK_<NAME>`; a site moves one with a `name,value` row
   in its own `tables/config.csv`, which lands in its generated `config.gen.h`

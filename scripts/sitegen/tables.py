@@ -161,10 +161,9 @@ def library_files():
     for g in lib_config_groups():
         render.write(lib('src', 'libbotanik', 'config', g['group'] + '.gen.h'),
                      'config_group.gen.h.j2', **g)
-        n += sum(1 for it in g['items'] if it['kind'] == 'param')
-    names = sorted(it['name'] for g in lib_config_groups()
-                   for it in g['items']
-                   if it['kind'] == 'param' and it['default'])
+        n += len(g['params'])
+    names = sorted(p['name'] for g in lib_config_groups()
+                   for p in g['params'] if p['default'])
     render.write(lib('src', 'libbotanik', 'config', 'names.gen.cmake'),
                  'config_names.gen.cmake.j2', names=names)
     print('  %-14s %d groups, %d values' % ('config/*.gen.h',
