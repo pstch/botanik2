@@ -13,7 +13,7 @@
 #include <cstring>
 #include <cstdlib>
 
-#include "libbotanik/config/terminal.h"
+#include "libbotanik/config/terminal.gen.h"
 
 #include "libbotanik/console/ansi.h"
 #include "libbotanik/hal/platform.h"

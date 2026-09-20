@@ -13,8 +13,8 @@
 
 #include <cstdint>
 
-#include "libbotanik/config/alarms.h"
-#include "libbotanik/config/terminal.h"
+#include "libbotanik/config/alarms.gen.h"
+#include "libbotanik/config/terminal.gen.h"
 
 #include "libbotanik/alarms/alarms.h"
 #include "libbotanik/console/console.h"

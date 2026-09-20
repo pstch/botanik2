@@ -8,7 +8,7 @@
 #include <cstdint>
 #include <cstring>
 
-#include "libbotanik/config/serial.h"
+#include "libbotanik/config/serial.gen.h"
 
 namespace Botanik { namespace Utils {
 

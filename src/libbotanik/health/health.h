@@ -20,9 +20,9 @@
 #include "libbotanik/vars/rows.h"
 #include <cstdio>
 
-#include "libbotanik/config/alarms.h"
-#include "libbotanik/config/identity.h"
-#include "libbotanik/config/scheduler.h"
+#include "libbotanik/config/alarms.gen.h"
+#include "libbotanik/config/identity.gen.h"
+#include "libbotanik/config/scheduler.gen.h"
 
 #include "libbotanik/alarms/alarms.h"
 #include "libbotanik/alarms/notifier.h"

@@ -14,7 +14,7 @@
 
 #include <cstring>
 
-#include "libbotanik/config/identity.h"
+#include "libbotanik/config/identity.gen.h"
 
 #include "libbotanik/hal/platform.h"
 

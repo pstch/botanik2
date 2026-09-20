@@ -1,0 +1,20 @@
+kind,name,type,default,guard,text
+group,,,,,The two UARTs and their ring buffers.
+section,Serial interfaces,,,,"The two UARTs and the rings behind them. Geometry of what is on the
+console wire is further down, under Terminal and console."
+note,,,,,"Both ports' rates are Terminal::ConsoleConfig / MonitorConfig, not macros:
+a swapped terminal needs no firmware build, and the number a wiped store
+comes back at lives next to the component that runs at it."
+param,SERIAL_RX_BUF,uint16_t,256,,"@brief BufferedSerial ring sizes, per port. Both must be a power of two
+(BufferedSerial static_asserts it); usable depth is size-1, so the TX
+ring below carries 4095 bytes - the figure SERIAL_TX_PER_STEP's note
+quotes. Costs RX+TX bytes of RAM for every port a build opens."
+param,SERIAL_TX_BUF,uint16_t,4096,,
+param,SERIAL_TX_PER_STEP,uint16_t,256,,"@brief Most bytes BufferedSerial::transmit() hands the driver in one
+activation. 0 disables the cap (drain until the ring empties).
+
+The OPTA's MONITOR port is USB CDC: unattached, availableForWrite()
+always answers 1, and attached, USBCDC::send() blocks per byte - tens of
+ms inside a 10 ms beat. 256 is far above steady demand on either port,
+so it only ever bounds that worst case."
+end,,,,,

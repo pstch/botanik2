@@ -11,7 +11,7 @@
 
 #include <cstdio>
 
-#include "libbotanik/config/net.h"
+#include "libbotanik/config/net.gen.h"
 
 #include "libbotanik/alarms/alarms.h"
 #include "libbotanik/alarms/publisher.h"

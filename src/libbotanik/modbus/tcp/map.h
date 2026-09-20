@@ -14,7 +14,7 @@
 #include <cstddef>
 #include <cstdint>
 
-#include "libbotanik/config/modbus.h"
+#include "libbotanik/config/modbus.gen.h"
 
 #include "libbotanik/modbus/tcp/pdu.h"
 #include "libbotanik/vars/access.h"

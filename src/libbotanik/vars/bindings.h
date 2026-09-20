@@ -15,7 +15,7 @@
 
 #include <cstdint>
 
-#include "libbotanik/config/vars.h"
+#include "libbotanik/config/vars.gen.h"
 #include "libbotanik_features.h"
 #include "libbotanik/core/component.h"
 #include "libbotanik/vars/ref.h"

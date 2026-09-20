@@ -25,7 +25,7 @@
 #include <cstddef>
 #include <cstdint>
 
-#include "libbotanik/config/modbus.h"
+#include "libbotanik/config/modbus.gen.h"
 
 #include "libbotanik/core/component.h"
 #include "libbotanik/hal/net.h"

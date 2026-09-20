@@ -1,0 +1,46 @@
+kind,name,type,default,guard,text
+group,,,,,"The beat: its period, its budgets and its metrics."
+section,Scheduling,,,,"The beat, the rate classes, and the watchdog that outlives them. A task's
+RATE is a group below; its PHASE is written out in code, not configured."
+param,TASK_PERIOD_MS,uint32_t,10,,"@brief Main task execution period (ms), i.e. the loop rate everything
+else divides down from."
+param,MAX_TASKS,uint8_t,64,,"@brief Capacity of the scheduler's task table. Fixed, no allocation;
+registrations past it are refused and counted, never silently dropped.
+@note demo registers 49 - the library's components plus 28 control
+programs - and it is the reference site, not a large one. 80 bytes a
+slot, so the headroom is cheap and running out is not."
+param,SCAN_LATE_MS,uint32_t,(BOTANIK_TASK_PERIOD_MS * 2),,"@brief How far past its own period a control program may run before
+SCAN_LATE is raised, in ms. Measured against the PROGRAM's period, so one
+number serves every rate. Two beats' worth: one late activation is the
+stagger, two in a row is the cycle running out of room."
+param,STARTUP_HOLD_MS,uint32_t,5000,,"@brief How long after boot the control programs are held, in ms. A
+program running before the field has answered reads every row's
+DECLARED value, and a momentary bring-up condition then gets latched by
+something that outlives it.
+
+The operator's knob is `sys_startup_sec`; this is that row's declared
+default. Five seconds is about one RS-485 sweep of a full site."
+param,SHUTDOWN_HOLD_MS,uint32_t,5000,,"@brief How long the unit sits with its laws stopped before it takes
+its ending, in ms. The mirror of BOTANIK_STARTUP_HOLD_MS: one is the
+field arriving, this is the record leaving. Retained rows and owed
+parameters reach flash at the top of it, and flash is tens of ms per
+row - a reset that races that write is what loses a watering date."
+param,HW_WATCHDOG_MS,uint32_t,10000,,
+end,,,,,
+section,Performance metrics,,,,"How the self-instrumentation is smoothed before the health thresholds
+read it: window and buckets give the recent peak, the EMA pairs the
+displayed value."
+param,LOAD_METRIC_WINDOW_MS,uint32_t,5000,,"@brief Sliding window for the ""recent peak"" CPU/stack metrics, and the
+number of rotating buckets approximating it. The scheduler divides the
+window by TASK_PERIOD_MS to get the sample count the rolling-max filters
+are configured with."
+param,LOAD_METRIC_BUCKETS,uint32_t,10,,
+param,CPU_LOAD_EMA_ATTACK_MS,uint32_t,0,,"@brief CPU-load EMA time constants (ms), attack then decay. Asymmetric on
+purpose: a metric feeding an alarm threshold must rise at once and fall
+slowly, or a spike is smoothed away before ALARM_CPU_LOAD_PCT sees it.
+@note ema_alpha() collapses any constant <= TASK_PERIOD_MS to instant."
+param,CPU_LOAD_EMA_DECAY_MS,uint32_t,2000,,
+param,CPU_JITTER_EMA_ATTACK_MS,uint32_t,0,,"@brief CPU-jitter EMA time constants (ms), attack then decay. Same
+asymmetry as the load pair, with a longer tail."
+param,CPU_JITTER_EMA_DECAY_MS,uint32_t,5000,,
+end,,,,,

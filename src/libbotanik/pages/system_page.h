@@ -24,13 +24,13 @@
 #include <cstdint>
 #include <cstdio>
 
-#include "libbotanik/config/scheduler.h"
-#include "libbotanik/config/terminal.h"
+#include "libbotanik/config/scheduler.gen.h"
+#include "libbotanik/config/terminal.gen.h"
 #include "libbotanik_features.h"
 
 #include "libbotanik/core/context.h"
 #include "libbotanik/pages/metric_page.h"
-#include "libbotanik/config/vars.h"
+#include "libbotanik/config/vars.gen.h"
 // HomeVar, which the site's half of the band is a table of. The only thing this
 // header still needs from vars/; the draw bodies take the rest in the .cpp.
 #include "libbotanik/vars/access.h"

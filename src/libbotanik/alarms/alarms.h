@@ -20,7 +20,7 @@
 #include <cstring>
 
 #include "libbotanik/alarms/source.h"
-#include "libbotanik/config/alarms.h"
+#include "libbotanik/config/alarms.gen.h"
 
 #include "libbotanik/core/component.h"
 #include "libbotanik/logs/logger.h"

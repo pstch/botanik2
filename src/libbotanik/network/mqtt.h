@@ -16,7 +16,7 @@
 
 #include <cstdint>
 
-#include "libbotanik/config/net.h"
+#include "libbotanik/config/net.gen.h"
 #include "libbotanik/hal/net.h"
 #include "libbotanik/network/network.h"
 #include "libbotanik/network/resolver.h"

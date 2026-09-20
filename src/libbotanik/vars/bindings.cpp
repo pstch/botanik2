@@ -8,7 +8,7 @@
  */
 #include "libbotanik/vars/bindings.h"
 
-#include "libbotanik/config/vars.h"
+#include "libbotanik/config/vars.gen.h"
 #include "libbotanik/logs/logger.h"
 #include "libbotanik/logs/topics.h"
 #include "libbotanik/tasks/tasks.h"

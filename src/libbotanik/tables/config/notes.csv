@@ -1,0 +1,17 @@
+kind,name,type,default,guard,text
+group,,,,,"The operator notes buffer (BOTANIK_FEATURE_NOTES_PAGE).
+
+Its own concern, like every other optional subsystem's: only pages/notes
+reads these, and a build without the page pays nothing for them. The two
+bounds it shares with the editor are asserted here, at the consumer that
+makes the constraint exist."
+include,"""libbotanik/config/terminal.gen.h""",,,,
+section,Operator notes,,,,
+param,NOTES_LEN,uint16_t,2048,,"@brief Capacity of the NOTES buffer (bytes, NUL included)"
+param,NOTES_MAX_ROWS,uint16_t,128,,"@brief Rows the NOTES editor can lay out. Sized past what soft-wrap
+needs (see the static_assert below), so only a note made of very short
+hard-broken lines can reach it - and an insert that would is refused."
+note,,,,,"Same bound as SHELL_INPUT_LEN: a row carries a prompt, so its worst case
+is the narrowest screen minus the widest gutter."
+check,,,NOTES_MAX_ROWS * (EDITOR_MIN_COLS - EDITOR_PROMPT_MAX) >= NOTES_LEN,,NOTES_MAX_ROWS too small to lay out NOTES_LEN at EDITOR_MIN_COLS
+end,,,,,

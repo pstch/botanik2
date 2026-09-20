@@ -12,7 +12,7 @@
 #include <cmath>
 #include <cstdint>
 
-#include "libbotanik/config/sun.h"
+#include "libbotanik/config/sun.gen.h"
 
 #include "libbotanik/hal/platform.h"
 #include "libbotanik/utils/time.h"

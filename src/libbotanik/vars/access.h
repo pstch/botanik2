@@ -16,7 +16,7 @@
 #include <cstdio>
 #include <cstring>
 
-#include "libbotanik/config/vars.h"
+#include "libbotanik/config/vars.gen.h"
 #include "libbotanik/hal/platform.h"
 #include "libbotanik/vars/model.h"
 

@@ -17,10 +17,10 @@
 
 #include <cstddef>
 
-#include "libbotanik/config/identity.h"
-#include "libbotanik/config/net.h"
+#include "libbotanik/config/identity.gen.h"
+#include "libbotanik/config/net.gen.h"
 
-#include "libbotanik/config/logging.h"
+#include "libbotanik/config/logging.gen.h"
 #include "libbotanik/logs/topics.h"
 #include "libbotanik/logs/writer.h"
 #include "libbotanik/network/mqtt.h"

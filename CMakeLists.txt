@@ -263,6 +263,23 @@ foreach(_v ${_all_vars})
     endif()
 endforeach()
 
+# Config values; defaults live in the generated config/<concern>.gen.h, from
+# libbotanik/tables/config/<concern>.csv. -DBOTANIK_<NAME>=<value> overrides one
+# build-wide, forwarded PUBLIC like the feature flags, and still ahead of the
+# site's own tables/config.csv only when the builder said so on the command
+# line. Precedence stays: command line > site > table default.
+#
+# Swept by NAME, from the generated roster: a prefix sweep would also catch
+# BOTANIK_ROOT, BOTANIK_TARGET and BOTANIK_WERROR, which no source reads.
+include("${BOTANIK_ROOT}/src/libbotanik/config/names.gen.cmake" OPTIONAL
+        RESULT_VARIABLE _cfg_roster)
+foreach(_n IN LISTS BOTANIK_CONFIG_NAMES)
+    if(DEFINED BOTANIK_${_n})
+        target_compile_definitions(botanik PUBLIC BOTANIK_${_n}=${BOTANIK_${_n}})
+        message(STATUS "Config BOTANIK_${_n}: ${BOTANIK_${_n}}")
+    endif()
+endforeach()
+
 # Simulator mode
 # ============================================================================
 

@@ -16,7 +16,7 @@
 
 #include "libbotanik/hal/platform.h"
 #include "libbotanik/health/health.h"
-#include "libbotanik/config/logging.h"
+#include "libbotanik/config/logging.gen.h"
 #include "libbotanik/logs/logger.h"
 #include "libbotanik/scheduler/scheduler.h"
 #include "libbotanik/network/ntp.h"

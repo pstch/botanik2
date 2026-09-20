@@ -1,9 +1,22 @@
 # Input hash of this generated tree, written by the build.
 # The build regenerates when it stops matching. Commit it with the output.
-01a08041a3e1678b898c99260c8d54219bfb15b6cb40861eb3ebb433ff8ccf7a
+07707298755b7136fe5f21b450f4486c7b45136a80fa6dbda30de72c337c1880
 # ...and one per file it produced, so a hand edit is caught too.
 fea55c47bac0e156491f0720ac1ef2efaa4092fb59742aa9cec7810516c648c9  src/libbotanik/codegen_abi.h
+6f7d7227e3b080eae85f346a9c2a8f4821b9008b795fc6fffd10e175cbac7f2a  src/libbotanik/config/alarms.gen.h
 3fad96bc66b3dd4c4a175b69f568bea15be48d6696cd20e85256036a0d76e85a  src/libbotanik/config/capacities.gen.h
+2b3ec7b0f77b1f19deb112dd45aad0606ee86b127ab0d563c8efbb5e2c39cae9  src/libbotanik/config/identity.gen.h
+aa2bfd73da347ad91007c2fbba09181ab56c4a079d9bf955e41a5ec118bad6ac  src/libbotanik/config/logging.gen.h
+e973cd25df0c6faa5bc05a0bc921d5dd36b7622111f669d6f13bc75b87771168  src/libbotanik/config/modbus.gen.h
+0923c83d2d80da5c087747bb801445537e7d1f3e31543ab0e172f94595277f31  src/libbotanik/config/names.gen.cmake
+7a9bc8c0d37ddb9b869c363f0ec3ca960a22f7d207ddd175b5d3d4e93919af9d  src/libbotanik/config/net.gen.h
+f3d7d798b45445402b5a0e6859b5c5c143be26914c05e83b87efb70d1e575d58  src/libbotanik/config/notes.gen.h
+232339a6da58627066f0bc91fad066e4577375ec35ac65303f6a57b87978c4ac  src/libbotanik/config/scheduler.gen.h
+cd86555b1005f3fe1000fdec9ee6ce41a3d77971e29a3de01a98909390bf1fe4  src/libbotanik/config/serial.gen.h
+3245053d8647d7a33a459ba3e7d677da8e372c68a88b6e27a08cd1f616ab9807  src/libbotanik/config/simulator.gen.h
+968010f22f6659577dd93a305057fb4bb4f0b13eb2b8ae0ccc6560d0bd31fd9d  src/libbotanik/config/sun.gen.h
+282210f11ffc5f562bdae09a1a18e60ae5ada37518c5248be9955f50ac8ffe23  src/libbotanik/config/terminal.gen.h
+43cec376b1d58366e3a90dd7f988f0b7e13157edc90ff053f28e5e2070129daa  src/libbotanik/config/vars.gen.h
 39be3261c95bb8463401c7013f30c95680b598f012045862ceb9183d2ead71f5  src/libbotanik/core/health.h
 07de043e79b99826aec1068c89318d465282b0f5d6ddc41543b5845f7aa62109  src/libbotanik/plc/runtime/health.gen.h
 1c604fbcb4e6edc462801133455db18ca7095e875ad9d1e006490fff4bde9ac0  src/libbotanik/plc/runtime/quality.gen.h

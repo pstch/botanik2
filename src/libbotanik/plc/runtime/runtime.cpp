@@ -5,7 +5,7 @@
 
 #include "libbotanik/plc/runtime/runtime.h"
 #include "libbotanik/config/base.h"
-#include "libbotanik/config/scheduler.h"
+#include "libbotanik/config/scheduler.gen.h"
 
 #include "libbotanik/logs/logger.h"
 #include "libbotanik/vars/rows.h"

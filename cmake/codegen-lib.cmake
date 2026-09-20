@@ -45,6 +45,8 @@ function(botanik_codegen_inputs out root site)
             "${root}/templates/lib_enum.gen.h.j2"
             "${root}/templates/codegen_abi.h.j2"
             "${root}/templates/capacities.gen.h.j2"
+            "${root}/templates/config_group.gen.h.j2"
+            "${root}/templates/config_names.gen.cmake.j2"
             "${root}/templates/lib_enum.h.j2"
             "${root}/templates/features.h.j2"
             "${root}/src/libbotanik.toml"
@@ -52,6 +54,8 @@ function(botanik_codegen_inputs out root site)
             "${root}/src/libbotanik/plc/functions/quality.st"
             "${root}/src/libbotanik/plc/functions/health.st"
             "${root}/src/libbotanik/tables/rows.csv")
+        file(GLOB _cfg "${root}/src/libbotanik/tables/config/*.csv")
+        list(APPEND _lib ${_cfg})
     endif()
 
     set(_pairs)
@@ -84,6 +88,8 @@ function(botanik_codegen_outputs out root site)
                "${root}/src/libbotanik/plc/runtime/quality.gen.h"
                "${root}/src/libbotanik/vars/quality.h"
                "${root}/src/libbotanik_features.h")
+        file(GLOB _gen "${root}/src/libbotanik/config/*.gen.h")
+        list(APPEND _f ${_gen} "${root}/src/libbotanik/config/names.gen.cmake")
     endif()
     set(_have)
     foreach(_x IN LISTS _f)

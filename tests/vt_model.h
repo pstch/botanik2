@@ -26,7 +26,7 @@
 
 #include "doctest.h"
 
-#include "libbotanik/config/terminal.h"
+#include "libbotanik/config/terminal.gen.h"
 
 namespace tests { namespace botanik_test {
 

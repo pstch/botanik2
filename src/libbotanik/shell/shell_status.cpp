@@ -13,10 +13,10 @@
 #include <cstdio>
 #include <cstring>
 
-#include "libbotanik/config/identity.h"
-#include "libbotanik/config/modbus.h"
-#include "libbotanik/config/net.h"
-#include "libbotanik/config/scheduler.h"
+#include "libbotanik/config/identity.gen.h"
+#include "libbotanik/config/modbus.gen.h"
+#include "libbotanik/config/net.gen.h"
+#include "libbotanik/config/scheduler.gen.h"
 #include "libbotanik/hal/platform.h"
 #include "libbotanik/modbus/rtu/master.h"
 #include "libbotanik/modbus/tcp/slave.h"

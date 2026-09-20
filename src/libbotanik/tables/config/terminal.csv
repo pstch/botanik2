@@ -1,0 +1,107 @@
+kind,name,type,default,guard,text
+group,,,,,"Everything the operator sees: the screen, its input decoding,
+the per-tick paint budgets, and the pages that render through them."
+section,Terminal and console,,,,"What is on the console wire and how much of it the UI may use. There is
+no resize handshake: what is declared here is what the pages lay out for."
+param,SCREEN_MIN_COLS,uint16_t,80,,"@brief The smallest screen the UI is laid out for. Nothing reflows, so
+this is a floor: the `term_` parameters are banded at it and the console
+clamps to it.
+@note What the tables READ well at, not the structural minimum - the
+ALARMS page's rows() - 8 is satisfied by about 11 rows."
+param,SCREEN_MIN_ROWS,uint16_t,20,,
+note,,,,,"The geometry the console actually runs at is Terminal::ConsoleConfig, not
+a macro: one number, next to the device, checked against these bounds in
+terminal.h."
+param,TERMINAL_MAX_COLS,uint16_t,132,,"@brief Largest terminal the UI supports. Sizes the screen back-buffer
+(two COLS x ROWS cell grids), clamps the console geometry, and bounds
+full-width fills so a bogus column count cannot drive an unbounded
+paint."
+param,TERMINAL_MAX_ROWS,uint16_t,32,,
+check,,,"TERMINAL_MAX_COLS >= SCREEN_MIN_COLS &&
+TERMINAL_MAX_ROWS >= SCREEN_MIN_ROWS",,the screen buffer cannot hold the minimum screen
+param,CONSOLE_PAGES_MAX,uint8_t,10,,"@brief Pages the Console multiplexes over. Registration past it is
+refused SILENTLY, so the tab order simply stops gaining pages.
+@note Cannot exceed 10: a page is also reachable by Alt+<digit>. The full
+set is 8, leaving room for a site's own."
+end,,,,,
+section,Terminal input decoding,,,,
+param,ANSI_INPUT_BATCH_SIZE,size_t,32,,@brief Number of input characters to process in a single batch.
+param,ANSI_INPUT_BATCH_TIMEOUT_MS,uint32_t,1000,,@brief Safety timeout: flush any stale batch regardless of stream activity.
+param,ANSI_CMD_TIMEOUT_MS,uint32_t,100,,@brief Time after the last byte before a stalled command sequence is resolved
+param,ANSI_CMD_FLUSH_TIMEOUT_MS,uint32_t,250,,"@brief Max time a coalesced command (held backspace / Ctrl+D) is held
+       under TX backpressure before it flushes.
+@note Shorter than the text-batch timeout: an edit wants lower
+      latency than a paste batch."
+param,INPUT_EVENTS_PER_TICK,uint16_t,4,,"@brief Max decoded input events handled per tick.
+@note Too low: typing/paste feels sluggish and the RX ring backs up.
+@note Too high: a big paste echoes a large burst in one tick."
+end,,,,,
+section,Page refresh cadences,,,,"Time-based, so a refresh rate is independent of the tick interval: what
+changes every second, what changes slowly, and TASKS in between."
+param,PAGE_HOT_MS,uint32_t,1000,,"@brief Refresh interval (ms) for a page's hot fields, and for the status
+bar's clock and metrics."
+param,PAGE_COLD_MS,uint32_t,5000,,@brief Cold-field refresh interval (ms) for a metric page.
+param,PAGE_TASKS_MS,uint32_t,2000,,"@brief TASKS table repaint cadence. Slower than PAGE_HOT_MS: the costs it
+shows are smoothed aggregates, not a live trace."
+param,TABLE_LINE_LEN,uint16_t,200,,"@brief Buffer one rendered table row is assembled in, before the terminal
+clips it to the screen width. Shared by every scrolling table: wide
+enough for a full-width row plus its escapes and separators."
+param,TABLE_FILTER_LEN,uint8_t,24,,"@brief Longest row filter a table page accepts, NUL excluded. Sized to
+the widest NAME column (24), so any name is typeable in full."
+end,,,,,
+section,TX pacing,,,,"Serial TX is one FIFO with no jumping ahead, so bulk producers progress
+only while the buffer is shallow. A depth floor gates that; per-tick caps
+bound the burst. See @ref dev_screen."
+param,TX_COLD_TARGET_MS,uint32_t,128,,"@brief Single paint depth floor, in ms of wire time at the console rate.
+@warning Must stay above TASK_PERIOD_MS, which console.cpp asserts: the
+flush runs every beat, so a floor under one beat lets the wire drain
+empty. Nothing measures an underrun, so raise rather than lower it."
+param,TX_HEADROOM_BYTES,uint16_t,256,,"@brief TX ring headroom the depth floor always leaves free, so a single
+oversized run still has somewhere to land rather than being deferred
+forever. Must stay comfortably under SERIAL_TX_BUF."
+param,LOG_ROWS_PER_TICK,uint16_t,2,,"@brief Max log/command rows painted per tick per page.
+@note At low baud the wire is the real ceiling (4800 baud ~= 4.4 lines/s), so a
+      larger value only deepens floor overshoot and worsens echo latency."
+end,,,,,
+section,Shell and scrollback,,,,
+param,SHELL_INPUT_LEN,uint16_t,512,,@brief Maximum length of the shell input buffer (bytes)
+param,SHELL_HISTORY_SIZE,uint8_t,8,,@brief Number of command history entries to retain
+param,SHELL_HISTORY_ENTRY,uint16_t,128,,"@brief Maximum length of a single history entry (bytes).
+@note Below SHELL_INPUT_LEN, so a longer command is stored truncated and
+      recalling it yields a different command. Raise to SHELL_INPUT_LEN
+      (at SHELL_HISTORY_SIZE x the RAM) if that matters."
+param,SHELL_COMMANDS_MAX,size_t,64,,@brief Max size of the site commands table
+param,SHELL_SCROLLBACK_LINES,uint16_t,32,,"@brief Scrollback lines retained by ShellPage for redraw/page-switch
+replay"
+param,LOGS_SCROLLBACK_LINES,uint16_t,64,,@brief Scrollback lines retained by LogsPage for page-switch replay
+param,HOME_SCROLLBACK_LINES,uint16_t,6,,"@brief Log lines the Home page keeps in its bottom log tail.
+@note Small on purpose: a live ""last few entries"" widget,
+      not a full scrollback like the Logs page."
+param,SCROLLBACK_LINE_LEN,uint16_t,BOTANIK_TERMINAL_MAX_COLS,,"@brief Maximum length of a single retained scrollback line (bytes).
+Shared by Shell, Logs and Home, so the cost is this times the three line
+counts above. A stored line is ONE display row, already wrapped, so a
+terminal width is the whole of it."
+check,,,SCROLLBACK_LINE_LEN >= TERMINAL_MAX_COLS,,a scrollback line cannot hold a full-width display row
+end,,,,,
+section,Text editor,,,,
+param,EDITOR_MAX_ROWS,uint16_t,32,,@brief Maximum number of screen rows the TextEditor can lay out
+param,KILL_RING_SIZE,uint16_t,256,,"@brief Size of the kill ring (bytes).
+@note One buffer for the whole console, so a cut at the shell prompt
+      yanks into NOTES. A longer kill takes only what fits and LEAVES the
+      rest, so a yank always restores exactly what went."
+param,EDITOR_PROMPT_MAX,uint16_t,16,,@brief Maximum length (bytes) of a prompt prefix (PS1/PS2/PS3)
+param,EDITOR_MIN_COLS,uint16_t,32,,"@brief Narrowest terminal width the TextEditor can support, with margin
+for the row prefixes (PS1/PS2/PS3).
+@note Read only by the two layout static_asserts, which is why it lives
+      beside the lengths they relate."
+note,,,,,"The editor's minimum size must hold the whole input buffer. Exact at the
+defaults, passing only because the buffer reserves its NUL. Does not model
+TextEditor's _indent, which is safe only while the one indented editor is
+single-line."
+check,,,EDITOR_MAX_ROWS * (EDITOR_MIN_COLS - EDITOR_PROMPT_MAX) >= SHELL_INPUT_LEN,,EDITOR_MAX_ROWS too small to lay out SHELL_INPUT_LEN at EDITOR_MIN_COLS
+end,,,,,
+param,CONSOLE_DRAW_MS,uint32_t,100,,"@brief How often the console REDRAWS. The operator-facing rate: fast
+enough that a keystroke feels immediate, slow enough that a full repaint
+is not competing with the field bus for the wire.
+@note TX_COLD_TARGET_MS must stay above this - a redraw that cannot be
+flushed before the next one starts never converges."

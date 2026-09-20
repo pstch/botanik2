@@ -9,8 +9,8 @@
 
 #include <cstdint>
 
-#include "libbotanik/config/simulator.h"
-#include "libbotanik/config/notes.h"
+#include "libbotanik/config/simulator.gen.h"
+#include "libbotanik/config/notes.gen.h"
 #include "libbotanik_features.h"
 
 #if BOTANIK_FEATURE_NOTES_PAGE

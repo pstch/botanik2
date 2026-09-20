@@ -14,10 +14,10 @@
 #include <cstdio>
 #include <cstring>
 
-#include "libbotanik/config/terminal.h"
+#include "libbotanik/config/terminal.gen.h"
 
-#include "libbotanik/config/logging.h"
-#include "libbotanik/config/net.h"
+#include "libbotanik/config/logging.gen.h"
+#include "libbotanik/config/net.gen.h"
 
 namespace Botanik { namespace Shell {
 

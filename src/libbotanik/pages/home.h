@@ -16,9 +16,9 @@
 
 #include <cstdint>
 
-#include "libbotanik/config/identity.h"
-#include "libbotanik/config/terminal.h"
-#include "libbotanik/config/vars.h"
+#include "libbotanik/config/identity.gen.h"
+#include "libbotanik/config/terminal.gen.h"
+#include "libbotanik/config/vars.gen.h"
 
 #include "libbotanik/hal/platform.h"
 #include "libbotanik/logs/format.h"

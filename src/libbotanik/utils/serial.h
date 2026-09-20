@@ -9,7 +9,7 @@
 
 #include <cstdint>
 
-#include "libbotanik/config/serial.h"
+#include "libbotanik/config/serial.gen.h"
 
 #include "libbotanik/hal/platform.h"
 #include "libbotanik/utils/byte_sink.h"

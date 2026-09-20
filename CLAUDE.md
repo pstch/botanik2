@@ -552,18 +552,27 @@ and gh_mlb41's own `tests/`.
   row. The one trap: an index is a bare `uint16_t` and zero is a real row, so
   never read one back out of a `const` table it was declared in. `VAR_NONE` is
   0xFFFF for that reason.
-- **Config is one file per concern.** `libbotanik_config.h` is only the
-  aggregate; values live in `libbotanik/config/<concern>.h` and a module includes
-  the one it reads. `config/base.h` is the preamble every concern header pulls
-  first, and it reads the site's config before any default, then the feature
-  flags. A constraint
-  spanning two concerns is asserted at the consumer that makes it exist.
-- **Config is site-overridable.** Every value defaults from an `#ifndef`-guarded
-  `BOTANIK_<NAME>`; a site's generated `config.gen.h` may `#define` it, which
-  CMake includes PUBLIC so the override is build-wide. The front door is the
-  site's `[config]` table, keyed by the name without the `BOTANIK_` prefix as
-  `[features]` is. `VAR_MAX`,
-  `STR_POOL_BYTES` and the analog counts are COMPUTED from the table there, so
-  a site never states its own size.
+- **Config is one GENERATED file per concern.** `libbotanik_config.h` is only
+  the aggregate; values live in `libbotanik/config/<concern>.gen.h`, generated
+  from `libbotanik/tables/config/<concern>.csv`, and a module includes the one
+  it reads. The table is an ORDERED stream of `section` / `end` / `param` /
+  `check` / `note` / `include` rows, so the header reads the way it was
+  written: a `param` becomes its `#ifndef` default and the `BOTANIK_CFG` over
+  it, a `check` a `static_assert`. `config/base.h` is the preamble every
+  concern header pulls first, and it reads the site's config before any
+  default, then the feature flags. A constraint spanning two concerns is
+  asserted at the consumer that makes it exist, which is what an `include` row
+  is for. Nothing here is hand-written: an edit to a `.gen.h` is caught by the
+  stamp and regenerated away.
+- **Config is overridable at three levels.** Every value defaults from an
+  `#ifndef`-guarded `BOTANIK_<NAME>`; a site moves one with a `name,value` row
+  in its own `tables/config.csv`, which lands in its generated `config.gen.h`
+  ahead of every default; and `-DBOTANIK_<NAME>=<value>` moves it on the
+  command line, swept out of the CMake cache against the generated roster
+  `config/names.gen.cmake` and forwarded PUBLIC. Precedence: command line >
+  site > table default. A site's `site.toml` keeps identity, rates and
+  features, and the generator refuses a `[config]` table left in it. `VAR_MAX`,
+  `STR_POOL_BYTES` and the analog counts are COMPUTED from the variable table,
+  so a site never states its own size.
 - New site-level work goes in the site, not in `libbotanik` and not in a
   target's `main`.

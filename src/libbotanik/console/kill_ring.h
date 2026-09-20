@@ -14,7 +14,7 @@
 
 #include <cstdint>
 
-#include "libbotanik/config/terminal.h"
+#include "libbotanik/config/terminal.gen.h"
 
 namespace Botanik { namespace Terminal {
 

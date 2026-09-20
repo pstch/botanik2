@@ -186,15 +186,34 @@ def lib_enums():
     return read_table(lib_csv('enums'), 'enum ctype symbol value label desc'.split())
 
 
-def config_defaults(site_tom=None):
+def site_config(site, tom):
+    """A site's own overrides: `name,value` rows in its tables/config.csv.
+
+    Its own table rather than a block in site.toml, so a site says where it
+    moves a library value in the same place the library declares one. site.toml
+    keeps identity, rates and features."""
+    if 'config' in (tom or {}):
+        sys.exit('%s/site.toml: [config] moved to tables/config.csv, one '
+                 '`name,value` row per override' % site)
+    path = site_csv(site, 'config')
+    if not os.path.exists(path): return {}
+    out = {}
+    with open(path, newline='') as fh:
+        for r in csv.DictReader(fh):
+            n = (r.get('name') or '').strip()
+            if n: out[n] = (r.get('value') or '').strip()
+    return out
+
+
+def config_defaults(site_cfg=None):
     """The config values a table cell may name, as ints.
 
-    The library's [config] is the base; a site's own [config] moves any of
-    them, and the EFFECTIVE value is what the string pool is sized from - so a
-    site that widens a host buffer widens the pool with it. Data on both sides:
-    the generator never reads a config header to learn one."""
+    The library's [config] is the base; a site's own tables/config.csv moves
+    any of them, and the EFFECTIVE value is what the string pool is sized from
+    - so a site that widens a host buffer widens the pool with it. Data on both
+    sides: the generator never reads a config header to learn one."""
     out = dict(lib_toml().get('config', {}))
-    out.update((site_tom or {}).get('config', {}))
+    out.update(site_cfg or {})
     return {k: int(v) for k, v in out.items()}
 
 
@@ -243,6 +262,29 @@ def aux(site, stem):
     return read_table(site_csv(site, stem), AUX[stem].split())
 
 
+def lib_config_groups():
+    """The config concerns, as (group, source, brief, items).
+
+    One tables/config/<group>.csv per concern, each an ORDERED stream of
+    section / end / param / check / note rows: the order is the generated
+    header's order, so a concern reads the way it was written."""
+    d = os.path.join(_lib_tables(), 'config')
+    out = []
+    for f in sorted(os.listdir(d)):
+        if not f.endswith('.csv'): continue
+        with open(os.path.join(d, f), newline='') as fh:
+            rows = [dict((k, (v or '')) for k, v in r.items())
+                    for r in csv.DictReader(fh)]
+        brief, items = '', []
+        for r in rows:
+            if r['kind'] == 'group': brief = r['text']
+            else:                    items.append(r)
+        out.append({'group': f[:-4],
+                    'source': 'libbotanik/tables/config/' + f,
+                    'brief': brief, 'items': items})
+    return out
+
+
 def lib_table():
     """tables/rows.csv, whose `fac` column says which factory each row is."""
     with open(lib_csv('rows'), newline='') as fh:
@@ -252,7 +294,8 @@ def lib_table():
 
 def _scalar(v):
     if v in ('true', 'false'):                 return v == 'true'
-    if v[0] == v[-1] == '"':                   return v[1:-1]
+    # '...' is literal, so a value holding a double quote has a spelling.
+    if len(v) > 1 and v[0] == v[-1] in '"\'':  return v[1:-1]
     if v[0] == '[':
         return [x.strip().strip('"') for x in v[1:-1].split(',') if x.strip()]
     return int(v)
@@ -262,11 +305,14 @@ def _uncomment(ln):
     """The line with its comment removed, `#` inside a quoted value kept.
 
     Splitting on the first `#` would truncate `k = "red # 2"` to `"red`, which
-    then reaches _scalar() as something it cannot name."""
-    out, quoted = [], False
+    then reaches _scalar() as something it cannot name. Only the quote that
+    opened closes, so an apostrophe inside "..." is prose."""
+    out, q = [], ''
     for ch in ln:
-        if ch == '"': quoted = not quoted
-        elif ch == '#' and not quoted: break
+        if q:
+            if ch == q: q = ''
+        elif ch in '"\'': q = ch
+        elif ch == '#': break
         out.append(ch)
     return ''.join(out).strip()
 

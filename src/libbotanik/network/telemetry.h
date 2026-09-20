@@ -19,8 +19,8 @@
 #include "libbotanik/core/component.h"
 #include <cstdint>
 
-#include "libbotanik/config/identity.h"
-#include "libbotanik/config/net.h"
+#include "libbotanik/config/identity.gen.h"
+#include "libbotanik/config/net.gen.h"
 
 #include "libbotanik/core/context.h"
 #include "libbotanik/network/mqtt.h"

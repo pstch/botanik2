@@ -31,8 +31,8 @@
 #include <sys/socket.h>
 #include <unistd.h>
 
-#include "libbotanik/config/net.h"
-#include "libbotanik/config/scheduler.h"
+#include "libbotanik/config/net.gen.h"
+#include "libbotanik/config/scheduler.gen.h"
 
 #include "libbotanik/hal/net.h"
 #include "libbotanik/hal/platform.h"

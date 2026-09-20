@@ -9,7 +9,7 @@
 
 #include <cstdint>
 
-#include "libbotanik/config/terminal.h"
+#include "libbotanik/config/terminal.gen.h"
 
 #include "libbotanik/utils/byte_sink.h"
 

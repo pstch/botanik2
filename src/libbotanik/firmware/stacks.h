@@ -18,7 +18,7 @@
 #include "libbotanik/tasks/tasks.h"
 #include <cstdint>
 
-#include "libbotanik/config/identity.h"
+#include "libbotanik/config/identity.gen.h"
 
 #include "libbotanik/alarms/alarms.h"
 #include "libbotanik/logs/logger.h"

@@ -13,7 +13,7 @@
 #include <cstdint>
 
 #include "libbotanik/alarms/source.h"
-#include "libbotanik/config/alarms.h"
+#include "libbotanik/config/alarms.gen.h"
 #include "libbotanik/vars/model.h"
 #include "libbotanik/vars/persist.h"
 

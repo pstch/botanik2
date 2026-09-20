@@ -10,7 +10,7 @@
 
 #include <cstring>
 
-#include "libbotanik/config/terminal.h"
+#include "libbotanik/config/terminal.gen.h"
 
 #include "libbotanik/logs/format.h"
 #include "libbotanik/utils/text.h"

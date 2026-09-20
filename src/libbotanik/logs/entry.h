@@ -10,7 +10,7 @@
 
 #include <cstdint>
 
-#include "libbotanik/config/logging.h"
+#include "libbotanik/config/logging.gen.h"
 
 #include "libbotanik/logs/topics.h"
 

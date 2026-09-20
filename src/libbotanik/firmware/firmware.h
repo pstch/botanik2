@@ -18,10 +18,10 @@
 #include "libbotanik/core/health.h"
 #include <cstdint>
 
-#include "libbotanik/config/identity.h"
-#include "libbotanik/config/scheduler.h"
-#include "libbotanik/config/serial.h"
-#include "libbotanik/config/terminal.h"
+#include "libbotanik/config/identity.gen.h"
+#include "libbotanik/config/scheduler.gen.h"
+#include "libbotanik/config/serial.gen.h"
+#include "libbotanik/config/terminal.gen.h"
 
 #include "libbotanik/alarms/alarms.h"
 #include "libbotanik/alarms/publisher.h"

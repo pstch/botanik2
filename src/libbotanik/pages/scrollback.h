@@ -12,7 +12,7 @@
 #include <cstdio>
 
 #include "libbotanik/utils/minmax.h"
-#include "libbotanik/config/terminal.h"
+#include "libbotanik/config/terminal.gen.h"
 
 #include "libbotanik/console/terminal.h"
 #include "libbotanik/pages/line_buffer.h"

@@ -11,8 +11,8 @@
 
 #include <cstdint>
 
-#include "libbotanik/config/scheduler.h"
-#include "libbotanik/config/terminal.h"
+#include "libbotanik/config/scheduler.gen.h"
+#include "libbotanik/config/terminal.gen.h"
 
 #include "libbotanik/hal/platform.h"
 #include "libbotanik/tasks/tasks.h"

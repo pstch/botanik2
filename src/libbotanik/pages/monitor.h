@@ -16,7 +16,7 @@
 #include <cstdint>
 #include <cstring>
 
-#include "libbotanik/config/terminal.h"
+#include "libbotanik/config/terminal.gen.h"
 
 #include "libbotanik/console/console.h"
 #include "libbotanik/console/editor.h"

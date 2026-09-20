@@ -14,7 +14,7 @@
 #include <cstdio>
 #include <cstring>
 
-#include "libbotanik/config/scheduler.h"
+#include "libbotanik/config/scheduler.gen.h"
 #include "libbotanik/hal/storage.h"
 #include "libbotanik/logs/logger.h"
 #include "libbotanik/logs/topics.h"

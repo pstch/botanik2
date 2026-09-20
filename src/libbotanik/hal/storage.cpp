@@ -8,7 +8,7 @@
 
 #include <cstring>
 
-#include "libbotanik/config/simulator.h"
+#include "libbotanik/config/simulator.gen.h"
 
 namespace Botanik { namespace HAL { namespace Storage {
 

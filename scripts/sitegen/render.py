@@ -73,6 +73,18 @@ def _block(text, lead):
         if len(lines) > 1 else lines[0]
 
 
+def _doc(text, first, lead=None, close=''):
+    """Stored prose as a comment block: @p first opens the run, @p lead leads
+    every line after it, @p close ends the last. A blank line keeps the lead
+    without its trailing spaces, so nothing ships trailing whitespace."""
+    if lead is None: lead = first
+    out = []
+    for i, ln in enumerate(str(text).split('\n')):
+        pre = first if i == 0 else lead
+        out.append((pre + ln).rstrip() if not ln else pre + ln)
+    return '\n'.join(out) + close
+
+
 _env = Environment(loader=FileSystemLoader(TEMPLATES),
                    undefined=StrictUndefined,
                    keep_trailing_newline=True,
@@ -85,6 +97,7 @@ _env.filters['cont'] = _cont
 _env.filters['suffix'] = _suffix
 _env.filters['dashes'] = _dashes
 _env.filters['block'] = _block
+_env.filters['doc'] = _doc
 
 
 def render(name, **ctx):

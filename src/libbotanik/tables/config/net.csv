@@ -1,0 +1,90 @@
+kind,name,type,default,guard,text
+group,,,,,"The transport, name resolution, NTP and MQTT."
+section,Network transport,,,,
+param,HOST_STR_LEN,size_t,,,
+param,NET_MAX_UDP,int,2,,"@brief Sockets HAL::Network keeps, per kind - a hard ceiling on the
+OPTA, where they are a fixed table of Mbed socket objects.
+
+Count the TCP budget: the Modbus slave holds a listener for the life of
+the boot AND one slot per accepted connection, then MQTT takes one and
+the TCP master one. Asserted at the composition root, the only place
+that knows which a build has.
+@note Running out is not loud: an accepted connection that finds no slot
+is indistinguishable from no connection pending."
+param,NET_MAX_TCP,int,5,,
+param,NET_SETUP_TIMEOUT_MS,uint32_t,30000,,@brief Max time spent waiting for the link to come up.
+param,NET_RETRY_MS,uint32_t,10000,,@brief Backoff after a failed (or lost) network bring-up before a retry.
+end,,,,,
+section,Name resolution,,,,
+param,DNS_CACHE_SIZE,size_t,8,,"@brief Size of the DNS resolver cache size.
+@note Also determines the maximum concurrent requests supported."
+param,NET_MAX_DNS,int,BOTANIK_DNS_CACHE_SIZE,,"@brief Async DNS lookups the HAL can have in flight. Defaults to
+DNS_CACHE_SIZE because that is how many rows NameResolver can leave
+PENDING at once (_alloc() handles every row being in flight), and a
+shortfall shows up as lookups that fail only once enough are concurrent.
+hal/net_<backend>.cpp static_asserts the relation rather than trusting it.
+
+Separate from DNS_CACHE_SIZE because they sit on opposite sides of the
+HAL boundary: a build with a second resolver needs more HAL slots than
+the library keeps cache rows."
+param,DNS_CACHE_TTL_MS,uint32_t,3600000u,,"@brief Max age (ms) a resolved entry is served from the cache before it is
+re-resolved. The HAL DNS API exposes no record TTL, so this bounds
+staleness (e.g. a server whose address changes) without it. 0 disables
+expiry (cache until evicted / cleared on reconfig). Default 1 h."
+param,DNS_PENDING_MAX_MS,uint32_t,30000u,,"@brief Max time (ms) a row stays in flight before _alloc() may cancel and
+reclaim it. A caller that abandons a lookup (a group serial bumps mid
+resolve) never frees its row, so without this the table leaks a slot per
+abandonment until every row is PENDING and resolution fails for good."
+end,,,,,
+section,Time sync (NTP),,,,"@note Only the timings are compile-time. Which servers to ask, whether
+      to ask at all, and how often are runtime parameters in the site's
+      variable table (ntp_srv1 / ntp_enable / ntp_poll_sec). The server
+      port is fixed at the well-known 123 in network/ntp.h."
+param,NTP_QUERY_TIMEOUT_MS,uint32_t,5000,,@brief How long the SNTP client waits before giving up on a server.
+param,NTP_RETRY_MS,uint32_t,60000,,@brief Backoff after a failed NTP sync before retrying.
+end,,,,,
+section,MQTT client,,,,"@note The broker host and port are runtime parameters (mqtt_host /
+      mqtt_port); what is here is the client's own sizing and cadence,
+      plus the topic schema hanging off MQTT_TOPIC_PREFIX."
+param,MQTT_CONNECT_TIMEOUT_MS,uint32_t,10000,,@brief Max time to establish the TCP/MQTT session.
+param,MQTT_RETRY_MS,uint32_t,30000,,@brief Backoff after a failed connection before the MQTT client retries.
+param,MQTT_TX_STALL_MS,uint32_t,10000,,"@brief How long the tail of a half-written packet may sit unsent before
+the link counts as stuck.
+
+A broker that stops reading fills the socket buffer, and MQTT 3.1.1 has
+no way to abandon a packet mid-stream: the client either finishes it or
+the session is unusable. Under the keep-alive so a wedged peer is caught
+by whichever notices first."
+param,MQTT_TX_BUF,size_t,384,,"@brief Scratch buffer (bytes) MqttClient builds an outgoing packet in.
+Bounds the whole PUBLISH: fixed header + topic + payload. A publish that
+would exceed it is refused outright, so it must clear MQTT_TOPIC_LEN plus
+the largest payload - which is a formatted log line, not a telemetry
+reading. The static_assert below holds that."
+param,MQTT_TOPIC_LEN,size_t,96,,"@brief Buffer every publisher formats its topic in. One bound for the
+three of them (telemetry, logs, alarms), because all three build
+""<MQTT_TOPIC_PREFIX>/<segment>/<name>"" from the same configurable prefix
+- sized apart, whichever was smallest truncated first."
+note,,,,,"The check that MQTT_TX_BUF can carry a whole log line lives in
+network/mqtt_log.h: it relates this buffer to LOG_MESSAGE_LEN, and the
+MQTT log writer is the one thing that puts the two together."
+param,MQTT_PAYLOAD_LEN,size_t,64,,"@brief Buffer a single telemetry value is formatted into; caps the width
+of any published reading."
+param,MQTT_RX_PER_STEP,uint8_t,8,,"@brief Socket reads MqttClient drains per activation. The per-beat bound
+on its RX work, like MQTT_TELEMETRY_PER_STEP on the TX side."
+param,MQTT_TELEMETRY_PER_STEP,uint16_t,8,,"@brief Topics published per activation while a telemetry sweep is in
+progress. 0 publishes the whole table in one go (the old behaviour).
+
+Each topic is its own snprintf and its own tcp_send (MQTT 3.1.1 has no
+multi-topic PUBLISH), so a full sweep in one beat is 38-80 of them,
+0.8-1.9 ms against a 10 ms budget. 8 clears a typical table in well under
+a second, against a cadence measured in tens of seconds."
+param,MQTT_TELEMETRY_TOPIC,const char*,"""status""",,"@brief Topic segment between the prefix and the field name, for each of
+the three publishers. They are the path schema every subscriber and
+dashboard agrees on; MQTT_TOPIC_PREFIX above is what separates one
+installation from another.
+  telemetry: ""<prefix>/<TELEMETRY>/<group>/<name>""
+  logs:      ""<prefix>/<LOG>/<level>/<topic>""
+  alarms:    ""<prefix>/<ALARM>/<CODE>"""
+param,MQTT_LOG_TOPIC,const char*,"""logs""",,
+param,MQTT_ALARM_TOPIC,const char*,"""alarms""",,
+end,,,,,

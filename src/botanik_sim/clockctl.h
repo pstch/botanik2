@@ -36,7 +36,7 @@
 #include <sched.h>
 #include <unistd.h>
 
-#include "libbotanik/config/scheduler.h"
+#include "libbotanik/config/scheduler.gen.h"
 #include "libbotanik/hal/platform.h"
 
 namespace Botanik { namespace Sim {

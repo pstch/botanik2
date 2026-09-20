@@ -9,7 +9,7 @@
 
 #include <cstdint>
 
-#include "libbotanik/config/terminal.h"
+#include "libbotanik/config/terminal.gen.h"
 
 #include "libbotanik/console/ansi.h"
 #include "libbotanik/utils/serial.h"

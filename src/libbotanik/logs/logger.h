@@ -14,7 +14,7 @@
 #include <cstdarg>
 #include <cstdint>
 
-#include "libbotanik/config/logging.h"
+#include "libbotanik/config/logging.gen.h"
 
 #include "libbotanik/core/component.h"
 #include "libbotanik/logs/entry.h"

@@ -13,7 +13,7 @@
 
 #include <cstdint>
 
-#include "libbotanik/config/scheduler.h"
+#include "libbotanik/config/scheduler.gen.h"
 
 #include "libbotanik/tasks/phase.h"
 #include "libbotanik/tasks/task_timer.h"

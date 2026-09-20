@@ -29,6 +29,7 @@ except ImportError as e:
 from sitegen.paths import lib
 from sitegen.reference import points
 from sitegen.model import (CODEGEN_ABI, H, KIND, as_int, build, check,
+                           lib_config_groups, site_config,
                            config_defaults, features,
                            emit_cals, emit_row, site_dir, site_guard)
 from sitegen.st import enums, plant, quality_block
@@ -91,7 +92,8 @@ def config(site, t):
     # skip the second.
     guard = site_guard(tom)
 
-    defs = config_defaults(tom)
+    site_cfg = site_config(site, tom)
+    defs = config_defaults(site_cfg)
     pool = 0
     for r in table:
         if r['_fac'] == 'PS': pool += as_int(r['cap'], defs)
@@ -112,9 +114,9 @@ def config(site, t):
            ('MODBUS_TCP_MAX_ROWS', mapped),
            ('MODBUS_BAUD', tom['fieldbus']['baud'])]
     if tom.get('build', {}).get('pin_sizes'): val.append(('PIN_SIZES', 1))
-    # Anything the site moves in its own [config]. Emitted with the rest, so it
-    # lands before every #ifndef default the library carries.
-    val += sorted(tom.get('config', {}).items())
+    # Anything the site moves in its own tables/config.csv. Emitted with the
+    # rest, so it lands before every #ifndef default the library carries.
+    val += sorted(site_cfg.items())
 
     on  = [f for f, v in tom['features'].items() if v]
     # A flag the site turns OFF. Only the ones defaulting ON need saying, but
@@ -155,6 +157,18 @@ def library_files():
     print('  %-14s ABI %d' % ('codegen_abi.h', CODEGEN_ABI))
     print('  %-14s %d value(s)' % ('capacities.gen.h', len(caps)))
     quality_block()
+    n = 0
+    for g in lib_config_groups():
+        render.write(lib('src', 'libbotanik', 'config', g['group'] + '.gen.h'),
+                     'config_group.gen.h.j2', **g)
+        n += sum(1 for it in g['items'] if it['kind'] == 'param')
+    names = sorted(it['name'] for g in lib_config_groups()
+                   for it in g['items']
+                   if it['kind'] == 'param' and it['default'])
+    render.write(lib('src', 'libbotanik', 'config', 'names.gen.cmake'),
+                 'config_names.gen.cmake.j2', names=names)
+    print('  %-14s %d groups, %d values' % ('config/*.gen.h',
+                                            len(lib_config_groups()), n))
 
 
 def _outputs(site):
