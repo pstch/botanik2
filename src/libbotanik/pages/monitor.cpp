@@ -59,7 +59,6 @@ namespace Botanik { namespace Pages {
         // A live view selects on readings, so a row can join or leave the set
         // between two refreshes with nothing to bump a generation.
         if (_mode_is_live()) _invalidate_rows();
-        uint16_t win = _window();
         _clamp_selection();
         _follow_selection();
         _draw_structure();
@@ -68,11 +67,7 @@ namespace Botanik { namespace Pages {
         // _ref_at()'s memo at _top and walk forward, and _selected is inside
         // the band, so the two trailing lookups resume instead of rescanning.
         // One walk per refresh, not three.
-        for (uint16_t vi = 0; vi < win; vi++) {
-            const uint16_t display_idx = (uint16_t)(_top + vi);
-            _draw_row(display_idx, (uint16_t)(DATA_TOP + vi),
-                      display_idx == _selected);
-        }
+        _draw_band();
         _draw_panel();
         _draw_footer();
         _draw_prompt_row();

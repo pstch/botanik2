@@ -36,17 +36,10 @@ namespace Botanik { namespace Pages {
         // A narrow view selects on a verdict, which moves with no keypress
         // behind it: its row set has to be rebuilt every refresh.
         if (_mode != MODE_ALL) _invalidate_order();
-        uint16_t n = _count();
         _clamp_selection();
         _follow_selection();
         _draw_structure();
-        uint16_t win = _window();
-        for (uint16_t vi = 0; vi < win; vi++) {
-            uint16_t row = (uint16_t)(DATA_TOP + vi), idx = (uint16_t)(_top + vi);
-            if (idx < n) _draw_row(idx, row, idx == _selected);
-            else { _terminal.move_to({row, 0}); _terminal.set_inverted(false);
-                   _terminal.clear_to_eol(); }
-        }
+        _draw_band();
         _draw_panel();
     }
 

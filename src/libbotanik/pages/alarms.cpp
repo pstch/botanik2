@@ -187,10 +187,9 @@ namespace Botanik { namespace Pages {
         _terminal.clear_to_eol();
     }
 
-    void AlarmsPage::_draw_data_row(uint16_t row, uint16_t vi) {
-        if (vi >= _nvis) { _blank_line(row); return; }    // past the set: blank it
-        const Alarms::AlarmCondition& c = _model->condition(_vis[vi]);
-        _draw_full_row(row, _vis[vi], c, vi == _selected);
+    void AlarmsPage::_draw_row(uint16_t idx, uint16_t row, bool selected) {
+        const Alarms::AlarmCondition& c = _model->condition(_vis[idx]);
+        _draw_full_row(row, _vis[idx], c, selected);
     }
 
     const char* AlarmsPage::_selected_cell() const {
@@ -292,8 +291,7 @@ namespace Botanik { namespace Pages {
         _draw_rules(window);
         _draw_notes();
         _draw_footer(_legend_row(), _model ? _model->active_count() : 0);
-        for (uint16_t vi = 0; vi < window; vi++)
-            _draw_data_row((uint16_t)(DATA_TOP + vi), (uint16_t)(_top + vi));
+        _draw_band();
     }
 }}
 

@@ -206,7 +206,7 @@ namespace Botanik { namespace Pages {
 
         /** @brief Paint data row at screen @p row for visible entry @p vi: the
          *  full row when it holds an alarm, else a blanked row (past the set). */
-        void _draw_data_row(uint16_t row, uint16_t vi);
+        void _draw_row(uint16_t idx, uint16_t row, bool selected) override;
 
 
         /** @brief Acknowledge the selected condition, or take the

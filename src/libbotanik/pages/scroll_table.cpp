@@ -330,6 +330,15 @@ namespace Botanik { namespace Pages {
         _draw_line(row, buf, (n < 0) ? 0 : (uint16_t)n);
     }
 
+    void ScrollTablePage::_draw_band() {
+        const uint16_t n = _row_count(), win = _window(), top = _data_top();
+        for (uint16_t vi = 0; vi < win; vi++) {
+            const uint16_t row = (uint16_t)(top + vi), idx = (uint16_t)(_top + vi);
+            if (idx < n) _draw_row(idx, row, idx == _selected);
+            else         _blank_line(row);
+        }
+    }
+
     void ScrollTablePage::_say(const char* text) {
         snprintf(_said, sizeof(_said), "%s", text);
         _said_until_ms = HAL::Clock::uptime_ms() + SAID_MS;

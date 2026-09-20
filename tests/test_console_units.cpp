@@ -231,6 +231,8 @@ struct Table : Pages::ScrollTablePage {
     void focus() override {}
     void tick(bool) override {}
     uint8_t _columns(Col*) const override { return 0; }
+    // The navigation cases never paint; the band is what a real page draws.
+    void _draw_row(uint16_t, uint16_t, bool) override {}
 
     uint16_t selected() const { return _selected; }
     uint16_t top()      const { return _top; }

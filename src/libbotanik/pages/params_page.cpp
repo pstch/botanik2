@@ -61,16 +61,10 @@ namespace Botanik { namespace Pages {
         if (!_dirty && now - _last_refresh_ms < Config::PAGE_HOT_MS) return;
         _last_refresh_ms = now;
         _dirty = false;
-        uint16_t n = _visible_count();
         _clamp_selection();
         _follow_selection();
         _draw_structure();
-        uint16_t win = _window();
-        for (uint16_t vi = 0; vi < win; vi++) {
-            uint16_t row = (uint16_t)(DATA_TOP + vi), idx = (uint16_t)(_top + vi);
-            if (idx < n) _draw_row(idx, row, idx == _selected);
-            else { _terminal.move_to({row, 0}); _terminal.set_inverted(false); _terminal.clear_to_eol(); }
-        }
+        _draw_band();
         _draw_panel();
         _draw_prompt_row();
     }

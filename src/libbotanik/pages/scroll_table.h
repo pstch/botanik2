@@ -286,6 +286,17 @@ namespace Botanik { namespace Pages {
         /** @brief Blank a whole row (normal video). */
         void _blank_line(uint16_t row) { _draw_line(row, "", 0); }
 
+        /** @brief One display row of the set, inverted while @p selected.
+         *  Declared here so _draw_band() can walk the window; a page that
+         *  draws its rows some other way overrides _draw_band() instead. */
+        virtual void _draw_row(uint16_t idx, uint16_t row, bool selected) = 0;
+
+        /** @brief Paint the whole data band: every row of the window, and a
+         *  blank for each slot past the end of the set. Blanking an already
+         *  blank row costs nothing at the diff, so the short set is not a
+         *  special case worth writing four times. */
+        void _draw_band();
+
         /** @brief Draw a full line at @p row in normal video, then clear the rest
          *  of the row. The plain (unselected) row / header / rule painter. */
         void _draw_line(uint16_t row, const char* line, uint16_t n);
