@@ -262,19 +262,28 @@ def aux(site, stem):
     return read_table(site_csv(site, stem), AUX[stem].split())
 
 
+def _top_level_and(expr):
+    """Whether @p expr is a conjunction outside any parentheses."""
+    depth = 0
+    for i, ch in enumerate(expr):
+        if   ch == '(': depth += 1
+        elif ch == ')': depth -= 1
+        elif ch == '&' and depth == 0 and expr[i:i + 2] == '&&': return True
+    return False
+
+
 def lib_config_groups():
     """The config concerns, as (group, params, checks, includes).
 
-    Two tables, not one per concern: config/params.csv is the parameter table
-    and config/checks.csv the constraints over it, each row naming the group
+    Two tables, not one per concern: tables/config.csv is the parameter table
+    and tables/checks.csv the constraints over it, each row naming the group
     whose header it lands in. A check reading another group's value is what
     `includes` is, worked out from the names rather than stated."""
-    d = os.path.join(_lib_tables(), 'config')
     def rows(stem):
-        with open(os.path.join(d, stem + '.csv'), newline='') as fh:
+        with open(lib_csv(stem), newline='') as fh:
             return [dict((k, (v or '').strip()) for k, v in r.items())
                     for r in csv.DictReader(fh)]
-    params, checks = rows('params'), rows('checks')
+    params, checks = rows('config'), rows('checks')
     owner = dict((p['name'], p['group']) for p in params)
     out = []
     for g in sorted({p['group'] for p in params}):
@@ -285,8 +294,14 @@ def lib_config_groups():
         out.append({'group': g,
                     'params': [p for p in params if p['group'] == g],
                     'checks': mine, 'includes': inc})
-    bad = [c['group'] for c in checks if c['group'] not in owner.values()]
-    if bad: sys.exit('config/checks.csv: no such group: %s' % ', '.join(bad))
+    bad = ['no such group: ' + c['group'] for c in checks
+           if c['group'] not in owner.values()]
+    # One conjunct per row: `A && B` as one check names neither end when it
+    # fires, and the message has to speak for both. Nesting is fine - it is
+    # only the top level that splits into rows.
+    bad += ['%s: split `%s` into one row per conjunct' % (c['group'], c['expr'])
+            for c in checks if _top_level_and(c['expr'])]
+    if bad: sys.exit('tables/checks.csv:\n  ' + '\n  '.join(bad))
     return out
 
 

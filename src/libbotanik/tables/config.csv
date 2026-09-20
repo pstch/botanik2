@@ -1,0 +1,144 @@
+group,name,type,default,guard,desc
+alarms   ,ALARM_CPU_LOAD_PCT            ,uint8_t    ,50                              ,                ,CPU_LOAD fires above this percent of the task period
+alarms   ,ALARM_CPU_JITTER_PCT          ,uint8_t    ,50                              ,                ,CPU_JITT fires above this percent of the task period
+alarms   ,ALARM_STACK_PCT               ,uint8_t    ,75                              ,                ,STACK fires above this percent of the stack used
+alarms   ,HEALTH_RESET_WINDOW_MS        ,uint32_t   ,300000                          ,                ,How long after boot the SYS_RST alarm stays asserted
+alarms   ,HEALTH_QUIET_MS               ,uint32_t   ,15000                           ,                ,"Post-boot window where a quality or health change is bring-up, not news"
+alarms   ,ALARM_NOTIFIERS_MAX           ,uint8_t    ,4                               ,                ,Maximum number of alarm notifiers the model fans out to
+alarms   ,ALARM_RECENT_S                ,int32_t    ,(7 * 24 * 3600)                 ,                ,How long a cleared alarm stays in the ALARMS page's RECENT view (s)
+alarms   ,ALARM_SLOTS                   ,uint8_t    ,64                              ,                ,"K_ALARM rows the alarm model has room for, site and library together"
+alarms   ,ALARMS_PERIOD_MS              ,uint32_t   ,100                             ,                ,How often the alarm controller sweeps its sources
+alarms   ,HEALTH_PERIOD_MS              ,uint32_t   ,100                             ,                ,How often HealthMonitor takes the platform's vitals and produces the watchdog verdict
+identity ,FIRMWARE_VERSION              ,const char*,"""0.13.12-dev"""               ,                ,"Firmware version string, shown in the boot banner"
+identity ,SITE_NAME                     ,const char*,"""generic"""                   ,                ,"Human-readable site name, shown in version, home and the POST line"
+identity ,MQTT_TOPIC_PREFIX             ,const char*,"""default/"" BOTANIK_SITE_NAME",                ,"MQTT topic root shared by the alarm, telemetry and log topics"
+logging  ,LOG_MESSAGE_LEN               ,size_t     ,128                             ,                ,"Maximum length of a single log message, before formatting"
+logging  ,LOG_FORMATTED_LEN             ,size_t     ,192                             ,                ,Maximum length of a single formatted log line including metadata (bytes)
+logging  ,LOG_WRITERS_MAX               ,uint8_t    ,8                               ,                ,Maximum number of pointers to registered log writers
+logging  ,LOG_QUEUE_SIZE                ,size_t     ,96                              ,                ,"Queue depth of a serial sink, and the default a sink takes when it states none"
+logging  ,LOG_QUEUE_LOGS                ,size_t     ,64                              ,                ,Queue depth of the LOGS page sink
+logging  ,LOG_QUEUE_SHELL               ,size_t     ,48                              ,                ,Queue depth of the SHELL page sink
+logging  ,LOG_QUEUE_HOME                ,size_t     ,16                              ,                ,Queue depth of the HOME page sink
+logging  ,LOG_QUEUE_CRITICAL_RESERVE    ,size_t     ,8                               ,                ,"Queue slots reserved for CRITICAL entries, which a storm may not eat into"
+logging  ,LOG_GLOBAL_BUCKET_BURST       ,uint16_t   ,128                             ,                ,Maximum burst size (number of logs allowed in a quick succession)
+logging  ,LOG_GLOBAL_BUCKET_PERIOD_MS   ,uint32_t   ,1000                            ,                ,Refill period in milliseconds (determines the steady-state log rate)
+logging  ,LOG_PERTOPIC_BUCKET_BURST     ,uint16_t   ,64                              ,                ,Maximum burst size per individual topic
+logging  ,LOG_PERTOPIC_BUCKET_PERIOD_MS ,uint32_t   ,5000                            ,                ,Refill period in milliseconds for per-topic buckets
+logging  ,LOG_SUPPRESS_REPORT_PERIOD_MS ,uint32_t   ,10000                           ,                ,How often (ms) a summary of suppressed entries may be emitted
+logging  ,LOG_SINK_DROP_REPORT_PERIOD_MS,uint32_t   ,5000                            ,                ,Minimum interval (ms) between dropped-entries-reports
+logging  ,LOG_TX_DROP_REPORT_PERIOD_MS  ,uint32_t   ,10000                           ,                ,Minimum interval (ms) between dropped-bytes-reports
+modbus   ,MODBUS_TCP_MAX_ROWS           ,uint16_t   ,256                             ,                ,How many published rows the map holds
+modbus   ,MODBUS_TCP_UNIT_ID            ,uint8_t    ,1                               ,                ,The unit id this slave answers as
+modbus   ,MODBUS_TCP_MAX_CONN           ,uint8_t    ,2                               ,                ,Concurrent masters
+modbus   ,MODBUS_TCP_IDLE_TIMEOUT_MS    ,uint32_t   ,60000                           ,                ,A connection with no complete request within this is reaped
+modbus   ,MODBUS_TCP_ACK_COIL_BASE      ,uint16_t   ,0x1000                          ,                ,First coil of the acknowledgement block; the base itself acks the lot
+modbus   ,MODBUS_TCP_CONNECT_TIMEOUT_MS ,uint32_t   ,1000                            ,                ,How long the MASTER waits for a connect before starting over
+modbus   ,MODBUS_TCP_RESPONSE_TIMEOUT_MS,uint32_t   ,1000                            ,                ,How long the master waits for an answer before dropping the connection
+modbus   ,MODBUS_TCP_ACCEPT_PER_STEP    ,uint8_t    ,1                               ,                ,Connections accepted per beat
+modbus   ,MODBUS_BAUD                   ,uint32_t   ,19200                           ,                ,Bus line rate
+modbus   ,MODBUS_TURNAROUND_MS          ,uint32_t   ,10                              ,                ,How long a slave is assumed to think before it answers
+modbus   ,MODBUS_MAX_ROWS               ,uint16_t   ,128                             ,                ,Most field rows the planner will hold
+modbus   ,MODBUS_MAX_BLOCKS             ,uint16_t   ,32                              ,                ,Most blocks one plan may contain
+modbus   ,MODBUS_MAX_REGS_PER_BLOCK     ,uint16_t   ,120                             ,                ,Most registers one block may span
+modbus   ,MODBUS_TCP_BIND_RETRY_MS      ,uint32_t   ,30000                           ,                ,How often to try binding the slave's port again after a failure
+modbus   ,MODBUS_PERSIST_QUEUE          ,uint16_t   ,64                              ,                ,How many parameter commits may wait to reach flash
+modbus   ,MODBUS_PERSIST_PER_STEP       ,uint16_t   ,2                               ,                ,How many of those may actually be written per beat
+modbus   ,MODBUS_TX_RING_BYTES          ,uint16_t   ,256                             ,                ,How many bytes the field-bus UART's transmit ring holds
+modbus   ,MODBUS_BLOCK_STAGGER_MS       ,uint32_t   ,20                              ,                ,Step between the due times of blocks sharing a rung
+modbus   ,MODBUS_TIMEOUT_MS             ,uint32_t   ,300                             ,                ,How long a slave has to answer before the transaction is lost
+modbus   ,MODBUS_WRITE_MIN_MS           ,uint32_t   ,200                             ,                ,Shortest interval between two writes to the same block
+modbus   ,MODBUS_REWRITE_MS             ,uint32_t   ,5000                            ,                ,How often an output block is rewritten with nothing to say
+modbus   ,MODBUS_WRITE_DEADLINE_MS      ,uint32_t   ,500                             ,                ,How long a demand that has moved may sit behind reads
+modbus   ,MODBUS_REFUSAL_MAX_MS         ,uint32_t   ,60000                           ,                ,Longest a write block waits after being refused
+modbus   ,MODBUS_RETRIES                ,uint8_t    ,1                               ,                ,Immediate retries before a device is backed off
+modbus   ,MODBUS_BACKOFF_MS             ,uint32_t   ,1000                            ,                ,First backoff after a device has failed its retry;
+modbus   ,MODBUS_BACKOFF_MAX_MS         ,uint32_t   ,60000                           ,                ,Longest a backed-off device waits between probes
+modbus   ,MODBUS_PROBE_SPACING_MS       ,uint32_t   ,1500                            ,                ,Live traffic owed between one unanswered transaction and the next
+modbus   ,MODBUS_RETRY_DELAY_MS         ,uint32_t   ,500                             ,                ,Longest a block waits before its retry after a missed answer
+modbus   ,MODBUS_SIM_REGS               ,uint16_t   ,512                             ,                ,Registers and coils a simulated field device holds
+modbus   ,MODBUS_SIM_COILS              ,uint16_t   ,64                              ,                ,Coils the simulated RTU slave serves
+modbus   ,MODBUS_GAP_MS                 ,uint32_t   ,3                               ,                ,Silence held between one transaction and the next
+net      ,HOST_STR_LEN                  ,size_t     ,                                ,                ,Char-buffer length for a network address; the rows name it as their capacity
+net      ,NET_MAX_UDP                   ,int        ,2                               ,                ,UDP sockets HAL::Network keeps; a hard ceiling on the OPTA
+net      ,NET_MAX_TCP                   ,int        ,5                               ,                ,TCP sockets HAL::Network keeps; a hard ceiling on the OPTA
+net      ,NET_SETUP_TIMEOUT_MS          ,uint32_t   ,30000                           ,                ,Max time spent waiting for the link to come up
+net      ,NET_RETRY_MS                  ,uint32_t   ,10000                           ,                ,Backoff after a failed (or lost) network bring-up before a retry
+net      ,DNS_CACHE_SIZE                ,size_t     ,8                               ,                ,Size of the DNS resolver cache size
+net      ,NET_MAX_DNS                   ,int        ,BOTANIK_DNS_CACHE_SIZE          ,                ,Async DNS lookups the HAL can have in flight
+net      ,DNS_CACHE_TTL_MS              ,uint32_t   ,3600000u                        ,                ,Max age (ms) a resolved entry is served from the cache before it is re-resolved
+net      ,DNS_PENDING_MAX_MS            ,uint32_t   ,30000u                          ,                ,Max time (ms) a row stays in flight before _alloc() may cancel and reclaim it
+net      ,NTP_QUERY_TIMEOUT_MS          ,uint32_t   ,5000                            ,                ,How long the SNTP client waits before giving up on a server
+net      ,NTP_RETRY_MS                  ,uint32_t   ,60000                           ,                ,Backoff after a failed NTP sync before retrying
+net      ,MQTT_CONNECT_TIMEOUT_MS       ,uint32_t   ,10000                           ,                ,Max time to establish the TCP/MQTT session
+net      ,MQTT_RETRY_MS                 ,uint32_t   ,30000                           ,                ,Backoff after a failed connection before the MQTT client retries
+net      ,MQTT_TX_STALL_MS              ,uint32_t   ,10000                           ,                ,How long the tail of a half-written packet may sit unsent before the link counts as stuck
+net      ,MQTT_TX_BUF                   ,size_t     ,384                             ,                ,Scratch buffer (bytes) MqttClient builds an outgoing packet in
+net      ,MQTT_TOPIC_LEN                ,size_t     ,96                              ,                ,Buffer every publisher formats its topic in
+net      ,MQTT_PAYLOAD_LEN              ,size_t     ,64                              ,                ,Buffer a single telemetry value is formatted into;
+net      ,MQTT_RX_PER_STEP              ,uint8_t    ,8                               ,                ,Socket reads MqttClient drains per activation
+net      ,MQTT_TELEMETRY_PER_STEP       ,uint16_t   ,8                               ,                ,Topics published per activation while a telemetry sweep is in progress
+net      ,MQTT_TELEMETRY_TOPIC          ,const char*,"""status"""                    ,                ,"Topic segment between the prefix and the field name, for each of the three publishers"
+net      ,MQTT_LOG_TOPIC                ,const char*,"""logs"""                      ,                ,Topic segment under the prefix that log lines are published to
+net      ,MQTT_ALARM_TOPIC              ,const char*,"""alarms"""                    ,                ,Topic segment under the prefix that alarm state is published to
+notes    ,NOTES_LEN                     ,uint16_t   ,2048                            ,                ,"Capacity of the NOTES buffer (bytes, NUL included)"
+notes    ,NOTES_MAX_ROWS                ,uint16_t   ,128                             ,                ,Rows the NOTES editor can lay out
+scheduler,TASK_PERIOD_MS                ,uint32_t   ,10                              ,                ,"Main task execution period, the rate everything divides down from"
+scheduler,MAX_TASKS                     ,uint8_t    ,64                              ,                ,Capacity of the scheduler's task table
+scheduler,SCAN_LATE_MS                  ,uint32_t   ,(BOTANIK_TASK_PERIOD_MS * 2)    ,                ,"How far past its own period a control program may run before SCAN_LATE is raised, in ms"
+scheduler,STARTUP_HOLD_MS               ,uint32_t   ,5000                            ,                ,"How long after boot the control programs are held, in ms"
+scheduler,SHUTDOWN_HOLD_MS              ,uint32_t   ,5000                            ,                ,"How long the unit sits with its laws stopped before it takes its ending, in ms"
+scheduler,HW_WATCHDOG_MS                ,uint32_t   ,10000                           ,                ,Hardware watchdog period; the unit resets if no beat kicks it
+scheduler,LOAD_METRIC_WINDOW_MS         ,uint32_t   ,5000                            ,                ,Sliding window for the recent-peak CPU and stack metrics
+scheduler,LOAD_METRIC_BUCKETS           ,uint32_t   ,10                              ,                ,Rotating buckets approximating the recent-peak window
+scheduler,CPU_LOAD_EMA_ATTACK_MS        ,uint32_t   ,0                               ,                ,"CPU-load EMA time constants (ms), attack then decay"
+scheduler,CPU_LOAD_EMA_DECAY_MS         ,uint32_t   ,2000                            ,                ,Decay constant for the displayed CPU-load average
+scheduler,CPU_JITTER_EMA_ATTACK_MS      ,uint32_t   ,0                               ,                ,"CPU-jitter EMA time constants (ms), attack then decay"
+scheduler,CPU_JITTER_EMA_DECAY_MS       ,uint32_t   ,5000                            ,                ,Decay constant for the displayed jitter average
+serial   ,SERIAL_RX_BUF                 ,uint16_t   ,256                             ,                ,"BufferedSerial ring sizes, per port"
+serial   ,SERIAL_TX_BUF                 ,uint16_t   ,4096                            ,                ,"TX ring size per port, in bytes; a power of two"
+serial   ,SERIAL_TX_PER_STEP            ,uint16_t   ,256                             ,                ,Most bytes BufferedSerial::transmit() hands the driver in one activation
+simulator,STORE_MAX_BYTES               ,uint32_t   ,16384                           ,TARGET_SIMULATOR,Cap on the simulator's whole key-value store file (bytes)
+sun      ,SUN_RECOMPUTE_MS              ,uint32_t   ,60000                           ,                ,Recompute cadence (ms) for the solar-elevation tracker
+sun      ,SUN_PERIOD_MS                 ,uint32_t   ,100                             ,                ,How often the solar position is recomputed
+terminal ,SCREEN_MIN_COLS               ,uint16_t   ,80                              ,                ,The smallest screen the UI is laid out for
+terminal ,SCREEN_MIN_ROWS               ,uint16_t   ,20                              ,                ,Fewest rows a page is laid out for
+terminal ,TERMINAL_MAX_COLS             ,uint16_t   ,132                             ,                ,Largest terminal the UI supports
+terminal ,TERMINAL_MAX_ROWS             ,uint16_t   ,32                              ,                ,Rows the screen back-buffer is sized for
+terminal ,CONSOLE_PAGES_MAX             ,uint8_t    ,10                              ,                ,Pages the Console multiplexes over
+terminal ,ANSI_INPUT_BATCH_SIZE         ,size_t     ,32                              ,                ,Number of input characters to process in a single batch
+terminal ,ANSI_INPUT_BATCH_TIMEOUT_MS   ,uint32_t   ,1000                            ,                ,Safety timeout: flush any stale batch regardless of stream activity
+terminal ,ANSI_CMD_TIMEOUT_MS           ,uint32_t   ,100                             ,                ,Time after the last byte before a stalled command sequence is resolved
+terminal ,ANSI_CMD_FLUSH_TIMEOUT_MS     ,uint32_t   ,250                             ,                ,Longest a coalesced command is held under TX backpressure
+terminal ,INPUT_EVENTS_PER_TICK         ,uint16_t   ,4                               ,                ,Max decoded input events handled per tick
+terminal ,PAGE_HOT_MS                   ,uint32_t   ,1000                            ,                ,"Refresh interval (ms) for a page's hot fields, and for the status bar's clock and metrics"
+terminal ,PAGE_COLD_MS                  ,uint32_t   ,5000                            ,                ,Cold-field refresh interval (ms) for a metric page
+terminal ,PAGE_TASKS_MS                 ,uint32_t   ,2000                            ,                ,TASKS table repaint cadence
+terminal ,TABLE_LINE_LEN                ,uint16_t   ,200                             ,                ,"Buffer one rendered table row is assembled in, before clipping"
+terminal ,TABLE_FILTER_LEN              ,uint8_t    ,24                              ,                ,"Longest row filter a table page accepts, NUL excluded"
+terminal ,TX_COLD_TARGET_MS             ,uint32_t   ,128                             ,                ,"Single paint depth floor, in ms of wire time at the console rate"
+terminal ,TX_HEADROOM_BYTES             ,uint16_t   ,256                             ,                ,TX ring bytes the depth floor always leaves free
+terminal ,LOG_ROWS_PER_TICK             ,uint16_t   ,2                               ,                ,Max log/command rows painted per tick per page
+terminal ,SHELL_INPUT_LEN               ,uint16_t   ,512                             ,                ,Maximum length of the shell input buffer (bytes)
+terminal ,SHELL_HISTORY_SIZE            ,uint8_t    ,8                               ,                ,Number of command history entries to retain
+terminal ,SHELL_HISTORY_ENTRY           ,uint16_t   ,128                             ,                ,Maximum length of a single history entry (bytes)
+terminal ,SHELL_COMMANDS_MAX            ,size_t     ,64                              ,                ,Max size of the site commands table
+terminal ,SHELL_SCROLLBACK_LINES        ,uint16_t   ,32                              ,                ,Scrollback lines retained by ShellPage for redraw/page-switch replay
+terminal ,LOGS_SCROLLBACK_LINES         ,uint16_t   ,64                              ,                ,Scrollback lines retained by LogsPage for page-switch replay
+terminal ,HOME_SCROLLBACK_LINES         ,uint16_t   ,6                               ,                ,Log lines the Home page keeps in its bottom log tail
+terminal ,SCROLLBACK_LINE_LEN           ,uint16_t   ,BOTANIK_TERMINAL_MAX_COLS       ,                ,Maximum length of a single retained scrollback line (bytes)
+terminal ,EDITOR_MAX_ROWS               ,uint16_t   ,32                              ,                ,Maximum number of screen rows the TextEditor can lay out
+terminal ,KILL_RING_SIZE                ,uint16_t   ,256                             ,                ,Size of the kill ring (bytes)
+terminal ,EDITOR_PROMPT_MAX             ,uint16_t   ,16                              ,                ,Maximum length (bytes) of a prompt prefix (PS1/PS2/PS3)
+terminal ,EDITOR_MIN_COLS               ,uint16_t   ,32                              ,                ,Narrowest terminal width the TextEditor supports
+terminal ,CONSOLE_DRAW_MS               ,uint32_t   ,100                             ,                ,How often the console REDRAWS
+vars     ,HOME_FIELDS_MAX               ,uint8_t    ,22                              ,                ,Home-screen readings the HomePage lays out (its three columns summed);
+vars     ,SYSTEM_FIELDS_MAX             ,uint8_t    ,12                              ,                ,"System-page readings the site declares, on top of the library's own band;"
+vars     ,CONFIG_BINDINGS_MAX           ,uint8_t    ,16                              ,                ,Components ConfigBinder can carry bindings for
+vars     ,VAR_GROUPS_MAX                ,uint8_t    ,24                              ,                ,Distinct variable groups a site may have (a name up to its first '_')
+vars     ,VAR_GROUP_NAME_LEN            ,size_t     ,16                              ,                ,"Bytes one interned group name may occupy, NUL included;"
+vars     ,VAR_MAX                       ,uint16_t   ,512                             ,                ,Rows the Bank's own storage is sized for (24 bytes a row);
+vars     ,STR_POOL_BYTES                ,uint16_t   ,1024                            ,                ,Bytes of string pool the bank carries for its T_STR rows
+vars     ,RETAIN_SAVE_MS                ,uint32_t   ,300000                          ,                ,"How often the F_RETAIN rows are written to storage, in ms"
+vars     ,ANALOG_ROWS_MAX               ,uint8_t    ,32                              ,                ,Rows that carry a WIRE value beside their engineering one - the analog ones
+vars     ,CONFIG_COMMIT_MS              ,uint32_t   ,100                             ,                ,How often a committed parameter reaches the component that reads it
+vars     ,VAR_EXPIRY_MS                 ,uint32_t   ,500                             ,                ,How often the input-expiry sweep runs

@@ -54,8 +54,8 @@ function(botanik_codegen_inputs out root site)
             "${root}/src/libbotanik/plc/functions/quality.st"
             "${root}/src/libbotanik/plc/functions/health.st"
             "${root}/src/libbotanik/tables/rows.csv")
-        file(GLOB _cfg "${root}/src/libbotanik/tables/config/*.csv")
-        list(APPEND _lib ${_cfg})
+        list(APPEND _lib "${root}/src/libbotanik/tables/config.csv"
+                         "${root}/src/libbotanik/tables/checks.csv")
     endif()
 
     set(_pairs)

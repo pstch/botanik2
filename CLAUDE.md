@@ -553,9 +553,10 @@ and gh_mlb41's own `tests/`.
   never read one back out of a `const` table it was declared in. `VAR_NONE` is
   0xFFFF for that reason.
 - **Config is two tables and one GENERATED file per concern.**
-  `libbotanik/tables/config/params.csv` is the parameter table - one row per
-  value, `group,name,type,default,guard,desc` - and `checks.csv` the
-  constraints over it, `group,expr,msg`. The generator emits one
+  `libbotanik/tables/config.csv` is the parameter table - one row per value,
+  `group,name,type,default,guard,desc` - and `tables/checks.csv` the
+  constraints over it, `group,expr,msg`, one conjunct per row so a failing
+  assert names its own end. The generator emits one
   `libbotanik/config/<group>.gen.h` per group and a module includes the one it
   reads; `libbotanik_config.h` is only the aggregate. A `desc` is one short
   line with no `@brief` (the generator writes that) and no rationale, which

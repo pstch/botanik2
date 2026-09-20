@@ -37,7 +37,7 @@ file(GLOB _codegen_globbed CONFIGURE_DEPENDS
      "${BOTANIK_ROOT}/scripts/sitegen/*.py" "${BOTANIK_ROOT}/templates/*.j2"
      "${BOTANIK_ROOT}/src/libbotanik/plc/functions/*.st"
      "${BOTANIK_ROOT}/src/libbotanik/plc/blocks/*.st"
-     "${BOTANIK_ROOT}/src/libbotanik/tables/config/*.csv")
+     "${BOTANIK_ROOT}/src/libbotanik/tables/*.csv")
 if(_codegen_site)
     file(GLOB _codegen_globbed CONFIGURE_DEPENDS "${_codegen_site}/tables/*.csv")
     file(GLOB_RECURSE _codegen_globbed CONFIGURE_DEPENDS "${_codegen_site}/*.st")
