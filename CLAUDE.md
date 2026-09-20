@@ -557,8 +557,12 @@ and gh_mlb41's own `tests/`.
   `group,name,type,default,desc` - and `tables/checks.csv` the constraints
   over it, `group,expr,msg`, one conjunct per row so a failing assert names
   its own end. A `const char*` default is the TEXT and the generator spells it
-  as a C string; one already spelled that way is an expression pasted onto
-  another macro, and is emitted verbatim. There is no per-target column: a
+  as a C string; one written with 'ticks' is a C EXPRESSION instead - a literal
+  pasted onto another macro - and the ticks become quotes. Ticks because CSV
+  escapes `"` and not `'`, so the column stays readable. It stays preprocessor
+  text and is never evaluated in Python: `'default/' BOTANIK_SITE_NAME` has to
+  answer `default/ref` and `default/gh_mlb41` from ONE committed header, and
+  the generator that wrote it ran with no site. There is no per-target column: a
   value only one backend reads still defines its macro on both, and the
   consumer that cannot use it is guarded already. The generator emits one
   `libbotanik/config/<group>.gen.h` per group and a module includes the one it

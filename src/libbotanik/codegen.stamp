@@ -1,6 +1,6 @@
 # Input hash of this generated tree, written by the build.
 # The build regenerates when it stops matching. Commit it with the output.
-316c491d62689a9f9fc0378b38cda8beee3f7dfd2fa1963439b692280f5de8b5
+fe39ec87b9db4ae633c2f1d0c417ba99177baa0ae2cb66223b52c24b9ef9487f
 # ...and one per file it produced, so a hand edit is caught too.
 fea55c47bac0e156491f0720ac1ef2efaa4092fb59742aa9cec7810516c648c9  src/libbotanik/codegen_abi.h
 9de895b770dd75aafdfa86ecd2a248d54df336cd2837b59b66591780a12ea5e8  src/libbotanik/config/alarms.gen.h

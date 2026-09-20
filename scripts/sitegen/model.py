@@ -284,12 +284,22 @@ def lib_config_groups():
             return [dict((k, (v or '').strip()) for k, v in r.items())
                     for r in csv.DictReader(fh)]
     params, checks = rows('config'), rows('checks')
+    bad = []
     for r in params:
-        # A const char* default is the TEXT, spelled as a C string here. One
-        # already spelled that way is an EXPRESSION - a literal pasted onto
-        # another macro - and is emitted verbatim.
-        if r['type'] == 'const char*' and not r['default'].startswith('"'):
+        if r['type'] != 'const char*': continue
+        # A const char* default is the TEXT. One starting with ' is a C
+        # EXPRESSION instead - a literal pasted onto another macro - written
+        # with ticks so the CSV needs no escaping; the ticks become quotes.
+        # It stays preprocessor text: BOTANIK_SITE_NAME is the SITE's, and one
+        # committed header has to answer differently for each of them.
+        if r['default'].startswith("'"):
+            r['default'] = r['default'].replace("'", '"')
+        elif '"' in r['default'] or 'BOTANIK_' in r['default']:
+            bad.append('%s: a default that names a macro or quotes a string is '
+                       'an expression - write it with ticks' % r['name'])
+        else:
             r['default'] = '"%s"' % r['default']
+    if bad: sys.exit('tables/config.csv:\n  ' + '\n  '.join(bad))
     owner = dict((p['name'], p['group']) for p in params)
     out = []
     for g in sorted({p['group'] for p in params}):

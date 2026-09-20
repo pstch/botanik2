@@ -1,6 +1,6 @@
 # Input hash of this generated tree, written by the build.
 # The build regenerates when it stops matching. Commit it with the output.
-16245083524c180b2167b46364005a7199bc49341e8193f76689b71cb979c1e7
+d8308abf112b67bbba61ef376cd2906e9283bfec77953ffb862c4b4bdd3b9ae6
 # ...and one per file it produced, so a hand edit is caught too.
 aed66ead7354ecaf82bd7985e38a438b0fe0d6805cbea8d654eff7f9b01a41ba  docs/generated/variables.md
 e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  src/generated/LOCATED_VARIABLES.h
