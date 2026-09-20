@@ -15,15 +15,11 @@ namespace Botanik { namespace Config {
     /** @name Simulator
      *  @{ */
 
-#ifdef TARGET_SIMULATOR
-
     /** @brief Cap on the simulator's whole key-value store file (bytes). */
 #ifndef BOTANIK_STORE_MAX_BYTES
 #  define BOTANIK_STORE_MAX_BYTES 16384
 #endif
     BOTANIK_CFG(uint32_t, STORE_MAX_BYTES);
-
-#endif // TARGET_SIMULATOR
 
     /** @} */
 

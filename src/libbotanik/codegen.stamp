@@ -1,6 +1,6 @@
 # Input hash of this generated tree, written by the build.
 # The build regenerates when it stops matching. Commit it with the output.
-d66c09d60fd2757dd2dac5c84f721feb598703cbc71f102d1dbe762f84d76f37
+316c491d62689a9f9fc0378b38cda8beee3f7dfd2fa1963439b692280f5de8b5
 # ...and one per file it produced, so a hand edit is caught too.
 fea55c47bac0e156491f0720ac1ef2efaa4092fb59742aa9cec7810516c648c9  src/libbotanik/codegen_abi.h
 9de895b770dd75aafdfa86ecd2a248d54df336cd2837b59b66591780a12ea5e8  src/libbotanik/config/alarms.gen.h
@@ -13,7 +13,7 @@ d18cbbf534d4a1be1cd05187ee407d1afbe6583f0de0c53355c925ace35358cd  src/libbotanik
 13cb2552981706bf4223889c6da8e424d120695ef4d638cce1683ab18845480e  src/libbotanik/config/notes.gen.h
 718e5bbbc428b2a5d4d03e82ae9fd96f2608b0fd4bbc5e595ae493f2dcc6bb36  src/libbotanik/config/scheduler.gen.h
 b664e6e48705f959647a7ad6627ef6e6e0506b5ced2cb9c13b1277f59e3f2443  src/libbotanik/config/serial.gen.h
-6cfa7d130cf67733958c596a07881a4b5d3110dccd931f65c2b325d880386548  src/libbotanik/config/simulator.gen.h
+41307d6546c941ce7f5609cc446eb031df3218247143fb322904a333d81b6320  src/libbotanik/config/simulator.gen.h
 987a41d9900e4c864f51fc7d162cf71c8be68fa8fac906c60584a98c82732578  src/libbotanik/config/sun.gen.h
 c6e7614cf13495fe483ef286a8fa80f1922d6b714f3156dc8b27e18ac13000c1  src/libbotanik/config/terminal.gen.h
 306a4b65f4500314031e26da4edf9e3fbcf1345d1047d66ab0f8ac4d480d942e  src/libbotanik/config/vars.gen.h

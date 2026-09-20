@@ -27,10 +27,6 @@ namespace Botanik { namespace Config {
      *  @{ */
 {% for p in params %}
 
-{% if p.guard %}
-#ifdef {{ p.guard }}
-
-{% endif %}
     /** @brief {{ p.desc }}. */
 {% if p.default %}
 #ifndef BOTANIK_{{ p.name }}
@@ -38,10 +34,6 @@ namespace Botanik { namespace Config {
 #endif
 {% endif %}
     BOTANIK_CFG({{ p.type }}, {{ p.name }});
-{% if p.guard %}
-
-#endif // {{ p.guard }}
-{% endif %}
 {% endfor %}
 
     /** @} */

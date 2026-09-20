@@ -284,6 +284,12 @@ def lib_config_groups():
             return [dict((k, (v or '').strip()) for k, v in r.items())
                     for r in csv.DictReader(fh)]
     params, checks = rows('config'), rows('checks')
+    for r in params:
+        # A const char* default is the TEXT, spelled as a C string here. One
+        # already spelled that way is an EXPRESSION - a literal pasted onto
+        # another macro - and is emitted verbatim.
+        if r['type'] == 'const char*' and not r['default'].startswith('"'):
+            r['default'] = '"%s"' % r['default']
     owner = dict((p['name'], p['group']) for p in params)
     out = []
     for g in sorted({p['group'] for p in params}):

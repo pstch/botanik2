@@ -554,9 +554,13 @@ and gh_mlb41's own `tests/`.
   0xFFFF for that reason.
 - **Config is two tables and one GENERATED file per concern.**
   `libbotanik/tables/config.csv` is the parameter table - one row per value,
-  `group,name,type,default,guard,desc` - and `tables/checks.csv` the
-  constraints over it, `group,expr,msg`, one conjunct per row so a failing
-  assert names its own end. The generator emits one
+  `group,name,type,default,desc` - and `tables/checks.csv` the constraints
+  over it, `group,expr,msg`, one conjunct per row so a failing assert names
+  its own end. A `const char*` default is the TEXT and the generator spells it
+  as a C string; one already spelled that way is an expression pasted onto
+  another macro, and is emitted verbatim. There is no per-target column: a
+  value only one backend reads still defines its macro on both, and the
+  consumer that cannot use it is guarded already. The generator emits one
   `libbotanik/config/<group>.gen.h` per group and a module includes the one it
   reads; `libbotanik_config.h` is only the aggregate. A `desc` is one short
   line with no `@brief` (the generator writes that) and no rationale, which
