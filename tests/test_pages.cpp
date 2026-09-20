@@ -116,7 +116,7 @@ TEST_CASE("pages: SYSTEM converges at every supported geometry") {
     for (const Geometry& g : GEOMETRIES) {
         INFO("geometry " << std::string(g.name));
         botanik_test::PageFixture f(g.rows, g.cols);
-        Pages::StatusPage page(f.console, &sys);
+        Pages::SystemPage page(f.console, &sys);
 
         page.focus();
         f.paint(page);
@@ -128,7 +128,7 @@ TEST_CASE("pages: SYSTEM renders with no SystemContext at all") {
     // The base documents a null aggregate, so a rig with no SystemContext gets
     // a blank band rather than a fault.
     botanik_test::PageFixture f;
-    Pages::StatusPage page(f.console, nullptr);
+    Pages::SystemPage page(f.console, nullptr);
 
     page.focus();
     f.paint(page);
@@ -162,7 +162,7 @@ TEST_CASE("pages: the SYSTEM band's site half carries labels, values AND units")
     bank.var(FIELDS[1].row).set(30.0f);
 
     botanik_test::PageFixture f;
-    Pages::StatusPage page(f.console, &sys, FIELDS, 2, &bank);
+    Pages::SystemPage page(f.console, &sys, FIELDS, 2, &bank);
     page.focus();
     f.paint(page);
     f.converged(page, "SYSTEM with a site band");
@@ -186,7 +186,7 @@ TEST_CASE("pages: SYSTEM says what the task table costs") {
     sys.tasks     = &reg;
 
     botanik_test::PageFixture f;
-    Pages::StatusPage page(f.console, &sys);
+    Pages::SystemPage page(f.console, &sys);
     page.focus();
     f.paint(page);
 

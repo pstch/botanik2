@@ -44,7 +44,7 @@ namespace Botanik { namespace Pages {
         if (!_loaded) { _loaded = true; _load(); }
 
         // The status row is a standing property of that row, not something
-        // raised around a paint (see ScrollTablePage::_claim_mode_row).
+        // raised around a paint (see ScrollTablePage::_claim_legend_row).
         _terminal.set_row_priority(status_row, status_row, Terminal::PRIO_CHROME);
         _editor.redraw();                     // the page switch cleared the band
         _terminal.set_cursor_visible(true);

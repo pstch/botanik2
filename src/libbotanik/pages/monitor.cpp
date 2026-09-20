@@ -15,9 +15,6 @@
 
 namespace Botanik { namespace Pages {
 
-    /** @brief Which edge a pulse row counts, as a word. */
-
-
     void MonitorPage::focus() {
         _field.end();
         // The footer carries the filter badge, which acknowledges a keypress,

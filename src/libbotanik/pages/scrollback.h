@@ -200,8 +200,6 @@ namespace Botanik { namespace Pages {
             _painted_bottom = bottom;
             _painted_valid  = true;
         }
-
-    public:
     };
 
     /** @brief Shell page scrollback (input echo + interleaved log replay). */

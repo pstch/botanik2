@@ -67,7 +67,7 @@
 #include "libbotanik/pages/tasks_page.h"
 #endif
 #if BOTANIK_FEATURE_SYSTEM_PAGE
-#include "libbotanik/pages/status.h"
+#include "libbotanik/pages/system_page.h"
 #endif
 
 namespace Botanik {
@@ -218,7 +218,7 @@ namespace Botanik {
         Pages::TasksPage               _tasks_page;
 #endif
 #if BOTANIK_FEATURE_SYSTEM_PAGE
-        Pages::StatusPage              _system_page;  ///< see system_page()
+        Pages::SystemPage              _system_page;  ///< see system_page()
 #endif
 #endif
 
@@ -440,15 +440,15 @@ namespace Botanik {
 
 #if BOTANIK_FEATURE_SYSTEM_PAGE
         /** @brief The page register_pages() puts in the SYSTEM slot. Override
-         *  to return a `Pages::StatusPage` subclass of your own, constructed
+         *  to return a `Pages::SystemPage` subclass of your own, constructed
          *  with system_context(); the base's own is then never registered, so
          *  the site gets the slot rather than a second copy of the page.
          *  Called during setup(), long after every member exists. */
-        virtual Pages::StatusPage& system_page() { return _system_page; }
+        virtual Pages::SystemPage& system_page() { return _system_page; }
 #endif
 
         /** @brief The component aggregate, for a site page that reads it.
-         *  `Pages::StatusPage` takes one and nothing else hands it out.
+         *  `Pages::SystemPage` takes one and nothing else hands it out.
          *  Valid from the base constructor's body onward, which runs before
          *  any derived member is constructed. */
         const SystemContext& system_context() const { return _sys_ctx; }
@@ -459,7 +459,7 @@ namespace Botanik {
          *  home / shell / logs / alarms / config / monitor / tasks / system,
          *  and notes last when BOTANIK_FEATURE_NOTES_PAGE is on. A site
          *  override can reorder them or splice in its own - a SYSTEM page with
-         *  site rows on it is a Pages::StatusPage subclass, constructed with
+         *  site rows on it is a Pages::SystemPage subclass, constructed with
          *  system_context() and add_page()-ed here in place of the base one. */
         virtual void register_pages();
 

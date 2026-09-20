@@ -29,7 +29,7 @@
 #include "libbotanik/pages/notes.h"
 #include "libbotanik/pages/params_page.h"
 #include "libbotanik/pages/shell.h"
-#include "libbotanik/pages/status.h"
+#include "libbotanik/pages/system_page.h"
 #include "libbotanik/pages/tasks_page.h"
 #include "libbotanik/scheduler/scheduler.h"
 #include "libbotanik/tasks/task_timer.h"
