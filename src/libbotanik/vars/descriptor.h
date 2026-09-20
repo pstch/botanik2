@@ -3,7 +3,7 @@
 
 /**
  * @file descriptor.h
- * @brief What a row IS: the fields a variable is declared along, and the const
+ * @brief What a row IS: the fields a variable is declared along, the const
  *        descriptor holding them.
  *
  * The flash-resident half of the model. model.h holds the other three quarters
@@ -131,25 +131,14 @@ namespace Botanik { namespace Vars {
         uint8_t  _rsv;
     };
 
-    /** @brief One end of a band, or one point of a calibration: a number, or the
-     *  ROW holding it - which is what lets a limit be re-trimmed from the PARAMS
-     *  page without a rebuild, and a pair with a required relationship be judged
-     *  as a pair.
-     *
-     *  @c v is also the FALLBACK the generator checks a default against, so the
-     *  meaning is the same whether the end is fixed or not. */
-    struct Tunable {
-        Scalar   v;
-        uint16_t row;   ///< VAR_NONE: fixed at @c v
-    };
-
     /** @brief A numeric row's band: a parameter's EDIT BOUNDS, or an input's
      *  PLAUSIBILITY BAND (a disconnected sensor usually reads a rail, and a
      *  reading outside marks the row unusable).
      *
-     *  Two Tunables, flattened so the pair packs into 24 bytes. Ends equal and
-     *  both fixed is NO BAND - which is what a row with no meaningful bounds
-     *  carries, and why there is no flag saying so. */
+     *  The value and the row it may name instead, per end, flattened so the
+     *  pair packs into 24 bytes. Ends equal and both fixed is NO BAND - which
+     *  is what a row with no meaningful bounds carries, and why there is no
+     *  flag saying so. */
     struct Band {
         Scalar   lo, hi;
         uint16_t lo_row, hi_row;
@@ -158,8 +147,6 @@ namespace Botanik { namespace Vars {
         bool set() const {
             return lo_row != VAR_NONE || hi_row != VAR_NONE || lo.u != hi.u;
         }
-        Tunable low()  const { return Tunable{ lo, lo_row }; }
-        Tunable high() const { return Tunable{ hi, hi_row }; }
     };
 
     /** @brief What a T_STR row DECLARES about its pool slot: its size and what a
@@ -174,11 +161,25 @@ namespace Botanik { namespace Vars {
      *  plausibility band. @c scale / @c offset are never stored - they derive
      *  from the endpoints, so a recalibration lands the moment the parameter
      *  commits. Blocks are SHARED by pointer, which shares their parameters. */
+    /** @brief The six ends of a calibration, named once. The index into both
+     *  arrays of an AnalogCal, and the order the generator emits. */
+    enum CalEnd : uint8_t {
+        CAL_RAW_MIN,   ///< wire units at the two calibration points
+        CAL_RAW_MAX,
+        CAL_ENG_MIN,   ///< engineering units at those same points
+        CAL_ENG_MAX,
+        CAL_MIN,       ///< plausibility band, engineering units
+        CAL_MAX,
+        CAL_END_COUNT
+    };
+
+    /** @note Parallel arrays rather than six named pairs: a Scalar and a
+     *  uint16_t pack to 16 bytes each, so an array of pairs would cost half
+     *  again in flash for alignment that buys nothing. Indexed by CalEnd, so
+     *  the value and the row it may name cannot drift apart by position. */
     struct AnalogCal {
-        Scalar   raw_min, raw_max;   ///< wire units at the two calibration points
-        Scalar   eng_min, eng_max;   ///< engineering units at those same points
-        Scalar   min, max;           ///< plausibility band, engineering units
-        uint16_t row[6];             ///< the row each reads instead, or VAR_NONE
+        Scalar   v[CAL_END_COUNT];     ///< the fixed value of each end
+        uint16_t row[CAL_END_COUNT];   ///< the row it reads instead, or VAR_NONE
     };
 
     /** @brief An analog channel's six numbers, resolved now.
@@ -413,6 +414,58 @@ namespace Botanik { namespace Vars {
         const char* label() const;
     };
 
+
+    /** @name The RAM half
+     *  The mutable quarter of a row, parallel to the const table above.
+     *  Here because SlotFlags is: a Slot and the bits that describe it are
+     *  one thing, and splitting them put the enum in one file and the field
+     *  it annotates in another.
+     *  @{ */
+
+    /** @brief One value slot, parallel to the descriptor table. No `def`: the
+     *  default is a typed literal in flash.
+     *  @note While S_OVR_ON, @c ovr SHADOWS @c v, so clearing snaps back to
+     *  live. "Read as a dead sensor" is an override on the row's `_qlt`
+     *  companion, which is an ordinary force of an ordinary row.
+     *  @warning Both halves are PERSISTED - hence the CRITICAL on each restore. */
+    struct Slot {
+        Scalar   v;
+        Scalar   ovr;        ///< forced value, while S_OVR_ON
+        /** @brief Low 32 bits of uptime at the last good update. Ages by
+         *  UNSIGNED subtraction, so the 49-day wrap costs nothing; what the zero
+         *  cannot say is "never written", which is S_WRITTEN. */
+        uint32_t stamp_ms;
+        /** @brief T_STR only: this row's pool slot, or STR_NO_SLOT when it did
+         *  not fit. Laid out at construction, never declared. */
+        uint16_t str_off;
+        uint8_t  flags;      ///< SlotFlags
+        /** @brief Index into the bank's wire array for an analog row, WIRE_NONE
+         *  otherwise. */
+        uint8_t  wire_off;
+    };
+
+    /** @brief This row has no wire value of its own: its value IS what the wire
+     *  carries, or it has no binding at all. */
+    static const uint8_t WIRE_NONE = 0xFFu;
+
+    // Every field here costs RAM on every row of every site, so the size is
+    // pinned rather than left to drift.
+    static_assert(sizeof(Slot) == 24, "Slot must stay 24 bytes (RAM per variable)");
+
+    /** @brief A text row that found no room in the pool. Not 0, which is a REAL
+     *  slot: an overflowed row parked there keeps its declared capacity and
+     *  would be written over the first text row. */
+    static const uint16_t STR_NO_SLOT = 0xFFFFu;
+
+    /** @brief What a write attempt did. A failed PERSIST is not a rejected
+     *  EDIT: the value is live either way. */
+    enum SetResult : uint8_t {
+        SET_OK,             ///< applied (set), or written out (save)
+        SET_INVALID,        ///< rejected - malformed, out of range, read-only
+        SET_NOT_PERSISTED   ///< live in RAM, but storage refused the write
+    };
+
+    /** @} */
 
 }}  // namespace Botanik::Vars
 

@@ -32,9 +32,10 @@ namespace {
  *  value IS the converter count and the assertion is about the path, not the
  *  arithmetic. */
 const AnalogCal CAL = {
-    SF(0.0f), SF((float)HAL::AnalogIn::FULL_SCALE),   // raw_min, raw_max
-    SF(0.0f), SF((float)HAL::AnalogIn::FULL_SCALE),   // eng_min, eng_max
-    SF(0.0f), SF((float)HAL::AnalogIn::FULL_SCALE),   // plausibility band
+    // raw_min/max, eng_min/max, then the plausibility band - CalEnd's order.
+    { SF(0.0f), SF((float)HAL::AnalogIn::FULL_SCALE),
+      SF(0.0f), SF((float)HAL::AnalogIn::FULL_SCALE),
+      SF(0.0f), SF((float)HAL::AnalogIn::FULL_SCALE) },
     { VAR_NONE, VAR_NONE, VAR_NONE, VAR_NONE, VAR_NONE, VAR_NONE },
 };
 

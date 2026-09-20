@@ -5,7 +5,7 @@
  * @file model.h
  * @brief The Bank, which owns the table, and Var, the handle every row-level
  *        operation hangs off.
- * @note The slot is handle.h and the const half descriptor.h, both included
+ * @note The row itself - its const half and its RAM slot - is descriptor.h, included
  *       here, so a consumer needs only this one header. See @ref dev_vars.
  */
 
@@ -14,7 +14,6 @@
 #include "libbotanik/config/vars.h"
 #include "libbotanik/core/component.h"
 #include "libbotanik/vars/descriptor.h"
-#include "libbotanik/vars/handle.h"
 #include "libbotanik/vars/ref.h"
 #include "libbotanik/vars/scalar.h"
 

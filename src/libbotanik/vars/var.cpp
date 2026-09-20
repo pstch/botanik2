@@ -62,14 +62,14 @@ namespace Botanik { namespace Vars {
         AnalogValues v = {};
         const AnalogCal* c = analog_cal(meta());
         if (c == nullptr || _b == nullptr) return v;
-        const Scalar  k[6]   = { c->raw_min, c->raw_max, c->eng_min,
-                                 c->eng_max, c->min,     c->max };
-        float* const  out[6] = { &v.raw_min, &v.raw_max, &v.eng_min,
-                                 &v.eng_max, &v.min,     &v.max };
+        // AnalogValues is read by name, AnalogCal by CalEnd, so this is the
+        // one place the two orders meet.
+        float* const out[CAL_END_COUNT] = { &v.raw_min, &v.raw_max, &v.eng_min,
+                                            &v.eng_max, &v.min,     &v.max };
         // The rows are resolved at generate time; the VALUES are read live, so a
         // recalibration lands the moment the parameter commits.
-        for (uint8_t i = 0; i < 6; i++)
-            *out[i] = (c->row[i] != VAR_NONE) ? _b->var(c->row[i]).as_f32() : k[i].f;
+        for (uint8_t i = 0; i < CAL_END_COUNT; i++)
+            *out[i] = (c->row[i] != VAR_NONE) ? _b->var(c->row[i]).as_f32() : c->v[i].f;
         return v;
     }
 

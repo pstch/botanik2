@@ -657,7 +657,7 @@ def emit_cals(cal):
     L = []
     for c in cal:
         L.append('const AnalogCal %s = {' % c['cal'])
-        L.append('    ' + ' '.join('SF(%s),' % c[k].rstrip('f') for k in CAL_ENDS))
+        L.append('    { ' + ' '.join('SF(%s),' % c[k].rstrip('f') for k in CAL_ENDS).rstrip(',') + ' },')
         L.append('    { ' + ', '.join(row_ref(c[k + '_row']) for k in CAL_ENDS) + ' },')
         L += ['};', '']
     return L

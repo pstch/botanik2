@@ -118,10 +118,16 @@ namespace Botanik { namespace Vars {
     inline float as_f32(VarType t, Scalar v) {
         return type_real(t) ? v.f : (type_signed(t) ? (float)v.i : (float)v.u);
     }
-    inline int64_t as_i64(VarType t, Scalar v) {
-        return type_real(t) ? (int64_t)v.f : (type_signed(t) ? v.i : (int64_t)v.u);
+    /** @brief Whether the slot holds a non-zero. Compared in the arm's own
+     *  type: casting a float to an integer first is undefined for a NaN or an
+     *  out-of-range magnitude, and nothing here needs the integer.
+     *  @note The SATURATING reads a display or a transport wants are
+     *  Value::as_i64() and Value::as_u64(); there is deliberately no free form
+     *  of those, because one that did not clamp would be the same name with
+     *  quieter semantics. */
+    inline bool as_bool(VarType t, Scalar v) {
+        return type_real(t) ? (v.f != 0.0f) : (type_signed(t) ? (v.i != 0) : (v.u != 0u));
     }
-    inline bool as_bool(VarType t, Scalar v) { return as_i64(t, v) != 0; }
 
     /** @} */
 

@@ -17,12 +17,12 @@ using namespace Botanik::Vars;
 #include "vars.gen.h"
 
 const AnalogCal CAL_vent_drive = {
-    SF(0.0), SF(10000.0), SF(0.0), SF(1.0), SF(0.0), SF(1.0),
+    { SF(0.0), SF(10000.0), SF(0.0), SF(1.0), SF(0.0), SF(1.0) },
     { Row::vent_rawMin_mV, Row::vent_rawMax_mV, Row::vent_engMin, Row::vent_engMax, Row::vent_min, Row::vent_max },
 };
 
 const AnalogCal CAL_bus_dc_V = {
-    SF(0.0), SF(10000.0), SF(0.0), SF(30.0), SF(20.0), SF(30.0),
+    { SF(0.0), SF(10000.0), SF(0.0), SF(30.0), SF(20.0), SF(30.0) },
     { Row::bus_dc_rawMin_mV, Row::bus_dc_rawMax_mV, Row::bus_dc_engMin_V, Row::bus_dc_engMax_V, Row::bus_dc_min, Row::bus_dc_max },
 };
 
