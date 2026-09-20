@@ -3,43 +3,13 @@
 
 /**
  * @file tasks_page.h
- * @brief TasksPage - the beat, as a table: what runs, how often, and what it costs.
+ * @brief TasksPage - the beat, as a table: what runs, how often, and what it
+ *        costs.
  *
- * The scheduler self-instruments per task (Tasks::TaskCost); this page is where
- * that is read. `stats` reports the whole beat's CPU with no attribution, so
- * "which task blew the budget" is the question this page answers.
- *
- * Layout (row 0 is the terminal status bar, the bottom row the alarm bar), the
- * same bordered shape as PARAMS and MONITOR:
- *   row 1            blank top margin
- *   row 2            header (| TASK | GROUP | HEALTH | PHASE | MEAN us | MISSED |)
- *   row 3            top rule
- *   rows 4..K        one row per registered task (windowed / scrollable)
- *   rows K..         detail panel for the selected task: its last and peak
- *                    sample, its run and missed counts, and the share of its own
- *                    period the mean takes
- *   last_row()-1     legend: position, filter, hint
- *
- * Read-only: UP/DOWN move a selection cursor and the panel tracks it. Rows are
- * the site's control programs first, then the library's `sys_` tasks, each block
- * by name - the beat's own order is phase-major, and the PHASE column still
- * carries it, but finding one task by eye beats reading the cycle here.
- * Typing narrows the table to the tasks whose name holds what was typed, and
- * LEFT/RIGHT step a view: every task, or only the ones reading one HEALTH code.
- *
- * HEALTH is one vocabulary for both kinds of entry (Plc::Health): a control
- * program's verdict on its last activation, and a component's on itself
- * (Component::verdict(), which defaults to the two ends of healthy()). Blank
- * only on a program that did not opt in. The panel carries the period instead:
- * a rate is a declaration and does not move, while this is the column worth
- * running an eye down beside MISSED.
- *
- * MEAN is microseconds measured by the registry around each dispatch, and says
- * whether a task is affordable. MISSED takes the column beside it rather than
- * the peak: only one of the two is a fault. The peak never decays (one outlier
- * pins it for the boot) and lives in the panel; a missed activation means the
- * task did NOT run at the rate it declared, dropped and never caught up
- * (Tasks::TaskTimer).
+ * The scheduler self-instruments per task (Tasks::TaskCost); `stats` reports the
+ * whole beat with no attribution, so "which task blew the budget" is the
+ * question this page answers.
+ * @see dev_pages for the layout and what each column means.
  */
 
 #include <cstdint>

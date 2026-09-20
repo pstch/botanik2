@@ -3,33 +3,12 @@
 
 /**
  * @file params_page.h
- * @brief ParamsPage - interactive table of configuration parameters.
+ * @brief ParamsPage - interactive table of configuration parameters, edited
+ *        inline on the prompt row.
  *
- * Layout (row 0 is the terminal status bar, the bottom row the alarm bar); the
- * same bordered shape as AlarmsPage - a blank top margin and blank columns each
- * side, widened to the display:
- *   row 1            blank top margin
- *   row 2            header  (| PARAMETER | TYPE | VALUE | UNIT | REGISTER |)
- *   row 3            top rule
- *   rows 4..K        one row per Param (windowed / scrollable)
- *   rows K..         detail panel for the selected parameter: a separator then
- *                    Minimum / Maximum / Default, Description, Notes
- *   last_row()       edit prompt / hint line (just above the alarm bar)
- *
- * UP/DOWN move a selection cursor (the selected row is drawn inverted); the
- * detail panel tracks it. ENTER opens an inline edit on the bottom prompt line:
- * a static " name = " label and a single-line TextEditor (anchored to the
- * bottom row) render the value, seeded with the row's current text. ENTER
- * commits (parse + validate through Bank::set); ESC/Ctrl+C cancels. An
- * invalid value is rejected and flagged, leaving edit mode open.
- *
- * Typing narrows the table to the parameters whose name holds what was typed
- * (BACKSPACE pops a character, ESC clears); the legend badge shows the filter.
- *
- * An applied value is LIVE but not durable: the row shows a trailing '*', the
- * prompt row counts what is outstanding, and ^O (Persist::save_all) writes them
- * all. Applying a config GROUP is still a separate act - bump that group's
- * commit serial by hand.
+ * An applied value is LIVE but not durable until `^O` writes it. Applying a
+ * config GROUP is still a separate act: bump that group's commit serial.
+ * @see dev_pages for the layout and the keys.
  */
 
 #include <cstdint>

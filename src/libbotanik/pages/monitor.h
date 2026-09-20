@@ -6,27 +6,11 @@
  * @brief MonitorPage - scrollable read-only table of every variable except the
  *        two kinds with a page of their own, narrowed by a typed filter.
  *
- * Layout (row 0 is the status bar, the bottom row the alarm bar):
- *   row 1            blank top margin
- *   row 2            header  (| KIND | VARIABLE | VALUE | UNIT | OVERRIDE |)
- *   row 3            top rule (corners cap to '^' when rows are hidden above)
- *   rows 4..N-10      one row per status variable (window into the full set)
- *   row N-9          bottom rule (corners cap to 'v' when hidden below)
- *   rows N-7..N-3    detail panel: Description / Notes / Mapping / Quality
- *   row N-2          legend: view badge + position + [filter] + hint
- *   row N-1          the override field, or what the last override key did
- *
- * LEFT / RIGHT step the view: every published row, only the ones reading dead,
- * or only the ones being forced. The typed filter narrows whichever is showing.
- *
- * The one page that FORCES a row as well as showing it: `^O` opens an override
- * field on the bottom row (ENTER commits, ESC abandons), `^V` toggles whether
- * the force reads as a good value or a dead one, `^R` releases it and `^S`
- * writes it to flash. All four act on the row under the cursor. An override is
- * live the moment it commits and is lost at the next boot until saved.
- *
+ * The one page that FORCES a row as well as showing it: `^O` overrides, `^V`
+ * toggles whether the force reads good or dead, `^R` releases, `^S` saves.
  * @note Nothing is declared per site - naming a variable is what files it - so
  *       there is no per-variable code and no table to fall out of step with.
+ * @see dev_pages for the layout and the keys.
  */
 
 #include <cstdint>

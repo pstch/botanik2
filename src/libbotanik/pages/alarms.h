@@ -5,25 +5,10 @@
  * @file alarms.h
  * @brief AlarmsPage - scrollable bordered table of alarm conditions.
  *
- * Layout (row 0 is the terminal status bar):
- *   row 1            blank top margin
- *   row 2            table header  (| CODE | VARIABLE | ON | ACK | OVR | LAST EVENT |)
- *   row 3            top rule (+----+...+); its corners cap to '^' when more above
- *   rows 4..N-9      data rows
- *   row N-8          bottom rule; corners cap to 'v' when more below
- *   row N-7          what the last keypress had to say, else blank
- *   rows N-6..N-4    detail panel: Description / Remediation / Acknowledged
- *   row N-3          blank row above the legend
- *   row N-2          footer legend: reverse-video mode badge, counts, filter
- *   row N-1          blank row below the legend
- *
- * Typing narrows the table to the conditions whose variable name holds what was
- * typed. On the selected condition: ENTER toggles the acknowledgement, ^O flips
- * the boolean override, ^R releases it and ^S commits it to flash.
- *
  * @note Rows are ordered active-first then by most-recent onset. The "all"
  *       view is the exception, keeping TABLE order so rows never reorder as
  *       alarms toggle.
+ * @see dev_pages for the layout and the keys.
  */
 
 #include <cstdint>
