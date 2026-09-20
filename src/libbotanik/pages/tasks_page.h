@@ -212,7 +212,7 @@ namespace Botanik { namespace Pages {
         /** @brief @p t's health as a word, or "" when it is not a program. */
         static const char* _health_str(const Tasks::Task& t);
 
-        void _draw_row(uint16_t idx, uint16_t row, bool selected);
+        void _draw_row(uint16_t idx, uint16_t row, bool selected) override;
 
         void _draw_structure();
 

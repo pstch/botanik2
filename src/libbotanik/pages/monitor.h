@@ -282,7 +282,7 @@ namespace Botanik { namespace Pages {
 
         /** @brief Draw the row at @p display_idx onto @p screen_row, inverting
          *  the NAME field for the selection cursor when @p selected. */
-        void _draw_row(uint16_t display_idx, uint16_t screen_row, bool selected);
+        void _draw_row(uint16_t display_idx, uint16_t screen_row, bool selected) override;
 
         /** @brief One line saying where a reading comes from. */
         void _describe_binding(const Vars::Descriptor& d, char* out, size_t cap) const;

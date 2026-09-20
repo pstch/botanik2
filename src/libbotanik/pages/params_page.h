@@ -195,7 +195,7 @@ namespace Botanik { namespace Pages {
         /** @brief VALUE stretches: it is the cell whose contents vary. */
         uint8_t _flex_col() const override { return C_VALUE; }
 
-        void _draw_row(uint16_t idx, uint16_t row, bool selected);
+        void _draw_row(uint16_t idx, uint16_t row, bool selected) override;
 
         void _draw_structure();
 
