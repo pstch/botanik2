@@ -489,9 +489,11 @@ def quality_names(site, prog, alarms):
 def _merge(site, tom):
     """The library's rows and the site's, with the site's overrides applied.
 
-    A site OVERRIDES a library row by redeclaring the name: the site's row
-    replaces the library's IN PLACE, keeping the library's register, so the
-    whole row is the site's and the map does not move."""
+    A site TUNES a library row by redeclaring the name: the row stays in place
+    and keeps its register, so the map does not move, and a cell the site
+    leaves BLANK keeps the library's - moving a default costs one cell, not a
+    restatement of the band, the unit and the prose that would then have two
+    copies to drift apart."""
     lib = lib_rows(tom)
     own = []
     for fac in PARAM_FACS + OTHER_FACS:
@@ -514,12 +516,21 @@ def _merge(site, tom):
         # hand the library a plausible wrong number for the life of the unit,
         # with nothing to catch it. Same for the factory, which decides the kind.
         for col, what in (('type', 'type'), ('_fac', 'factory')):
+            # Blank is "keep the library's", so only a STATED one can clash.
+            if (r.get(col) or '') == '': continue
             if r.get(col) != lib[i].get(col):
                 bad.append('%s: a site may tune a library row, not re-%s it '
                            '(%s is %r here and %r in the library)'
                            % (r['name'], what, what, r.get(col), lib[i].get(col)))
-        r['reg'] = lib[i]['reg']
-        lib[i] = r
+        tuned = dict(lib[i])
+        for col, v in r.items():
+            if col[0] == '_' or (v or '').strip() == '': continue
+            tuned[col] = v
+        # The reader's own columns are the SITE row's: a tuned row is one a law
+        # may write, which `_lib` is what says (st.py's write roster).
+        tuned['_fac'], tuned['_lib'] = r['_fac'], r['_lib']
+        tuned['reg'] = lib[i]['reg']
+        lib[i] = tuned
     if bad:
         sys.exit('\n'.join(bad) + '\n%d redeclaration error(s)' % len(bad))
     return lib, rest

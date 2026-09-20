@@ -252,8 +252,12 @@ Subsystems under `src/libbotanik/`; the header is the API.
   one array, one index space, nothing registered at runtime. The library's
   parameters come first, so the contiguous `K_PARAM` run holds. Registers 900-999
   are the library's. Whatever the library reads by name, the library declares,
-  through a generated `Vars::Row::` constant. A site tunes one by redeclaring it:
-  the generator replaces the row in place and keeps its register.
+  through a generated `Vars::Row::` constant. A site TUNES one by redeclaring
+  the name: the row stays in place and keeps its register, and every cell the
+  site leaves BLANK keeps the library's, so moving a default costs one cell
+  rather than a restatement of the band, the unit and the prose that would then
+  have two copies to drift apart. A site may not change what a row HOLDS - its
+  type or its factory - which the generator refuses.
 - **Analog calibration.** An `AI`/`AO` row points at a shared `const AnalogCal`
   of six ends - two raw, two engineering, two plausibility - each a fixed
   number OR the name of another row. The values and the rows are parallel
