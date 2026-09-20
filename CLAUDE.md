@@ -101,8 +101,11 @@ gh_mlb41 carries `scripts/scenarios.tsv`, `scripts/sim_scenario.sh` and a
 `scenario_screens.py` that imports `screens.py` for its own screens.
 
 **`make check`** fails on the first problem: the library compiles `-Werror`, so
-a warning in a library source fails the build of the suite; it cross-compiles
-the library and the site through `check-opta-lib` (seconds, against the
+a warning in a library source fails the build of the suite; it runs
+`check-generated` (regenerate every site into a scratch copy and diff it both
+ways, about a second - the stamp hashes the generator's INPUTS, so a generated
+file edited by hand is the one thing this tree can get wrong silently), it
+cross-compiles the library and the site through `check-opta-lib` (seconds, against the
 persistent `build-opta/`, because a compile error is not a cross-build subtlety:
 newlib against glibc, 32-bit `long`, a different `<algorithm>`), builds every
 example, then runs `ctest -LE unit`: the whole doctest binary, each
@@ -122,7 +125,7 @@ failed, re-run before digging.
 
 **`make check-full`** runs clang-tidy over `src/` first, then `check-generated`
 (regenerate every example into a scratch copy and diff it file by file against
-its committed `generated/`, both ways), `check-alloff`, `check-opta` (the cross LINK, the only thing that
+its committed `generated/`, both ways - it is in `check` too), `check-alloff`, `check-opta` (the cross LINK, the only thing that
 catches a link error: `Arduino.h` declares the whole wiring API and `libmbed.a`
 defines none of it; the cross COMPILE is in `check` already), `coverage`, and finally the whole gate again under
 ASan+UBSan in `build/asan/`. It drives that tree's own `check` target, so the two

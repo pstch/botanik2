@@ -141,7 +141,14 @@ if(TARGET clang-tidy)
 endif()
 
 # check-generated is declared by cmake/codegen.cmake, beside the generator.
+#
+# In the GATE, not just the sweep: the stamp hashes the generator's INPUTS, so a
+# generated file edited by hand carries on compiling and `check` stays green -
+# the one way this tree can go wrong silently. Regenerating both sites into a
+# scratch copy and diffing costs about a second, which is cheaper than the class
+# of bug it closes.
 if(TARGET check-generated)
+    add_dependencies(check check-generated)
     add_dependencies(check-full check-generated)
 endif()
 

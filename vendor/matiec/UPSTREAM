@@ -9,7 +9,8 @@ WHY A COPY, AND WHY PINNED
 matiec's output is COMMITTED under examples/<site>/src/generated/, and nothing
 pinned the compiler that produced it: two developers with different matiec
 builds would produce different POUS.c and neither would notice. The pin is what
-makes `make -C build check-st` - regenerate, then diff - a meaningful check.
+makes `make -C build check-generated` - regenerate, then diff - a meaningful
+check.
 
 A copy rather than a submodule because this project is developed in git
 worktrees, and `git worktree add` does not populate submodules.
@@ -19,10 +20,11 @@ Four directories present upstream are not here. None is a build input, and
 dropping them is the whole of the deviation from that commit:
 
     lib/      matiec's own IEC library, GPLv3, and the one that MATTERS.
-              We never load it: `iec2c -I st/lib` points at st/lib/ieclib.txt,
-              which is ours, and which exists precisely so that none of
-              matiec's function blocks reach the firmware image. Keeping a
-              copy here would only invite someone to point -I at it.
+              We never load it: `iec2c -I` points at
+              src/libbotanik/plc/functions/ieclib.txt, which is ours, and
+              which exists precisely so that none of matiec's function blocks
+              reach the firmware image. Keeping a copy here would only invite
+              someone to point -I at it.
     tests/    matiec's own test corpus.
     AnnexF/   the standard's example programs.
     debian/   packaging.
