@@ -13,6 +13,11 @@
 
 namespace Botanik { namespace Vars {
 
+    // The descriptor a Value was read through. Declared, not included:
+    // descriptor.h includes THIS header, and a Value only ever holds the
+    // pointer.
+    struct Descriptor;
+
     /** @name Types
      *  @{ */
 
@@ -208,6 +213,65 @@ namespace Botanik { namespace Vars {
     bool validate_ipv4(const char* s, bool allow_empty = false);
     /** @brief Hostname or dotted quad, at most @p cap bytes incl NUL. */
     bool validate_hostname(const char* s, uint16_t cap, bool allow_empty = false);
+
+    /** @} */
+
+    /** @name A read result
+     *  A Scalar plus the type to read it as. Here rather than beside the
+     *  Descriptor: what a row IS and what a read of one ANSWERS are two
+     *  things, and only this one needs the type vocabulary above.
+     *  @{ */
+
+    /** @brief A number and enough to read it: what a Var's read accessors
+     *  return. The conversions below are the reason it is a struct - @c t is
+     *  what @c v is IN, which is not always the row's own type.
+     *
+     *  It carries no quality. Quality is a row, so a caller holding the Var
+     *  asks it directly and there is nothing to keep in step. */
+    struct Value {
+        Scalar            v;
+        const Descriptor* d;
+        /** @brief What @c v actually is. USUALLY the row's type, but a wire
+         *  reading is in the WIRE type - a u16 count feeding an f32 row. */
+        VarType           t;
+
+        VarType type() const { return t; }
+
+        /** @name Conversions
+         *  All SATURATING: 300 read as a u8 is 255, not 44. A wrapped value is
+         *  indistinguishable from a real reading; a pinned one is obviously at
+         *  the rail. T_STR is refused - its text is in the bank's pool.
+         *  @{ */
+        float    as_f32() const;
+        bool     as_bool() const;
+        int64_t  as_i64() const;
+        uint64_t as_u64() const;
+
+        /** @brief The value as any whole type, saturating at ITS rail.
+         *  @note Signedness and bounds come from @p T's own width, so this needs
+         *  neither @c \<limits\> nor @c \<type_traits\>. */
+        template <typename T> T as() const {
+            // BOTH arms are compiled for every T - C++11 has no if constexpr -
+            // so each rail is derived from sizeof rather than from T's own bit
+            // pattern: ~(T)0 on a signed T sign-extends to all ones.
+            const uint64_t span = (sizeof(T) >= 8)
+                                      ? ~(uint64_t)0
+                                      : (((uint64_t)1 << (8 * sizeof(T))) - 1);
+            if ((T)-1 < (T)0) {
+                const int64_t hi = (int64_t)(span >> 1);
+                const int64_t lo = -hi - 1;
+                const int64_t x  = as_i64();
+                return (T)((x < lo) ? lo : ((x > hi) ? hi : x));
+            }
+            const uint64_t x = as_u64();
+            return (T)((x > span) ? span : x);
+        }
+        /** @} */
+
+        /** @brief A T_ENUM's label, or null: not an enum, or a code the
+         *  converter does not know. That null IS the range check `set` uses. */
+        const char* label() const;
+    };
 
     /** @} */
 
