@@ -211,7 +211,7 @@ Subsystems under `src/libbotanik/`; the header is the API.
 | `io/` | `LocalInputs`, the controller's own input terminals: every local input row found by walking the table at bring-up, published at `PHASE_INPUT` with `F_INVERT` folded in |
 | `modbus/` | Four corners in one tree: `rtu/` is the RS-485 field bus, `tcp/` the plant network, each with both ends. `wire.h` and `response.h` are shared |
 | `console/` | `AnsiTerminal` is the VT device owning a screen back-buffer, `Console` the multiplexed page display, `TextEditor` the byte-efficient editing state machine |
-| `pages/` | Full-screen views behind a common `Page` interface, all base-owned and site-independent |
+| `pages/` | Full-screen views implementing `Terminal::Page`, all base-owned and site-independent. The interface itself is `console/page.h`, beside the Console that dereferences it |
 | `shell/` | `CommandShell`: commands are noun then verb, a noun parsing its own verb. Depends on the terminal device, not on `Console` or `pages/` |
 | `logs/` | `Logger` with a dual-bucket token-bucket rate limiter before its `LogWriter`s. `LOG_CRITICAL` is undroppable |
 | `alarms/` | `AlarmController` reads an `AlarmSourceTable`, never a bank: that is what keeps this tree free of `vars/`, and what lets a test stand its own source in front of the controller. The one implementation is `Vars::BankAlarms` over the site's `K_ALARM` rows, each carrying its boolean and its dwell policy |
@@ -252,9 +252,13 @@ Subsystems under `src/libbotanik/`; the header is the API.
   through a generated `Vars::Row::` constant. A site tunes one by redeclaring it:
   the generator replaces the row in place and keeps its register.
 - **Analog calibration.** An `AI`/`AO` row points at a shared `const AnalogCal`
-  of six `Tunable`s; `scale`/`offset` are derived rather than stored, so a
-  recalibration lands the moment the parameter commits. Anything displaying a
-  band goes through `Var::band()`.
+  of six ends - two raw, two engineering, two plausibility - each a fixed
+  number OR the name of another row. The values and the rows are parallel
+  arrays indexed by `CalEnd`, so the two cannot drift apart by position; named
+  pairs would pad to 16 bytes each and cost half again in flash. `scale` and
+  `offset` are derived rather than stored, so a recalibration lands the moment
+  the parameter commits. Anything displaying a band goes through
+  `Var::band()`.
 - **A band may name another row.** A pair with a required relationship (a
   target's floor and ceiling, a ramp's start and end) is only wrong as a pair,
   and a fixed band cannot see that. `params.csv` and `modbus_in.csv` carry
@@ -273,8 +277,10 @@ Subsystems under `src/libbotanik/`; the header is the API.
   could not answer; what it wrote is its safe state). The law writes it, on every
   path, which `tables.py plant` checks off matiec's write list. `FAULTED` is the
   declared value, so it is what the row reads before the first scan. `Plant` only
-  reads it back for the TASKS page. The ST type is `plc/functions/health.st`,
-  generated onto the C++ enum by `health.gen.h` as `QUALITY` is.
+  reads it back for the TASKS page. The ST type is the `TYPE` block in
+  `plc/functions/health.st`, which the generator CHECKS against
+  `library_enums.csv` - the one source both the C++ enum and the constants
+  matiec is handed come from, as `QUALITY` does.
 - **The program gate is a row.** Every entry in `programs.csv` gets
   `prog_<name>_run`, a `T_BOOL` parameter defaulting on, generated into the
   `K_PARAM` run. `Plant::enabled()` reads it and `programs start|stop` writes
@@ -332,8 +338,9 @@ header default.
 `BOTANIK_FEATURE_LIST` (an X-macro generated into the header) enumerates them
 for anything that needs to: the `features` shell command expands it, and CMake
 forwards `-D`s by matching the `BOTANIK_FEATURE_` prefix over its cache rather
-than from a list. Adding a flag is an `X()` entry plus an `#ifndef` default, and
-a row in the integration docs.
+than from a list. Adding a flag is one `[[features]]` block in
+`src/libbotanik.toml` and a row in the integration docs; the `X()` entry, the
+`#ifndef` default and any `#error` rule are all generated from it.
 
 A build that sets nothing gets `CONSOLE` + `HOME_PAGE` + `SHELL_PAGE` +
 `LOGGING`. Everything else is off, `PLC` included: `Plc::Runtime::programs[]`
@@ -436,7 +443,7 @@ are one file each, `blocks/<name>/<name>.st`. Its RS-485 field devices are
 `tables/modbus_devices.csv` and `tables/modbus_models.csv`.
 
 **The generated files are committed, and the build keeps them current.** A
-generated tree (a site's `generated/`, and the library's three `.gen.h` files)
+generated tree (a site's `generated/`, and the library's own generated set)
 carries a committed `codegen.stamp`: the SHA-256 over the name and content of
 every input the generator reads (`cmake/codegen-lib.cmake` lists them). Each tree
 is one `CODEGEN` custom command (`cmake/codegen.cmake`) depending on those inputs,
