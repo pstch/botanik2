@@ -192,14 +192,14 @@ namespace Botanik { namespace Logs {
         /** @brief Push a CRITICAL entry straight to the writers (bypassing the
          *  rate limiter) so loss/suppression reports survive the storm they
          *  describe. */
-        void _emit_critical(Logs::LogTopic topic, uint32_t timestamp_ms,
+        void _emit_critical(Logs::LogTopic topic,
                             const char* fmt, ...);
         /** @brief Emit a synthetic warning if @p bucket has suppressed
          *  entries. @p global says WHICH limiter did it - the message has to
          *  say so, since the topic column cannot: the global bucket reports
          *  under NONE and NONE is also a real topic with a bucket of its own. */
         void _report_suppressed(LogBucket_t* bucket, Logs::LogTopic topic,
-                                uint32_t timestamp_ms, bool global);
+                                bool global);
         /** @brief Edge-triggered loss report: emit a critical "<delta> <what>"
          *  entry when @p total has grown and the holdoff elapsed (or on the
          *  first loss). Pushed straight to the writers (bypassing the rate
@@ -214,9 +214,11 @@ namespace Botanik { namespace Logs {
                    va_list ap);
         /** @brief Stamp @p e (assumed zero-inited) with level/topic/timestamp and
          *  the formatted message, clamping the length. The shared body of _emit
-         *  and _emit_critical. */
+         *  and _emit_critical.
+         *  @note Stamps from uptime_ms(), never the rate limiter's sawtooth:
+         *  the field is read back as an absolute time. */
         void _build_entry(Logs::LogEntry& e, Logs::LogLevel level, Logs::LogTopic topic,
-                          uint32_t timestamp_ms, const char* fmt, va_list ap);
+                          const char* fmt, va_list ap);
 
         /** @} */
     };

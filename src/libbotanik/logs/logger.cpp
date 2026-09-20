@@ -87,10 +87,10 @@ namespace Botanik { namespace Logs {
         if (report_amount > 0) {
             _suppress_reportTime_ms += report_amount * Config::LOG_SUPPRESS_REPORT_PERIOD_MS;
             // global
-            _report_suppressed(&_global_bucket, LogTopic::NONE, now_ms, true);
+            _report_suppressed(&_global_bucket, LogTopic::NONE, true);
             // skip NONE (slot 0)
             for (uint8_t i = 1; i < Logs::LOG_TOPIC_COUNT; ++i)
-                _report_suppressed(&_perTopic_buckets[i], (LogTopic)i, now_ms, false);
+                _report_suppressed(&_perTopic_buckets[i], (LogTopic)i, false);
         }
         // Data actually lost, not just rate-limited: sink drops summed across
         // writers, and TX-full drops across the watched serials. Edge-triggered
@@ -169,21 +169,21 @@ namespace Botanik { namespace Logs {
         }
     }
 
-    void Logger::_emit_critical(Logs::LogTopic topic, uint32_t timestamp_ms,
+    void Logger::_emit_critical(Logs::LogTopic topic,
                                 const char* fmt, ...) {
         // Straight to every writer, bypassing the rate limiter: a loss report
         // must survive the storm it summarizes.
         Logs::LogEntry entry = {};
         va_list ap; va_start(ap, fmt);
-        _build_entry(entry, Logs::LOG_CRITICAL, topic, timestamp_ms, fmt, ap);
+        _build_entry(entry, Logs::LOG_CRITICAL, topic, fmt, ap);
         va_end(ap);
         for (uint8_t i = 0; i < _writerCount; i++) _writers[i]->push(&entry);
     }
 
     void Logger::_report_suppressed(LogBucket_t* bucket, Logs::LogTopic topic,
-                                    uint32_t timestamp_ms, bool global) {
+                                    bool global) {
         if (bucket->suppressed == 0) return;
-        _emit_critical(topic, timestamp_ms, "%u msgs suppressed (%s limit)",
+        _emit_critical(topic, "%u msgs suppressed (%s limit)",
                        (unsigned)bucket->suppressed,
                        global ? "global" : "topic");
         bucket->suppressed = 0;
@@ -195,16 +195,16 @@ namespace Botanik { namespace Logs {
         if (rep.reported && (now_ms - rep.last_report_ms) < interval_ms)
             return;   // holdoff
         unsigned delta = (unsigned)(total - rep.reported_count);
-        if (who != nullptr) _emit_critical(LogTopic::NONE, now_ms, "%s: %u %s", who, delta, what);
-        else                _emit_critical(LogTopic::NONE, now_ms, "%u %s", delta, what);
+        if (who != nullptr) _emit_critical(LogTopic::NONE, "%s: %u %s", who, delta, what);
+        else                _emit_critical(LogTopic::NONE, "%u %s", delta, what);
         rep.reported_count = total;
         rep.last_report_ms = now_ms;
         rep.reported       = true;
     }
 
     void Logger::_build_entry(Logs::LogEntry& e, Logs::LogLevel level, Logs::LogTopic topic,
-                              uint32_t timestamp_ms, const char* fmt, va_list ap) {
-        e.timestamp = timestamp_ms;
+                              const char* fmt, va_list ap) {
+        e.timestamp = HAL::Clock::uptime_ms();
         e.level     = level;
         e.topic     = topic;
         int w = vsnprintf(e.message, sizeof(e.message), fmt, ap);
@@ -225,7 +225,7 @@ namespace Botanik { namespace Logs {
         // loss reports it emits come back through here).
         refill();
         Logs::LogEntry entry = {};
-        _build_entry(entry, level, topic, HAL::Clock::current_ms(), fmt, ap);
+        _build_entry(entry, level, topic, fmt, ap);
         push_entry(entry);
 #endif
     }
