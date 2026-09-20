@@ -1,11 +1,6 @@
 # The LIBRARY's own profile, the way site.toml is a site's.
 #
-# # Where this profile's tables are, relative to THIS file. A site says the same
-# thing in its site.toml, so the generator is told rather than knowing.
-[tables]
-dir = "libbotanik/tables"
-
-[config] is the base value of anything a site may move, and anything a
+# [config] is the base value of anything a site may move, and anything a
 # library row names as its capacity has to be here: the generator sizes the
 # string pool from the EFFECTIVE value, so a site that widens one widens the
 # pool with it. config/capacities.gen.h is generated from this table.

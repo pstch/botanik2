@@ -258,6 +258,9 @@ def _scalar(v):
     return int(v)
 
 
+_HEADER = re.compile(r'\[\[?[A-Za-z0-9_.-]+\]\]?$')
+
+
 def toml(path):
     """Enough TOML for our own files: tables, arrays of tables, scalar
     `key = value`, inline `["a", "b"]` lists, and triple-quoted blocks.
@@ -276,11 +279,15 @@ def toml(path):
             continue
         ln = ln.split('#')[0].strip() if not ln.lstrip().startswith('#') else ''
         if not ln: continue
-        if ln.startswith('[['):
-            sec = {}
-            out.setdefault(ln.strip('[]'), []).append(sec)
-        elif ln[0] == '[':
-            sec = out.setdefault(ln.strip('[]'), {})
+        if ln[0] == '[':
+            if not _HEADER.match(ln):
+                sys.exit('%s: not a table header: %s' % (path, ln))
+            name = ln.strip('[]')
+            if ln[1] == '[':
+                sec = {}
+                out.setdefault(name, []).append(sec)
+            else:
+                sec = out.setdefault(name, {})
         else:
             key, v = (x.strip() for x in ln.split('=', 1))
             if v == '"""': block = []
@@ -401,12 +408,25 @@ def _merge(site, tom):
             own.append(r)
 
     at = dict((r['name'], i) for i, r in enumerate(lib))
-    rest = []
+    rest, bad = [], []
     for r in own:
         i = at.get(r['name'])
         if i is None: rest.append(r); continue
+        # TUNING a library row is changing its default, its band or its prose.
+        # It is NOT changing what it holds: the library reads its own rows by
+        # generated index and assumes a type at every one of those sites, and
+        # Scalar::as<T>() saturates rather than faults - so a retyped row would
+        # hand the library a plausible wrong number for the life of the unit,
+        # with nothing to catch it. Same for the factory, which decides the kind.
+        for col, what in (('type', 'type'), ('_fac', 'factory')):
+            if r.get(col) != lib[i].get(col):
+                bad.append('%s: a site may tune a library row, not re-%s it '
+                           '(%s is %r here and %r in the library)'
+                           % (r['name'], what, what, r.get(col), lib[i].get(col)))
         r['reg'] = lib[i]['reg']
         lib[i] = r
+    if bad:
+        sys.exit('\n'.join(bad) + '\n%d redeclaration error(s)' % len(bad))
     return lib, rest
 
 
