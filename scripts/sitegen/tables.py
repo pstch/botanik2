@@ -27,7 +27,7 @@ except ImportError as e:
     sys.exit('the generator needs jinja2 (pip install jinja2): %s' % e)
 from sitegen.paths import lib
 from sitegen.reference import points
-from sitegen.model import (CODEGEN_ABI, H, KIND, as_int, build, capacities, check,
+from sitegen.model import (CODEGEN_ABI, H, KIND, as_int, build, check,
                            config_defaults, features,
                            emit_cals, emit_row, site_dir, site_guard)
 from sitegen.st import enums, plant, quality_block
@@ -90,7 +90,7 @@ def config(site, t):
     # skip the second.
     guard = site_guard(tom)
 
-    defs = config_defaults()
+    defs = config_defaults(tom)
     pool = 0
     for r in table:
         if r['_fac'] == 'PS': pool += as_int(r['cap'], defs)
@@ -111,6 +111,9 @@ def config(site, t):
            ('MODBUS_TCP_MAX_ROWS', mapped),
            ('MODBUS_BAUD', tom['fieldbus']['baud'])]
     if tom.get('build', {}).get('pin_sizes'): val.append(('PIN_SIZES', 1))
+    # Anything the site moves in its own [config]. Emitted with the rest, so it
+    # lands before every #ifndef default the library carries.
+    val += sorted(tom.get('config', {}).items())
 
     on  = [f for f, v in tom['features'].items() if v]
     # A flag the site turns OFF. Only the ones defaulting ON need saying, but
@@ -144,7 +147,7 @@ def library_files():
                  roster_w=max(len(f['name']) for f in feats) + 5,
                  first_rule=next(f['name'] for f in feats if f.get('requires')))
     print('  %-14s %d flags' % ('features.h', len(feats)))
-    caps = capacities()
+    caps = sorted(config_defaults().items())
     render.write(lib('src', 'libbotanik', 'config', 'capacities.gen.h'),
                  'capacities.gen.h.j2', caps=caps)
     print('  %-14s ABI %d' % ('codegen_abi.h', CODEGEN_ABI))

@@ -1,2 +1,0 @@
-name,value,desc
-BOTANIK_HOST_STR_LEN,64,char buffer for a network address (hostname or IPv4)

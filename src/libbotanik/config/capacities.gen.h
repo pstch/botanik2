@@ -4,17 +4,17 @@
 
 /**
  * @file capacities.gen.h
- * @brief Config sizes that `vars/tables/library.csv` also names.
+ * @brief The base values of everything a site may move, from
+ *        libbotanik.toml's [config].
  *
- * Generated so the generator never has to read a config header to learn one.
- * A library row states its capacity as one of these, so the string pool the
- * generator sizes and the buffer the library declares are one number. Every
- * one is `#ifndef`-guarded like any other config value, so a site may still
- * override it - and the pool is sized from the value stated HERE, so an
- * override that has to move the pool has to move this file.
+ * Generated, so the generator never has to read a config header to learn one.
+ * A library row states its capacity as one of these names, and the string pool
+ * is sized from the EFFECTIVE value - so a site that widens one in its own
+ * [config] widens the pool with it, and the buffer the library declares and
+ * the row's capacity stay one statement. Each is `#ifndef`-guarded like any
+ * other default, so the site's config.gen.h, read first, wins.
  */
 
-/** @brief char buffer for a network address (hostname or IPv4) */
 #ifndef BOTANIK_HOST_STR_LEN
 #  define BOTANIK_HOST_STR_LEN 64
 #endif

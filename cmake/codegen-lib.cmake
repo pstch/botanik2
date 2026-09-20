@@ -29,8 +29,7 @@ function(botanik_codegen_inputs out root site)
         list(APPEND _lib ${_more}
             "${root}/src/libbotanik/vars/tables/library.csv"
             "${root}/src/libbotanik/plc/functions/ieclib.txt"
-            "${root}/src/libbotanik_features.toml"
-            "${root}/src/libbotanik/config/capacities.csv"
+            "${root}/src/libbotanik.toml"
             "${root}/vendor/matiec/UPSTREAM")
         file(GLOB _site "${site}/site.toml" "${site}/tables/*.csv")
         file(GLOB_RECURSE _st "${site}/*.st")
@@ -44,12 +43,11 @@ function(botanik_codegen_inputs out root site)
             "${root}/templates/capacities.gen.h.j2"
             "${root}/templates/lib_enum.h.j2"
             "${root}/templates/features.h.j2"
-            "${root}/src/libbotanik_features.toml"
+            "${root}/src/libbotanik.toml"
             "${root}/src/libbotanik/vars/tables/library_enums.csv"
             "${root}/src/libbotanik/plc/functions/quality.st"
             "${root}/src/libbotanik/plc/functions/health.st"
-            "${root}/src/libbotanik/vars/tables/library.csv"
-            "${root}/src/libbotanik/config/capacities.csv")
+            "${root}/src/libbotanik/vars/tables/library.csv")
     endif()
 
     set(_pairs)

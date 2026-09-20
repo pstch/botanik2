@@ -319,8 +319,8 @@ Subsystems under `src/libbotanik/`; the header is the API.
 ### Optional features (`BOTANIK_FEATURE_*`)
 
 Optional subsystems are gated at compile time by the 23 `BOTANIK_FEATURE_*` flags
-in `src/libbotanik_features.h`, which is GENERATED from
-`src/libbotanik_features.toml` - one block per flag carrying its default, what it
+in `src/libbotanik_features.h`, which is GENERATED from the `[[features]]`
+blocks of `src/libbotanik.toml` - one per flag, carrying its default, what it
 requires and its prose, so adding a flag is that block plus a row in the
 integration docs, and nothing re-derives the roster by reading the header. Each
 flag defaults from an `#ifndef`-guarded macro, a
@@ -493,10 +493,16 @@ against the hand-written ST `TYPE` block (order is the wire contract, since
 matiec numbers in declaration order). `config/capacities.csv` carries the sizes a
 library row names as its capacity, so the string pool the generator lays out and
 the buffer the library declares are one statement. `CODEGEN_ABI` lives in
-`scripts/sitegen/model.py`, and `libbotanik_features.toml` carries the flag
-roster, the defaults (from which the always-on core is derived rather than
-restated) and the prerequisites the `#error` rules are emitted from. Nothing the
-generator reads is C or C++. Anything a generated file SAYS about a path is
+`scripts/sitegen/model.py`. Nothing the generator reads is C or C++.
+
+**`src/libbotanik.toml` is the library's own profile, the way `site.toml` is a
+site's.** Its `[[features]]` blocks carry the flag roster, the defaults (from
+which the always-on core is DERIVED rather than restated) and the prerequisites
+the `#error` rules are emitted from. Its `[config]` table is the base value of
+anything a site may move, and anything a library row names as its capacity has
+to be there: a site's own `[config]` overrides it, `config.gen.h` emits the
+override ahead of every default, and the string pool is sized from the
+EFFECTIVE value - so a site that widens a host buffer widens the pool with it. Anything a generated file SAYS about a path is
 written relative to the root, or the generating machine ends up in the diff. Every
 generated file has a template of its own in `templates/`, so the shape of the
 output is separate from the model that fills it. Regeneration needs `jinja2`;
@@ -544,7 +550,9 @@ and gh_mlb41's own `tests/`.
   spanning two concerns is asserted at the consumer that makes it exist.
 - **Config is site-overridable.** Every value defaults from an `#ifndef`-guarded
   `BOTANIK_<NAME>`; a site's generated `config.gen.h` may `#define` it, which
-  CMake includes PUBLIC so the override is build-wide. `VAR_MAX`,
+  CMake includes PUBLIC so the override is build-wide. The front door is the
+  site's `[config]` table, keyed by the name without the `BOTANIK_` prefix as
+  `[features]` is. `VAR_MAX`,
   `STR_POOL_BYTES` and the analog counts are COMPUTED from the table there, so
   a site never states its own size.
 - New site-level work goes in the site, not in `libbotanik` and not in a

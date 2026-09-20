@@ -1,10 +1,20 @@
-# The feature flags, as data. src/libbotanik_features.h is GENERATED from
-# this file, so nothing has to read a C++ header to learn which flags exist,
-# what they default to, or what they require.
+# The LIBRARY's own profile, the way site.toml is a site's.
 #
-# One block per flag, in the order the header lists them: `group` opens a
-# section and `group_note` is the prose under its banner. Adding a flag is a
-# block here and a row in docs/integration/config.md - nothing else.
+# [config] is the base value of anything a site may move, and anything a
+# library row names as its capacity has to be here: the generator sizes the
+# string pool from the EFFECTIVE value, so a site that widens one widens the
+# pool with it. config/capacities.gen.h is generated from this table.
+#
+# [[features]] is one block per flag - its default, what it requires, and the
+# prose that becomes its doc comment. src/libbotanik_features.h is GENERATED
+# from them, so nothing has to read a C++ header to learn which flags exist,
+# what they default to, or what they require. Adding a flag is a block here and
+# a row in docs/integration/config.md - nothing else.
+
+[config]
+# Char-buffer length for a network address. The net_/ntp_/mqtt_ rows name it as
+# their capacity, and network/{ntp,mqtt,resolver}.h declare buffers of it.
+HOST_STR_LEN = 64
 
 [[features]]
 name = "CONSOLE"
