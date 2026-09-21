@@ -8,8 +8,8 @@ logging ,LOG_QUEUE_SIZE > LOG_QUEUE_CRITICAL_RESERVE + 1                        
 logging ,LOG_QUEUE_LOGS > LOG_QUEUE_CRITICAL_RESERVE + 1                           ,LOG_QUEUE_LOGS is too shallow for LOG_QUEUE_CRITICAL_RESERVE
 logging ,LOG_QUEUE_SHELL > LOG_QUEUE_CRITICAL_RESERVE + 1                          ,LOG_QUEUE_SHELL is too shallow for LOG_QUEUE_CRITICAL_RESERVE
 logging ,LOG_QUEUE_HOME > LOG_QUEUE_CRITICAL_RESERVE + 1                           ,LOG_QUEUE_HOME is too shallow for LOG_QUEUE_CRITICAL_RESERVE
-notes   ,NOTES_MAX_ROWS * (EDITOR_MIN_COLS - EDITOR_PROMPT_MAX) >= NOTES_LEN       ,NOTES_MAX_ROWS too small to lay out NOTES_LEN at EDITOR_MIN_COLS
 terminal,TERMINAL_MAX_COLS >= SCREEN_MIN_COLS                                      ,TERMINAL_MAX_COLS cannot hold SCREEN_MIN_COLS
 terminal,TERMINAL_MAX_ROWS >= SCREEN_MIN_ROWS                                      ,TERMINAL_MAX_ROWS cannot hold SCREEN_MIN_ROWS
-terminal,SCROLLBACK_LINE_LEN >= TERMINAL_MAX_COLS                                  ,a scrollback line cannot hold a full-width display row
+notes   ,NOTES_MAX_ROWS * (EDITOR_MIN_COLS - EDITOR_PROMPT_MAX) >= NOTES_LEN       ,NOTES_MAX_ROWS too small to lay out NOTES_LEN at EDITOR_MIN_COLS
 terminal,EDITOR_MAX_ROWS * (EDITOR_MIN_COLS - EDITOR_PROMPT_MAX) >= SHELL_INPUT_LEN,EDITOR_MAX_ROWS too small to lay out SHELL_INPUT_LEN at EDITOR_MIN_COLS
+terminal,SCROLLBACK_LINE_LEN >= TERMINAL_MAX_COLS                                  ,a scrollback line cannot hold a full-width display row

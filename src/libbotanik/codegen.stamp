@@ -1,6 +1,6 @@
 # Input hash of this generated tree, written by the build.
 # The build regenerates when it stops matching. Commit it with the output.
-59a1ebed41aaad36ab84b59c26f5ace697b7b5850419846f1d48dc1ac6c88190
+8a956f1210f503058038928110285c37276f8e49ada58307ec30cb8e3418726f
 # ...and one per file it produced, so a hand edit is caught too.
 fea55c47bac0e156491f0720ac1ef2efaa4092fb59742aa9cec7810516c648c9  src/libbotanik/codegen_abi.h
 9de895b770dd75aafdfa86ecd2a248d54df336cd2837b59b66591780a12ea5e8  src/libbotanik/config/alarms.gen.h
@@ -8,14 +8,14 @@ fea55c47bac0e156491f0720ac1ef2efaa4092fb59742aa9cec7810516c648c9  src/libbotanik
 8e39e10e8570cdf2aeb4a20d95668b52ae2b39300f8f95787d1ab5f54b6c65e7  src/libbotanik/config/identity.gen.h
 7141b9ab6469eb7a2a8ccb2ce464bc8271cb444a9036cce31fbfabdf36cc7030  src/libbotanik/config/logging.gen.h
 a6c97d66dab70a32cda99c06d0ea2bdc03bb01ed72f00a179bc3d3eea7b34d43  src/libbotanik/config/modbus.gen.h
-0306c3b22714d2cedc5c0d4dc39b69558d2611cace09621e631b0adb320acdea  src/libbotanik/config/names.gen.cmake
+e347137fa8455b2bf9b075b1b33e3c5c86676b7e00bff2fdb6b0a39ae7f2acc1  src/libbotanik/config/names.gen.cmake
 d18cbbf534d4a1be1cd05187ee407d1afbe6583f0de0c53355c925ace35358cd  src/libbotanik/config/net.gen.h
 13cb2552981706bf4223889c6da8e424d120695ef4d638cce1683ab18845480e  src/libbotanik/config/notes.gen.h
-718e5bbbc428b2a5d4d03e82ae9fd96f2608b0fd4bbc5e595ae493f2dcc6bb36  src/libbotanik/config/scheduler.gen.h
+d82775e4319b23ef48b73e3cc219a4353e66a4a91b27816d61384c23cd3b64c3  src/libbotanik/config/scheduler.gen.h
 b664e6e48705f959647a7ad6627ef6e6e0506b5ced2cb9c13b1277f59e3f2443  src/libbotanik/config/serial.gen.h
 41307d6546c941ce7f5609cc446eb031df3218247143fb322904a333d81b6320  src/libbotanik/config/simulator.gen.h
 987a41d9900e4c864f51fc7d162cf71c8be68fa8fac906c60584a98c82732578  src/libbotanik/config/sun.gen.h
-c6e7614cf13495fe483ef286a8fa80f1922d6b714f3156dc8b27e18ac13000c1  src/libbotanik/config/terminal.gen.h
+a33dec0ca2c8b526eb007036df67f9cd6295bfc02513491b2e89f0863b489155  src/libbotanik/config/terminal.gen.h
 306a4b65f4500314031e26da4edf9e3fbcf1345d1047d66ab0f8ac4d480d942e  src/libbotanik/config/vars.gen.h
 39be3261c95bb8463401c7013f30c95680b598f012045862ceb9183d2ead71f5  src/libbotanik/core/health.h
 07de043e79b99826aec1068c89318d465282b0f5d6ddc41543b5845f7aa62109  src/libbotanik/plc/runtime/health.gen.h

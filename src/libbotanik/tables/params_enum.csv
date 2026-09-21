@@ -1,6 +1,6 @@
-name,def,label,reg,desc,notes,writable,retained,guard,lead
-monitor_log_level,Logs::LOG_DEBUG ,&Logs::level_label,905,lowest level the monitor port carries  ,open by default: this port exists to be the full record           ,true,,LOGS_MONITOR      ,
-mqtt_level       ,Logs::LOG_DEBUG ,&Logs::level_label,937,lowest level published to the broker   ,"every entry costs a publish, so this is the floor to raise first",true,,LOGS_PUBLISH      ,
-home_log_level   ,Logs::LOG_INFO  ,&Logs::level_label,964,lowest level HOME's log tail shows     ,a landing screen: only what is worth looking up for               ,true,,CONSOLE HOME_PAGE ,
-shell_log_level  ,Logs::LOG_NOTICE,&Logs::level_label,965,lowest level the SHELL page interleaves,`logs off` silences it entirely without moving this               ,true,,CONSOLE SHELL_PAGE,
-logs_log_level   ,Logs::LOG_DEBUG ,&Logs::level_label,966,lowest level the LOGS page keeps       ,this page is the record; raising it loses the record              ,true,,CONSOLE LOGS_PAGE ,
+name,def,label,reg,retained,desc,notes,guard,lead
+monitor_log_level,Logs::LOG_DEBUG ,&Logs::level_label,905,,lowest level the monitor port carries  ,open by default: this port exists to be the full record           ,LOGS_MONITOR      ,
+mqtt_level       ,Logs::LOG_DEBUG ,&Logs::level_label,937,,lowest level published to the broker   ,"every entry costs a publish, so this is the floor to raise first",LOGS_PUBLISH      ,
+home_log_level   ,Logs::LOG_INFO  ,&Logs::level_label,964,,lowest level HOME's log tail shows     ,a landing screen: only what is worth looking up for               ,CONSOLE HOME_PAGE ,
+shell_log_level  ,Logs::LOG_NOTICE,&Logs::level_label,965,,lowest level the SHELL page interleaves,`logs off` silences it entirely without moving this               ,CONSOLE SHELL_PAGE,
+logs_log_level   ,Logs::LOG_DEBUG ,&Logs::level_label,966,,lowest level the LOGS page keeps       ,this page is the record; raising it loses the record              ,CONSOLE LOGS_PAGE ,

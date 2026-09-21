@@ -209,11 +209,11 @@ namespace Botanik { namespace Config {
     static_assert(TERMINAL_MAX_ROWS >= SCREEN_MIN_ROWS,
                   "TERMINAL_MAX_ROWS cannot hold SCREEN_MIN_ROWS");
 
-    static_assert(SCROLLBACK_LINE_LEN >= TERMINAL_MAX_COLS,
-                  "a scrollback line cannot hold a full-width display row");
-
     static_assert(EDITOR_MAX_ROWS * (EDITOR_MIN_COLS - EDITOR_PROMPT_MAX) >= SHELL_INPUT_LEN,
                   "EDITOR_MAX_ROWS too small to lay out SHELL_INPUT_LEN at EDITOR_MIN_COLS");
+
+    static_assert(SCROLLBACK_LINE_LEN >= TERMINAL_MAX_COLS,
+                  "a scrollback line cannot hold a full-width display row");
 
 } }
 

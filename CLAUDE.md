@@ -443,9 +443,12 @@ enum and an ST one that are the same type - so a law compares a phase against
 way, in `src/libbotanik/tables/`: one file per kind with the SAME stems a site
 uses (`params.csv`, `alarms.csv`, `status.csv`, ...), every factory present
 even where the library declares none of it, so a reader looks for an alarm
-where alarms live. Two columns are the library's alone and come LAST, so a
-site's file is the same header stopping short: `guard`, the flags a row needs,
-and `lead`, a comment emitted above it. The emitted order is by CONCERN - the
+where alarms live. Every table ends with `desc` and `notes`, the prose a
+reader scans past; the factory's own argument order is its business, so
+`retained` stays last there where it can be defaulted away. Two columns are
+the library's alone and follow, so a site's file is the same header stopping
+short: `guard`, the flags a row needs, and `lead`, a comment emitted above the
+row. A parameter has no `writable` column: every parameter is writable. The emitted order is by CONCERN - the
 generator stable-sorts on `var_group()`, the name up to its first `_` - because
 the PARAMS and ALARMS pages walk the bank by index, and one file per kind on
 its own would put `net_ip` nowhere near `net_dhcp`.

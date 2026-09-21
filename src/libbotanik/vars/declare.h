@@ -48,7 +48,6 @@ namespace Botanik { namespace Vars {
      *  negatives.
      *  @{ */
 
-    constexpr uint8_t access_bits(bool writable) { return writable ? 0 : (uint8_t)F_RDONLY; }
     constexpr uint8_t retain_bits(bool retained) { return retained ? (uint8_t)F_RETAIN : 0; }
     constexpr uint8_t qlt_bits(bool has)         { return has ? (uint8_t)F_QLT : 0; }
     constexpr uint8_t swap_bits(bool swapped)    { return swapped ? (uint8_t)B_WORD_SWAP : 0; }
@@ -116,13 +115,13 @@ namespace Botanik { namespace Vars {
                            double lo, double hi, uint16_t lo_row, uint16_t hi_row,
                            uint8_t digits, const char* unit, uint16_t reg,
                            const char* desc, const char* notes,
-                           bool writable = true, bool retained = false) {
+                           bool retained = false) {
         return Descriptor{ num(type, def),
                            Payload(num(type, lo), num(type, hi), lo_row, hi_row),
                            name, unit, desc, notes,
                            { reg, 0, 0, 1, type, 0, 0 }, 0, 0,
                            K_PARAM, type, nullptr, digits,
-                           (uint8_t)(access_bits(writable) | retain_bits(retained)) };
+                           retain_bits(retained) };
     }
 
     /** @brief An enumerated **parameter**: a small code the operator reads and
@@ -139,11 +138,11 @@ namespace Botanik { namespace Vars {
     constexpr Descriptor PE(const char* name, uint64_t def,
                             const char* (*labels)(uint64_t), uint16_t reg,
                             const char* desc, const char* notes,
-                            bool writable = true, bool retained = false) {
+                            bool retained = false) {
         return Descriptor{ Scalar::U(def), Payload(), name, "", desc, notes,
                            { reg, 0, 0, 1, T_ENUM, 0, 0 }, 0, 0,
                            K_PARAM, T_ENUM, labels, 0,
-                           (uint8_t)(access_bits(writable) | retain_bits(retained)) };
+                           retain_bits(retained) };
     }
 
     /** @brief A text **parameter**: its own factory, since bounds mean nothing
@@ -155,12 +154,12 @@ namespace Botanik { namespace Vars {
     constexpr Descriptor PS(const char* name, const char* def, uint16_t cap,
                             StrKind kind, uint16_t reg,
                             const char* desc, const char* notes,
-                            bool writable = true, bool retained = false) {
+                            bool retained = false) {
         return Descriptor{ Scalar::S(def), Payload(cap, kind),
                            name, "", desc, notes,
                            { reg, 0, 0, 1, T_STR, 0, 0 }, 0, 0,
                            K_PARAM, T_STR, nullptr, 0,
-                           (uint8_t)(access_bits(writable) | retain_bits(retained)) };
+                           retain_bits(retained) };
     }
 
     /** @brief A **status value**: computed by a law and shown on the HMI, plus

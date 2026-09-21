@@ -85,8 +85,6 @@ notes    ,NOTES_MAX_ROWS                ,uint16_t   ,128                        
 scheduler,TASK_PERIOD_MS                ,uint32_t   ,10                          ,"Main task execution period, the rate everything divides down from"
 scheduler,MAX_TASKS                     ,uint8_t    ,64                          ,Capacity of the scheduler's task table
 scheduler,SCAN_LATE_MS                  ,uint32_t   ,(BOTANIK_TASK_PERIOD_MS * 2),"How far past its own period a control program may run before SCAN_LATE is raised, in ms"
-scheduler,STARTUP_HOLD_MS               ,uint32_t   ,5000                        ,"How long after boot the control programs are held, in ms"
-scheduler,SHUTDOWN_HOLD_MS              ,uint32_t   ,5000                        ,"How long the unit sits with its laws stopped before it takes its ending, in ms"
 scheduler,HW_WATCHDOG_MS                ,uint32_t   ,10000                       ,Hardware watchdog period; the unit resets if no beat kicks it
 scheduler,LOAD_METRIC_WINDOW_MS         ,uint32_t   ,5000                        ,Sliding window for the recent-peak CPU and stack metrics
 scheduler,LOAD_METRIC_BUCKETS           ,uint32_t   ,10                          ,Rotating buckets approximating the recent-peak window

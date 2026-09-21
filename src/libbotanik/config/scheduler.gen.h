@@ -33,18 +33,6 @@ namespace Botanik { namespace Config {
 #endif
     BOTANIK_CFG(uint32_t, SCAN_LATE_MS);
 
-    /** @brief How long after boot the control programs are held, in ms. */
-#ifndef BOTANIK_STARTUP_HOLD_MS
-#  define BOTANIK_STARTUP_HOLD_MS 5000
-#endif
-    BOTANIK_CFG(uint32_t, STARTUP_HOLD_MS);
-
-    /** @brief How long the unit sits with its laws stopped before it takes its ending, in ms. */
-#ifndef BOTANIK_SHUTDOWN_HOLD_MS
-#  define BOTANIK_SHUTDOWN_HOLD_MS 5000
-#endif
-    BOTANIK_CFG(uint32_t, SHUTDOWN_HOLD_MS);
-
     /** @brief Hardware watchdog period; the unit resets if no beat kicks it. */
 #ifndef BOTANIK_HW_WATCHDOG_MS
 #  define BOTANIK_HW_WATCHDOG_MS 10000

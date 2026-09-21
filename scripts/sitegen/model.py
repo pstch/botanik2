@@ -23,9 +23,9 @@ VAR_NONE = 'VAR_NONE'
 # factory -> (csv stem, the CSV's columns). The factory's own parameter list is
 # FAC_COLS below; `qlt` is generated, not declared.
 ROWS = {
-    'P':   ('params',      'name type def lo hi lo_row hi_row digits unit reg desc notes writable retained'),
-    'PE':  ('params_enum', 'name def label reg desc notes writable retained'),
-    'PS':  ('params_text', 'name def cap kind reg desc notes writable retained'),
+    'P':   ('params',      'name type def lo hi lo_row hi_row digits unit reg retained desc notes'),
+    'PE':  ('params_enum', 'name def label reg retained desc notes'),
+    'PS':  ('params_text', 'name def cap kind reg retained desc notes'),
     'A':   ('alarms',      'name code on_s off_s recent_s hold_s reg desc notes'),
     'SV':  ('status',      'name type def digits unit reg desc notes retained'),
     'SVE': ('status_enum', 'name def label reg desc notes'),
@@ -39,6 +39,8 @@ ROWS = {
     'PI':  ('pulse_in',    'name channel edge desc notes'),
 }
 
+PARAM_FACS_ORDER = ('P', 'PE', 'PS')
+
 # Columns a table declares for a READER: the variables page prints them and the
 # firmware never sees them, so they cost no flash on a row.
 DOC_COLS = {'obj'}
@@ -47,6 +49,11 @@ DOC_COLS = {'obj'}
 # generator supplies one, minus the documentation-only ones.
 FAC_COLS = dict((f, [c for c in cols.split() if c not in DOC_COLS])
                 for f, (_s, cols) in ROWS.items())
+# ...except where the TABLE's column order is not the factory's. A table ends
+# with the prose a reader scans past; a factory ends with the arguments it
+# defaults, so the tail can be popped off a row that agrees with them.
+for _f in PARAM_FACS_ORDER:
+    FAC_COLS[_f] = [c for c in FAC_COLS[_f] if c != 'retained'] + ['retained']
 for _f in ('SV', 'MI', 'AI', 'DI', 'PI'):
     FAC_COLS[_f].append('qlt')
 FAC_COLS['SVE'] += ['retained', 'qlt']
@@ -84,12 +91,12 @@ SYMBOL = {'edge': 'HAL::Pulse::', 'reg': 'HAL::Pin::',
 # Columns naming a ROW, resolved to a generated index.
 ROW_COLS = {'lo_row', 'hi_row'}
 # A column read as a boolean, and what an empty cell means.
-BOOLS = {'writable': 'true', 'retained': 'false', 'qlt': 'false',
+BOOLS = {'retained': 'false', 'qlt': 'false',
          'word_swap': 'false', 'invert': 'false', 'safe': 'false'}
 # ...plus `def`, which is a boolean on the two factories whose rows are bits.
 BOOL_DEF = ('DI',)
 # The tail a factory defaults, popped when the row agrees with it.
-TAIL = {'P': {'writable': 'true', 'retained': 'false'},
+TAIL = {'P': {'retained': 'false'},
         'SV': {'retained': 'false', 'qlt': 'false'},
         'SVE': {'retained': 'false', 'qlt': 'false'},
         # An INPUT always gets a companion, so `qlt` is the default there and

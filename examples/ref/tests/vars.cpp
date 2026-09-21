@@ -87,7 +87,7 @@ TEST_CASE("vars: retention is a flag on the factory, not a factory of its own") 
 
     const Vars::Descriptor pk =
         Vars::P("t_pk", Vars::T_U16, 1, 0, 10, Vars::VAR_NONE, Vars::VAR_NONE,
-                0, "", 900, "a retained param", "", true, true);
+                0, "", 900, "a retained param", "", true);
     CHECK(Vars::retained_param(pk));
     CHECK_FALSE(Vars::retained(pk));
 }

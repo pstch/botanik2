@@ -338,21 +338,21 @@ namespace Botanik {
             }
         }
 
-        /** @brief The two holds, from the rows that carry them, or from the
-         *  configured defaults those rows are declared with when a build has
-         *  no table. */
+        /** @brief The two holds, from the rows that carry them. A build with
+         *  no table has no law to hold back and nothing owed to flash, so both
+         *  are zero and the unit goes straight to RUN. */
         uint32_t _startup_hold_ms() const {
 #if defined(BOTANIK_SITE_ROWS)
             return _hold_ms(Vars::Row::sys_startup_sec);
 #else
-            return Config::STARTUP_HOLD_MS;
+            return 0;
 #endif
         }
         uint32_t _shutdown_hold_ms() const {
 #if defined(BOTANIK_SITE_ROWS)
             return _hold_ms(Vars::Row::sys_shutdown_sec);
 #else
-            return Config::SHUTDOWN_HOLD_MS;
+            return 0;
 #endif
         }
         /** @brief A hold row's seconds, in ms. */
