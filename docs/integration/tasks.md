@@ -4,6 +4,8 @@
 
 ## The phases of a beat
 
+TODO: add a diagram that describes the scan cycle
+
 ## Choosing a rate
 
-## What a late program does
+## What happens when a program runs late

@@ -27,3 +27,7 @@ The table is scrollable, it supports searching, by typing texty directly in the 
 While editing a value, `Enter` commits it and `Esc` abandons it. A committed
 edit is live at once and unsaved: it is lost on the next reboot unless
 `Ctrl+O` here, or `params save`, writes it to storage.
+
+## Library parameters
+
+TODO: fill in with parameters defined at the library level

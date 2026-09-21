@@ -1,14 +1,22 @@
 # Writing control programs {#int_st}
 
-<!-- source of truth: plc/functions/*.st, plc/blocks/*.st, tables/programs.csv -->
+## Programs
 
-## A program is one file
+### A program is one file
 
-## Declaring what it reads and writes
+### Declaring what it reads and writes
 
-## The function vocabulary
+### Opting into health
 
-## The block vocabulary
+### Opting into parking
+
+### Opting into quality
+
+## Standard library
+
+### Functions
+
+### Blocks
 
 <!-- One subsection per FUNCTION_BLOCK declared under plc/blocks/, in source-file
      order: timers, filters, analog, meter, pid, actuator. BAND_LATCH and DC_RAIL
@@ -54,9 +62,3 @@
 ### ACTUATOR
 
 ![](block_Actuator.drawio.svg)
-
-## Opting into health
-
-## Opting into parking
-
-## Opting into quality

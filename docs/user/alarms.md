@@ -49,7 +49,7 @@ Each alarm carries four times :
 ## Library alarms
 
 These come from the library and are present on every unit, whatever the site
-declares of its own. The site's are in @ref demo_alarms.
+declares of its own. Look in the site-level manual for the full alarm table.
 
 | code        | row                   | what it means                                                              |
 |-------------|-----------------------|----------------------------------------------------------------------------|
