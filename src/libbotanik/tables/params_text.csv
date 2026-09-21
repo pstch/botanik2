@@ -1,9 +1,9 @@
-name     ,def          ,cap                 ,kind        ,reg,retained,desc                 ,notes                                                                             ,guard  ,lead
-net_ip   ,192.168.1.10 ,BOTANIK_HOST_STR_LEN,STR_IPV4    ,912,        ,static IP address    ,                                                                                  ,NETWORK,
-net_mask ,255.255.255.0,BOTANIK_HOST_STR_LEN,STR_IPV4    ,913,        ,static IP netmask    ,                                                                                  ,NETWORK,
-net_gw   ,192.168.1.1  ,BOTANIK_HOST_STR_LEN,STR_IPV4    ,914,        ,static IP gateway    ,                                                                                  ,NETWORK,
-net_dns1 ,8.8.8.8      ,BOTANIK_HOST_STR_LEN,STR_IPV4    ,915,        ,static DNS resolver 1,                                                                                  ,NETWORK,
-net_dns2 ,4.4.4.4      ,BOTANIK_HOST_STR_LEN,STR_IPV4_OPT,916,        ,static DNS resolver 2,empty = use dns1 alone                                                            ,NETWORK,
-ntp_srv1 ,             ,BOTANIK_HOST_STR_LEN,STR_HOST    ,924,        ,NTP server 1         ,blank: falls back to net_gw. A default here would guess at somebody else's network,NTP    ,
-ntp_srv2 ,             ,BOTANIK_HOST_STR_LEN,STR_HOST_OPT,925,        ,NTP server 2         ,empty = no fallback                                                               ,NTP    ,
-mqtt_host,             ,BOTANIK_HOST_STR_LEN,STR_HOST    ,932,        ,MQTT broker host     ,blank: falls back to net_gw. A default here would guess at somebody else's network,MQTT   ,
+name     ,def          ,cap                 ,kind        ,reg,retained,guard  ,desc                 ,notes
+net_ip   ,192.168.1.10 ,BOTANIK_HOST_STR_LEN,STR_IPV4    ,912,        ,NETWORK,static IP address    ,
+net_mask ,255.255.255.0,BOTANIK_HOST_STR_LEN,STR_IPV4    ,913,        ,NETWORK,static IP netmask    ,
+net_gw   ,192.168.1.1  ,BOTANIK_HOST_STR_LEN,STR_IPV4    ,914,        ,NETWORK,static IP gateway    ,
+net_dns1 ,8.8.8.8      ,BOTANIK_HOST_STR_LEN,STR_IPV4    ,915,        ,NETWORK,static DNS resolver 1,
+net_dns2 ,4.4.4.4      ,BOTANIK_HOST_STR_LEN,STR_IPV4_OPT,916,        ,NETWORK,static DNS resolver 2,empty = use dns1 alone
+ntp_srv1 ,             ,BOTANIK_HOST_STR_LEN,STR_HOST    ,924,        ,NTP    ,NTP server 1         ,blank: falls back to net_gw. A default here would guess at somebody else's network
+ntp_srv2 ,             ,BOTANIK_HOST_STR_LEN,STR_HOST_OPT,925,        ,NTP    ,NTP server 2         ,empty = no fallback
+mqtt_host,             ,BOTANIK_HOST_STR_LEN,STR_HOST    ,932,        ,MQTT   ,MQTT broker host     ,blank: falls back to net_gw. A default here would guess at somebody else's network

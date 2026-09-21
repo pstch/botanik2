@@ -38,17 +38,7 @@ def generate(site, t):
     table = t['table']
     order = sorted(range(len(table)), key=lambda i: table[i]['name'].lower())
 
-    # The lead comment a row may carry is already formatted; the template only
-    # decides where it goes.
-    def lead_of(r):
-        out = []
-        for ln in (r.get('lead') or '').split('\n'):
-            if not ln: continue
-            out.append('    ' + ln if ln.startswith('/*') else
-                       '     ' + ln if ln.startswith('*') else ln)
-        return out
-
-    rows = [{'lead': lead_of(r), 'text': emit_row(r)} for r in table]
+    rows = [{'text': emit_row(r)} for r in table]
     chunks = [' '.join('%d,' % k for k in order[i:i + 12])
               for i in range(0, len(order), 12)]
     models = [{'symbol': m['symbol'], 'kind': m['kind'],

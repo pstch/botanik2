@@ -52,17 +52,18 @@ for _f in ('SV', 'MI', 'AI', 'DI', 'PI'):
 FAC_COLS['SVE'] += ['retained', 'qlt']
 FAC_COLS['Q']   = ['name', 'reg', 'desc']
 
-def table_cols(fac):
+def table_cols(fac, lib=False):
     """The CSV's columns for @p fac: the factory's arguments, with the prose
-    moved to the end.
+    moved to the end, and the library's own column before it.
 
-    A table ends with `desc` and `notes` - what a reader scans past - while a
-    factory ends with the arguments it DEFAULTS, so a row that agrees with them
-    emits nothing. The two orders are different jobs, so they are stated once
-    each rather than forced to agree."""
+    Every table ends with `desc` and `notes` - what a reader scans past -
+    while a factory ends with the arguments it DEFAULTS, so a row that agrees
+    with them emits nothing. The two orders are different jobs, so they are
+    stated once each rather than forced to agree."""
     cols = ROWS[fac][1].split()
     tail = [c for c in ('desc', 'notes') if c in cols]
-    return [c for c in cols if c not in tail] + tail
+    head = [c for c in cols if c not in tail]
+    return head + (LIB_ONLY if lib else []) + tail
 
 
 # The six Kinds, and which factories build each.
@@ -73,9 +74,9 @@ KIND = {'P': 'PARAM', 'PE': 'PARAM', 'PS': 'PARAM',
         'MO': 'OUTPUT', 'AO': 'OUTPUT', 'DO': 'OUTPUT', 'RO': 'OUTPUT',
         'Q': 'QUALITY'}
 
-# The two columns only the LIBRARY's tables carry, last so that a site's file
-# is the same header stopping short of them.
-LIB_ONLY = ['guard', 'lead']
+# The one column only the LIBRARY's tables carry: the flags a row needs. It
+# sits just before the prose, so every table in the tree ends the same way.
+LIB_ONLY = ['guard']
 
 # Emission order within each half: parameters first and contiguous, then
 # everything else, each companion directly after its row.
@@ -357,7 +358,7 @@ def lib_table():
     out = []
     for fac in PARAM_FACS + OTHER_FACS:
         stem, _cols = ROWS[fac]
-        for r in read_table(lib_csv(stem), table_cols(fac) + LIB_ONLY):
+        for r in read_table(lib_csv(stem), table_cols(fac, lib=True)):
             r['fac'] = fac
             out.append(r)
     # ...then back into CONCERN order. The PARAMS and ALARMS pages walk the

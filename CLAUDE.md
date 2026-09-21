@@ -447,10 +447,10 @@ where alarms live. EVERY table in `tables/`, a site's and the library's,
 ends with `desc` and `notes` - the prose a reader scans past - and lines its
 columns up, header included. The factory's argument order is a different job
 and is stated separately, so `retained` stays last THERE, where a row that
-agrees with it emits nothing. Two columns are
-the library's alone and follow, so a site's file is the same header stopping
-short: `guard`, the flags a row needs, and `lead`, a comment emitted above the
-row. A parameter has no `writable` column: every parameter is writable. The emitted order is by CONCERN - the
+agrees with it emits nothing. One column is the library's alone and sits just
+before the prose: `guard`, the flags a row needs. A parameter has no
+`writable` column, because every parameter is writable. The emitted order is
+by CONCERN - the
 generator stable-sorts on `var_group()`, the name up to its first `_` - because
 the PARAMS and ALARMS pages walk the bank by index, and one file per kind on
 its own would put `net_ip` nowhere near `net_dhcp`.

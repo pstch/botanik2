@@ -184,6 +184,34 @@ log records. Forcing a row also sets its `_qlt` companion to `Q_GOOD`, which is
 the correct semantic - a forced value IS known - and the one most
 implementations get wrong.
 
+## Three rows worth explaining {#vars_library_rows}
+
+Most of the library's own rows need no more than their `desc`. Three carry a
+decision that is not visible from the row.
+
+**`sys_now_ms` is the scan CLOCK, not an elapsed time.** An ST program takes no
+argument, so nothing can hand it a `dt`: a block reads this row and keeps its
+own last value. That is what makes a block rate-independent - the same one
+works on any task - and it is the SIMULATOR's virtual clock, so accelerated
+time works unchanged. It wraps at 2^32 ms, about 49 days; unsigned subtraction
+carries that, and no block goes a month between scans.
+
+It is gated on `PLC`, which is what reads it. It sat under the RS-485 client's
+guard once, where a build with programs and no field bus lost the clock and
+every ST timer resolved to the inert sink.
+
+**`sys_today` comes straight off the wall clock**, NOT through
+`cal_time_ms()`. That helper takes an UPTIME instant and projects it onto the
+wall, so handing it a wall time adds the boot epoch twice: the date came out
+around 2083 and gained a day every twelve hours. `0` means the RTC has never
+been set, which is a real answer and the one a schedule refuses to run
+against.
+
+**`sol_ready` and the `sol_` rows are the tracker's own outputs**, published by
+the tracker itself. A site gets the sun by turning the feature on rather than
+by writing a program to copy the instrument onto rows; the tracker's INPUTS,
+the `geo_` rows, are the library's already.
+
 ## What this model does not do {#vars_blind_spots}
 
 Stated here because an absent check reads like a forgotten one.

@@ -113,23 +113,7 @@ const Descriptor rows[] = {
     SV("sys_fieldbus_dead", T_U16, 0, 0, "", 902, "field devices not answering", "0 when every planned device is talking"),
     SV("sys_fieldbus_crc", T_U16, 0, 0, "", 903, "frames that failed their checksum", "rising means the line: termination, stub length, or the wrong baud"),
     SV("sys_fieldbus_stray", T_U16, 0, 0, "", 904, "bytes that arrived out of turn", "rising means a second master, a duplicate address, or a device answering after its turn had passed"),
-    /* The scan CLOCK, not an elapsed time. An ST program takes no argument,
-     * so nothing can hand it an elapsed time; a block reads this instead and
-     * keeps its own last value. That makes it rate-independent
-     * - the same block works on any task - and it is the simulator's VIRTUAL
-     * clock, so accelerated time works unchanged.
-     * Wraps at 2^32 ms, about 49 days: unsigned subtraction carries it, and
-     * no block goes that long between scans.
-     * Gated on PLC, which is what reads it. It sat under the RS-485 client's
-     * guard, where a build with programs and no field bus lost the clock and
-     * every ST timer resolved to the inert sink. */
     SV("sys_now_ms", T_U32, 0, 0, "ms", 906, "the scan clock, milliseconds since boot", "ST blocks difference it themselves; wraps at ~49 days and unsigned subtraction carries it"),
-    /* The DATE, for a law that counts in days rather than in milliseconds.
-     * Straight off the wall clock and NOT through cal_time_ms(), which takes
-     * an UPTIME instant and projects it onto the wall: handing it a wall time
-     * adds the boot epoch twice, and the date came out around 2083 and gained
-     * a day every twelve hours. 0 is "the RTC has never been set", which is
-     * a real answer and the one a schedule refuses to run against. */
     SV("sys_today", T_U32, 0, 0, "days", 907, "days since 1 Jan 1970, 0 before the clock is set", "the wall clock as a DATE; a schedule counts in these and cannot run on 0"),
     A("alarm_net_fault", "NET_FLT", 5, 5, 0, 0, 986, "the network link is down", "bring-up failed or the link was lost; check the cable, the switch and net_ip"),
     A("alarm_ntp_timeout", "NTP_TIM", 5, 5, 0, 0, 987, "no NTP sync", "the wall clock is free-running: anything dated, scheduled or solar is adrift"),
@@ -144,9 +128,6 @@ const Descriptor rows[] = {
     A("alarm_scan_late", "SCAN_LATE", 5, 30, 0, 0, 997, "a control program is missing its period", "check the TASKS page and the per-program cost; something is overrunning or the site asks for more than the beat holds"),
     A("alarm_fieldbus_line", "BUS_LINE", 0, 5, 0, 0, 998, "the whole segment has gone quiet", "the trunk, the termination, this unit's transceiver, or a second master - not twenty devices that failed at once"),
     A("alarm_io_drop", "IO_DROP", 0, -1, 30*24*3600, 0, 999, "a field row is never scanned", "the planner could not place it: the device model's limits, or more rows than the plan holds. It is a signal that will never be read"),
-    /* The tracker's own outputs. It publishes them itself, so a site gets the
-     * sun by turning the feature on rather than by writing a program to copy
-     * the instrument onto rows. Its INPUTS (geo_*) are the library's already. */
     SV("sol_ready", T_BOOL, 0, 0, "", 943, "the solar tracker has a location and a clock", "one row, not one per solar output: they all go together, and every boot passes through this until NTP lands"),
     SV("sol_fromRise_min", T_I16, 0, 0, "min", 944, "minutes since sunrise; negative before it", "what the sol_ phase offsets are measured against"),
     SV("sol_fromSet_min", T_I16, 0, 0, "min", 945, "minutes since sunset; negative before it", "held until the tracker has a location and a wall clock"),
