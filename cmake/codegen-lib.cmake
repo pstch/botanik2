@@ -30,9 +30,9 @@ function(botanik_codegen_inputs out root site)
         file(GLOB _more "${root}/templates/*.j2"
                         "${root}/src/libbotanik/plc/functions/*.st"
                         "${root}/src/libbotanik/plc/blocks/*.st")
-        list(APPEND _lib ${_more}
+        file(GLOB _libtab "${root}/src/libbotanik/tables/*.csv")
+        list(APPEND _lib ${_more} ${_libtab}
             "${root}/src/libbotanik/config/capacities.gen.h"
-            "${root}/src/libbotanik/tables/rows.csv"
             "${root}/src/libbotanik/plc/functions/ieclib.txt"
             "${root}/src/libbotanik.toml"
             "${root}/vendor/matiec/UPSTREAM")
@@ -50,12 +50,10 @@ function(botanik_codegen_inputs out root site)
             "${root}/templates/lib_enum.h.j2"
             "${root}/templates/features.h.j2"
             "${root}/src/libbotanik.toml"
-            "${root}/src/libbotanik/tables/enums.csv"
             "${root}/src/libbotanik/plc/functions/quality.st"
-            "${root}/src/libbotanik/plc/functions/health.st"
-            "${root}/src/libbotanik/tables/rows.csv")
-        list(APPEND _lib "${root}/src/libbotanik/tables/config.csv"
-                         "${root}/src/libbotanik/tables/checks.csv")
+            "${root}/src/libbotanik/plc/functions/health.st")
+        file(GLOB _libtab "${root}/src/libbotanik/tables/*.csv")
+        list(APPEND _lib ${_libtab})
     endif()
 
     set(_pairs)

@@ -65,12 +65,12 @@ One section per kind, in the order `Vars::Kind` declares them.
 | ntp_srv2 | T_STR | - | - | - | RW | 925 | NTP server 2 | empty = no fallback |
 | mqtt_serial | T_U32 | 1 | 0 .. 9999 | - | RW | 930 | bump to apply staged mqtt_ edits | - |
 | mqtt_enable | T_BOOL | 1 | 0 .. 1 | - | RW | 931 | enable MQTT | - |
-| mqtt_host | T_STR | - | - | - | RW | 932 | MQTT broker host | blank: falls back to net_gw. A default here would guess at somebody else's network |
 | mqtt_port | T_U16 | 1883 | 1 .. 65535 | - | RW | 933 | MQTT broker port | standard is 1883 |
 | mqtt_ka_sec | T_U16 | 20 | 10 .. 1800 | sec | RW | 934 | MQTT keep-alive interval | also the dead-broker detection |
 | mqtt_tlm_sec | T_U32 | 30 | 0 .. 86400 | sec | RW | 935 | telemetry publish cadence | 0 stops publishing telemetry |
 | mqtt_retain | T_BOOL | 1 | 0 .. 1 | - | RW | 936 | publish telemetry retained | on, the broker keeps serving a dead sensor's last good value |
 | mqtt_level | T_ENUM | Logs::LOG_DEBUG | - | - | RW | 937 | lowest level published to the broker | every entry costs a publish, so this is the floor to raise first |
+| mqtt_host | T_STR | - | - | - | RW | 932 | MQTT broker host | blank: falls back to net_gw. A default here would guess at somebody else's network |
 | geo_serial | T_U32 | 1 | 0 .. 9999 | - | RW | 940 | bump to apply staged geo_ edits | - |
 | geo_lat_deg | T_F32 | 0.0 | -90.0 .. 90.0 | deg | RW | 941 | geographical latitude, in degrees | per site location |
 | geo_lon_deg | T_F32 | 0.0 | -180.0 .. 180.0 | deg | RW | 942 | geographical longitude, in degrees | per site location |
@@ -83,9 +83,6 @@ One section per kind, in the order `Vars::Kind` declares them.
 | console_type | T_U8 | 1 | 0 .. 3 | - | RW | 961 | which terminal is on the console | 0=VT100 1=VT102 2=Minitel 1B 3=Minitel 2 |
 | console_cols | T_U16 | 80 | 80 .. 132 | col | RW | 962 | console width, in columns | the screen buffer bounds the maximum; a site needing another restates the row |
 | console_rows | T_U16 | 24 | 20 .. 32 | row | RW | 963 | console height, in rows | the screen buffer bounds the maximum; a site needing another restates the row |
-| home_log_level | T_ENUM | Logs::LOG_INFO | - | - | RW | 964 | lowest level HOME's log tail shows | a landing screen: only what is worth looking up for |
-| shell_log_level | T_ENUM | Logs::LOG_NOTICE | - | - | RW | 965 | lowest level the SHELL page interleaves | `logs off` silences it entirely without moving this |
-| logs_log_level | T_ENUM | Logs::LOG_DEBUG | - | - | RW | 966 | lowest level the LOGS page keeps | this page is the record; raising it loses the record |
 | sys_cpu_load_pct | T_U8 | 50 | 1 .. 100 | % | RW | 970 | CPU_LOAD alarm threshold | percent of the task period |
 | sys_jitter_pct | T_U8 | 50 | 1 .. 100 | % | RW | 971 | CPU_JITT alarm threshold | percent of the task period |
 | sys_stack_pct | T_U8 | 75 | 1 .. 100 | % | RW | 972 | STACK alarm threshold | percent of the stack in use |
@@ -100,6 +97,9 @@ One section per kind, in the order `Vars::Kind` declares them.
 | rtu_backoff_max_ms | T_U32 | 60000 | 1000 .. 600000 | ms | RW | 983 | longest a backed-off device waits between probes | what decides whether one dead device costs the whole bus |
 | rtu_write_min_ms | T_U32 | 200 | 20 .. 60000 | ms | RW | 984 | shortest interval between writes to one block | what stops a chattering demand monopolising the bus |
 | rtu_rewrite_ms | T_U32 | 5000 | 1000 .. 600000 | ms | RW | 985 | how often an output block is written anyway | MATCH the slave's own failsafe timer; it is watching for this |
+| home_log_level | T_ENUM | Logs::LOG_INFO | - | - | RW | 964 | lowest level HOME's log tail shows | a landing screen: only what is worth looking up for |
+| shell_log_level | T_ENUM | Logs::LOG_NOTICE | - | - | RW | 965 | lowest level the SHELL page interleaves | `logs off` silences it entirely without moving this |
+| logs_log_level | T_ENUM | Logs::LOG_DEBUG | - | - | RW | 966 | lowest level the LOGS page keeps | this page is the record; raising it loses the record |
 | air_targetMin_degC | T_F32 | 18.0 | 5.0 .. 40.0 | degC | RW | 100 | coolest the vent is asked to hold | the floor of the pair; never above the ceiling |
 | air_targetMax_degC | T_F32 | 26.0 | 5.0 .. 40.0 | degC | RW | 101 | warmest before the vent opens | the ceiling of the pair |
 | air_ventFullDem | T_F32 | 4.0 | 0.5 .. 20.0 | degC | RW | 102 | degrees over target at which the vent is wide | - |

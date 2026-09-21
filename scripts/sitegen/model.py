@@ -60,6 +60,10 @@ KIND = {'P': 'PARAM', 'PE': 'PARAM', 'PS': 'PARAM',
         'MO': 'OUTPUT', 'AO': 'OUTPUT', 'DO': 'OUTPUT', 'RO': 'OUTPUT',
         'Q': 'QUALITY'}
 
+# The two columns only the LIBRARY's tables carry, last so that a site's file
+# is the same header stopping short of them.
+LIB_ONLY = ['guard', 'lead']
+
 # Emission order within each half: parameters first and contiguous, then
 # everything else, each companion directly after its row.
 PARAM_FACS = ['P', 'PE', 'PS']
@@ -322,10 +326,29 @@ def lib_config_groups():
 
 
 def lib_table():
-    """tables/rows.csv, whose `fac` column says which factory each row is."""
-    with open(lib_csv('rows'), newline='') as fh:
-        return [dict((k, (v or '').strip()) for k, v in r.items())
-                for r in csv.DictReader(fh)]
+    """The library's own rows, one table per kind exactly as a site keeps them.
+
+    Every factory has a file, empty ones included, so the library's tables/ and
+    a site's are the same shape and a reader looks for an alarm where alarms
+    live. Two columns are the library's alone and come last, so a site's file
+    is these columns stopping short: `guard`, the flags a row needs, and
+    `lead`, a comment emitted above it."""
+    out = []
+    for fac in PARAM_FACS + OTHER_FACS:
+        stem, cols = ROWS[fac]
+        for r in read_table(lib_csv(stem), cols.split() + LIB_ONLY):
+            r['fac'] = fac
+            out.append(r)
+    # ...then back into CONCERN order. The PARAMS and ALARMS pages walk the
+    # bank by index, so the table's order is the operator's reading order, and
+    # one file per kind on its own would list every number, then every enum,
+    # then every string - `net_ip` nowhere near `net_dhcp`. The key is
+    # var_group(), the name up to its first '_', so there is no order column
+    # to keep in step with the names.
+    seen = {}
+    for r in out: seen.setdefault(r['name'].split('_', 1)[0], len(seen))
+    out.sort(key=lambda r: seen[r['name'].split('_', 1)[0]])
+    return out
 
 
 def _scalar(v):

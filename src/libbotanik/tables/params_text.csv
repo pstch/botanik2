@@ -1,0 +1,9 @@
+name,def,cap,kind,reg,desc,notes,writable,retained,guard,lead
+net_ip   ,192.168.1.10 ,BOTANIK_HOST_STR_LEN,STR_IPV4    ,912,static IP address    ,                                                                                  ,true,,NETWORK,
+net_mask ,255.255.255.0,BOTANIK_HOST_STR_LEN,STR_IPV4    ,913,static IP netmask    ,                                                                                  ,true,,NETWORK,
+net_gw   ,192.168.1.1  ,BOTANIK_HOST_STR_LEN,STR_IPV4    ,914,static IP gateway    ,                                                                                  ,true,,NETWORK,
+net_dns1 ,8.8.8.8      ,BOTANIK_HOST_STR_LEN,STR_IPV4    ,915,static DNS resolver 1,                                                                                  ,true,,NETWORK,
+net_dns2 ,4.4.4.4      ,BOTANIK_HOST_STR_LEN,STR_IPV4_OPT,916,static DNS resolver 2,empty = use dns1 alone                                                            ,true,,NETWORK,
+ntp_srv1 ,             ,BOTANIK_HOST_STR_LEN,STR_HOST    ,924,NTP server 1         ,blank: falls back to net_gw. A default here would guess at somebody else's network,true,,NTP    ,
+ntp_srv2 ,             ,BOTANIK_HOST_STR_LEN,STR_HOST_OPT,925,NTP server 2         ,empty = no fallback                                                               ,true,,NTP    ,
+mqtt_host,             ,BOTANIK_HOST_STR_LEN,STR_HOST    ,932,MQTT broker host     ,blank: falls back to net_gw. A default here would guess at somebody else's network,true,,MQTT   ,
