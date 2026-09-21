@@ -15,9 +15,6 @@ namespace Botanik { namespace Config {
     /** @name Net
      *  @{ */
 
-    /** @brief Char-buffer length for a network address; the rows name it as their capacity. */
-    BOTANIK_CFG(size_t, HOST_STR_LEN);
-
     /** @brief UDP sockets HAL::Network keeps; a hard ceiling on the OPTA. */
 #ifndef BOTANIK_NET_MAX_UDP
 #  define BOTANIK_NET_MAX_UDP 2

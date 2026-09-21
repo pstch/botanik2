@@ -1,9 +1,9 @@
 # The LIBRARY's own profile, the way site.toml is a site's.
 #
-# [config] is the base value of anything a site may move, and anything a
-# library row names as its capacity has to be here: the generator sizes the
-# string pool from the EFFECTIVE value, so a site that widens one widens the
-# pool with it. config/capacities.gen.h is generated from this table.
+# The config VALUES are tables/config.csv, not this file: anything a library
+# row names as its capacity is a row of the `capacities` group there, and the
+# generator sizes the string pool from the EFFECTIVE value, so a site that
+# widens one widens the pool with it.
 #
 # [[features]] is one block per flag - its default, what it requires, and the
 # prose that becomes its doc comment. src/libbotanik_features.h is GENERATED
@@ -15,11 +15,6 @@
 # thing in its site.toml, so the generator is told rather than knowing.
 [tables]
 dir = "libbotanik/tables"
-
-[config]
-# Char-buffer length for a network address. The net_/ntp_/mqtt_ rows name it as
-# their capacity, and network/{ntp,mqtt,resolver}.h declare buffers of it.
-HOST_STR_LEN = 64
 
 [[features]]
 name = "CONSOLE"

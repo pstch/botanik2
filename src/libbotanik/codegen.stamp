@@ -1,15 +1,15 @@
 # Input hash of this generated tree, written by the build.
 # The build regenerates when it stops matching. Commit it with the output.
-28aa972001a0a15fb282fee7cf8a5cdb808c49d4906ebef273f04256a156b055
+fb22191fa1ba95078ccfd93be4ef0c2c7b12615c5d1e8fc4846254c875b96361
 # ...and one per file it produced, so a hand edit is caught too.
 fea55c47bac0e156491f0720ac1ef2efaa4092fb59742aa9cec7810516c648c9  src/libbotanik/codegen_abi.h
 9de895b770dd75aafdfa86ecd2a248d54df336cd2837b59b66591780a12ea5e8  src/libbotanik/config/alarms.gen.h
-3fad96bc66b3dd4c4a175b69f568bea15be48d6696cd20e85256036a0d76e85a  src/libbotanik/config/capacities.gen.h
+9880c1dbafe62417ca1e506bc1578b881741642196b9fd1d25f348b0deaa371b  src/libbotanik/config/capacities.gen.h
 8e39e10e8570cdf2aeb4a20d95668b52ae2b39300f8f95787d1ab5f54b6c65e7  src/libbotanik/config/identity.gen.h
 7141b9ab6469eb7a2a8ccb2ce464bc8271cb444a9036cce31fbfabdf36cc7030  src/libbotanik/config/logging.gen.h
 a6c97d66dab70a32cda99c06d0ea2bdc03bb01ed72f00a179bc3d3eea7b34d43  src/libbotanik/config/modbus.gen.h
-e347137fa8455b2bf9b075b1b33e3c5c86676b7e00bff2fdb6b0a39ae7f2acc1  src/libbotanik/config/names.gen.cmake
-d18cbbf534d4a1be1cd05187ee407d1afbe6583f0de0c53355c925ace35358cd  src/libbotanik/config/net.gen.h
+d6b3dafc7ffa15523f798d2b290285af8e3a4b22dbdf8d72f6692224f81945c6  src/libbotanik/config/names.gen.cmake
+9a4b89fe791bb11553844d29dbceb66809a5825375a0c09afdd272eb4977d6f7  src/libbotanik/config/net.gen.h
 13cb2552981706bf4223889c6da8e424d120695ef4d638cce1683ab18845480e  src/libbotanik/config/notes.gen.h
 d82775e4319b23ef48b73e3cc219a4353e66a4a91b27816d61384c23cd3b64c3  src/libbotanik/config/scheduler.gen.h
 b664e6e48705f959647a7ad6627ef6e6e0506b5ced2cb9c13b1277f59e3f2443  src/libbotanik/config/serial.gen.h

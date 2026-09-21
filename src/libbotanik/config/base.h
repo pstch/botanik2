@@ -45,10 +45,14 @@
 
 #include "libbotanik_features.h"
 
-// The sizes a library row states its capacity as, generated from
-// config/capacities.csv so the generator never reads a config header to learn
-// one. After the site's config, like every other default: each is
-// `#ifndef`-guarded, so an override above still wins.
+// The sizes a library row states its capacity as. An ordinary config concern,
+// pulled HERE so the macro exists for every translation unit - a generated
+// table states a text row's capacity as one of these names, and nothing else
+// would have put it in scope. After the site's config, like every other
+// default: each is `#ifndef`-guarded, so an override above still wins.
+//
+// It includes this file in turn, which the guards make a no-op whichever of
+// the two a translation unit reaches first.
 #include "libbotanik/config/capacities.gen.h"
 
 #endif // LIBBOTANIK_CONFIG_BASE_H

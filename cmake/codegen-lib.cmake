@@ -44,7 +44,6 @@ function(botanik_codegen_inputs out root site)
         list(APPEND _lib
             "${root}/templates/lib_enum.gen.h.j2"
             "${root}/templates/codegen_abi.h.j2"
-            "${root}/templates/capacities.gen.h.j2"
             "${root}/templates/config_group.gen.h.j2"
             "${root}/templates/config_names.gen.cmake.j2"
             "${root}/templates/lib_enum.h.j2"

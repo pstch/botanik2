@@ -141,11 +141,7 @@ def library_files():
                  roster_w=max(len(f['name']) for f in feats) + 5,
                  first_rule=next(f['name'] for f in feats if f.get('requires')))
     print('  %-14s %d flags' % ('features.h', len(feats)))
-    caps = sorted(config_defaults().items())
-    render.write(lib('src', 'libbotanik', 'config', 'capacities.gen.h'),
-                 'capacities.gen.h.j2', caps=caps)
     print('  %-14s ABI %d' % ('codegen_abi.h', CODEGEN_ABI))
-    print('  %-14s %d value(s)' % ('capacities.gen.h', len(caps)))
     quality_block()
     n = 0
     for g in lib_config_groups():

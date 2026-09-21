@@ -517,17 +517,20 @@ stated in a data file and the C++ is generated from it, not parsed out of it.
 `libbotanik/tables/enums.csv` carries the members of `Vars::Quality` and `Plc::Health` and
 feeds three outputs: the C++ enum, the constants matiec is handed, and a check
 against the hand-written ST `TYPE` block (order is the wire contract, since
-matiec numbers in declaration order). `config/capacities.csv` carries the sizes a
-library row names as its capacity, so the string pool the generator lays out and
-the buffer the library declares are one statement. `CODEGEN_ABI` lives in
+matiec numbers in declaration order). The `capacities` group of
+`tables/config.csv` carries the sizes a library row names as its capacity, so
+the string pool the generator lays out and the buffer the library declares are
+one statement. `CODEGEN_ABI` lives in
 `scripts/sitegen/model.py`. Nothing the generator reads is C or C++.
 
 **`src/libbotanik.toml` is the library's own profile, the way `site.toml` is a
 site's.** Its `[[features]]` blocks carry the flag roster, the defaults (from
 which the always-on core is DERIVED rather than restated) and the prerequisites
-the `#error` rules are emitted from. Its `[config]` table is the base value of
-anything a site may move, and anything a library row names as its capacity has
-to be there: a site's own `[config]` overrides it, `config.gen.h` emits the
+the `#error` rules are emitted from, and its `[tables]` says where the tables
+are. It carries no VALUES: anything a library row names as its capacity is a
+row of the `capacities` group in `tables/config.csv`, whose generated header
+`config/base.h` pulls in so the macro is in scope for every translation unit.
+A site's own `tables/config.csv` overrides it, its `config.gen.h` emits the
 override ahead of every default, and the string pool is sized from the
 EFFECTIVE value - so a site that widens a host buffer widens the pool with it. Anything a generated file SAYS about a path is
 written relative to the root, or the generating machine ends up in the diff. Every

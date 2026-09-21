@@ -226,13 +226,18 @@ def site_config(site, tom):
 def config_defaults(site_cfg=None):
     """The config values a table cell may name, as ints.
 
-    The library's [config] is the base; a site's own tables/config.csv moves
-    any of them, and the EFFECTIVE value is what the string pool is sized from
-    - so a site that widens a host buffer widens the pool with it. Data on both
-    sides: the generator never reads a config header to learn one."""
-    out = dict(lib_toml().get('config', {}))
+    Every numeric row of tables/config.csv is the base; a site's own
+    tables/config.csv moves any of them, and the EFFECTIVE value is what the
+    string pool is sized from - so a site that widens a host buffer widens the
+    pool with it. Data on both sides: the generator never reads a config header
+    to learn one."""
+    out = {}
+    for g in lib_config_groups():
+        for r in g['params']:
+            d = r['default']
+            if d and _numeric(d): out[r['name']] = d
     out.update(site_cfg or {})
-    return {k: int(v) for k, v in out.items()}
+    return {k: int(v, 0) for k, v in out.items()}
 
 
 def as_int(v, defs):
