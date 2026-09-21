@@ -1,4 +1,4 @@
-label,var
-Air,air_temp_in
+label ,var
+Air   ,air_temp_in
 Target,vent_tgt
-Vent,vent_pos
+Vent  ,vent_pos

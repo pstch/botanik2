@@ -1,3 +1,3 @@
-name,cal,device,fc,reg,regs,wire,safe,digits,unit,desc,notes,word_swap
-vent_drive,&CAL_vent_drive,16,6,0,1,T_U16,0.0f,2,,vent actuator command,"safe is shut: an unattended vent closes",
-vent_drive2,&CAL_vent_drive,16,6,1,1,T_U16,0.0f,2,,second vent actuator command,shares the first one's calibration: same actuator type,
+name       ,cal            ,device,fc,reg,regs,wire ,safe,digits,unit,word_swap,obj,desc                        ,notes
+vent_drive ,&CAL_vent_drive,16    ,6 ,0  ,1   ,T_U16,0.0f,2     ,    ,         ,   ,vent actuator command       ,safe is shut: an unattended vent closes
+vent_drive2,&CAL_vent_drive,16    ,6 ,1  ,1   ,T_U16,0.0f,2     ,    ,         ,   ,second vent actuator command,shares the first one's calibration: same actuator type

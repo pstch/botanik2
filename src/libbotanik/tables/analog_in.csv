@@ -1,1 +1,1 @@
-name,cal,device,fc,reg,regs,wire,def,timeout_ms,digits,unit,desc,notes,poll_ms,word_swap,obj,guard,lead
+name,cal,device,fc,reg,regs,wire,def,timeout_ms,digits,unit,poll_ms,word_swap,obj,desc,notes,guard,lead

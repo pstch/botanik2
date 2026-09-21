@@ -1,3 +1,3 @@
-name               ,code     ,on_s,off_s,recent_s,hold_s,reg,desc                              ,notes
-air_tooHot         ,AIR_HOT  ,30  ,60   ,3600    ,0     ,600,air is over target with the vent wide,"the vent has nothing left to give"
-bus_dcLow          ,DC_LOW   ,5   ,30   ,3600    ,0     ,601,a DC rail is under its floor      ,"either rail; the pair is one supply"
+name      ,code   ,on_s,off_s,recent_s,hold_s,reg,desc                                 ,notes
+air_tooHot,AIR_HOT,30  ,60   ,3600    ,0     ,600,air is over target with the vent wide,the vent has nothing left to give
+bus_dcLow ,DC_LOW ,5   ,30   ,3600    ,0     ,601,a DC rail is under its floor         ,either rail; the pair is one supply

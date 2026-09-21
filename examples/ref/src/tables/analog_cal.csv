@@ -1,3 +1,3 @@
-cal,raw_min_row,raw_min,raw_max_row,raw_max,eng_min_row,eng_min,eng_max_row,eng_max,min_row,min,max_row,max
-CAL_vent_drive,vent_rawMin_mV,0.0f,vent_rawMax_mV,10000.0f,vent_engMin,0.0f,vent_engMax,1.0f,vent_min,0.0f,vent_max,1.0f
-CAL_bus_dc_V,bus_dc_rawMin_mV,0.0f,bus_dc_rawMax_mV,10000.0f,bus_dc_engMin_V,0.0f,bus_dc_engMax_V,30.0f,bus_dc_min,20.0f,bus_dc_max,30.0f
+cal           ,raw_min_row     ,raw_min,raw_max_row     ,raw_max ,eng_min_row    ,eng_min,eng_max_row    ,eng_max,min_row   ,min  ,max_row   ,max
+CAL_vent_drive,vent_rawMin_mV  ,0.0f   ,vent_rawMax_mV  ,10000.0f,vent_engMin    ,0.0f   ,vent_engMax    ,1.0f   ,vent_min  ,0.0f ,vent_max  ,1.0f
+CAL_bus_dc_V  ,bus_dc_rawMin_mV,0.0f   ,bus_dc_rawMax_mV,10000.0f,bus_dc_engMin_V,0.0f   ,bus_dc_engMax_V,30.0f  ,bus_dc_min,20.0f,bus_dc_max,30.0f

@@ -1,4 +1,4 @@
-group,name,type,default,desc
+group    ,name                          ,type       ,default                     ,desc
 alarms   ,ALARM_CPU_LOAD_PCT            ,uint8_t    ,50                          ,CPU_LOAD fires above this percent of the task period
 alarms   ,ALARM_CPU_JITTER_PCT          ,uint8_t    ,50                          ,CPU_JITT fires above this percent of the task period
 alarms   ,ALARM_STACK_PCT               ,uint8_t    ,75                          ,STACK fires above this percent of the stack used

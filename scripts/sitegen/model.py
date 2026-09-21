@@ -23,9 +23,9 @@ VAR_NONE = 'VAR_NONE'
 # factory -> (csv stem, the CSV's columns). The factory's own parameter list is
 # FAC_COLS below; `qlt` is generated, not declared.
 ROWS = {
-    'P':   ('params',      'name type def lo hi lo_row hi_row digits unit reg retained desc notes'),
-    'PE':  ('params_enum', 'name def label reg retained desc notes'),
-    'PS':  ('params_text', 'name def cap kind reg retained desc notes'),
+    'P':   ('params',      'name type def lo hi lo_row hi_row digits unit reg desc notes retained'),
+    'PE':  ('params_enum', 'name def label reg desc notes retained'),
+    'PS':  ('params_text', 'name def cap kind reg desc notes retained'),
     'A':   ('alarms',      'name code on_s off_s recent_s hold_s reg desc notes'),
     'SV':  ('status',      'name type def digits unit reg desc notes retained'),
     'SVE': ('status_enum', 'name def label reg desc notes'),
@@ -39,8 +39,6 @@ ROWS = {
     'PI':  ('pulse_in',    'name channel edge desc notes'),
 }
 
-PARAM_FACS_ORDER = ('P', 'PE', 'PS')
-
 # Columns a table declares for a READER: the variables page prints them and the
 # firmware never sees them, so they cost no flash on a row.
 DOC_COLS = {'obj'}
@@ -49,15 +47,23 @@ DOC_COLS = {'obj'}
 # generator supplies one, minus the documentation-only ones.
 FAC_COLS = dict((f, [c for c in cols.split() if c not in DOC_COLS])
                 for f, (_s, cols) in ROWS.items())
-# ...except where the TABLE's column order is not the factory's. A table ends
-# with the prose a reader scans past; a factory ends with the arguments it
-# defaults, so the tail can be popped off a row that agrees with them.
-for _f in PARAM_FACS_ORDER:
-    FAC_COLS[_f] = [c for c in FAC_COLS[_f] if c != 'retained'] + ['retained']
 for _f in ('SV', 'MI', 'AI', 'DI', 'PI'):
     FAC_COLS[_f].append('qlt')
 FAC_COLS['SVE'] += ['retained', 'qlt']
 FAC_COLS['Q']   = ['name', 'reg', 'desc']
+
+def table_cols(fac):
+    """The CSV's columns for @p fac: the factory's arguments, with the prose
+    moved to the end.
+
+    A table ends with `desc` and `notes` - what a reader scans past - while a
+    factory ends with the arguments it DEFAULTS, so a row that agrees with them
+    emits nothing. The two orders are different jobs, so they are stated once
+    each rather than forced to agree."""
+    cols = ROWS[fac][1].split()
+    tail = [c for c in ('desc', 'notes') if c in cols]
+    return [c for c in cols if c not in tail] + tail
+
 
 # The six Kinds, and which factories build each.
 KIND = {'P': 'PARAM', 'PE': 'PARAM', 'PS': 'PARAM',
@@ -116,7 +122,7 @@ AUX = {  # stem -> columns, for the tables that are not rows
     'modbus_models':  'symbol kind model_name regs words',
     'modbus_devices': 'addr model tag',
     'enums':          'enum ctype symbol value label desc',
-    'programs':       'name instance source rate desc quality park health',
+    'programs':       'name instance source rate quality park health desc',
     'home':           'label var',
     'system':         'label var',
 }
@@ -210,7 +216,7 @@ def site_config(site, tom):
     if not os.path.exists(path): return {}
     out = {}
     with open(path, newline='') as fh:
-        for r in csv.DictReader(fh):
+        for r in _dict_rows(fh):
             n = (r.get('name') or '').strip()
             if n: out[n] = (r.get('value') or '').strip()
     return out
@@ -240,6 +246,15 @@ def as_int(v, defs):
     if name in defs: return defs[name]
     sys.exit('%r is neither a number nor a value libbotanik.toml [config] '
              'or the site\'s own names' % v)
+
+
+def _dict_rows(fh):
+    """A CSV as dicts, keys and values stripped, so a table may align its
+    header the way it aligns its values."""
+    rd = csv.reader(fh)
+    head = [h.strip() for h in next(rd)]
+    return [dict(zip(head, [c.strip() for c in r])) for r in rd
+            if r and any(c.strip() for c in r)]
 
 
 def read_table(path, cols):
@@ -292,8 +307,7 @@ def lib_config_groups():
     `includes` is, worked out from the names rather than stated."""
     def rows(stem):
         with open(lib_csv(stem), newline='') as fh:
-            return [dict((k, (v or '').strip()) for k, v in r.items())
-                    for r in csv.DictReader(fh)]
+            return _dict_rows(fh)
     params, checks = rows('config'), rows('checks')
     bad = []
     for r in params:
@@ -342,8 +356,8 @@ def lib_table():
     `lead`, a comment emitted above it."""
     out = []
     for fac in PARAM_FACS + OTHER_FACS:
-        stem, cols = ROWS[fac]
-        for r in read_table(lib_csv(stem), cols.split() + LIB_ONLY):
+        stem, _cols = ROWS[fac]
+        for r in read_table(lib_csv(stem), table_cols(fac) + LIB_ONLY):
             r['fac'] = fac
             out.append(r)
     # ...then back into CONCERN order. The PARAMS and ALARMS pages walk the
@@ -527,9 +541,8 @@ def _merge(site, tom):
     lib = lib_rows(tom)
     own = []
     for fac in PARAM_FACS + OTHER_FACS:
-        stem, cols = ROWS[fac]
-        for r in read_table(site_csv(site, stem),
-                            cols.split()):
+        stem, _cols = ROWS[fac]
+        for r in read_table(site_csv(site, stem), table_cols(fac)):
             r['_fac'] = fac
             r['_lib'] = False
             own.append(r)

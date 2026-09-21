@@ -1,3 +1,3 @@
-name,cal,device,fc,reg,regs,wire,def,timeout_ms,digits,unit,desc,notes,poll_ms,word_swap
-bus_dc_V1,&CAL_bus_dc_V,11,4,0,1,T_U16,SF(0.0f),5000,1,V,DC supply 1 bus voltage,,,
-bus_dc_V2,&CAL_bus_dc_V,11,4,1,1,T_U16,SF(0.0f),5000,1,V,DC supply 2 bus voltage,the two share one calibration: same rail,,
+name     ,cal          ,device,fc,reg,regs,wire ,def     ,timeout_ms,digits,unit,poll_ms,word_swap,obj,desc                   ,notes
+bus_dc_V1,&CAL_bus_dc_V,11    ,4 ,0  ,1   ,T_U16,SF(0.0f),5000      ,1     ,V   ,       ,         ,   ,DC supply 1 bus voltage,
+bus_dc_V2,&CAL_bus_dc_V,11    ,4 ,1  ,1   ,T_U16,SF(0.0f),5000      ,1     ,V   ,       ,         ,   ,DC supply 2 bus voltage,the two share one calibration: same rail

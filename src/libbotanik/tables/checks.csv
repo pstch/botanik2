@@ -1,4 +1,4 @@
-group,expr,msg
+group   ,expr                                                                      ,msg
 logging ,LOG_FORMATTED_LEN >= LOG_MESSAGE_LEN + 64                                 ,LOG_FORMATTED_LEN cannot hold LOG_MESSAGE_LEN plus the line prefix
 logging ,LOG_QUEUE_SIZE <= 255                                                     ,LOG_QUEUE_SIZE exceeds the writer's uint8_t ring index
 logging ,LOG_QUEUE_LOGS <= 255                                                     ,LOG_QUEUE_LOGS exceeds the writer's uint8_t ring index

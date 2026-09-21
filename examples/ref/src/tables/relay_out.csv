@@ -1,2 +1,2 @@
-name               ,device,coil,safe ,invert,desc,notes
-vent_lock          ,16    ,0   ,true ,true  ,vent interlock relay,"wired normally-closed, so the row is inverted: safe is LOCKED"
+name     ,device,coil,safe,invert,desc                ,notes
+vent_lock,16    ,0   ,true,true  ,vent interlock relay,"wired normally-closed, so the row is inverted: safe is LOCKED"
